@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   BarChart, Bar, LineChart, Line, AreaChart, Area,
   PieChart, Pie, Cell,
@@ -117,9 +118,17 @@ export default function Analytics() {
   return (
     <div className="space-y-6 animate-slide-up max-w-7xl">
       {/* Header */}
-      <div>
-        <h2 className="text-2xl font-extrabold text-slate-800 font-headline">Analytics</h2>
-        <p className="text-sm text-slate-400 mt-0.5">Business performance overview</p>
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
+        <div>
+          <h2 className="text-2xl font-extrabold text-slate-800 font-headline">Analytics</h2>
+          <p className="text-sm text-slate-400 mt-0.5">Business performance overview</p>
+        </div>
+        <Link
+          to="/analytics/advanced"
+          className="text-sm font-semibold text-indigo-600 hover:text-indigo-800"
+        >
+          Advanced charts →
+        </Link>
       </div>
 
       {/* KPI Row */}

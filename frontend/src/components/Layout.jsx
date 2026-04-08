@@ -8,16 +8,31 @@ const PAGE_TITLES = {
   '/jobcards':                 { title: 'Job Cards',          icon: 'description' },
   '/jobcards/new':             { title: 'New Job Card',        icon: 'add_circle' },
   '/jobwork':                  { title: 'Jobwork Challans',    icon: 'engineering' },
+  '/jobwork/register':         { title: 'Inward / Outward',   icon: 'import_export' },
   '/jobwork/new':              { title: 'New Challan',         icon: 'add_circle' },
   '/quality/certificates':     { title: 'Test Certificates',  icon: 'verified' },
   '/quality/certificates/new': { title: 'New Certificate',    icon: 'add_circle' },
   '/invoices':                 { title: 'Tax Invoices',        icon: 'receipt_long' },
   '/invoices/new':             { title: 'New Invoice',         icon: 'add_circle' },
+  '/analytics':                { title: 'Analytics',           icon: 'analytics' },
+  '/analytics/advanced':       { title: 'Advanced analytics', icon: 'insights' },
+  '/dispatch':                 { title: 'Dispatch challans',   icon: 'local_shipping' },
+  '/dispatch/new':             { title: 'New dispatch',        icon: 'add_circle' },
+  '/purchase':                 { title: 'Purchase orders',     icon: 'shopping_cart' },
+  '/purchase/grn':             { title: 'Goods receipt (GRN)', icon: 'inbox' },
+  '/purchase/inventory':       { title: 'Inventory',           icon: 'warehouse' },
   '/admin/parties':            { title: 'Party Management',    icon: 'group' },
+  '/admin/items':              { title: 'Items',               icon: 'inventory' },
+  '/admin/machines':           { title: 'Machines',            icon: 'precision_manufacturing' },
+  '/admin/pricing':            { title: 'Pricing & rules',     icon: 'payments' },
   '/admin/processes':          { title: 'Process Pricing',     icon: 'price_change' },
   '/admin/price-card':         { title: 'Price Card',          icon: 'receipt' },
   '/admin/users':              { title: 'User Management',     icon: 'manage_accounts' },
+  '/admin/audit-logs':         { title: 'Audit logs',          icon: 'history' },
+  '/manufacturing/batches':    { title: 'Manufacturing batches', icon: 'precision_manufacturing' },
+  '/manufacturing/reports':    { title: 'Mfg reports',         icon: 'assessment' },
   '/manufacturing/planning':   { title: 'Daily Planning',      icon: 'event_note' },
+  '/manufacturing/planning/print': { title: 'Planning print', icon: 'print' },
   '/manufacturing/runsheet':   { title: 'VHT Run Sheet',       icon: 'thermostat' },
   '/manufacturing/runsheet/new': { title: 'New VHT Run Sheet', icon: 'add_circle' },
 };
@@ -35,6 +50,30 @@ export default function Layout() {
       }
       if (/^\/manufacturing\/runsheet\/\d+$/.test(location.pathname)) {
         return { title: 'VHT Run Sheet', icon: 'thermostat' };
+      }
+      if (/^\/jobcards\/\d+\/inspection$/.test(location.pathname)) {
+        return { title: 'Incoming inspection', icon: 'fact_check' };
+      }
+      if (/^\/jobcards\/\d+$/.test(location.pathname)) {
+        return { title: 'Job Card', icon: 'description' };
+      }
+      if (/^\/jobwork\/\d+$/.test(location.pathname)) {
+        return { title: 'Challan detail', icon: 'engineering' };
+      }
+      if (/^\/invoices\/\d+\/print$/.test(location.pathname)) {
+        return { title: 'Invoice print', icon: 'print' };
+      }
+      if (/^\/invoices\/\d+$/.test(location.pathname)) {
+        return { title: 'Invoice detail', icon: 'receipt_long' };
+      }
+      if (/^\/dispatch\/\d+$/.test(location.pathname)) {
+        return { title: 'Dispatch challan', icon: 'local_shipping' };
+      }
+      if (/^\/quality\/certificates\/\d+\/print$/.test(location.pathname)) {
+        return { title: 'Certificate print', icon: 'print' };
+      }
+      if (/^\/quality\/certificates\/\d+$/.test(location.pathname)) {
+        return { title: 'Certificate', icon: 'verified' };
       }
       return { title: 'Sheetal Dies ERP', icon: 'home' };
     })();

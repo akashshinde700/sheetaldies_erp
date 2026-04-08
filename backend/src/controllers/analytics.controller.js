@@ -124,6 +124,46 @@ exports.monthlyJobs = async (req, res) => {
   }
 };
 
+// ── Monthly invoice amounts by payment status (last 12 months) ──
+exports.monthlyInvoiceBreakdown = async (req, res) => {
+  try {
+    const now   = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+
+    const invoices = await prisma.taxInvoice.findMany({
+      where:  { invoiceDate: { gte: start } },
+      select: { invoiceDate: true, grandTotal: true, paymentStatus: true },
+    });
+
+    const map = {};
+    for (let i = 11; i >= 0; i--) {
+      const d   = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      map[key]  = {
+        month:   d.toLocaleString('en-IN', { month: 'short', year: '2-digit' }),
+        invoiced: 0,
+        paid:     0,
+        pending:  0,
+      };
+    }
+
+    for (const inv of invoices) {
+      const d   = new Date(inv.invoiceDate);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!map[key]) continue;
+      const amt = parseFloat(inv.grandTotal || 0);
+      map[key].invoiced += amt;
+      if (inv.paymentStatus === 'PAID') map[key].paid += amt;
+      else map[key].pending += amt;
+    }
+
+    res.json({ success: true, data: Object.values(map) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
 // ── Job Status Distribution ───────────────────────────────────
 exports.jobStatusDist = async (req, res) => {
   try {
