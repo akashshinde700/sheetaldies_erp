@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+.pnp.*
+
+# Build
+dist/
+build/
+*.tsbuildinfo
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Logs & debug
+logs/
+*.log
+npm-debug.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Prisma
+backend/prisma/migrations/**/migration_lock.toml
+
+# Uploads (local dev files)
+backend/uploads/
+!backend/uploads/.gitkeep
+
+# Python venv
+.venv/
+venv/
+
+# Cursor
+.cursor/
+
+# Windows accidental device file
+**/nul
+

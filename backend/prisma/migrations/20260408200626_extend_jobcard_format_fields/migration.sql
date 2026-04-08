@@ -1,0 +1,17 @@
+-- AlterTable
+ALTER TABLE `job_cards` ADD COLUMN `certificate_no` VARCHAR(50) NULL,
+    ADD COLUMN `collected_by_customer` BOOLEAN NOT NULL DEFAULT false,
+    ADD COLUMN `contact_email` VARCHAR(150) NULL,
+    ADD COLUMN `customer_address_snapshot` TEXT NULL,
+    ADD COLUMN `customer_name_snapshot` VARCHAR(200) NULL,
+    ADD COLUMN `dispatch_by_courier` BOOLEAN NOT NULL DEFAULT false,
+    ADD COLUMN `dispatch_by_our_vehicle` BOOLEAN NOT NULL DEFAULT false,
+    ADD COLUMN `document_no` VARCHAR(50) NULL,
+    ADD COLUMN `factory_address` TEXT NULL,
+    ADD COLUMN `factory_name` VARCHAR(200) NULL,
+    ADD COLUMN `hrc_range` VARCHAR(50) NULL,
+    ADD COLUMN `page_no` VARCHAR(20) NULL,
+    ADD COLUMN `precautions` TEXT NULL,
+    ADD COLUMN `revision_date` DATE NULL,
+    ADD COLUMN `revision_no` VARCHAR(20) NULL,
+    ADD COLUMN `special_requirements` TEXT NULL;
