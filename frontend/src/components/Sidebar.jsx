@@ -8,9 +8,11 @@ const NAV_MAIN = [
   { label: 'Certificates', icon: 'verified',     to: '/quality/certificates' },
   { label: 'Invoices',     icon: 'receipt_long', to: '/invoices' },
   { label: 'Analytics',    icon: 'analytics',    to: '/analytics' },
+  { label: 'Advanced analytics', icon: 'insights', to: '/analytics/advanced' },
 ];
 
 const NAV_OPERATIONS = [
+  { label: 'Pricing & rules', icon: 'payments', to: '/admin/pricing' },
   { label: 'Purchase Orders', icon: 'shopping_cart', to: '/purchase' },
   { label: 'Goods Receipt (GRN)', icon: 'inbox', to: '/purchase/grn' },
   { label: 'Inventory', icon: 'warehouse', to: '/purchase/inventory' },
