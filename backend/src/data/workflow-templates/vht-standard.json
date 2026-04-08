@@ -1,0 +1,42 @@
+{
+  "code": "VHT_STD",
+  "name": "Vacuum Heat Treatment Standard",
+  "description": "Standard flow with QC gates, optional aging, and rework loop.",
+  "industry": "Vacuum Heat Treatment",
+  "version": 1,
+  "isDefault": true,
+  "steps": [
+    { "stepCode": "INCOMING_JOB", "stepName": "Incoming Job", "sequenceNo": 1 },
+    { "stepCode": "MKT_SIGN", "stepName": "Information Sign from MKT", "sequenceNo": 2 },
+    { "stepCode": "INCOMING_INSPECTION", "stepName": "Incoming Inspection", "stepType": "INSPECTION", "requiresQc": true, "sequenceNo": 3 },
+    { "stepCode": "JOB_PLANNING", "stepName": "Job Planning", "sequenceNo": 4 },
+    { "stepCode": "JOB_CLEANING", "stepName": "Job Cleaning", "sequenceNo": 5 },
+    { "stepCode": "STRESS_RELIEVING", "stepName": "Stress Relieving", "requiresMachine": true, "sequenceNo": 6 },
+    { "stepCode": "LOADING_MASKING", "stepName": "Loading and Masking", "sequenceNo": 7 },
+    { "stepCode": "HEAT_TREATMENT", "stepName": "Heat Treatment Process", "requiresMachine": true, "sequenceNo": 8 },
+    { "stepCode": "MULTI_TEMPERING", "stepName": "Multi Tempering", "stepType": "LOOP", "isRepeatable": true, "requiresMachine": true, "sequenceNo": 9 },
+    { "stepCode": "AGING_OPTIONAL", "stepName": "Aging (Optional)", "isMandatory": false, "sequenceNo": 10 },
+    { "stepCode": "FINAL_INSPECTION", "stepName": "Final Inspection", "stepType": "INSPECTION", "requiresQc": true, "sequenceNo": 11 },
+    { "stepCode": "RP_OIL_STORAGE", "stepName": "Storage with RP Oil", "sequenceNo": 12 },
+    { "stepCode": "DISPATCH", "stepName": "Dispatch", "stepType": "DISPATCH", "sequenceNo": 13 },
+    { "stepCode": "REWORK_ANNEALING", "stepName": "Rework Annealing", "stepType": "LOOP", "isRepeatable": true, "requiresMachine": true, "sequenceNo": 14 }
+  ],
+  "transitions": [
+    { "fromStepCode": "INCOMING_JOB", "toStepCode": "MKT_SIGN" },
+    { "fromStepCode": "MKT_SIGN", "toStepCode": "INCOMING_INSPECTION" },
+    { "fromStepCode": "INCOMING_INSPECTION", "toStepCode": "JOB_PLANNING", "conditionType": "QC_PASS" },
+    { "fromStepCode": "INCOMING_INSPECTION", "toStepCode": "REWORK_ANNEALING", "conditionType": "QC_FAIL", "isReworkPath": true },
+    { "fromStepCode": "JOB_PLANNING", "toStepCode": "JOB_CLEANING" },
+    { "fromStepCode": "JOB_CLEANING", "toStepCode": "STRESS_RELIEVING" },
+    { "fromStepCode": "STRESS_RELIEVING", "toStepCode": "LOADING_MASKING" },
+    { "fromStepCode": "LOADING_MASKING", "toStepCode": "HEAT_TREATMENT" },
+    { "fromStepCode": "HEAT_TREATMENT", "toStepCode": "MULTI_TEMPERING" },
+    { "fromStepCode": "MULTI_TEMPERING", "toStepCode": "AGING_OPTIONAL" },
+    { "fromStepCode": "MULTI_TEMPERING", "toStepCode": "FINAL_INSPECTION", "conditionType": "FIELD_EQUALS", "conditionExpr": { "field": "needsAging", "value": false }, "priority": 1 },
+    { "fromStepCode": "AGING_OPTIONAL", "toStepCode": "FINAL_INSPECTION" },
+    { "fromStepCode": "FINAL_INSPECTION", "toStepCode": "RP_OIL_STORAGE", "conditionType": "QC_PASS" },
+    { "fromStepCode": "FINAL_INSPECTION", "toStepCode": "REWORK_ANNEALING", "conditionType": "QC_FAIL", "isReworkPath": true },
+    { "fromStepCode": "RP_OIL_STORAGE", "toStepCode": "DISPATCH" },
+    { "fromStepCode": "REWORK_ANNEALING", "toStepCode": "HEAT_TREATMENT" }
+  ]
+}

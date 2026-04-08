@@ -1,0 +1,184 @@
+import { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
+import api from '../../utils/api';
+
+const STATUS_STYLE = {
+  CREATED:          'bg-slate-100 text-slate-600',
+  IN_PROGRESS:      'bg-blue-100 text-blue-700',
+  SENT_FOR_JOBWORK: 'bg-amber-100 text-amber-700',
+  INSPECTION:       'bg-violet-100 text-violet-700',
+  COMPLETED:        'bg-emerald-100 text-emerald-700',
+  ON_HOLD:          'bg-rose-100 text-rose-700',
+};
+
+const PAGE_LIMIT = 20;
+
+const SkeletonRow = ({ cols = 7 }) => (
+  <tr className="animate-pulse">
+    {Array.from({ length: cols }).map((_, i) => (
+      <td key={i} className="px-4 py-3.5">
+        <div className={`h-3 bg-slate-100 rounded ${i === 0 ? 'w-24' : i === 1 ? 'w-36' : 'w-16'}`} />
+      </td>
+    ))}
+  </tr>
+);
+
+const Pagination = ({ page, totalPages, total, limit, setPage }) => (
+  <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/50">
+    <span className="text-xs text-slate-400">
+      {(page - 1) * limit + 1}–{Math.min(page * limit, total)} of <span className="font-semibold">{total}</span>
+    </span>
+    <div className="flex items-center gap-1.5">
+      <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+        className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600 transition-colors">
+        <span className="material-symbols-outlined text-sm">chevron_left</span> Prev
+      </button>
+      <span className="text-xs font-semibold text-slate-500 px-2">{page} / {totalPages}</span>
+      <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+        className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600 transition-colors">
+        Next <span className="material-symbols-outlined text-sm">chevron_right</span>
+      </button>
+    </div>
+  </div>
+);
+
+export default function JobCardList() {
+  const [cards,   setCards]   = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState(null);
+  const [search,  setSearch]  = useState('');
+  const [status,  setStatus]  = useState('');
+  const [page,    setPage]    = useState(1);
+  const [total,   setTotal]   = useState(0);
+
+  const fetchCards = useCallback(() => {
+    setLoading(true); setError(null);
+    api.get('/jobcards', { params: { search, status, page, limit: PAGE_LIMIT } })
+      .then(r => { setCards(r.data.data || []); setTotal(r.data.meta?.total || 0); })
+      .catch(() => setError('Failed to load job cards.'))
+      .finally(() => setLoading(false));
+  }, [search, status, page]);
+
+  useEffect(() => { setPage(1); }, [search, status]);
+  useEffect(() => { fetchCards(); }, [fetchCards]);
+
+  const totalPages = Math.ceil(total / PAGE_LIMIT);
+  const STATUS_OPTS = ['CREATED', 'IN_PROGRESS', 'SENT_FOR_JOBWORK', 'INSPECTION', 'COMPLETED', 'ON_HOLD'];
+
+  return (
+    <div className="space-y-5 animate-slide-up">
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-extrabold text-slate-800 font-headline">Job Cards</h2>
+          <p className="text-xs text-slate-400 mt-0.5">{total > 0 ? `${total} total records` : 'Production tracking'}</p>
+        </div>
+        <Link to="/jobcards/new" className="btn-primary">
+          <span className="material-symbols-outlined text-sm">add</span> New Job Card
+        </Link>
+      </div>
+
+      {/* Filters */}
+      <div className="flex gap-3 flex-wrap items-center">
+        <div className="relative">
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
+          <input
+            value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search part, job card no..."
+            className="form-input pl-9 w-full sm:w-64"
+          />
+        </div>
+        <select value={status} onChange={e => setStatus(e.target.value)}
+          className="form-input w-auto">
+          <option value="">All Status</option>
+          {STATUS_OPTS.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+        </select>
+        {(search || status) && (
+          <button onClick={() => { setSearch(''); setStatus(''); }}
+            className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-500 transition-colors font-medium">
+            <span className="material-symbols-outlined text-sm">close</span> Clear
+          </button>
+        )}
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div className="flex items-center gap-3 bg-rose-50 border border-rose-200 text-rose-700 text-sm px-4 py-3 rounded-xl">
+          <span className="material-symbols-outlined text-lg">error</span>
+          {error}
+          <button onClick={fetchCards} className="ml-auto text-xs font-bold hover:underline">Retry</button>
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-gradient-to-r from-slate-50 to-indigo-50/30 border-b border-slate-100">
+                {['Job Card No', 'Part No / Desc', 'Drawing No', 'Machine', 'Qty', 'Status', 'Action'].map(h => (
+                  <th key={h} className="th">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50/80">
+              {loading ? (
+                Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
+              ) : cards.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-5 py-16 text-center">
+                    <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center mx-auto mb-3">
+                      <span className="material-symbols-outlined text-2xl text-indigo-300">description</span>
+                    </div>
+                    <p className="text-sm text-slate-400 mb-2">
+                      {search || status ? 'No job cards match your filters.' : 'No job cards yet.'}
+                    </p>
+                    {!search && !status && (
+                      <Link to="/jobcards/new" className="inline-flex items-center gap-1 text-xs text-indigo-600 font-semibold hover:underline">
+                        <span className="material-symbols-outlined text-sm">add</span> Create first job card
+                      </Link>
+                    )}
+                  </td>
+                </tr>
+              ) : cards.map(card => (
+                <tr key={card.id} className="tr group">
+                  <td className="td">
+                    <Link to={`/jobcards/${card.id}`}
+                      className="text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:underline font-mono">
+                      {card.jobCardNo}
+                    </Link>
+                  </td>
+                  <td className="td">
+                    <p className="text-xs font-semibold text-slate-700">{card.part?.partNo}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[180px]">{card.part?.description}</p>
+                  </td>
+                  <td className="td text-slate-500 font-mono">{card.drawingNo || '—'}</td>
+                  <td className="td">{card.machine?.code || '—'}</td>
+                  <td className="td font-semibold text-slate-700">{card.quantity}</td>
+                  <td className="td">
+                    <span className={`badge ${STATUS_STYLE[card.status] || 'bg-slate-100 text-slate-600'}`}>
+                      {card.status.replace(/_/g, ' ')}
+                    </span>
+                  </td>
+                  <td className="td">
+                    <div className="flex gap-2">
+                      <Link to={`/jobcards/${card.id}`}
+                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">Edit</Link>
+                      <span className="text-slate-200">·</span>
+                      <Link to={`/jobcards/${card.id}/inspection`}
+                        className="text-xs font-semibold text-violet-600 hover:text-violet-700 hover:underline">Inspect</Link>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {!loading && totalPages > 1 && (
+          <Pagination page={page} totalPages={totalPages} total={total} limit={PAGE_LIMIT} setPage={setPage} />
+        )}
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,1380 @@
+// ============================================================
+// SHEETAL DIES & TOOLS - Prisma Schema
+// DB: MySQL | ORM: Prisma
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+enum Role {
+  ADMIN
+  MANAGER
+  OPERATOR
+  VIEWER
+}
+
+enum PartyType {
+  CUSTOMER
+  VENDOR
+  BOTH
+}
+
+enum JobCardStatus {
+  CREATED
+  IN_PROGRESS
+  SENT_FOR_JOBWORK
+  INSPECTION
+  COMPLETED
+  ON_HOLD
+}
+
+enum ChallanStatus {
+  DRAFT
+  SENT
+  RECEIVED
+  COMPLETED
+  CANCELLED
+}
+
+enum InspectionStatus {
+  PENDING
+  PASS
+  FAIL
+  CONDITIONAL
+}
+
+enum PaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+}
+
+enum CertStatus {
+  DRAFT
+  ISSUED
+  APPROVED
+}
+
+enum WorkflowInstanceStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum StepExecutionStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+  FAILED
+}
+
+enum StepType {
+  OPERATION
+  INSPECTION
+  DECISION
+  DISPATCH
+  LOOP
+}
+
+enum StepConditionType {
+  ALWAYS
+  MATERIAL_TYPE_IN
+  QC_PASS
+  QC_FAIL
+  FIELD_EQUALS
+}
+
+// ============================================================
+// 1. USERS
+// ============================================================
+model User {
+  id          Int       @id @default(autoincrement())
+  name        String    @db.VarChar(100)
+  email       String    @unique @db.VarChar(150)
+  password    String    @db.VarChar(255)
+  role        Role      @default(OPERATOR)
+  isActive    Boolean   @default(true)  @map("is_active")
+  otpToken    String?   @map("otp_token") @db.VarChar(10)
+  otpExpiry   DateTime? @map("otp_expiry")
+  lastLogin   DateTime? @map("last_login")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt      @map("updated_at")
+
+  // Relations
+  jobCards            JobCard[]
+  jobworkChallans     JobworkChallan[]
+  dispatchChallans    DispatchChallan[]
+  testCertificates    TestCertificate[]
+  taxInvoices         TaxInvoice[]
+  processTypeUpdates  ProcessType[]
+  auditLogs           AuditLog[]
+  purchaseOrdersCreated PurchaseOrder[] @relation("PurchaseOrderCreatedBy")
+  grnsCreated         GRN[] @relation("GRNCreatedBy")
+  manufacturingBatchesCreated ManufacturingBatch[] @relation("ManufacturingBatchCreatedBy")
+  vhtRunsheetsCreated VHTRunsheet[] @relation("VHTRunsheetCreatedBy")
+  productionPlansCreated ProductionPlan[] @relation("ProductionPlanCreatedBy")
+  plantLossMonthsCreated PlantLossMonth[]
+  dailyIdleLogsCreated DailyIdleLog[]
+  furnaceUtilDaysCreated FurnaceUtilizationDay[]
+  furnacePlanDaysCreated FurnacePlanDay[]
+  workflowTemplatesCreated WorkflowTemplate[] @relation("WorkflowTemplateCreatedBy")
+  workflowTemplatesUpdated WorkflowTemplate[] @relation("WorkflowTemplateUpdatedBy")
+  workflowInstancesStarted JobWorkflow[] @relation("JobWorkflowStartedBy")
+  workflowStepExecutions JobStepTracking[] @relation("JobStepExecutedBy")
+
+  @@map("users")
+}
+
+// ============================================================
+// 2. MASTERS
+// ============================================================
+model Party {
+  id          Int       @id @default(autoincrement())
+  name        String    @db.VarChar(200)
+  partyCode   String?   @unique @map("party_code") @db.VarChar(50)
+  address     String    @db.Text
+  city        String?   @db.VarChar(100)
+  state       String?   @db.VarChar(100)
+  pinCode     String?   @map("pin_code") @db.VarChar(10)
+  gstin       String?   @db.VarChar(20)
+  pan         String?   @db.VarChar(20)
+  stateCode   String?   @map("state_code") @db.VarChar(5)
+  phone       String?   @db.VarChar(20)
+  email       String?   @db.VarChar(150)
+  partyType   PartyType @map("party_type") @default(CUSTOMER)
+  isActive    Boolean   @default(true) @map("is_active")
+  // Bank Details
+  bankAccountHolder String? @map("bank_account_holder") @db.VarChar(200)
+  bankName          String? @map("bank_name")           @db.VarChar(200)
+  accountNo         String? @map("account_no")          @db.VarChar(50)
+  ifscCode          String? @map("ifsc_code")           @db.VarChar(20)
+  swiftCode         String? @map("swift_code")          @db.VarChar(20)
+  vatTin            String? @map("vat_tin")             @db.VarChar(30)
+  cstNo             String? @map("cst_no")              @db.VarChar(30)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt      @map("updated_at")
+
+  // Relations
+  challansFrom        JobworkChallan[]    @relation("ChallanFrom")
+  challansTo          JobworkChallan[]    @relation("ChallanTo")
+  dispatchFrom        DispatchChallan[]   @relation("DispatchFrom")
+  dispatchTo          DispatchChallan[]   @relation("DispatchTo")
+  certsCustomer       TestCertificate[]   @relation("CertCustomer")
+  certsIssuedBy       TestCertificate[]   @relation("CertIssuedBy")
+  invoicesFrom        TaxInvoice[]        @relation("InvoiceFrom")
+  invoicesTo          TaxInvoice[]        @relation("InvoiceTo")
+  jobCardsAsCustomer  JobCard[]           @relation("JobCardCustomer")
+  purchaseOrders      PurchaseOrder[]     @relation("PurchaseOrderVendor")
+
+  @@map("parties")
+}
+
+model Item {
+  id          Int      @id @default(autoincrement())
+  partNo      String   @unique @map("part_no") @db.VarChar(100)
+  description String   @db.VarChar(300)
+  hsnCode     String?  @map("hsn_code") @db.VarChar(20)
+  material    String?  @db.VarChar(100)
+  drawingNo   String?  @map("drawing_no") @db.VarChar(100)
+  unit        String   @default("NOS") @db.VarChar(20)
+  weightKg    Decimal? @map("weight_kg") @db.Decimal(10, 3)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt      @map("updated_at")
+
+  jobCards             JobCard[]
+  challanItems         ChallanItem[]
+  dispatchChallanItems DispatchChallanItem[]
+  purchaseOrderItems   PurchaseOrderItem[]
+  grnItems             GRNItem[]
+  vhtRunsheetItems     VHTRunsheetItem[]
+  inventory            Inventory?
+
+  @@map("items")
+}
+
+model Machine {
+  id       Int     @id @default(autoincrement())
+  code     String  @unique @db.VarChar(50)
+  name     String  @db.VarChar(150)
+  type     String? @db.VarChar(100)
+  make     String? @db.VarChar(100)
+  isActive Boolean @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  jobCards JobCard[]
+  vhtRunsheets VHTRunsheet[]
+  stepTrackings JobStepTracking[]
+  plantLossEntries PlantLossEntry[]
+  dailyIdleLogs DailyIdleLog[]
+  furnaceUtilDays FurnaceUtilizationDay[]
+  furnacePlanSlots FurnacePlanSlot[]
+
+  @@map("machines")
+}
+
+// Process Types with Admin-manageable prices
+model ProcessType {
+  id           Int      @id @default(autoincrement())
+  code         String   @unique @db.VarChar(50)
+  name         String   @db.VarChar(150)
+  description  String?  @db.Text
+  hsnSacCode   String?  @map("hsn_sac_code") @db.VarChar(20)
+  pricePerKg   Decimal? @map("price_per_kg") @db.Decimal(10, 2)
+  pricePerPc   Decimal? @map("price_per_pc") @db.Decimal(10, 2)
+  minCharge    Decimal? @map("min_charge")   @db.Decimal(10, 2)
+  gstRate      Decimal  @map("gst_rate")     @db.Decimal(5, 2) @default(18.00)
+  isActive     Boolean  @default(true)       @map("is_active")
+  updatedById  Int?     @map("updated_by")
+  updatedBy    User?    @relation(fields: [updatedById], references: [id])
+  createdAt    DateTime @default(now())  @map("created_at")
+  updatedAt    DateTime @updatedAt       @map("updated_at")
+
+  inspections       IncomingInspection[]
+  heatProcesses     HeatTreatmentProcess[]
+  invoiceItems      InvoiceItem[]
+  furnacePlanSlots  FurnacePlanSlot[]
+
+  @@map("process_types")
+}
+
+// ============================================================
+// 3. JOB CARDS
+// ============================================================
+model JobCard {
+  id           Int           @id @default(autoincrement())
+  jobCardNo    String        @unique @map("job_card_no") @db.VarChar(50)
+  dieNo        String?       @map("die_no")        @db.VarChar(50)
+  yourNo       String?       @map("your_no")       @db.VarChar(50)
+  heatNo       String?       @map("heat_no")       @db.VarChar(50)
+  dieMaterial  String?       @map("die_material")  @db.VarChar(100)
+  partId       Int           @map("part_id")
+  part         Item          @relation(fields: [partId], references: [id])
+  customerId   Int?          @map("customer_id")
+  customer     Party?        @relation("JobCardCustomer", fields: [customerId], references: [id])
+  operationNo  String?       @map("operation_no")  @db.VarChar(50)
+  drawingNo    String?       @map("drawing_no")    @db.VarChar(100)
+  machineId    Int?          @map("machine_id")
+  machine      Machine?      @relation(fields: [machineId], references: [id])
+  operatorName String?       @map("operator_name") @db.VarChar(100)
+  quantity     Int
+  totalWeight  Decimal?      @map("total_weight")  @db.Decimal(10, 3)
+  timeTaken    Decimal?      @map("time_taken")    @db.Decimal(8, 2)
+  startDate    DateTime?     @map("start_date")    @db.Date
+  receivedDate DateTime?     @map("received_date") @db.Date
+  dueDate      DateTime?     @map("due_date")      @db.Date
+  endDate      DateTime?     @map("end_date")      @db.Date
+  issueDate    DateTime?     @map("issue_date")    @db.Date
+  issueBy      String?       @map("issue_by")      @db.VarChar(100)
+  certificateNo String?      @map("certificate_no") @db.VarChar(50)
+  customerNameSnapshot String? @map("customer_name_snapshot") @db.VarChar(200)
+  customerAddressSnapshot String? @map("customer_address_snapshot") @db.Text
+  factoryName  String?       @map("factory_name")  @db.VarChar(200)
+  factoryAddress String?     @map("factory_address") @db.Text
+  contactEmail String?       @map("contact_email") @db.VarChar(150)
+  dispatchByOurVehicle Boolean @default(false) @map("dispatch_by_our_vehicle")
+  dispatchByCourier Boolean   @default(false) @map("dispatch_by_courier")
+  collectedByCustomer Boolean @default(false) @map("collected_by_customer")
+  hrcRange     String?       @map("hrc_range") @db.VarChar(50)
+  specialRequirements String? @map("special_requirements") @db.Text
+  precautions  String?       @db.Text
+  documentNo   String?       @map("document_no") @db.VarChar(50)
+  revisionNo   String?       @map("revision_no") @db.VarChar(20)
+  revisionDate DateTime?     @map("revision_date") @db.Date
+  pageNo       String?       @map("page_no") @db.VarChar(20)
+  operationMode String?      @map("operation_mode") @db.VarChar(30)
+  specInstrCert Boolean       @default(false)      @map("spec_instr_cert")
+  specInstrMPIRep Boolean    @default(false)      @map("spec_instr_mpi_rep")
+  specInstrGraph Boolean      @default(false)      @map("spec_instr_graph")
+  status       JobCardStatus @default(CREATED)
+  remarks      String?       @db.Text
+  
+  // 5 images for part photos
+  image1       String?       @db.VarChar(255)
+  image2       String?       @db.VarChar(255)
+  image3       String?       @db.VarChar(255)
+  image4       String?       @db.VarChar(255)
+  image5       String?       @db.VarChar(255)
+  
+  createdById  Int           @map("created_by")
+  createdBy    User          @relation(fields: [createdById], references: [id])
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt      @map("updated_at")
+
+  inspection       IncomingInspection?
+  challans         JobworkChallan[]
+  testCertificates TestCertificate[]
+  manufacturingBatches ManufacturingBatchJobCard[]
+  workflow         JobWorkflow?
+  furnacePlanSlots FurnacePlanSlot[]
+  vhtRunsheetItems VHTRunsheetItem[]
+
+  @@map("job_cards")
+}
+
+// ============================================================
+// 4A. CONFIGURABLE WORKFLOW ENGINE
+// ============================================================
+model WorkflowTemplate {
+  id               Int      @id @default(autoincrement())
+  code             String   @unique @db.VarChar(50)
+  name             String   @db.VarChar(150)
+  description      String?  @db.Text
+  industry         String?  @db.VarChar(100)
+  version          Int      @default(1)
+  isActive         Boolean  @default(true) @map("is_active")
+  isDefault        Boolean  @default(false) @map("is_default")
+  createdById      Int?     @map("created_by")
+  updatedById      Int?     @map("updated_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  createdBy        User?    @relation("WorkflowTemplateCreatedBy", fields: [createdById], references: [id])
+  updatedBy        User?    @relation("WorkflowTemplateUpdatedBy", fields: [updatedById], references: [id])
+  steps            WorkflowStep[]
+  transitions      WorkflowTransition[]
+  jobWorkflows     JobWorkflow[]
+
+  @@index([isActive])
+  @@index([code, version])
+  @@map("workflow_templates")
+}
+
+model WorkflowStep {
+  id               Int      @id @default(autoincrement())
+  templateId       Int      @map("template_id")
+  stepCode         String   @map("step_code") @db.VarChar(60)
+  stepName         String   @map("step_name") @db.VarChar(150)
+  stepType         StepType @default(OPERATION) @map("step_type")
+  sequenceNo       Int      @map("sequence_no")
+  isMandatory      Boolean  @default(true) @map("is_mandatory")
+  isRepeatable     Boolean  @default(false) @map("is_repeatable")
+  requiresMachine  Boolean  @default(false) @map("requires_machine")
+  requiresQc       Boolean  @default(false) @map("requires_qc")
+  requiresFile     Boolean  @default(false) @map("requires_file")
+  allowParallel    Boolean  @default(false) @map("allow_parallel")
+  slaMinutes       Int?     @map("sla_minutes")
+  configJson       Json?    @map("config_json")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  template         WorkflowTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  outgoingTransitions WorkflowTransition[] @relation("TransitionFromStep")
+  incomingTransitions WorkflowTransition[] @relation("TransitionToStep")
+  jobStepTrackings  JobStepTracking[]
+  currentInWorkflows JobWorkflow[] @relation("CurrentWorkflowStep")
+
+  @@unique([templateId, stepCode])
+  @@unique([templateId, sequenceNo])
+  @@index([templateId, sequenceNo])
+  @@map("workflow_steps")
+}
+
+model WorkflowTransition {
+  id               Int      @id @default(autoincrement())
+  templateId       Int      @map("template_id")
+  fromStepId       Int      @map("from_step_id")
+  toStepId         Int      @map("to_step_id")
+  conditionType    StepConditionType @default(ALWAYS) @map("condition_type")
+  conditionExpr    Json?    @map("condition_expr")
+  priority         Int      @default(1)
+  isReworkPath     Boolean  @default(false) @map("is_rework_path")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  template         WorkflowTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  fromStep         WorkflowStep @relation("TransitionFromStep", fields: [fromStepId], references: [id], onDelete: Cascade)
+  toStep           WorkflowStep @relation("TransitionToStep", fields: [toStepId], references: [id], onDelete: Cascade)
+
+  @@index([templateId, fromStepId, priority])
+  @@map("workflow_transitions")
+}
+
+model JobWorkflow {
+  id               Int      @id @default(autoincrement())
+  jobCardId        Int      @unique @map("job_card_id")
+  templateId       Int      @map("template_id")
+  status           WorkflowInstanceStatus @default(NOT_STARTED)
+  currentStepId    Int?     @map("current_step_id")
+  startedAt        DateTime? @map("started_at")
+  completedAt      DateTime? @map("completed_at")
+  startedById      Int?     @map("started_by")
+  remarks          String?  @db.Text
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  jobCard          JobCard  @relation(fields: [jobCardId], references: [id], onDelete: Cascade)
+  template         WorkflowTemplate @relation(fields: [templateId], references: [id])
+  currentStep      WorkflowStep? @relation("CurrentWorkflowStep", fields: [currentStepId], references: [id])
+  startedBy        User?    @relation("JobWorkflowStartedBy", fields: [startedById], references: [id])
+  stepsTracking    JobStepTracking[]
+
+  @@index([status, currentStepId])
+  @@index([templateId])
+  @@map("job_workflows")
+}
+
+model JobStepTracking {
+  id               Int      @id @default(autoincrement())
+  jobWorkflowId    Int      @map("job_workflow_id")
+  workflowStepId   Int      @map("workflow_step_id")
+  runNo            Int      @default(1) @map("run_no")
+  status           StepExecutionStatus @default(PENDING)
+  startedAt        DateTime? @map("started_at")
+  endedAt          DateTime? @map("ended_at")
+  durationSec      Int?     @map("duration_sec")
+  operatorName     String?  @map("operator_name") @db.VarChar(100)
+  machineId        Int?     @map("machine_id")
+  qcResult         InspectionStatus? @map("qc_result")
+  observations     String?  @db.Text
+  remarks          String?  @db.Text
+  attachments      Json?    // [{fileName, fileUrl, mimeType}]
+  inputData        Json?    @map("input_data")
+  outputData       Json?    @map("output_data")
+  executedById     Int?     @map("executed_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  jobWorkflow      JobWorkflow @relation(fields: [jobWorkflowId], references: [id], onDelete: Cascade)
+  workflowStep     WorkflowStep @relation(fields: [workflowStepId], references: [id])
+  machine          Machine?  @relation(fields: [machineId], references: [id])
+  executedBy       User?     @relation("JobStepExecutedBy", fields: [executedById], references: [id])
+
+  @@unique([jobWorkflowId, workflowStepId, runNo])
+  @@index([jobWorkflowId, status])
+  @@index([workflowStepId, status])
+  @@index([machineId])
+  @@map("job_step_tracking")
+}
+
+// ============================================================
+// 4. INCOMING INSPECTION (Image 3.1)
+// ============================================================
+model IncomingInspection {
+  id                  Int              @id @default(autoincrement())
+  jobCardId           Int              @unique @map("job_card_id")
+  jobCard             JobCard          @relation(fields: [jobCardId], references: [id], onDelete: Cascade)
+
+  // Final Inspection Categorization (exact from quality test.jpeg)
+  catNormal            Boolean          @default(false) @map("cat_normal")
+  catWelded            Boolean          @default(false) @map("cat_welded")
+  catCrackRisk         Boolean          @default(false) @map("cat_crack_risk")
+  catDistortionRisk    Boolean          @default(false) @map("cat_distortion_risk")
+  catCriticalFinishing Boolean          @default(false) @map("cat_critical_finishing")
+  catDentDamage        Boolean          @default(false) @map("cat_dent_damage")
+  catRusty             Boolean          @default(false) @map("cat_rusty")
+  catCavity            Boolean          @default(false) @map("cat_cavity")
+  catOthers            Boolean          @default(false) @map("cat_others")
+  otherDefects         String?          @map("other_defects") @db.VarChar(300)
+
+  // Process Type
+  processTypeId       Int?             @map("process_type_id")
+  processType         ProcessType?     @relation(fields: [processTypeId], references: [id])
+
+  // Sub-process checkboxes (exact 8 from process.jpeg)
+  procStressRelieving Boolean          @default(false) @map("proc_stress_relieving")
+  procHardening       Boolean          @default(false) @map("proc_hardening")
+  procTempering       Boolean          @default(false) @map("proc_tempering")
+  procAnnealing       Boolean          @default(false) @map("proc_annealing")
+  procBrazing         Boolean          @default(false) @map("proc_brazing")
+  procPlasmaNitriding Boolean          @default(false) @map("proc_plasma_nitriding")
+  procNitriding       Boolean          @default(false) @map("proc_nitriding")
+  procSubZero         Boolean          @default(false) @map("proc_sub_zero")
+  procSoakClean       Boolean          @default(false) @map("proc_soak_clean")
+  procSlowCool        Boolean          @default(false) @map("proc_slow_cool")
+
+  // Visual Inspection (Before/After)
+  visualBefore        Boolean          @default(false) @map("visual_before")
+  visualAfter         Boolean          @default(false) @map("visual_after")
+
+  // MPI Inspection (Before/After/NIL)
+  mpiBefore           Boolean          @default(false) @map("mpi_before")
+  mpiAfter            Boolean          @default(false) @map("mpi_after")
+  mpiNil              Boolean          @default(false) @map("mpi_nil")
+
+  // Hardness
+  requiredHardnessMin Decimal?         @map("required_hardness_min") @db.Decimal(6, 2)
+  requiredHardnessMax Decimal?         @map("required_hardness_max") @db.Decimal(6, 2)
+  hardnessUnit        String           @default("HRC") @map("hardness_unit") @db.VarChar(10)
+  achievedHardness    Decimal?         @map("achieved_hardness") @db.Decimal(6, 2)
+  hardnessAfter1      Decimal?         @map("hardness_after_1") @db.Decimal(6, 2)
+  hardnessAfter2      Decimal?         @map("hardness_after_2") @db.Decimal(6, 2)
+  hardnessAfter3      Decimal?         @map("hardness_after_3") @db.Decimal(6, 2)
+  hardnessAfter4      Decimal?         @map("hardness_after_4") @db.Decimal(6, 2)
+
+  // Distortion (JSON array of {pt, val} objects)
+  distortionBefore    Json?            @map("distortion_points_before")
+  distortionAfter     Json?            @map("distortion_points_after")
+
+  // 5 Images
+  image1              String?          @db.VarChar(255)
+  image2              String?          @db.VarChar(255)
+  image3              String?          @db.VarChar(255)
+  image4              String?          @db.VarChar(255)
+  image5              String?          @db.VarChar(255)
+
+  urgent                 Boolean          @default(false)
+  packedQty              Int?             @map("packed_qty")
+  packedBy               String?          @map("packed_by")               @db.VarChar(100)
+  incomingInspectionBy   String?          @map("incoming_inspection_by")  @db.VarChar(100)
+  finalInspectionBy      String?          @map("final_inspection_by")     @db.VarChar(100)
+  inspectedBy            String?          @map("inspected_by")            @db.VarChar(100)
+  inspectionDate         DateTime?        @map("inspection_date") @db.Date
+  remarks                String?          @db.Text
+  inspectionStatus       InspectionStatus @default(PENDING) @map("inspection_status")
+
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt      @map("updated_at")
+
+  heatProcesses       HeatTreatmentProcess[]
+
+  @@map("incoming_inspections")
+}
+
+model HeatTreatmentProcess {
+  id              Int                @id @default(autoincrement())
+  inspectionId    Int                @map("inspection_id")
+  inspection      IncomingInspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  processTypeId   Int?               @map("process_type_id")
+  processType     ProcessType?       @relation(fields: [processTypeId], references: [id])
+  equipment       String?            @db.VarChar(100)
+  cycleNo         Int?               @map("cycle_no")
+  tempTime        String?            @map("temp_time") @db.VarChar(100)
+  tempFrom        Decimal?           @map("temp_from") @db.Decimal(8, 2)
+  tempTo          Decimal?           @map("temp_to")   @db.Decimal(8, 2)
+  holdTimeMin     Int?               @map("hold_time_min")
+  startTime       DateTime?          @map("start_time")
+  endTime         DateTime?          @map("end_time")
+  processDate     DateTime?          @map("process_date") @db.Date
+  loadingBy       String?            @map("loading_by") @db.VarChar(100)
+  atmosphere      String?            @db.VarChar(100)
+  uom             String?            @db.VarChar(20)
+  result          String?            @db.VarChar(100)
+  signedBy        String?            @map("signed_by") @db.VarChar(100)
+  createdAt       DateTime           @default(now())   @map("created_at")
+
+  @@map("heat_treatment_processes")
+}
+
+// ============================================================
+// 4B. PLANT LOSSES (Monthly furnace efficiency report)
+// ============================================================
+model PlantLossMonth {
+  id        Int      @id @default(autoincrement())
+  year      Int
+  month     Int      // 1-12
+  notes     String?  @db.Text
+  createdById Int    @map("created_by")
+  createdBy  User    @relation(fields: [createdById], references: [id])
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  entries   PlantLossEntry[]
+
+  @@unique([year, month])
+  @@map("plant_loss_months")
+}
+
+model PlantLossEntry {
+  id              Int            @id @default(autoincrement())
+  monthId         Int            @map("month_id")
+  month           PlantLossMonth @relation(fields: [monthId], references: [id], onDelete: Cascade)
+
+  machineId       Int?           @map("machine_id")
+  machine         Machine?       @relation(fields: [machineId], references: [id])
+  furnaceName     String?        @map("furnace_name") @db.VarChar(120) // if machine not selected
+
+  availableHours  Decimal        @default(624) @map("available_hours") @db.Decimal(10, 2)
+  usedHours       Decimal        @default(0)   @map("used_hours")      @db.Decimal(10, 2)
+
+  loadingUnloadingMin Decimal?   @map("loading_unloading_min") @db.Decimal(10, 2)
+  waitingCyclePrepHrs  Decimal?  @map("waiting_cycle_prep_hrs") @db.Decimal(10, 2)
+  waitingMaterialHrs   Decimal?  @map("waiting_material_hrs") @db.Decimal(10, 2)
+  cleaningFurnaceHrs   Decimal?  @map("cleaning_furnace_hrs") @db.Decimal(10, 2)
+  breakdownMaintHrs    Decimal?  @map("breakdown_maint_hrs") @db.Decimal(10, 2)
+  noPowerHrs           Decimal?  @map("no_power_hrs") @db.Decimal(10, 2)
+  noMaterialHrs        Decimal?  @map("no_material_hrs") @db.Decimal(10, 2)
+
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  @@unique([monthId, machineId])
+  @@index([monthId])
+  @@index([machineId])
+  @@map("plant_loss_entries")
+}
+
+// ============================================================
+// 4C. DAILY IDLE TIME LOG (raw data → monthly plant losses)
+// ============================================================
+model DailyIdleLog {
+  id        Int      @id @default(autoincrement())
+  machineId Int      @map("machine_id")
+  machine   Machine  @relation(fields: [machineId], references: [id])
+  logDate   DateTime @map("log_date") @db.Date
+
+  // All values stored in MINUTES (same as daily sheet)
+  loadingUnloadingMin Int @default(0) @map("loading_unloading_min")
+  waitingCyclePrepMin Int @default(0) @map("waiting_cycle_prep_min")
+  waitingMaterialMin  Int @default(0) @map("waiting_material_min")
+  preventiveMaintMin  Int @default(0) @map("preventive_maint_min")
+  breakdownMaintMin   Int @default(0) @map("breakdown_maint_min")
+  noPowerMin          Int @default(0) @map("no_power_min")
+  noMaterialMin       Int @default(0) @map("no_material_min")
+
+  remarks   String?  @db.VarChar(300)
+  createdById Int    @map("created_by")
+  createdBy  User    @relation(fields: [createdById], references: [id])
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([machineId, logDate])
+  @@index([logDate])
+  @@map("daily_idle_logs")
+}
+
+// ============================================================
+// 4D. FURNACE UTILISATION (Shift-wise statement)
+// ============================================================
+model FurnaceUtilizationDay {
+  id         Int      @id @default(autoincrement())
+  machineId  Int      @map("machine_id")
+  machine    Machine  @relation(fields: [machineId], references: [id])
+  utilDate   DateTime @map("util_date") @db.Date
+
+  // Per shift (minutes). 480 minutes per shift is standard.
+  shift1UsedMin Int @default(0) @map("shift1_used_min")
+  shift2UsedMin Int @default(0) @map("shift2_used_min")
+  shift3UsedMin Int @default(0) @map("shift3_used_min")
+
+  // Reason codes A–g (minutes) per shift (same legend as paper)
+  // A Loading/Unloading, B Cycle Preparation, C Waiting for Material,
+  // D Preventive Maintenance, E Breakdown Maintenance, F No Power, g No Material
+  s1A Int @default(0) @map("s1_a")
+  s1B Int @default(0) @map("s1_b")
+  s1C Int @default(0) @map("s1_c")
+  s1D Int @default(0) @map("s1_d")
+  s1E Int @default(0) @map("s1_e")
+  s1F Int @default(0) @map("s1_f")
+  s1G Int @default(0) @map("s1_g")
+
+  s2A Int @default(0) @map("s2_a")
+  s2B Int @default(0) @map("s2_b")
+  s2C Int @default(0) @map("s2_c")
+  s2D Int @default(0) @map("s2_d")
+  s2E Int @default(0) @map("s2_e")
+  s2F Int @default(0) @map("s2_f")
+  s2G Int @default(0) @map("s2_g")
+
+  s3A Int @default(0) @map("s3_a")
+  s3B Int @default(0) @map("s3_b")
+  s3C Int @default(0) @map("s3_c")
+  s3D Int @default(0) @map("s3_d")
+  s3E Int @default(0) @map("s3_e")
+  s3F Int @default(0) @map("s3_f")
+  s3G Int @default(0) @map("s3_g")
+
+  remarks    String?  @db.VarChar(300)
+  signedBy   String?  @map("signed_by") @db.VarChar(100)
+  createdById Int     @map("created_by")
+  createdBy  User     @relation(fields: [createdById], references: [id])
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([machineId, utilDate])
+  @@index([utilDate])
+  @@map("furnace_utilization_days")
+}
+
+// ============================================================
+// 4E. DAILY PRODUCTION PLANNING (VPT-01 / VPT-02 style)
+// ============================================================
+model FurnacePlanDay {
+  id          Int      @id @default(autoincrement())
+  planDate    DateTime @map("plan_date") @db.Date
+  notes       String?  @db.Text
+  createdById Int      @map("created_by")
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  slots       FurnacePlanSlot[]
+
+  @@unique([planDate])
+  @@map("furnace_plan_days")
+}
+
+model FurnacePlanSlot {
+  id          Int            @id @default(autoincrement())
+  planDayId   Int            @map("plan_day_id")
+  planDay     FurnacePlanDay @relation(fields: [planDayId], references: [id], onDelete: Cascade)
+
+  machineId   Int            @map("machine_id")
+  machine     Machine        @relation(fields: [machineId], references: [id])
+
+  jobCardId   Int?           @map("job_card_id")
+  jobCard     JobCard?       @relation(fields: [jobCardId], references: [id])
+
+  processTypeId Int?         @map("process_type_id")
+  processType   ProcessType? @relation(fields: [processTypeId], references: [id])
+  stage         FurnacePlanStage @default(HARDENING)
+
+  // Slot timing (same day; can cross midnight via endNextDay flag)
+  startTime   DateTime       @map("start_time")
+  endTime     DateTime       @map("end_time")
+  endNextDay  Boolean        @default(false) @map("end_next_day")
+
+  // Cycle params (as text for flexibility; matches paper)
+  tempC       Int?           @map("temp_c")
+  holdMin     Int?           @map("hold_min")
+  pressureBar Decimal?       @map("pressure_bar") @db.Decimal(6, 2)
+  fanRpm      Int?           @map("fan_rpm")
+  holdAtC     Int?           @map("hold_at_c")
+  holdExtraMin Int?          @map("hold_extra_min")
+
+  title       String?        @db.VarChar(200) // free text line title
+  remarks     String?        @db.Text
+
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  @@index([planDayId, machineId])
+  @@index([jobCardId])
+  @@map("furnace_plan_slots")
+}
+
+// ============================================================
+// 5. JOBWORK CHALLAN (Image 1)
+// ============================================================
+model JobworkChallan {
+  id               Int           @id @default(autoincrement())
+  challanNo        String        @unique @map("challan_no") @db.VarChar(50)
+  challanDate      DateTime      @map("challan_date")      @db.Date
+  jobCardId        Int?          @map("job_card_id")
+  jobCard          JobCard?      @relation(fields: [jobCardId], references: [id])
+
+  fromPartyId      Int           @map("from_party_id")
+  fromParty        Party         @relation("ChallanFrom", fields: [fromPartyId], references: [id])
+  toPartyId        Int           @map("to_party_id")
+  toParty          Party         @relation("ChallanTo",   fields: [toPartyId],   references: [id])
+
+  invoiceChNo      String?       @map("invoice_ch_no")   @db.VarChar(50)
+  invoiceChDate    DateTime?     @map("invoice_ch_date") @db.Date
+  transportMode    String?       @map("transport_mode")  @db.VarChar(100)
+  vehicleNo        String?       @map("vehicle_no")      @db.VarChar(30)
+  dispatchDate     DateTime?     @map("dispatch_date")   @db.Date
+  dueDate          DateTime?     @map("due_date")        @db.Date
+  processingNotes  String?       @map("processing_notes") @db.Text
+
+  deliveryPerson   String?       @map("delivery_person") @db.VarChar(100)
+
+  // Part 2 - Processor fills
+  receivedDate     DateTime?     @map("received_date")   @db.Date
+  natureOfProcess  String?       @map("nature_of_process") @db.VarChar(200)
+  qtyReturned      Int?          @map("qty_returned")
+  reworkQty        Int?          @map("rework_qty")
+  scrapQtyKg       Decimal?      @map("scrap_qty_kg")    @db.Decimal(8, 3)
+  scrapDetails     String?       @map("scrap_details")   @db.Text
+  processorSign    String?       @map("processor_sign")  @db.VarChar(100)
+
+  subtotal         Decimal       @default(0)             @db.Decimal(12, 2)
+  handlingCharges  Decimal       @default(0)             @map("handling_charges") @db.Decimal(10, 2)
+  totalValue       Decimal       @default(0)             @map("total_value")      @db.Decimal(12, 2)
+  cgstRate         Decimal?      @map("cgst_rate")        @db.Decimal(5, 2)
+  cgstAmount       Decimal?      @map("cgst_amount")      @db.Decimal(12, 2)
+  sgstRate         Decimal?      @map("sgst_rate")        @db.Decimal(5, 2)
+  sgstAmount       Decimal?      @map("sgst_amount")      @db.Decimal(12, 2)
+  igstRate         Decimal?      @map("igst_rate")        @db.Decimal(5, 2)
+  igstAmount       Decimal?      @map("igst_amount")      @db.Decimal(12, 2)
+  grandTotal       Decimal?      @map("grand_total")      @db.Decimal(12, 2)
+  status           ChallanStatus @default(DRAFT)
+
+  createdById      Int           @map("created_by")
+  createdBy        User          @relation(fields: [createdById], references: [id])
+  createdAt        DateTime      @default(now())         @map("created_at")
+  updatedAt        DateTime      @updatedAt              @map("updated_at")
+
+  items            ChallanItem[]
+  dispatchChallans DispatchChallan[]
+  taxInvoices      TaxInvoice[]
+
+  @@map("jobwork_challans")
+}
+
+model ChallanItem {
+  id          Int            @id @default(autoincrement())
+  challanId   Int            @map("challan_id")
+  challan     JobworkChallan @relation(fields: [challanId], references: [id], onDelete: Cascade)
+  itemId      Int?           @map("item_id")
+  item        Item?          @relation(fields: [itemId], references: [id])
+  description String?        @db.VarChar(300)
+  drawingNo   String?        @map("drawing_no") @db.VarChar(50)
+  material    String?        @db.VarChar(100)
+  hrc         String?        @db.VarChar(30)
+  woNo        String?        @map("wo_no")    @db.VarChar(50)
+  hsnCode     String?        @map("hsn_code") @db.VarChar(20)
+  quantity    Decimal        @db.Decimal(12, 3)
+  qtyOut      Decimal?       @map("qty_out")  @db.Decimal(12, 3)
+  uom         String?        @default("KGS")  @db.VarChar(10)
+  weight      Decimal?       @db.Decimal(12, 3)
+  rate        Decimal        @db.Decimal(12, 2)
+  amount      Decimal        @db.Decimal(12, 2)
+  invoiceItems InvoiceItem[]
+  dispatchItems DispatchChallanItem[]
+
+  @@map("challan_items")
+}
+
+// ============================================================
+// 6. DISPATCH CHALLAN (Image 2)
+// ============================================================
+model DispatchChallan {
+  id                  Int            @id @default(autoincrement())
+  challanNo           String         @unique @map("challan_no") @db.VarChar(50)
+  challanDate         DateTime       @map("challan_date") @db.Date
+  jobworkChallanId    Int?           @map("jobwork_challan_id")
+  jobworkChallan      JobworkChallan? @relation(fields: [jobworkChallanId], references: [id])
+
+  fromPartyId         Int            @map("from_party_id")
+  fromParty           Party          @relation("DispatchFrom", fields: [fromPartyId], references: [id])
+  toPartyId           Int            @map("to_party_id")
+  toParty             Party          @relation("DispatchTo",   fields: [toPartyId],   references: [id])
+
+  dispatchMode        String?        @map("dispatch_mode") @db.VarChar(100)
+  vehicleNo           String?        @map("vehicle_no")    @db.VarChar(30)
+  remarks             String?        @db.Text
+  status              ChallanStatus  @default(DRAFT)
+
+  createdById         Int            @map("created_by")
+  createdBy           User           @relation(fields: [createdById], references: [id])
+  createdAt           DateTime       @default(now()) @map("created_at")
+
+  items               DispatchChallanItem[]
+
+  @@map("dispatch_challans")
+}
+
+model DispatchChallanItem {
+  id          Int             @id @default(autoincrement())
+  dispatchId  Int             @map("dispatch_id")
+  dispatch    DispatchChallan @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  itemId      Int             @map("item_id")
+  item        Item            @relation(fields: [itemId], references: [id])
+  sourceChallanItemId Int?    @map("source_challan_item_id")
+  sourceChallanItem   ChallanItem? @relation(fields: [sourceChallanItemId], references: [id])
+  description String?         @db.VarChar(300)
+  quantity    Int
+  weightKg    Decimal?        @map("weight_kg") @db.Decimal(10, 3)
+  remarks     String?         @db.VarChar(300)
+
+  @@map("dispatch_challan_items")
+}
+
+// ============================================================
+// 7. TEST CERTIFICATES (Images 4.1 - 4.4)
+// ============================================================
+model TestCertificate {
+  id                Int        @id @default(autoincrement())
+  certNo            String     @unique @map("cert_no")       @db.VarChar(50)
+  certSequence      Int?       @map("cert_sequence")         // 1, 2, 3... for multiple certs per job
+  dieMaterial       String?    @map("die_material")          @db.VarChar(100)
+  operatorMode      String?    @map("operator_mode")         @db.VarChar(100)
+  // Categorization (mirrors IncomingInspection)
+  catNormal            Boolean @default(false) @map("cat_normal")
+  catCrackRisk         Boolean @default(false) @map("cat_crack_risk")
+  catDistortionRisk    Boolean @default(false) @map("cat_distortion_risk")
+  catCriticalFinishing Boolean @default(false) @map("cat_critical_finishing")
+  catDentDamage        Boolean @default(false) @map("cat_dent_damage")
+  catCavity            Boolean @default(false) @map("cat_cavity")
+  catOthers            Boolean @default(false) @map("cat_others")
+  // Process checkboxes
+  procStressRelieving  Boolean @default(false) @map("proc_stress_relieving")
+  procHardening        Boolean @default(false) @map("proc_hardening")
+  procTempering        Boolean @default(false) @map("proc_tempering")
+  procAnnealing        Boolean @default(false) @map("proc_annealing")
+  procBrazing          Boolean @default(false) @map("proc_brazing")
+  procPlasmaNitriding  Boolean @default(false) @map("proc_plasma_nitriding")
+  procSubZero          Boolean @default(false) @map("proc_sub_zero")
+  procSoakClean        Boolean @default(false) @map("proc_soak_clean")
+  jobCardId         Int?       @map("job_card_id")
+  jobCard           JobCard?   @relation(fields: [jobCardId], references: [id])
+  yourPoNo          String?    @map("your_po_no")            @db.VarChar(100)
+  yourPoDate        DateTime?  @map("your_po_date")          @db.Date
+  yourRefNo         String?    @map("your_ref_no")           @db.VarChar(100)
+  issueNo           String?    @map("issue_no")              @db.VarChar(50)
+  issueDate         DateTime   @map("issue_date")            @db.Date
+  checkedBy         String?    @map("checked_by")            @db.VarChar(100)
+  specInstrCertificate  Boolean @default(true) @map("spec_instr_certificate")
+  specInstrMpiReport    Boolean @default(false) @map("spec_instr_mpi_report")
+  specInstrProcessGraph Boolean @default(false) @map("spec_instr_process_graph")
+  deliveryDate      DateTime?  @map("delivery_date")         @db.Date
+  specialRequirements String?  @map("special_requirements")  @db.Text
+  precautions       String?    @db.Text
+
+  customerId        Int        @map("customer_id")
+  customer          Party      @relation("CertCustomer",  fields: [customerId],       references: [id])
+  issuedByPartyId   Int?       @map("issued_by_party_id")
+  issuedByParty     Party?     @relation("CertIssuedBy",  fields: [issuedByPartyId],  references: [id])
+
+  hardnessMin       Decimal?   @map("hardness_min") @db.Decimal(6, 2)
+  hardnessMax       Decimal?   @map("hardness_max") @db.Decimal(6, 2)
+  hardnessUnit      String     @default("HRC") @map("hardness_unit") @db.VarChar(10)
+
+  // Heat treatment graph data JSON [{time, temp}]
+  tempCycleData     Json?      @map("temp_cycle_data")
+  // Heat treatment process log JSON [{equipment, process, ...}]
+  heatProcessData   Json?      @map("heat_process_data")
+  // Distortion measurements before/after heat treatment (JSON array)
+  distortionBefore  Json?      @map("distortion_before")
+  distortionAfter   Json?      @map("distortion_after")
+
+  // 5 images
+  image1            String?    @db.VarChar(255)
+  image2            String?    @db.VarChar(255)
+  image3            String?    @db.VarChar(255)
+  image4            String?    @db.VarChar(255)
+  image5            String?    @db.VarChar(255)
+
+  issuedTo          String?    @map("issued_to")   @db.VarChar(100)
+  heatNo            String?    @map("heat_no")     @db.VarChar(50)
+  dispatchMode      String?    @map("dispatch_mode") @db.VarChar(100)
+  dispatchChallanNo String?    @map("dispatch_challan_no") @db.VarChar(100)
+  dispatchChallanDate DateTime? @map("dispatch_challan_date") @db.Date
+  dispatchedThrough String?    @map("dispatched_through") @db.VarChar(100)
+  packedQty         Int?       @map("packed_qty")
+  packedBy          String?    @map("packed_by")  @db.VarChar(100)
+  approvedBy        String?    @map("approved_by") @db.VarChar(100)
+  status            CertStatus @default(DRAFT)
+
+  createdById       Int        @map("created_by")
+  createdBy         User       @relation(fields: [createdById], references: [id])
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt      @map("updated_at")
+
+  items             CertItem[]
+  inspectionResults CertInspectionResult[]
+  invoiceItems      InvoiceItem[]
+
+  @@map("test_certificates")
+}
+
+model CertItem {
+  id           Int             @id @default(autoincrement())
+  certId       Int             @map("cert_id")
+  cert         TestCertificate @relation(fields: [certId], references: [id], onDelete: Cascade)
+  description   String          @db.VarChar(300)
+  quantity      Int
+  weightPerPc   Decimal?        @map("weight_per_pc")   @db.Decimal(10, 3)
+  totalWeight   Decimal?        @map("total_weight")    @db.Decimal(10, 3)
+  samplingPlan  String?         @map("sampling_plan")   @db.VarChar(100)
+  remarks       String?         @db.VarChar(300)
+
+  @@map("cert_items")
+}
+
+model CertInspectionResult {
+  id              Int             @id @default(autoincrement())
+  certId          Int             @map("cert_id")
+  cert            TestCertificate @relation(fields: [certId], references: [id], onDelete: Cascade)
+  inspectionType  String          @map("inspection_type") @db.VarChar(100)
+  parameter       String?         @db.VarChar(200)
+  requiredValue   String?         @map("required_value") @db.VarChar(100)
+  achievedValue   String?         @map("achieved_value") @db.VarChar(100)
+  result          String          @default("OK")
+  finalInspection String?         @map("final_inspection") @db.VarChar(100)
+
+  @@map("cert_inspection_results")
+}
+
+// ============================================================
+// 8. TAX INVOICE (Image 5)
+// ============================================================
+model TaxInvoice {
+  id              Int           @id @default(autoincrement())
+  invoiceNo       String        @unique @map("invoice_no") @db.VarChar(50)
+  invoiceDate     DateTime      @map("invoice_date")       @db.Date
+  dispatchDate    DateTime?     @map("dispatch_date")      @db.Date
+
+  fromPartyId     Int           @map("from_party_id")
+  fromParty       Party         @relation("InvoiceFrom", fields: [fromPartyId], references: [id])
+  toPartyId       Int           @map("to_party_id")
+  toParty         Party         @relation("InvoiceTo",   fields: [toPartyId],   references: [id])
+
+  challanRef      String?       @map("challan_ref")       @db.VarChar(100)
+  poRef           String?       @map("po_ref")            @db.VarChar(100)
+  jobCardRef      String?       @map("job_card_ref")      @db.VarChar(100)
+  otherReferences String?       @map("other_references")  @db.VarChar(300)
+
+  challanId       Int?          @map("challan_id")
+  challan         JobworkChallan? @relation(fields: [challanId], references: [id], onDelete: SetNull)
+
+  subtotal          Decimal       @default(0)            @db.Decimal(12, 2)
+  cgstRate          Decimal       @default(9.00)         @map("cgst_rate")         @db.Decimal(5, 2)
+  cgstAmount        Decimal       @default(0)            @map("cgst_amount")       @db.Decimal(12, 2)
+  sgstRate          Decimal       @default(9.00)         @map("sgst_rate")         @db.Decimal(5, 2)
+  sgstAmount        Decimal       @default(0)            @map("sgst_amount")       @db.Decimal(12, 2)
+  igstRate          Decimal       @default(0)            @map("igst_rate")         @db.Decimal(5, 2)
+  igstAmount        Decimal       @default(0)            @map("igst_amount")       @db.Decimal(12, 2)
+  totalAmount       Decimal       @default(0)            @map("total_amount")      @db.Decimal(12, 2)
+  transportFreight  Decimal       @default(0)            @map("transport_freight") @db.Decimal(12, 2)
+  tcsRate           Decimal       @default(0)            @map("tcs_rate")          @db.Decimal(5, 2)
+  tcsAmount         Decimal       @default(0)            @map("tcs_amount")        @db.Decimal(12, 2)
+  extraAmt          Decimal       @default(0)            @map("extra_amt")         @db.Decimal(12, 2)
+  grandTotal        Decimal       @default(0)            @map("grand_total")         @db.Decimal(12, 2)
+  amountInWords     String?       @map("amount_in_words")    @db.VarChar(300)
+  taxAmountInWords  String?       @map("tax_amount_in_words") @db.VarChar(300)
+
+  dispatchDocNo   String?       @map("dispatch_doc_no")  @db.VarChar(100)
+  eWayBillNo      String?       @map("e_way_bill_no")    @db.VarChar(50)
+  paymentStatus   PaymentStatus @default(PENDING)      @map("payment_status")
+  paidDate        DateTime?     @map("paid_date")      @db.Date
+  paymentRef      String?       @map("payment_ref")    @db.VarChar(100)
+
+  sentToTally     Boolean       @default(false)        @map("sent_to_tally")
+  sentToTallyAt   DateTime?     @map("sent_to_tally_at")
+
+  createdById     Int           @map("created_by")
+  createdBy       User          @relation(fields: [createdById], references: [id])
+  createdAt       DateTime      @default(now())        @map("created_at")
+  updatedAt       DateTime      @updatedAt             @map("updated_at")
+
+  items           InvoiceItem[]
+
+  @@map("tax_invoices")
+}
+
+model InvoiceItem {
+  id              Int         @id @default(autoincrement())
+  invoiceId       Int         @map("invoice_id")
+  invoice         TaxInvoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  certId          Int?        @map("cert_id")
+  cert            TestCertificate? @relation(fields: [certId], references: [id])
+  sourceChallanItemId Int?    @map("source_challan_item_id")
+  sourceChallanItem ChallanItem? @relation(fields: [sourceChallanItemId], references: [id])
+  description     String      @db.VarChar(300)
+  material        String?     @db.VarChar(100)
+  hrc             String?     @db.VarChar(30)
+  woNo            String?     @map("wo_no")   @db.VarChar(50)
+  hsnSac          String?     @map("hsn_sac") @db.VarChar(20)
+  quantity        Decimal     @db.Decimal(12, 3)
+  unit            String      @default("KGS") @db.VarChar(10)
+  weight          Decimal?    @db.Decimal(12, 3)
+  rate            Decimal     @db.Decimal(12, 2)
+  amount          Decimal     @db.Decimal(12, 2)
+  processTypeId   Int?        @map("process_type_id")
+  processType     ProcessType? @relation(fields: [processTypeId], references: [id])
+
+  @@map("invoice_items")
+}
+
+// ============================================================
+// 9. AUDIT LOG
+// ============================================================
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  userId      Int?     @map("user_id")
+  user        User?    @relation(fields: [userId], references: [id])
+  action      String   @db.VarChar(100)
+  tableName   String?  @map("table_name") @db.VarChar(100)
+  recordId    Int?     @map("record_id")
+  oldValues   Json?    @map("old_values")
+  newValues   Json?    @map("new_values")
+  ipAddress   String?  @map("ip_address") @db.VarChar(50)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("audit_logs")
+}
+
+// ============================================================
+// 10. ENUMS FOR PURCHASE & MANUFACTURING
+// ============================================================
+enum PurchaseOrderStatus {
+  DRAFT
+  SENT
+  RECEIVED
+  COMPLETED
+  CANCELLED
+
+  @@map("purchase_order_status")
+}
+
+enum GRNStatus {
+  RECEIVED
+  ACCEPTED
+  PARTIAL_REJECTED
+  COMPLETED
+  CANCELLED
+
+  @@map("grn_status")
+}
+
+enum BatchStatus {
+  CREATED
+  IN_PROGRESS
+  COMPLETED
+  ON_HOLD
+  CANCELLED
+
+  @@map("batch_status")
+}
+
+enum RunsheetStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+
+  @@map("runsheet_status")
+}
+
+enum ProductionPlanStatus {
+  DRAFT
+  APPROVED
+  IN_PROGRESS
+  COMPLETED
+
+  @@map("production_plan_status")
+}
+
+enum FurnacePlanStage {
+  HARDENING
+  TEMPERING
+  OTHER
+
+  @@map("furnace_plan_stage")
+}
+
+// ============================================================
+// 11. PURCHASE ORDER & GRN
+// ============================================================
+model PurchaseOrder {
+  id                Int                   @id @default(autoincrement())
+  poNumber          String                @unique @map("po_number") @db.VarChar(50)
+  vendorId          Int                   @map("vendor_id")
+  vendor            Party                 @relation("PurchaseOrderVendor", fields: [vendorId], references: [id])
+  poDate            DateTime              @map("po_date") @db.Date
+  expectedDelivery  DateTime?             @map("expected_delivery") @db.Date
+  status            PurchaseOrderStatus   @default(DRAFT)
+  remarks           String?               @db.Text
+  totalAmount       Decimal               @default(0) @map("total_amount") @db.Decimal(12, 2)
+  
+  createdById       Int                   @map("created_by")
+  createdBy         User                  @relation("PurchaseOrderCreatedBy", fields: [createdById], references: [id])
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+
+  items             PurchaseOrderItem[]
+  grns              GRN[]
+
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id                Int            @id @default(autoincrement())
+  purchaseOrderId   Int            @map("purchase_order_id")
+  purchaseOrder     PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  itemId            Int            @map("item_id")
+  item              Item           @relation(fields: [itemId], references: [id])
+  quantity          Int
+  unitPrice         Decimal        @map("unit_price") @db.Decimal(12, 2)
+  amount            Decimal        @db.Decimal(12, 2)
+
+  @@map("purchase_order_items")
+}
+
+model GRN {
+  id                Int            @id @default(autoincrement())
+  grnNumber         String         @unique @map("grn_number") @db.VarChar(50)
+  purchaseOrderId   Int            @map("purchase_order_id")
+  purchaseOrder     PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id])
+  grnDate           DateTime       @map("grn_date") @db.Date
+  status            GRNStatus      @default(RECEIVED)
+  remarks           String?        @db.Text
+
+  createdById       Int            @map("created_by")
+  createdBy         User           @relation("GRNCreatedBy", fields: [createdById], references: [id])
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+
+  items             GRNItem[]
+
+  @@map("grns")
+}
+
+model GRNItem {
+  id                      Int     @id @default(autoincrement())
+  grnId                   Int     @map("grn_id")
+  grn                     GRN     @relation(fields: [grnId], references: [id], onDelete: Cascade)
+  itemId                  Int     @map("item_id")
+  item                    Item    @relation(fields: [itemId], references: [id])
+  quantityReceived        Int     @map("quantity_received")
+  quantityAccepted        Int     @map("quantity_accepted")
+  quantityRejected        Int     @map("quantity_rejected")
+  remarks                 String? @db.VarChar(300)
+
+  @@map("grn_items")
+}
+
+model Inventory {
+  id                Int       @id @default(autoincrement())
+  itemId            Int       @unique @map("item_id")
+  item              Item      @relation(fields: [itemId], references: [id])
+  quantityOnHand    Int       @map("quantity_on_hand")
+  reorderLevel      Int       @map("reorder_level")
+  lastRestockDate   DateTime  @map("last_restock_date") @db.Date
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@map("inventories")
+}
+
+// ============================================================
+// 12. MANUFACTURING & BATCH
+// ============================================================
+model ManufacturingBatch {
+  id                Int                   @id @default(autoincrement())
+  batchNumber       String                @unique @map("batch_number") @db.VarChar(50)
+  batchDate         DateTime              @map("batch_date") @db.Date
+  status            BatchStatus           @default(CREATED)
+  remarks           String?               @db.Text
+
+  createdById       Int                   @map("created_by")
+  createdBy         User                  @relation("ManufacturingBatchCreatedBy", fields: [createdById], references: [id])
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+
+  jobCards          ManufacturingBatchJobCard[]
+  runsheets         VHTRunsheet[]
+  productionPlans   ProductionPlan[]
+
+  @@map("manufacturing_batches")
+}
+
+model ManufacturingBatchJobCard {
+  id                Int                   @id @default(autoincrement())
+  batchId           Int                   @map("batch_id")
+  batch             ManufacturingBatch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  jobCardId         Int                   @map("job_card_id")
+  jobCard           JobCard               @relation(fields: [jobCardId], references: [id])
+
+  @@unique([batchId, jobCardId])
+  @@map("manufacturing_batch_jobcards")
+}
+
+model VHTRunsheet {
+  id                Int                   @id @default(autoincrement())
+  runsheetNumber    String                @unique @map("runsheet_number") @db.VarChar(50)
+  batchId           Int?                  @map("batch_id")
+  batch             ManufacturingBatch?   @relation(fields: [batchId], references: [id])
+  furnaceId         Int                   @map("furnace_id")
+  furnace           Machine               @relation(fields: [furnaceId], references: [id])
+
+  /// Run date (same as paper "Date")
+  runDate           DateTime              @map("run_date") @db.Date
+  cycleEndTime      String?               @map("cycle_end_time") @db.VarChar(10) // "17:10"
+  totalTimeDisplay  String?               @map("total_time_display") @db.VarChar(20) // "8:00" hours
+  mrStart           Int?                  @map("mr_start")
+  mrEnd             Int?                  @map("mr_end")
+  totalMr           Int?                  @map("total_mr")
+  loadingOperatorName String?             @map("loading_operator_name") @db.VarChar(100)
+
+  docRevNo          String?               @map("doc_rev_no") @db.VarChar(20)
+  docEffectiveDate  DateTime?             @map("doc_effective_date") @db.Date
+  docPageOf         String?               @map("doc_page_of") @db.VarChar(20) // "1 of 2"
+
+  tempProfile       String?               @map("temp_profile") @db.VarChar(200)
+  cycleTime         Int                   @default(240) @map("cycle_time") // total cycle minutes (optional)
+  hardeningType     String?               @map("hardening_type") @db.VarChar(200)
+  quenchPressureBar Decimal?              @map("quench_pressure_bar") @db.Decimal(6, 2)
+  fanRpm            Int?                  @map("fan_rpm")
+  fixturesPosition  String?               @map("fixtures_position") @db.VarChar(120)
+  /// Step graph: [{ "tempC": 550, "holdMin": 20, "label": "..." }, ...]
+  tempGraphPoints   Json?                 @map("temp_graph_points")
+
+  operatorSign      String?               @map("operator_sign") @db.VarChar(150)
+  supervisorSign    String?               @map("supervisor_sign") @db.VarChar(150)
+  supervisorVerifiedAt DateTime?            @map("supervisor_verified_at")
+  verificationNote  String?               @map("verification_note") @db.Text
+
+  status            RunsheetStatus        @default(PLANNED)
+  actualOutput      Int?                  @map("actual_output")
+  remarks           String?               @db.Text
+
+  createdById       Int                   @map("created_by")
+  createdBy         User                  @relation("VHTRunsheetCreatedBy", fields: [createdById], references: [id])
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+
+  items             VHTRunsheetItem[]
+
+  @@index([runDate, furnaceId])
+  @@map("vht_runsheets")
+}
+
+model VHTRunsheetItem {
+  id                Int            @id @default(autoincrement())
+  runsheetId        Int            @map("runsheet_id")
+  runsheet          VHTRunsheet    @relation(fields: [runsheetId], references: [id], onDelete: Cascade)
+
+  jobCardId         Int?           @map("job_card_id")
+  jobCard           JobCard?       @relation(fields: [jobCardId], references: [id])
+
+  itemId            Int?           @map("item_id")
+  item              Item?          @relation(fields: [itemId], references: [id])
+
+  customerName      String?        @map("customer_name") @db.VarChar(200)
+  jobDescription    String?        @map("job_description") @db.VarChar(300)
+  materialGrade     String?        @map("material_grade") @db.VarChar(100)
+  hrcRequired       String?        @map("hrc_required") @db.VarChar(50)
+
+  quantity          Int
+  weightKg          Decimal?       @map("weight_kg") @db.Decimal(10, 3)
+  plannedSlot       String?        @map("planned_slot") @db.VarChar(20)
+
+  @@index([jobCardId])
+  @@map("vht_runsheet_items")
+}
+
+model ProductionPlan {
+  id                Int                   @id @default(autoincrement())
+  batchId           Int                   @map("batch_id")
+  batch             ManufacturingBatch    @relation(fields: [batchId], references: [id])
+  planDate          DateTime              @map("plan_date") @db.Date
+  status            ProductionPlanStatus  @default(DRAFT)
+
+  createdById       Int                   @map("created_by")
+  createdBy         User                  @relation("ProductionPlanCreatedBy", fields: [createdById], references: [id])
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+
+  shifts            Shift[]
+
+  @@map("production_plans")
+}
+
+model Shift {
+  id                Int              @id @default(autoincrement())
+  planId            Int              @map("plan_id")
+  plan              ProductionPlan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+  shiftNumber       Int              @map("shift_number") // 1, 2, 3
+  startTime         DateTime         @map("start_time")
+  endTime           DateTime         @map("end_time")
+  machineryAssigned String?          @map("machinery_assigned") @db.VarChar(100)
+  operatorAssigned  String?          @map("operator_assigned") @db.VarChar(100)
+  plannedOutput     Int              @map("planned_output")
+  actualOutput      Int?             @map("actual_output")
+  reason            String?          @db.VarChar(300) // for downtime
+
+  @@map("shifts")
+}

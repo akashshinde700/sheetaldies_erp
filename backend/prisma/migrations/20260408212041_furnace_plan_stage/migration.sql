@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `furnace_plan_slots` ADD COLUMN `stage` ENUM('HARDENING', 'TEMPERING', 'OTHER') NOT NULL DEFAULT 'HARDENING';
