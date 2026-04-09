@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Eye, Edit2, Trash2, Search } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../utils/api';
+import toast from 'react-hot-toast';
 
 export default function DispatchChallanList() {
   const [challans, setChallans] = useState([]);
@@ -22,7 +22,7 @@ export default function DispatchChallanList() {
       setChallans(response.data.data || []);
     } catch (error) {
       console.error('Error fetching challans:', error);
-      alert('Failed to load dispatch challans');
+      toast.error('Failed to load dispatch challans.');
     } finally {
       setLoading(false);
     }
@@ -32,11 +32,11 @@ export default function DispatchChallanList() {
     if (!window.confirm('Are you sure you want to delete this?')) return;
     try {
       await api.delete(`/dispatch-challans/${id}`);
-      alert('Dispatch challan deleted');
+      toast.success('Dispatch challan deleted.');
       fetchChallans();
     } catch (error) {
       console.error('Error deleting:', error);
-      alert('Failed to delete');
+      toast.error(error?.response?.data?.message || 'Failed to delete dispatch challan.');
     }
   };
 
@@ -57,14 +57,14 @@ export default function DispatchChallanList() {
   };
 
   return (
-    <div className="space-y-6 animate-slide-up w-full max-w-6xl mx-auto">
+    <div className="page-stack w-full space-y-6 animate-slide-up">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="page-title">Dispatch challans</h1>
           <p className="page-subtitle">Outward delivery documents</p>
         </div>
         <Link to="/dispatch/new" className="btn-primary shrink-0 inline-flex items-center justify-center gap-2">
-          <Plus size={20} /> New challan
+          <span className="material-symbols-outlined text-[20px]">add</span> New challan
         </Link>
       </div>
 
@@ -87,7 +87,7 @@ export default function DispatchChallanList() {
 
       <div className="card overflow-hidden">
         <div className="p-4 border-b border-slate-200/80 flex items-center gap-2 bg-slate-50/50">
-          <Search size={20} className="text-slate-400 shrink-0" />
+          <span className="material-symbols-outlined text-[20px] text-slate-400 shrink-0">search</span>
           <input
             type="text"
             placeholder="Challan no or customer…"
@@ -129,13 +129,13 @@ export default function DispatchChallanList() {
                     <td className="td">
                       <div className="flex justify-center gap-1">
                         <Link to={`/dispatch/${challan.id}`} className="p-2 rounded-lg text-sky-800 hover:bg-sky-50" aria-label="View">
-                          <Eye size={18} />
+                          <span className="material-symbols-outlined text-[18px]">visibility</span>
                         </Link>
-                        <Link to={`/dispatch/${challan.id}/edit`} className="p-2 rounded-lg text-amber-700 hover:bg-amber-50" aria-label="Edit">
-                          <Edit2 size={18} />
+                        <Link to={`/dispatch/${challan.id}`} className="p-2 rounded-lg text-amber-700 hover:bg-amber-50" aria-label="Edit">
+                          <span className="material-symbols-outlined text-[18px]">edit</span>
                         </Link>
                         <button type="button" onClick={() => handleDelete(challan.id)} className="p-2 rounded-lg text-rose-600 hover:bg-rose-50" aria-label="Delete">
-                          <Trash2 size={18} />
+                          <span className="material-symbols-outlined text-[18px]">delete</span>
                         </button>
                       </div>
                     </td>

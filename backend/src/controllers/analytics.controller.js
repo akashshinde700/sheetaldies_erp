@@ -1,4 +1,5 @@
 const prisma = require('../utils/prisma');
+const { toNum } = require('../utils/normalize');
 
 // ── Overview KPIs ─────────────────────────────────────────────
 exports.overview = async (req, res) => {
@@ -41,9 +42,9 @@ exports.overview = async (req, res) => {
       data: {
         jobs: { total: totalJobs, active: activeJobs, completed: completedJobs, onHold, thisMonth: thisMonthJobs, lastMonth: lastMonthJobs },
         revenue: {
-          total: parseFloat(totalRevenue._sum.grandTotal || 0),
-          thisMonth: parseFloat(thisMonthRevenue._sum.grandTotal || 0),
-          lastMonth: parseFloat(lastMonthRevenue._sum.grandTotal || 0),
+          total: toNum(totalRevenue._sum.grandTotal, 0),
+          thisMonth: toNum(thisMonthRevenue._sum.grandTotal, 0),
+          lastMonth: toNum(lastMonthRevenue._sum.grandTotal, 0),
         },
         invoices: { pending: pendingInvoices, paid: paidInvoices },
         challans: { total: totalChallans, pending: pendingChallans },
@@ -80,7 +81,7 @@ exports.monthlyRevenue = async (req, res) => {
       const d   = new Date(inv.invoiceDate);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       if (map[key]) {
-        map[key].revenue  += parseFloat(inv.grandTotal || 0);
+        map[key].revenue  += toNum(inv.grandTotal, 0);
         map[key].invoices += 1;
       }
     }
@@ -151,7 +152,7 @@ exports.monthlyInvoiceBreakdown = async (req, res) => {
       const d   = new Date(inv.invoiceDate);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       if (!map[key]) continue;
-      const amt = parseFloat(inv.grandTotal || 0);
+      const amt = toNum(inv.grandTotal, 0);
       map[key].invoiced += amt;
       if (inv.paymentStatus === 'PAID') map[key].paid += amt;
       else map[key].pending += amt;
@@ -198,7 +199,7 @@ exports.topCustomers = async (req, res) => {
       success: true,
       data: rows.map(r => ({
         name:     partyMap[r.toPartyId] || `Party ${r.toPartyId}`,
-        revenue:  parseFloat(r._sum.grandTotal || 0),
+        revenue:  toNum(r._sum.grandTotal, 0),
         invoices: r._count.id,
       })),
     });
@@ -227,7 +228,7 @@ exports.processDist = async (req, res) => {
       success: true,
       data: rows.map(r => ({
         name:   map[r.processTypeId] || `Process ${r.processTypeId}`,
-        amount: parseFloat(r._sum.amount || 0),
+        amount: toNum(r._sum.amount, 0),
         jobs:   r._count.id,
       })),
     });
@@ -308,9 +309,9 @@ exports.paymentStatus = async (req, res) => {
     res.json({
       success: true,
       data: [
-        { name: 'Pending',  amount: parseFloat(pending._sum.grandTotal  || 0), count: pending._count.id  },
-        { name: 'Partial',  amount: parseFloat(partial._sum.grandTotal  || 0), count: partial._count.id  },
-        { name: 'Paid',     amount: parseFloat(paid._sum.grandTotal     || 0), count: paid._count.id     },
+        { name: 'Pending',  amount: toNum(pending._sum.grandTotal, 0), count: pending._count.id  },
+        { name: 'Partial',  amount: toNum(partial._sum.grandTotal, 0), count: partial._count.id  },
+        { name: 'Paid',     amount: toNum(paid._sum.grandTotal, 0), count: paid._count.id     },
       ],
     });
   } catch (err) {
@@ -342,18 +343,18 @@ exports.materialAnalytics = async (req, res) => {
       if (!materialMap[itemName]) {
         materialMap[itemName] = { totalAmount: 0, totalQty: 0, invoiceCount: 0 };
       }
-      materialMap[itemName].totalAmount += parseFloat(invItem.amount || 0);
-      materialMap[itemName].totalQty += parseFloat(invItem.quantity || 0);
+      materialMap[itemName].totalAmount += toNum(invItem.amount, 0);
+      materialMap[itemName].totalQty += toNum(invItem.quantity, 0);
       materialMap[itemName].invoiceCount += 1;
     });
 
     const data = Object.entries(materialMap)
       .map(([material, stats]) => ({
         material,
-        totalAmount: parseFloat(Number(stats.totalAmount).toFixed(2)),
+        totalAmount: toNum(Number(stats.totalAmount).toFixed(2), 0),
         totalQuantity: stats.totalQty,
         invoiceCount: stats.invoiceCount,
-        avgPerInvoice: parseFloat((Number(stats.totalAmount) / stats.invoiceCount).toFixed(2)),
+        avgPerInvoice: toNum((Number(stats.totalAmount) / stats.invoiceCount).toFixed(2), 0),
       }))
       .sort((a, b) => b.totalAmount - a.totalAmount);
 
@@ -385,7 +386,7 @@ exports.pendingReports = async (req, res) => {
       data: {
         pendingInvoices: {
           count: pendingInvoices,
-          amount: parseFloat(invoiceStats._sum.grandTotal || 0),
+          amount: toNum(invoiceStats._sum.grandTotal, 0),
         },
         pendingJobCards: pendingJobCards,
         pendingCertificates: pendingCerts,

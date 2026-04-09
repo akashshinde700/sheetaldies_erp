@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Download } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import api from '../../utils/api';
+import toast from 'react-hot-toast';
 
 export default function AuditLogsViewer() {
   const [logs, setLogs] = useState([]);
@@ -9,6 +9,7 @@ export default function AuditLogsViewer() {
   const [searchUser, setSearchUser] = useState('');
   const [searchAction, setSearchAction] = useState('');
   const [loading, setLoading] = useState(false);
+  const [viewLog, setViewLog] = useState(null);
 
   useEffect(() => {
     fetchDashboard();
@@ -21,6 +22,7 @@ export default function AuditLogsViewer() {
       setDashboard(response.data.data);
     } catch (error) {
       console.error(error);
+      toast.error('Failed to load dashboard.');
     }
   };
 
@@ -31,7 +33,7 @@ export default function AuditLogsViewer() {
       setLogs(response.data.data || []);
     } catch (error) {
       console.error(error);
-      alert('Failed to load logs');
+      toast.error('Failed to load audit logs.');
     } finally {
       setLoading(false);
     }
@@ -48,7 +50,7 @@ export default function AuditLogsViewer() {
       link.click();
       link.parentNode.removeChild(link);
     } catch (error) {
-      alert('Failed to export');
+      toast.error('Failed to export audit logs.');
     }
   };
 
@@ -74,7 +76,7 @@ export default function AuditLogsViewer() {
           <p className="page-subtitle">Activity tracking and export</p>
         </div>
         <button type="button" onClick={handleExport} className="btn-outline shrink-0 inline-flex items-center gap-2">
-          <Download size={20} /> Export CSV
+          <span className="material-symbols-outlined text-[20px]">download</span> Export CSV
         </button>
       </div>
 
@@ -85,6 +87,9 @@ export default function AuditLogsViewer() {
           </button>
           <button type="button" onClick={() => setActiveTab('all')} className={tabBtn('all')}>
             All logs
+          </button>
+          <button type="button" onClick={() => setActiveTab('reports')} className={tabBtn('reports')}>
+            Reports
           </button>
         </div>
 
@@ -115,7 +120,7 @@ export default function AuditLogsViewer() {
                 <div className="space-y-2">
                   {dashboard.topUsers.map((user, idx) => (
                     <div key={idx} className="flex justify-between items-center gap-2 p-2.5 rounded-lg bg-slate-50/80 border border-slate-100">
-                      <span className="font-medium text-slate-800 text-sm truncate">{user.userId}</span>
+                      <span className="font-medium text-slate-800 text-sm truncate">{user.userName || `User #${user.userId}`}</span>
                       <span className="badge bg-sky-100 text-sky-900 shrink-0 tabular-nums">{user.count} actions</span>
                     </div>
                   ))}
@@ -126,7 +131,7 @@ export default function AuditLogsViewer() {
                 <div className="space-y-2">
                   {dashboard.topResources.map((resource, idx) => (
                     <div key={idx} className="flex justify-between items-center gap-2 p-2.5 rounded-lg bg-slate-50/80 border border-slate-100">
-                      <span className="font-medium text-slate-800 text-sm truncate">{resource.resource}</span>
+                      <span className="font-medium text-slate-800 text-sm truncate">{resource.tableName || resource.resource}</span>
                       <span className="badge bg-emerald-100 text-emerald-900 shrink-0 tabular-nums">{resource.count} changes</span>
                     </div>
                   ))}
@@ -167,29 +172,25 @@ export default function AuditLogsViewer() {
                     <th className="th text-left">User</th>
                     <th className="th text-left">Action</th>
                     <th className="th text-left">Resource</th>
-                    <th className="th text-left">Status</th>
                     <th className="th text-left">IP</th>
+                    <th className="th text-left">Details</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {logs.map((log, idx) => (
                     <tr key={idx} className="tr">
                       <td className="td text-xs text-slate-600 whitespace-nowrap">{new Date(log.createdAt).toLocaleString()}</td>
-                      <td className="td font-medium text-slate-800">{log.userId}</td>
+                      <td className="td font-medium text-slate-800">{log.user?.name || 'System'}</td>
                       <td className="td">
                         <span className={`badge font-semibold ${actionColors[log.action] || 'bg-slate-100 text-slate-700'}`}>{log.action}</span>
                       </td>
-                      <td className="td text-slate-700">{log.resource}</td>
-                      <td className="td">
-                        <span
-                          className={`badge ${
-                            log.status === 200 || log.status === 201 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                          }`}
-                        >
-                          {log.status}
-                        </span>
-                      </td>
+                      <td className="td text-slate-700">{log.tableName}</td>
                       <td className="td text-xs text-slate-500 font-mono">{log.ipAddress}</td>
+                      <td className="td">
+                        <button type="button" onClick={() => setViewLog(log)} className="text-xs font-semibold text-indigo-600 hover:underline">
+                          View
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -199,7 +200,92 @@ export default function AuditLogsViewer() {
             {logs.length === 0 && <div className="p-10 text-center text-slate-500 text-sm">No logs found</div>}
           </div>
         )}
+
+        {activeTab === 'reports' && dashboard && (
+          <div className="p-5 sm:p-6 space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="card p-4 sm:p-5">
+                <h3 className="text-sm font-bold text-slate-800 font-headline mb-3">Action-wise report (this month)</h3>
+                <div className="space-y-2">
+                  {(dashboard.actionBreakdown || []).map((row, idx) => (
+                    <div key={idx} className="flex justify-between items-center gap-2 p-2.5 rounded-lg bg-slate-50/80 border border-slate-100">
+                      <span className={`badge ${actionColors[row.action] || 'bg-slate-100 text-slate-700'}`}>{row.action}</span>
+                      <span className="font-semibold text-slate-800 tabular-nums">{row.count}</span>
+                    </div>
+                  ))}
+                  {(!dashboard.actionBreakdown || dashboard.actionBreakdown.length === 0) && (
+                    <p className="text-xs text-slate-500">No actions in this period.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="card p-4 sm:p-5">
+                <h3 className="text-sm font-bold text-slate-800 font-headline mb-3">Last 7 days activity</h3>
+                <div className="space-y-2">
+                  {(dashboard.last7Days || []).map((row, idx) => (
+                    <div key={idx} className="flex justify-between items-center gap-2 p-2.5 rounded-lg bg-slate-50/80 border border-slate-100">
+                      <span className="text-sm text-slate-700">{new Date(row.date).toLocaleDateString()}</span>
+                      <span className="badge bg-violet-100 text-violet-900 tabular-nums">{row.count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="card p-4 sm:p-5">
+                <h3 className="text-sm font-bold text-slate-800 font-headline mb-3">Top users report</h3>
+                <div className="space-y-2">
+                  {(dashboard.topUsers || []).map((row, idx) => (
+                    <div key={idx} className="flex justify-between items-center gap-2 p-2.5 rounded-lg bg-slate-50/80 border border-slate-100">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-800 truncate">{row.userName || `User #${row.userId}`}</p>
+                        {row.userEmail && <p className="text-[11px] text-slate-500 truncate">{row.userEmail}</p>}
+                      </div>
+                      <span className="badge bg-sky-100 text-sky-900 tabular-nums">{row.count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="card p-4 sm:p-5">
+                <h3 className="text-sm font-bold text-slate-800 font-headline mb-3">Resource-wise report</h3>
+                <div className="space-y-2">
+                  {(dashboard.topResources || []).map((row, idx) => (
+                    <div key={idx} className="flex justify-between items-center gap-2 p-2.5 rounded-lg bg-slate-50/80 border border-slate-100">
+                      <span className="text-sm font-medium text-slate-800 truncate">{row.tableName || row.resource}</span>
+                      <span className="badge bg-emerald-100 text-emerald-900 tabular-nums">{row.count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
+      {viewLog && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/50 p-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl border border-slate-200">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="text-base font-bold text-slate-800">Audit log details</h3>
+              <button type="button" onClick={() => setViewLog(null)} className="btn-ghost">Close</button>
+            </div>
+            <div className="p-5 grid grid-cols-2 gap-3 text-sm">
+              <div><p className="text-slate-400 text-xs">Time</p><p className="font-semibold">{new Date(viewLog.createdAt).toLocaleString()}</p></div>
+              <div><p className="text-slate-400 text-xs">Action</p><p className="font-semibold">{viewLog.action || '—'}</p></div>
+              <div><p className="text-slate-400 text-xs">User</p><p className="font-semibold">{viewLog.user?.name || viewLog.userId || 'System'}</p></div>
+              <div><p className="text-slate-400 text-xs">Table</p><p className="font-semibold">{viewLog.tableName || '—'}</p></div>
+              <div><p className="text-slate-400 text-xs">Record ID</p><p className="font-semibold">{viewLog.recordId ?? '—'}</p></div>
+              <div><p className="text-slate-400 text-xs">IP</p><p className="font-semibold">{viewLog.ipAddress || '—'}</p></div>
+              <div className="col-span-2">
+                <p className="text-slate-400 text-xs">New values</p>
+                <pre className="text-xs bg-slate-50 border border-slate-200 rounded-lg p-3 overflow-auto max-h-60">{typeof viewLog.newValues === 'string' ? viewLog.newValues : JSON.stringify(viewLog.newValues || {}, null, 2)}</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

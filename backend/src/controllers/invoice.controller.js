@@ -3,13 +3,14 @@ const http   = require('http');
 const https  = require('https');
 const { sendEmail, sendSms, sendWhatsApp } = require('../utils/notifications');
 const { exportInvoices } = require('../utils/export');
+const { toInt, toNum, asArray } = require('../utils/normalize');
 
-const generateInvoiceNo = async () => {
+const generateInvoiceNo = async (db = prisma) => {
   const y      = new Date().getFullYear().toString().slice(-2);
-  const yn     = String(parseInt(y) + 1);
+  const yn     = String(toInt(y, 0) + 1);
   const prefix = `SVH/INV/${y}-${yn}/`;
 
-  const last = await prisma.taxInvoice.findFirst({
+  const last = await db.taxInvoice.findFirst({
     where:   { invoiceNo: { startsWith: prefix } },
     orderBy: { invoiceNo: 'desc' },
   });
@@ -17,14 +18,14 @@ const generateInvoiceNo = async () => {
   let nextSerial = 1;
   if (last) {
     const parts = last.invoiceNo.split('/');
-    const lastSerial = parseInt(parts[parts.length - 1]) || 0;
+    const lastSerial = toInt(parts[parts.length - 1], 0) || 0;
     nextSerial = lastSerial + 1;
   }
 
   let invoiceNo;
   do {
     invoiceNo = `${prefix}${String(nextSerial).padStart(4, '0')}`;
-    const exists = await prisma.taxInvoice.findUnique({ where: { invoiceNo } });
+    const exists = await db.taxInvoice.findUnique({ where: { invoiceNo } });
     if (!exists) break;
     nextSerial++;
   } while (nextSerial < 9999);
@@ -32,9 +33,9 @@ const generateInvoiceNo = async () => {
   return invoiceNo;
 };
 
-const getChallanBillingStatusInternal = async (challanId) => {
-  const challan = await prisma.jobworkChallan.findUnique({
-    where: { id: parseInt(challanId) },
+const getChallanBillingStatusInternal = async (challanId, db = prisma) => {
+  const challan = await db.jobworkChallan.findUnique({
+    where: { id: toInt(challanId) },
     include: {
       items: true,
       dispatchChallans: {
@@ -54,8 +55,8 @@ const getChallanBillingStatusInternal = async (challanId) => {
     itemMap.set(chItem.id, {
       challanItemId: chItem.id,
       description: chItem.description,
-      totalQty: parseFloat(chItem.quantity || 0),
-      rate: parseFloat(chItem.rate || 0),
+      totalQty: toNum(chItem.quantity, 0),
+      rate: toNum(chItem.rate, 0),
       dispatchedQty: 0,
       invoicedQty: 0,
       remainingQty: 0,
@@ -69,7 +70,7 @@ const getChallanBillingStatusInternal = async (challanId) => {
       if (!di.sourceChallanItemId) continue;
       const row = itemMap.get(di.sourceChallanItemId);
       if (!row) continue;
-      row.dispatchedQty += parseFloat(di.quantity || 0);
+      row.dispatchedQty += toNum(di.quantity, 0);
     }
   }
 
@@ -78,7 +79,7 @@ const getChallanBillingStatusInternal = async (challanId) => {
       if (!ii.sourceChallanItemId) continue;
       const row = itemMap.get(ii.sourceChallanItemId);
       if (!row) continue;
-      row.invoicedQty += parseFloat(ii.quantity || 0);
+      row.invoicedQty += toNum(ii.quantity, 0);
     }
   }
 
@@ -131,7 +132,7 @@ exports.list = async (req, res) => {
     const { paymentStatus, challanId, page = 1, limit = 20 } = req.query;
     const where = {};
     if (paymentStatus) where.paymentStatus = paymentStatus;
-    if (challanId)     where.challanId     = parseInt(challanId);
+    if (challanId)     where.challanId     = toInt(challanId);
 
     const [total, invoices] = await Promise.all([
       prisma.taxInvoice.count({ where }),
@@ -144,8 +145,8 @@ exports.list = async (req, res) => {
           createdBy: { select: { name: true } },
         },
         orderBy: { createdAt: 'desc' },
-        skip:  (parseInt(page) - 1) * parseInt(limit),
-        take:  parseInt(limit),
+        skip:  (toInt(page, 1) - 1) * toInt(limit, 20),
+        take:  toInt(limit, 20),
       }),
     ]);
     res.json({ success: true, data: invoices, meta: { total } });
@@ -158,7 +159,7 @@ exports.list = async (req, res) => {
 exports.getOne = async (req, res) => {
   try {
     const invoice = await prisma.taxInvoice.findUnique({
-      where: { id: parseInt(req.params.id) },
+      where: { id: toInt(req.params.id) },
       include: {
         fromParty: true,
         toParty:   true,
@@ -188,7 +189,7 @@ exports.getOne = async (req, res) => {
 // ── Challan Billing Status (per-item qty tracking) ────────────
 exports.getChallanBillingStatus = async (req, res) => {
   try {
-    const challanId = parseInt(req.params.challanId);
+    const challanId = toInt(req.params.challanId);
     const status = await getChallanBillingStatusInternal(challanId);
     if (!status) return res.status(404).json({ success: false, message: 'Challan not found.' });
     res.json({ success: true, data: status });
@@ -213,139 +214,136 @@ exports.create = async (req, res) => {
     if (!fromPartyId || !toPartyId)
       return res.status(400).json({ success: false, message: 'From and To party required.' });
 
-    const parsedItems  = typeof items === 'string' ? JSON.parse(items) : (items || []);
-    const subtotal     = parsedItems.reduce((s, it) => s + parseFloat(it.amount || 0), 0);
-    const cgst         = (subtotal * parseFloat(cgstRate || 9)) / 100;
-    const sgst         = (subtotal * parseFloat(sgstRate || 9)) / 100;
-    const igst         = (subtotal * parseFloat(igstRate || 0)) / 100;
+    const parsedItems  = asArray(items);
+    const subtotal     = parsedItems.reduce((s, it) => s + toNum(it.amount, 0), 0);
+    const cgst         = (subtotal * toNum(cgstRate, 9)) / 100;
+    const sgst         = (subtotal * toNum(sgstRate, 9)) / 100;
+    const igst         = (subtotal * toNum(igstRate, 0)) / 100;
     const total        = subtotal + cgst + sgst + igst;
-    const transport    = parseFloat(transportFreight || 0);
-    const tcsRateVal   = parseFloat(tcsRate || 0);
+    const transport    = toNum(transportFreight, 0);
+    const tcsRateVal   = toNum(tcsRate, 0);
     const tcsAmt       = (total * tcsRateVal) / 100;
-    const extraAmtVal  = parseFloat(extraAmt || 0);
+    const extraAmtVal  = toNum(extraAmt, 0);
     const grandTotal   = total + transport + tcsAmt + extraAmtVal;
 
     const { challanId } = req.body;
 
-    // ── Duplicate / over-invoice check ───────────────────────────
-    let billingType = 'MANUAL';
-    if (challanId) {
-      const [challan, existingInvoices] = await Promise.all([
-        prisma.jobworkChallan.findUnique({
-          where:  { id: parseInt(challanId) },
-          select: { subtotal: true, challanNo: true },
-        }),
-        prisma.taxInvoice.findMany({
-          where:  { challanId: parseInt(challanId) },
-          select: { subtotal: true, invoiceNo: true },
-        }),
-      ]);
+    let invoice = null;
+    let invoiceNo = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        invoice = await prisma.$transaction(async (tx) => {
+          let txBillingType = 'MANUAL';
+          if (challanId) {
+            const [challan, existingInvoices] = await Promise.all([
+              tx.jobworkChallan.findUnique({
+                where:  { id: toInt(challanId) },
+                select: { subtotal: true, challanNo: true },
+              }),
+              tx.taxInvoice.findMany({
+                where:  { challanId: toInt(challanId) },
+                select: { subtotal: true, invoiceNo: true },
+              }),
+            ]);
 
-      if (challan) {
-        const alreadyInvoiced = existingInvoices.reduce((s, inv) => s + parseFloat(inv.subtotal), 0);
-        const remaining       = parseFloat(challan.subtotal) - alreadyInvoiced;
+            if (challan) {
+              const alreadyInvoiced = existingInvoices.reduce((s, inv) => s + toNum(inv.subtotal, 0), 0);
+              const remaining = toNum(challan.subtotal, 0) - alreadyInvoiced;
 
-        // Block if challan is already fully invoiced
-        if (remaining <= 0.01) {
-          return res.status(400).json({
-            success: false,
-            message: `Challan ${challan.challanNo} is already fully invoiced (₹${alreadyInvoiced.toFixed(2)} of ₹${challan.subtotal}). No further billing allowed.`,
+              if (remaining <= 0.01) {
+                throw new Error(`Challan ${challan.challanNo} is already fully invoiced (₹${alreadyInvoiced.toFixed(2)} of ₹${challan.subtotal}). No further billing allowed.`);
+              }
+              if (subtotal > remaining + 0.01) {
+                throw new Error(`Over-invoice! Challan ${challan.challanNo}: total ₹${challan.subtotal}, already billed ₹${alreadyInvoiced.toFixed(2)}, remaining ₹${remaining.toFixed(2)}. Current invoice subtotal ₹${subtotal.toFixed(2)} exceeds remaining.`);
+              }
+
+              const status = await getChallanBillingStatusInternal(toInt(challanId), tx);
+              const remainingByItem = new Map(status.lineStatus.map((x) => [x.challanItemId, x.remainingQty]));
+
+              for (const it of parsedItems) {
+                const srcId = it.sourceChallanItemId ? toInt(it.sourceChallanItemId) : null;
+                if (!srcId) throw new Error('Each invoice line must map to source challan item for partial dispatch tracking.');
+                const rem = remainingByItem.get(srcId);
+                if (rem === undefined) throw new Error(`Invalid source challan item id ${srcId}.`);
+                const q = toNum(it.quantity, 0);
+                if (q <= 0) throw new Error('Invoice quantity must be greater than zero.');
+                if (q > rem + 0.00001) throw new Error(`Over-quantity for challan item ${srcId}. Remaining ${rem}, attempted ${q}.`);
+              }
+
+              const qtyAfter = status.totalRemainingQty - parsedItems.reduce((s, it) => s + toNum(it.quantity, 0), 0);
+              txBillingType = qtyAfter <= 0.00001 ? 'FINAL_DISPATCH' : 'PARTIAL_DISPATCH';
+            }
+          }
+
+          invoiceNo = await generateInvoiceNo(tx);
+          return tx.taxInvoice.create({
+            data: {
+              invoiceNo,
+              invoiceDate:     new Date(invoiceDate || new Date()),
+              dispatchDate:    dispatchDate    ? new Date(dispatchDate)    : null,
+              fromPartyId:     toInt(fromPartyId),
+              toPartyId:       toInt(toPartyId),
+              challanRef:      challanRef      || null,
+              poRef:           poRef           || null,
+              jobCardRef:      jobCardRef      || null,
+              otherReferences: [otherReferences, challanId ? (txBillingType === 'FINAL_DISPATCH' ? 'Final Invoice against linked Challan' : 'Partial Invoice against linked Challan') : null].filter(Boolean).join(' | ') || null,
+              dispatchDocNo:   dispatchDocNo   || null,
+              eWayBillNo:      eWayBillNo      || null,
+              challanId:       challanId       ? toInt(challanId) : null,
+              subtotal,
+              cgstRate:         toNum(cgstRate, 9),
+              cgstAmount:       cgst,
+              sgstRate:         toNum(sgstRate, 9),
+              sgstAmount:       sgst,
+              igstRate:         toNum(igstRate, 0),
+              igstAmount:       igst,
+              totalAmount:      total,
+              transportFreight: transport,
+              tcsRate:          tcsRateVal,
+              tcsAmount:        tcsAmt,
+              extraAmt:         extraAmtVal,
+              grandTotal:       grandTotal,
+              amountInWords:    numToWords(grandTotal),
+              taxAmountInWords: numToWords(cgst + sgst + igst + tcsAmt),
+              createdById:      req.user.id,
+              items: {
+                create: parsedItems.map((it) => ({
+                  description:   it.description,
+                  material:      it.material      || null,
+                  hrc:           it.hrc           || null,
+                  woNo:          it.woNo          || null,
+                  hsnSac:        it.hsnSac        || null,
+                  sourceChallanItemId: it.sourceChallanItemId ? toInt(it.sourceChallanItemId) : null,
+                  quantity:      toNum(it.quantity, 0),
+                  unit:          it.unit          || 'KGS',
+                  weight:        it.weight        ? toNum(it.weight, null) : null,
+                  rate:          toNum(it.rate, 0),
+                  amount:        toNum(it.amount, 0),
+                  processTypeId: it.processTypeId ? toInt(it.processTypeId) : null,
+                  certId:        it.certId        ? toInt(it.certId)        : null,
+                })),
+              },
+            },
+            include: { fromParty: true, toParty: true, items: true },
           });
+        }, { isolationLevel: 'Serializable' });
+        break;
+      } catch (txErr) {
+        if (txErr?.code === 'P2002' && attempt < 2) continue; // unique collision on invoiceNo
+        if (typeof txErr?.message === 'string' && (
+          txErr.message.includes('Over-invoice') ||
+          txErr.message.includes('already fully invoiced') ||
+          txErr.message.includes('Over-quantity') ||
+          txErr.message.includes('source challan item')
+        )) {
+          return res.status(400).json({ success: false, message: txErr.message });
         }
-
-        // Block if this invoice would exceed remaining amount
-        if (subtotal > remaining + 0.01) {
-          return res.status(400).json({
-            success: false,
-            message: `Over-invoice! Challan ${challan.challanNo}: total ₹${challan.subtotal}, already billed ₹${alreadyInvoiced.toFixed(2)}, remaining ₹${remaining.toFixed(2)}. Current invoice subtotal ₹${subtotal.toFixed(2)} exceeds remaining.`,
-          });
-        }
-
-        // Per-item quantity-level validation for partial dispatch
-        const status = await getChallanBillingStatusInternal(parseInt(challanId));
-        const remainingByItem = new Map(status.lineStatus.map((x) => [x.challanItemId, x.remainingQty]));
-
-        for (const it of parsedItems) {
-          const srcId = it.sourceChallanItemId ? parseInt(it.sourceChallanItemId) : null;
-          if (!srcId) {
-            return res.status(400).json({
-              success: false,
-              message: 'Each invoice line must map to source challan item for partial dispatch tracking.',
-            });
-          }
-          const rem = remainingByItem.get(srcId);
-          if (rem === undefined) {
-            return res.status(400).json({ success: false, message: `Invalid source challan item id ${srcId}.` });
-          }
-          const q = parseFloat(it.quantity || 0);
-          if (q <= 0) {
-            return res.status(400).json({ success: false, message: 'Invoice quantity must be greater than zero.' });
-          }
-          if (q > rem + 0.00001) {
-            return res.status(400).json({
-              success: false,
-              message: `Over-quantity for challan item ${srcId}. Remaining ${rem}, attempted ${q}.`,
-            });
-          }
-        }
-
-        const qtyAfter = status.totalRemainingQty - parsedItems.reduce((s, it) => s + parseFloat(it.quantity || 0), 0);
-        billingType = qtyAfter <= 0.00001 ? 'FINAL_DISPATCH' : 'PARTIAL_DISPATCH';
+        throw txErr;
       }
     }
-
-    const invoiceNo = await generateInvoiceNo();
-
-    const invoice = await prisma.taxInvoice.create({
-      data: {
-        invoiceNo,
-        invoiceDate:     new Date(invoiceDate || new Date()),
-        dispatchDate:    dispatchDate    ? new Date(dispatchDate)    : null,
-        fromPartyId:     parseInt(fromPartyId),
-        toPartyId:       parseInt(toPartyId),
-        challanRef:      challanRef      || null,
-        poRef:           poRef           || null,
-        jobCardRef:      jobCardRef      || null,
-        otherReferences: [otherReferences, challanId ? (billingType === 'FINAL_DISPATCH' ? 'Final Invoice against linked Challan' : 'Partial Invoice against linked Challan') : null].filter(Boolean).join(' | ') || null,
-        dispatchDocNo:   dispatchDocNo   || null,
-        eWayBillNo:      eWayBillNo      || null,
-        challanId:       challanId       ? parseInt(challanId) : null,
-        subtotal,
-        cgstRate:         parseFloat(cgstRate || 9),
-        cgstAmount:       cgst,
-        sgstRate:         parseFloat(sgstRate || 9),
-        sgstAmount:       sgst,
-        igstRate:         parseFloat(igstRate || 0),
-        igstAmount:       igst,
-        totalAmount:      total,
-        transportFreight: transport,
-        tcsRate:          tcsRateVal,
-        tcsAmount:        tcsAmt,
-        extraAmt:         extraAmtVal,
-        grandTotal:        grandTotal,
-        amountInWords:     numToWords(grandTotal),
-        taxAmountInWords:  numToWords(cgst + sgst + igst + tcsAmt),
-        createdById:  req.user.id,
-        items: {
-          create: parsedItems.map(it => ({
-            description:   it.description,
-            material:      it.material      || null,
-            hrc:           it.hrc           || null,
-            woNo:          it.woNo          || null,
-            hsnSac:        it.hsnSac        || null,
-            sourceChallanItemId: it.sourceChallanItemId ? parseInt(it.sourceChallanItemId) : null,
-            quantity:      parseFloat(it.quantity),
-            unit:          it.unit          || 'KGS',
-            weight:        it.weight        ? parseFloat(it.weight) : null,
-            rate:          parseFloat(it.rate),
-            amount:        parseFloat(it.amount),
-            processTypeId: it.processTypeId ? parseInt(it.processTypeId) : null,
-            certId:        it.certId        ? parseInt(it.certId)        : null,
-          })),
-        },
-      },
-      include: { fromParty: true, toParty: true, items: true },
-    });
+    if (!invoice) {
+      return res.status(409).json({ success: false, message: 'Could not generate unique invoice number. Please retry.' });
+    }
 
     res.status(201).json({ success: true, data: invoice, message: `Invoice ${invoiceNo} created.` });
   } catch (err) {
@@ -357,7 +355,7 @@ exports.create = async (req, res) => {
 // ── Update payment status ─────────────────────────────────────
 exports.updatePayment = async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = toInt(req.params.id);
     const { paymentStatus, paidDate, paymentRef } = req.body;
 
     const invoice = await prisma.taxInvoice.update({
@@ -376,7 +374,7 @@ exports.updatePayment = async (req, res) => {
 
 exports.sendNotification = async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = toInt(req.params.id);
     const { type, to, message } = req.body;
 
     if (!['email', 'sms', 'whatsapp'].includes(type)) {
@@ -390,7 +388,7 @@ exports.sendNotification = async (req, res) => {
     if (!invoice) return res.status(404).json({ success: false, message: 'Invoice not found.' });
 
     const bodyMessage = message ||
-      `${invoice.invoiceNo} for ₹${parseFloat(invoice.grandTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })} is ready. Please check the ERP system.`;
+      `${invoice.invoiceNo} for ₹${toNum(invoice.grandTotal, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })} is ready. Please check the ERP system.`;
 
     let result;
     if (type === 'email') {
@@ -432,11 +430,11 @@ const buildTallyXML = (invoice) => {
   const d    = new Date(invoice.invoiceDate);
   const date = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
 
-  const subtotal = parseFloat(invoice.subtotal    || 0);
-  const cgst     = parseFloat(invoice.cgstAmount  || 0);
-  const sgst     = parseFloat(invoice.sgstAmount  || 0);
-  const igst     = parseFloat(invoice.igstAmount  || 0);
-  const total    = parseFloat(invoice.totalAmount || 0);
+  const subtotal = toNum(invoice.subtotal, 0);
+  const cgst     = toNum(invoice.cgstAmount, 0);
+  const sgst     = toNum(invoice.sgstAmount, 0);
+  const igst     = toNum(invoice.igstAmount, 0);
+  const total    = toNum(invoice.totalAmount, 0);
   const partyName = invoice.toParty?.name || 'Customer';
 
   const narration = [
@@ -580,7 +578,7 @@ const fetchFullInvoice = (id) => prisma.taxInvoice.findUnique({
 // ── Option B: Download Tally XML ─────────────────────────────
 exports.getTallyXml = async (req, res) => {
   try {
-    const id      = parseInt(req.params.id);
+    const id      = toInt(req.params.id);
     const invoice = await fetchFullInvoice(id);
     if (!invoice) return res.status(404).json({ success: false, message: 'Invoice not found.' });
 
@@ -599,7 +597,7 @@ exports.getTallyXml = async (req, res) => {
 // ── Option A: Send to Tally (push + lock invoice) ─────────────
 exports.sendToTally = async (req, res) => {
   try {
-    const id       = parseInt(req.params.id);
+    const id       = toInt(req.params.id);
     const tallyUrl = req.body.tallyUrl || 'http://localhost:9000';
 
     const existing = await fetchFullInvoice(id);
@@ -647,7 +645,7 @@ exports.sendToTally = async (req, res) => {
 // ── Mark as sent to Tally manually (after Option B import) ────
 exports.markSentToTally = async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = toInt(req.params.id);
 
     const existing = await prisma.taxInvoice.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ success: false, message: 'Invoice not found.' });

@@ -186,11 +186,11 @@ export default function InvoiceList() {
                   <td className="td text-slate-500 font-mono text-[11px]">
                     {inv.challan?.challanNo || inv.challanRef || '—'}
                   </td>
-                  <td className="td text-slate-600">₹ {parseFloat(inv.subtotal).toLocaleString('en-IN')}</td>
+                  <td className="td text-slate-600">₹ {Number(inv.subtotal || 0).toLocaleString('en-IN')}</td>
                   <td className="td text-slate-500">
-                    ₹ {(parseFloat(inv.cgstAmount)+parseFloat(inv.sgstAmount)+parseFloat(inv.igstAmount)).toLocaleString('en-IN')}
+                    ₹ {(Number(inv.cgstAmount || 0)+Number(inv.sgstAmount || 0)+Number(inv.igstAmount || 0)).toLocaleString('en-IN')}
                   </td>
-                  <td className="td font-bold text-slate-800">₹ {parseFloat(inv.totalAmount).toLocaleString('en-IN')}</td>
+                  <td className="td font-bold text-slate-800">₹ {Number(inv.totalAmount || 0).toLocaleString('en-IN')}</td>
                   <td className="td">
                     <span className={`badge ${PAY_STYLE[inv.paymentStatus] || 'bg-slate-100 text-slate-600'}`}>
                       {inv.paymentStatus}

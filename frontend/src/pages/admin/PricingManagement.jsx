@@ -21,6 +21,7 @@ export default function PricingManagement() {
   const [editId, setEditId] = useState(null);
   const [formData, setFormData] = useState({ ...EMPTY });
   const [saving, setSaving] = useState(false);
+  const [viewProcess, setViewProcess] = useState(null);
 
   const load = () => {
     setLoading(true);
@@ -81,10 +82,10 @@ export default function PricingManagement() {
         name: formData.name,
         description: formData.description || null,
         hsnSacCode: formData.hsnSacCode || null,
-        pricePerKg: formData.pricePerKg !== '' ? parseFloat(formData.pricePerKg) : null,
-        pricePerPc: formData.pricePerPc !== '' ? parseFloat(formData.pricePerPc) : null,
-        minCharge: formData.minCharge !== '' ? parseFloat(formData.minCharge) : null,
-        gstRate: formData.gstRate !== '' ? parseFloat(formData.gstRate) : 18.0,
+        pricePerKg: formData.pricePerKg !== '' ? Number(formData.pricePerKg) : null,
+        pricePerPc: formData.pricePerPc !== '' ? Number(formData.pricePerPc) : null,
+        minCharge: formData.minCharge !== '' ? Number(formData.minCharge) : null,
+        gstRate: formData.gstRate !== '' ? Number(formData.gstRate) : 18.0,
       };
 
       if (editId) {
@@ -126,17 +127,17 @@ export default function PricingManagement() {
 
   const fmt = (v) => {
     if (v === null || v === undefined || v === '') return '-';
-    return `Rs. ${parseFloat(v).toFixed(2)}`;
+    return `Rs. ${Number(v).toFixed(2)}`;
   };
 
   return (
-    <div className="space-y-5 max-w-6xl animate-slide-up">
+    <div className="page-stack w-full space-y-5 animate-slide-up">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-extrabold text-slate-800 font-headline">Pricing Management</h2>
           <p className="text-xs text-slate-400 mt-0.5">Manage process types, HSN/SAC codes, and pricing rates</p>
         </div>
-        <button onClick={() => (showForm ? cancelForm() : openNew())} className="btn-primary">
+        <button type="button" onClick={() => (showForm ? cancelForm() : openNew())} className="btn-primary">
           <span className="material-symbols-outlined text-sm">{showForm ? 'close' : 'add'}</span>
           {showForm ? 'Cancel' : 'Add Process'}
         </button>
@@ -206,7 +207,9 @@ export default function PricingManagement() {
 
       <div className="card p-0 overflow-hidden">
         <div className="p-4 border-b">
+          <label htmlFor="pricing-search" className="sr-only">Search process types</label>
           <input
+            id="pricing-search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by process code or name..."
@@ -244,14 +247,39 @@ export default function PricingManagement() {
                     <td className="px-4 py-3">{fmt(p.minCharge)}</td>
                     <td className="px-4 py-3">{p.gstRate ?? 18}%</td>
                     <td className="px-4 py-3">
-                      <button onClick={() => toggleActive(p)} className={`px-2 py-1 rounded text-xs ${p.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                      <button type="button" onClick={() => toggleActive(p)} className={`px-2 py-1 rounded text-xs ${p.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
                         {p.isActive ? 'Active' : 'Inactive'}
                       </button>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex justify-end gap-2">
-                        <button onClick={() => openEdit(p)} className="btn-outline">Edit</button>
-                        <button onClick={() => handleDelete(p)} className="btn-danger">Delete</button>
+                      <div className="flex justify-end items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setViewProcess(p)}
+                          className="inline-flex items-center justify-center w-8 h-8 rounded-md text-indigo-600 hover:bg-indigo-50"
+                          title="View"
+                          aria-label="View"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">visibility</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openEdit(p)}
+                          className="inline-flex items-center justify-center w-8 h-8 rounded-md text-slate-700 hover:bg-slate-100"
+                          title="Edit"
+                          aria-label="Edit"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(p)}
+                          className="inline-flex items-center justify-center w-8 h-8 rounded-md text-rose-600 hover:bg-rose-50"
+                          title="Delete"
+                          aria-label="Delete"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">delete</span>
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -261,6 +289,28 @@ export default function PricingManagement() {
           )}
         </div>
       </div>
+
+      {viewProcess && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/50 p-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl border border-slate-200">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="text-base font-bold text-slate-800">Process pricing details</h3>
+              <button type="button" onClick={() => setViewProcess(null)} className="btn-ghost">Close</button>
+            </div>
+            <div className="p-5 grid grid-cols-2 gap-3 text-sm">
+              <div><p className="text-slate-400 text-xs">Code</p><p className="font-semibold">{viewProcess.code || '—'}</p></div>
+              <div><p className="text-slate-400 text-xs">Name</p><p className="font-semibold">{viewProcess.name || '—'}</p></div>
+              <div><p className="text-slate-400 text-xs">HSN/SAC</p><p className="font-semibold">{viewProcess.hsnSacCode || '—'}</p></div>
+              <div><p className="text-slate-400 text-xs">GST %</p><p className="font-semibold">{viewProcess.gstRate ?? 18}</p></div>
+              <div><p className="text-slate-400 text-xs">Price/KG</p><p className="font-semibold">{fmt(viewProcess.pricePerKg)}</p></div>
+              <div><p className="text-slate-400 text-xs">Price/PC</p><p className="font-semibold">{fmt(viewProcess.pricePerPc)}</p></div>
+              <div><p className="text-slate-400 text-xs">Min Charge</p><p className="font-semibold">{fmt(viewProcess.minCharge)}</p></div>
+              <div><p className="text-slate-400 text-xs">Status</p><p className="font-semibold">{viewProcess.isActive ? 'Active' : 'Inactive'}</p></div>
+              <div className="col-span-2"><p className="text-slate-400 text-xs">Description</p><p className="font-semibold">{viewProcess.description || '—'}</p></div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

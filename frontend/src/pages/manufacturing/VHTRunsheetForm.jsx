@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import api from '../../utils/api';
+import toast from 'react-hot-toast';
 
 const DEFAULT_GRAPH = [
   { tempC: 550, holdMin: 20, label: '' },
@@ -190,7 +191,7 @@ export default function VHTRunsheetForm() {
   }, [jobCards]);
 
   const onSelectJobCard = (idx, jobCardId) => {
-    const jc = jcById.get(parseInt(jobCardId, 10));
+    const jc = jcById.get(Number(jobCardId));
     const next = [...form.items];
     next[idx] = {
       ...next[idx],
@@ -219,22 +220,22 @@ export default function VHTRunsheetForm() {
 
   const totalWeight = useMemo(
     () =>
-      form.items.reduce((s, it) => s + (parseFloat(it.weightKg) || 0), 0),
+      form.items.reduce((s, it) => s + (Number(it.weightKg) || 0), 0),
     [form.items]
   );
 
   const submit = async (e) => {
     e.preventDefault();
     if (!form.furnaceId) {
-      alert('Select furnace.');
+      toast.error('Select furnace.');
       return;
     }
     const lines = form.items
       .filter((it) => it.jobCardId)
       .map((it) => ({
-        jobCardId: parseInt(it.jobCardId, 10),
-        quantity: parseInt(it.quantity, 10),
-        weightKg: it.weightKg === '' ? null : parseFloat(it.weightKg),
+        jobCardId: Number(it.jobCardId),
+        quantity: Number(it.quantity),
+        weightKg: it.weightKg === '' ? null : Number(it.weightKg),
         plannedSlot: it.plannedSlot || null,
         customerName: it.customerName || null,
         jobDescription: it.jobDescription || null,
@@ -242,28 +243,28 @@ export default function VHTRunsheetForm() {
         hrcRequired: it.hrcRequired || null,
       }));
     if (!lines.length) {
-      alert('Add at least one line with a job card.');
+      toast.error('Add at least one line with a job card.');
       return;
     }
 
     const payload = {
-      batchId: form.batchId ? parseInt(form.batchId, 10) : null,
-      furnaceId: parseInt(form.furnaceId, 10),
+      batchId: form.batchId ? Number(form.batchId) : null,
+      furnaceId: Number(form.furnaceId),
       runDate: form.runDate,
       cycleEndTime: form.cycleEndTime || null,
       totalTimeDisplay: form.totalTimeDisplay || null,
-      mrStart: form.mrStart === '' ? null : parseInt(form.mrStart, 10),
-      mrEnd: form.mrEnd === '' ? null : parseInt(form.mrEnd, 10),
-      totalMr: form.totalMr === '' ? null : parseInt(form.totalMr, 10),
+      mrStart: form.mrStart === '' ? null : Number(form.mrStart),
+      mrEnd: form.mrEnd === '' ? null : Number(form.mrEnd),
+      totalMr: form.totalMr === '' ? null : Number(form.totalMr),
       loadingOperatorName: form.loadingOperatorName || null,
       docRevNo: form.docRevNo || null,
       docEffectiveDate: form.docEffectiveDate || null,
       docPageOf: form.docPageOf || null,
       tempProfile: form.tempProfile || null,
-      cycleTime: form.cycleTime ? parseInt(form.cycleTime, 10) : 240,
+      cycleTime: form.cycleTime ? Number(form.cycleTime) : 240,
       hardeningType: form.hardeningType || null,
-      quenchPressureBar: form.quenchPressureBar === '' ? null : parseFloat(form.quenchPressureBar),
-      fanRpm: form.fanRpm === '' ? null : parseInt(form.fanRpm, 10),
+      quenchPressureBar: form.quenchPressureBar === '' ? null : Number(form.quenchPressureBar),
+      fanRpm: form.fanRpm === '' ? null : Number(form.fanRpm),
       fixturesPosition: form.fixturesPosition || null,
       tempGraphPoints: (form.tempGraphPoints || [])
         .filter((p) => p.tempC !== '' && p.tempC != null && !Number.isNaN(Number(p.tempC)))
@@ -277,7 +278,7 @@ export default function VHTRunsheetForm() {
       supervisorVerifiedAt: form.supervisorVerifiedAt || null,
       verificationNote: form.verificationNote || null,
       status: form.status,
-      actualOutput: form.actualOutput === '' ? null : parseInt(form.actualOutput, 10),
+      actualOutput: form.actualOutput === '' ? null : Number(form.actualOutput),
       remarks: form.remarks || null,
       items: lines,
     };
@@ -286,16 +287,16 @@ export default function VHTRunsheetForm() {
     try {
       if (isNew) {
         await api.post('/manufacturing/runsheets', payload);
-        alert('Run sheet saved.');
+        toast.success('Run sheet saved.');
         navigate('/manufacturing/runsheet');
       } else {
         await api.put(`/manufacturing/runsheets/${id}`, payload);
-        alert('Run sheet updated.');
+        toast.success('Run sheet updated.');
         navigate('/manufacturing/runsheet');
       }
     } catch (err) {
       const msg = err.response?.data?.errors?.map((e) => e.message).join(', ') || err.response?.data?.message || err.message;
-      alert(msg || 'Save failed.');
+      toast.error(msg || 'Save failed.');
     } finally {
       setSaving(false);
     }
@@ -306,7 +307,7 @@ export default function VHTRunsheetForm() {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto pb-24">
+    <div className="page-stack w-full p-6 pb-24">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <Link to="/manufacturing/runsheet" className="text-sm text-indigo-600 hover:underline">

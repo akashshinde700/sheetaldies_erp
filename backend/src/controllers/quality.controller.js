@@ -1,6 +1,7 @@
 const prisma = require('../utils/prisma');
 const path = require('path');
 const { findRunsheetGraphForJobCard } = require('../utils/runsheetGraph');
+const { toInt, toNum } = require('../utils/normalize');
 
 function normalizeTempCycleArray(raw) {
   if (raw == null) return null;
@@ -68,7 +69,7 @@ const getImagePaths = (files) => {
 // ── Create / Update Incoming Inspection ──────────────────────
 exports.upsertInspection = async (req, res) => {
   try {
-    const jobCardId = parseInt(req.params.jobCardId);
+    const jobCardId = toInt(req.params.jobCardId);
 
     // Verify job card exists
     const jobCard = await prisma.jobCard.findUnique({ where: { id: jobCardId } });
@@ -104,7 +105,7 @@ exports.upsertInspection = async (req, res) => {
       catCavity:            b(catCavity),
       catOthers:            b(catOthers),
       otherDefects:         otherDefects || null,
-      processTypeId:       processTypeId       ? parseInt(processTypeId) : null,
+      processTypeId:       processTypeId       ? toInt(processTypeId) : null,
       procStressRelieving: b(procStressRelieving),
       procHardening:       b(procHardening),
       procTempering:       b(procTempering),
@@ -120,18 +121,18 @@ exports.upsertInspection = async (req, res) => {
       mpiBefore:           b(mpiBefore),
       mpiAfter:            b(mpiAfter),
       mpiNil:              b(mpiNil),
-      requiredHardnessMin: requiredHardnessMin ? parseFloat(requiredHardnessMin) : null,
-      requiredHardnessMax: requiredHardnessMax ? parseFloat(requiredHardnessMax) : null,
+      requiredHardnessMin: requiredHardnessMin ? toNum(requiredHardnessMin, null) : null,
+      requiredHardnessMax: requiredHardnessMax ? toNum(requiredHardnessMax, null) : null,
       hardnessUnit:        hardnessUnit        || 'HRC',
-      achievedHardness:    achievedHardness    ? parseFloat(achievedHardness)    : null,
-      hardnessAfter1:      hardnessAfter1      ? parseFloat(hardnessAfter1)      : null,
-      hardnessAfter2:      hardnessAfter2      ? parseFloat(hardnessAfter2)      : null,
-      hardnessAfter3:      hardnessAfter3      ? parseFloat(hardnessAfter3)      : null,
-      hardnessAfter4:      hardnessAfter4      ? parseFloat(hardnessAfter4)      : null,
+      achievedHardness:    achievedHardness    ? toNum(achievedHardness, null)    : null,
+      hardnessAfter1:      hardnessAfter1      ? toNum(hardnessAfter1, null)      : null,
+      hardnessAfter2:      hardnessAfter2      ? toNum(hardnessAfter2, null)      : null,
+      hardnessAfter3:      hardnessAfter3      ? toNum(hardnessAfter3, null)      : null,
+      hardnessAfter4:      hardnessAfter4      ? toNum(hardnessAfter4, null)      : null,
       distortionBefore:    distortionBefore    ? (typeof distortionBefore === 'string' ? JSON.parse(distortionBefore) : distortionBefore) : null,
       distortionAfter:     distortionAfter     ? (typeof distortionAfter  === 'string' ? JSON.parse(distortionAfter)  : distortionAfter)  : null,
       urgent:              b(urgent),
-      packedQty:            packedQty            ? parseInt(packedQty)    : null,
+      packedQty:            packedQty            ? toInt(packedQty)    : null,
       packedBy:             packedBy             || null,
       incomingInspectionBy: incomingInspectionBy || null,
       finalInspectionBy:    finalInspectionBy    || null,
@@ -165,13 +166,13 @@ exports.upsertInspection = async (req, res) => {
         await prisma.heatTreatmentProcess.createMany({
           data: rows.map(r => ({
             inspectionId:  inspection.id,
-            processTypeId: r.processTypeId ? parseInt(r.processTypeId) : null,
+            processTypeId: r.processTypeId ? toInt(r.processTypeId) : null,
             equipment:     r.equipment     || null,
-            cycleNo:       r.cycleNo       ? parseInt(r.cycleNo)       : null,
+            cycleNo:       r.cycleNo       ? toInt(r.cycleNo)       : null,
             tempTime:      r.tempTime      || null,
-            tempFrom:      r.tempFrom      ? parseFloat(r.tempFrom)    : null,
-            tempTo:        r.tempTo        ? parseFloat(r.tempTo)      : null,
-            holdTimeMin:   r.holdTimeMin   ? parseInt(r.holdTimeMin)   : null,
+            tempFrom:      r.tempFrom      ? toNum(r.tempFrom, null)    : null,
+            tempTo:        r.tempTo        ? toNum(r.tempTo, null)      : null,
+            holdTimeMin:   r.holdTimeMin   ? toInt(r.holdTimeMin)   : null,
             startTime:     r.startTime     ? new Date(r.startTime)     : null,
             endTime:       r.endTime       ? new Date(r.endTime)       : null,
             processDate:   r.processDate   ? new Date(r.processDate)   : null,
@@ -201,7 +202,7 @@ exports.upsertInspection = async (req, res) => {
 // ── Get Inspection for a Job Card ─────────────────────────────
 exports.getInspection = async (req, res) => {
   try {
-    const jobCardId = parseInt(req.params.jobCardId);
+    const jobCardId = toInt(req.params.jobCardId);
     const inspection = await prisma.incomingInspection.findUnique({
       where:   { jobCardId },
       include: { processType: true, heatProcesses: { include: { processType: true } } },
@@ -228,7 +229,7 @@ const generateCertNo = async () => {
   let nextSerial = 1;
   if (last) {
     const parts = last.certNo.split('-');
-    const lastSerial = parseInt(parts[parts.length - 1]) || 0;
+    const lastSerial = toInt(parts[parts.length - 1], 0);
     nextSerial = lastSerial + 1;
   }
 
@@ -271,15 +272,15 @@ exports.createCertificate = async (req, res) => {
     const cert = await prisma.testCertificate.create({
       data: {
         certNo,
-        jobCardId: jobCardId ? parseInt(jobCardId) : null,
+        jobCardId: jobCardId ? toInt(jobCardId) : null,
         yourPoNo:        yourPoNo        || null,
         yourPoDate:      yourPoDate      ? new Date(yourPoDate) : null,
         yourRefNo:       yourRefNo       || null,
         issueNo:         issueNo         || null,
         issueDate:       issueDate       ? new Date(issueDate) : new Date(),
         checkedBy:       checkedBy       || null,
-        customerId:      parseInt(customerId),
-        issuedByPartyId: issuedByPartyId ? parseInt(issuedByPartyId) : null,
+        customerId:      toInt(customerId),
+        issuedByPartyId: issuedByPartyId ? toInt(issuedByPartyId) : null,
         dieMaterial:     dieMaterial     || null,
         operatorMode:    operatorMode    || null,
         specInstrCertificate:  b(specInstrCertificate),
@@ -303,8 +304,8 @@ exports.createCertificate = async (req, res) => {
         procPlasmaNitriding:  b(procPlasmaNitriding),
         procSubZero:          b(procSubZero),
         procSoakClean:        b(procSoakClean),
-        hardnessMin:     hardnessMin     ? parseFloat(hardnessMin) : null,
-        hardnessMax:    hardnessMax      ? parseFloat(hardnessMax) : null,
+        hardnessMin:     hardnessMin     ? toNum(hardnessMin, null) : null,
+        hardnessMax:    hardnessMax      ? toNum(hardnessMax, null) : null,
         hardnessUnit:   hardnessUnit     || 'HRC',
         tempCycleData:  tempCycleData    ? (typeof tempCycleData   === 'string' ? JSON.parse(tempCycleData)   : tempCycleData)   : null,
         distortionBefore:distortionBefore? (typeof distortionBefore === 'string' ? JSON.parse(distortionBefore): distortionBefore): null,
@@ -321,7 +322,7 @@ exports.createCertificate = async (req, res) => {
         dispatchChallanNo:  dispatchChallanNo  || null,
         dispatchChallanDate: dispatchChallanDate ? new Date(dispatchChallanDate) : null,
         dispatchedThrough:  dispatchedThrough  || null,
-        packedQty:      packedQty        ? parseInt(packedQty)    : null,
+        packedQty:      packedQty        ? toInt(packedQty)    : null,
         packedBy:       packedBy         || null,
         approvedBy:     approvedBy       || null,
         createdById:    req.user.id,
@@ -329,9 +330,9 @@ exports.createCertificate = async (req, res) => {
         items: items ? {
           create: (typeof items === 'string' ? JSON.parse(items) : items).map(it => ({
             description:  it.description,
-            quantity:     parseInt(it.quantity),
-            weightPerPc:  it.weightPerPc  ? parseFloat(it.weightPerPc) : null,
-            totalWeight:  it.totalWeight  ? parseFloat(it.totalWeight) : null,
+            quantity:     toInt(it.quantity),
+            weightPerPc:  it.weightPerPc  ? toNum(it.weightPerPc, null) : null,
+            totalWeight:  it.totalWeight  ? toNum(it.totalWeight, null) : null,
             samplingPlan: it.samplingPlan || null,
             remarks:      it.remarks      || null,
           })),
@@ -360,7 +361,7 @@ exports.createCertificate = async (req, res) => {
 /** GET ?jobCardId= — curve for certificate form / Excel “Graphs” alignment */
 exports.getSuggestedTempCycleForJobCard = async (req, res) => {
   try {
-    const jobCardId = parseInt(req.query.jobCardId, 10);
+    const jobCardId = toInt(req.query.jobCardId);
     if (!jobCardId) {
       return res.status(400).json({ success: false, message: 'jobCardId query is required.' });
     }
@@ -401,8 +402,8 @@ exports.listCertificates = async (req, res) => {
           createdBy: { select: { name: true } },
         },
         orderBy: { createdAt: 'desc' },
-        skip:  (parseInt(page) - 1) * parseInt(limit),
-        take:  parseInt(limit),
+        skip:  (toInt(page, 1) - 1) * toInt(limit, 20),
+        take:  toInt(limit, 20),
       }),
     ]);
     res.json({ success: true, data: certs, meta: { total } });
@@ -415,7 +416,7 @@ exports.listCertificates = async (req, res) => {
 exports.getCertificate = async (req, res) => {
   try {
     const cert = await prisma.testCertificate.findUnique({
-      where: { id: parseInt(req.params.id) },
+      where: { id: toInt(req.params.id) },
       include: {
         jobCard:           {
           include: {

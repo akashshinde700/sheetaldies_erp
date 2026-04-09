@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../utils/api';
+import toast from 'react-hot-toast';
 
 const todayStr = () => new Date().toISOString().split('T')[0];
 
@@ -72,7 +73,7 @@ export default function DailyFurnacePlanning() {
   }, [day]);
 
   const createSlot = async () => {
-    if (!form.machineId) { alert('Select furnace/machine.'); return; }
+    if (!form.machineId) { toast.error('Select furnace/machine.'); return; }
     const payload = {
       date,
       machineId: form.machineId,
@@ -96,7 +97,7 @@ export default function DailyFurnacePlanning() {
       await fetchDay();
       setForm(p => ({ ...p, jobCardId: '', title: '', remarks: '' }));
     } catch (e) {
-      alert(e.response?.data?.message || 'Failed to create slot.');
+      toast.error(e.response?.data?.message || 'Failed to create slot.');
     } finally {
       setSaving(false);
     }
@@ -109,14 +110,14 @@ export default function DailyFurnacePlanning() {
       await api.delete(`/furnace-planning/slots/${id}`);
       await fetchDay();
     } catch (e) {
-      alert(e.response?.data?.message || 'Failed to delete.');
+      toast.error(e.response?.data?.message || 'Failed to delete slot.');
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="max-w-6xl space-y-4 animate-slide-up">
+    <div className="page-stack w-full space-y-4 animate-slide-up">
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex-1">
           <h2 className="text-xl font-extrabold text-slate-800 font-headline">Daily Production Planning</h2>

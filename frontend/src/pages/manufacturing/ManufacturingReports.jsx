@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import api from '../../utils/api';
+import toast from 'react-hot-toast';
 
 export default function ManufacturingReports() {
   const [utilization, setUtilization] = useState([]);
@@ -44,7 +45,7 @@ export default function ManufacturingReports() {
       setShifts(shiftRes.data.data || []);
     } catch (error) {
       console.error(error);
-      alert('Failed to load reports');
+      toast.error('Failed to load reports.');
     } finally {
       setLoading(false);
     }
@@ -74,7 +75,7 @@ export default function ManufacturingReports() {
       })) : []);
     } catch (e) {
       console.error(e);
-      alert('Failed to load plant losses.');
+      toast.error('Failed to load plant losses.');
     }
   };
 
@@ -85,7 +86,7 @@ export default function ManufacturingReports() {
       setIdleSheet(r.data.data);
     } catch (e) {
       console.error(e);
-      alert('Failed to load daily idle sheet.');
+      toast.error('Failed to load daily idle sheet.');
     }
   };
 
@@ -119,10 +120,10 @@ export default function ManufacturingReports() {
         })),
       });
       await fetchDailyIdle();
-      alert('Daily idle sheet saved.');
+      toast.success('Daily idle sheet saved.');
     } catch (e) {
       console.error(e);
-      alert(e.response?.data?.message || 'Failed to save daily idle sheet.');
+      toast.error(e.response?.data?.message || 'Failed to save daily idle sheet.');
     } finally {
       setSavingIdle(false);
     }
@@ -133,10 +134,10 @@ export default function ManufacturingReports() {
     try {
       await api.post('/manufacturing/reports/plant-losses/derive', { year: idleYear, month: idleMonth });
       await fetchPlantLoss();
-      alert('Monthly plant losses derived from daily logs.');
+      toast.success('Monthly plant losses derived from daily logs.');
     } catch (e) {
       console.error(e);
-      alert(e.response?.data?.message || 'Failed to derive monthly report.');
+      toast.error(e.response?.data?.message || 'Failed to derive monthly report.');
     } finally {
       setSavingLoss(false);
     }
@@ -159,7 +160,7 @@ export default function ManufacturingReports() {
       });
     } catch (e) {
       console.error(e);
-      alert('Failed to load utilisation statement.');
+      toast.error('Failed to load utilisation statement.');
     }
   };
 
@@ -183,10 +184,10 @@ export default function ManufacturingReports() {
         shifts: utilRow.shifts,
       });
       await fetchUtilDay();
-      alert('Utilisation statement saved.');
+      toast.success('Utilisation statement saved.');
     } catch (e) {
       console.error(e);
-      alert(e.response?.data?.message || 'Failed to save utilisation statement.');
+      toast.error(e.response?.data?.message || 'Failed to save utilisation statement.');
     } finally {
       setSavingUtil(false);
     }
@@ -229,10 +230,10 @@ export default function ManufacturingReports() {
         })),
       });
       await fetchPlantLoss();
-      alert('Plant losses saved.');
+      toast.success('Plant losses saved.');
     } catch (e) {
       console.error(e);
-      alert(e.response?.data?.message || 'Failed to save plant losses.');
+      toast.error(e.response?.data?.message || 'Failed to save plant losses.');
     } finally {
       setSavingLoss(false);
     }
@@ -273,11 +274,11 @@ export default function ManufacturingReports() {
             <div className="flex items-end gap-3 flex-wrap">
               <div>
                 <label className="block text-sm font-medium mb-1">Year</label>
-                <input type="number" value={lossYear} onChange={(e) => setLossYear(parseInt(e.target.value || 0))} className="px-3 py-2 border rounded w-28" />
+                <input type="number" value={lossYear} onChange={(e) => setLossYear(Number(e.target.value || 0))} className="px-3 py-2 border rounded w-28" />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Month</label>
-                <select value={lossMonth} onChange={(e) => setLossMonth(parseInt(e.target.value))} className="px-3 py-2 border rounded w-36">
+                <select value={lossMonth} onChange={(e) => setLossMonth(Number(e.target.value))} className="px-3 py-2 border rounded w-36">
                   {Array.from({ length: 12 }).map((_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}
                 </select>
               </div>
@@ -357,11 +358,11 @@ export default function ManufacturingReports() {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Year</label>
-                <input type="number" value={idleYear} onChange={(e) => setIdleYear(parseInt(e.target.value || 0))} className="px-3 py-2 border rounded w-28" />
+                <input type="number" value={idleYear} onChange={(e) => setIdleYear(Number(e.target.value || 0))} className="px-3 py-2 border rounded w-28" />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Month</label>
-                <select value={idleMonth} onChange={(e) => setIdleMonth(parseInt(e.target.value))} className="px-3 py-2 border rounded w-36">
+                <select value={idleMonth} onChange={(e) => setIdleMonth(Number(e.target.value))} className="px-3 py-2 border rounded w-36">
                   {Array.from({ length: 12 }).map((_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}
                 </select>
               </div>

@@ -68,7 +68,7 @@ export default function Dashboard() {
       setStats(s.data.data);
       setRecentCards(c.data.data || []);
       const pendingInvs = inv.data.data || [];
-      const pendingAmt  = pendingInvs.reduce((sum, i) => sum + parseFloat(i.totalAmount || 0), 0);
+      const pendingAmt  = pendingInvs.reduce((sum, i) => sum + Number(i.totalAmount || 0), 0);
       setInvoiceMeta({ pending: inv.data.meta?.total || pendingInvs.length, pendingAmt });
     }).catch(() => setError('Failed to load dashboard data.'))
       .finally(() => setLoading(false));

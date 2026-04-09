@@ -1,4 +1,5 @@
 const prisma = require('../utils/prisma');
+const { toInt } = require('../utils/normalize');
 
 // Get all machines with search
 exports.list = async (req, res) => {
@@ -31,7 +32,8 @@ exports.list = async (req, res) => {
 // Get single machine
 exports.getOne = async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = toInt(req.params.id);
+    if (Number.isNaN(id)) return res.status(400).json({ success: false, message: 'Invalid ID.' });
 
     const machine = await prisma.machine.findUnique({ where: { id } });
 
@@ -75,7 +77,8 @@ exports.create = async (req, res) => {
 // Update machine
 exports.update = async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = toInt(req.params.id);
+    if (Number.isNaN(id)) return res.status(400).json({ success: false, message: 'Invalid ID.' });
     const { name, code, type, make, isActive } = req.body;
 
     const machine = await prisma.machine.update({
@@ -102,7 +105,8 @@ exports.update = async (req, res) => {
 // Delete machine
 exports.delete = async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = toInt(req.params.id);
+    if (Number.isNaN(id)) return res.status(400).json({ success: false, message: 'Invalid ID.' });
 
     await prisma.machine.delete({ where: { id } });
 

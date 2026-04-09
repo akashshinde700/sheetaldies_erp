@@ -65,29 +65,29 @@ export default function SearchSelect({
         <button
           type="button"
           onClick={handleOpen}
-          className={`form-input w-full text-left flex items-center justify-between gap-2 ${!value ? 'text-slate-400' : 'text-slate-800'}`}
+          className={`form-input w-full text-left flex items-center justify-between gap-2 ${!value ? 'text-slate-500' : 'text-slate-900'}`}
         >
           <span className="truncate text-sm">{value ? selectedLabel : placeholder}</span>
           <div className="flex items-center gap-1 flex-shrink-0">
             {value && (
               <span
                 onClick={handleClear}
-                className="material-symbols-outlined text-[16px] text-slate-300 hover:text-rose-400 transition-colors"
+                className="material-symbols-outlined text-[16px] text-slate-400 hover:text-rose-500 transition-colors"
               >close</span>
             )}
-            <span className="material-symbols-outlined text-[16px] text-slate-400">expand_more</span>
+            <span className="material-symbols-outlined text-[16px] text-slate-500">expand_more</span>
           </div>
         </button>
       ) : (
         /* Search Input */
         <div className="form-input flex items-center gap-2 p-0 overflow-hidden">
-          <span className="material-symbols-outlined text-slate-400 text-[16px] ml-3 flex-shrink-0">search</span>
+          <span className="material-symbols-outlined text-slate-500 text-[16px] ml-3 flex-shrink-0">search</span>
           <input
             ref={inputRef}
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Type to search..."
-            className="flex-1 py-2 pr-3 text-sm bg-transparent outline-none text-slate-800 placeholder-slate-400"
+            className="flex-1 py-2 pr-3 text-sm bg-transparent outline-none text-slate-900 placeholder-slate-400"
             onKeyDown={e => {
               if (e.key === 'Escape') { setOpen(false); setQuery(''); }
               if (e.key === 'Enter' && filtered.length === 1) { handleSelect(filtered[0]); }
@@ -112,7 +112,7 @@ export default function SearchSelect({
         <div className="absolute z-50 top-full left-0 right-0 mt-1.5 bg-white border border-slate-200/90 rounded-xl shadow-card-hover overflow-hidden">
           <div className="max-h-[min(14rem,50dvh)] overflow-y-auto overscroll-contain [webkit-overflow-scrolling:touch]">
             {filtered.length === 0 ? (
-              <div className="px-4 py-4 text-xs text-slate-400 text-center">No results found</div>
+              <div className="px-4 py-4 text-xs text-slate-500 text-center">No results found</div>
             ) : (
               filtered.map(opt => (
                 <button
@@ -122,8 +122,8 @@ export default function SearchSelect({
                   className={`w-full text-left min-h-[44px] px-4 py-2.5 text-sm flex items-center gap-2 transition-colors duration-150
                     active:bg-brand-100/80
                     ${String(opt.value) === String(value)
-                      ? 'bg-brand-50 text-brand-800 font-semibold'
-                      : 'text-slate-700 hover:bg-brand-50/80 hover:text-brand-800'}`}
+                      ? 'bg-brand-50 text-brand-900 font-semibold'
+                      : 'text-slate-800 hover:bg-brand-50/80 hover:text-brand-900'}`}
                 >
                   {String(opt.value) === String(value) && (
                     <span className="material-symbols-outlined text-[14px] text-brand-600 flex-shrink-0">check</span>

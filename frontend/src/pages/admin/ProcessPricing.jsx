@@ -56,7 +56,7 @@ export default function ProcessPricing() {
   };
 
   return (
-    <div className="space-y-5 max-w-5xl animate-slide-up">
+    <div className="page-stack w-full space-y-5 animate-slide-up">
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -230,9 +230,9 @@ export default function ProcessPricing() {
                         {proc.description && <p className="text-[10px] text-slate-400 truncate max-w-[160px] mt-0.5">{proc.description}</p>}
                       </td>
                       <td className="td text-xs text-slate-500 font-mono">{proc.hsnSacCode || '—'}</td>
-                      <td className="td text-xs font-bold text-slate-800">{proc.pricePerKg ? `₹ ${parseFloat(proc.pricePerKg).toLocaleString('en-IN')}` : '—'}</td>
-                      <td className="td text-xs text-slate-600">{proc.pricePerPc ? `₹ ${parseFloat(proc.pricePerPc).toLocaleString('en-IN')}` : '—'}</td>
-                      <td className="td text-xs text-slate-500">{proc.minCharge ? `₹ ${parseFloat(proc.minCharge).toLocaleString('en-IN')}` : '—'}</td>
+                      <td className="td text-xs font-bold text-slate-800">{proc.pricePerKg ? `₹ ${Number(proc.pricePerKg).toLocaleString('en-IN')}` : '—'}</td>
+                      <td className="td text-xs text-slate-600">{proc.pricePerPc ? `₹ ${Number(proc.pricePerPc).toLocaleString('en-IN')}` : '—'}</td>
+                      <td className="td text-xs text-slate-500">{proc.minCharge ? `₹ ${Number(proc.minCharge).toLocaleString('en-IN')}` : '—'}</td>
                       <td className="td">
                         <span className="badge bg-indigo-50 text-indigo-700">{proc.gstRate}%</span>
                       </td>

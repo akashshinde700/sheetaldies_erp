@@ -42,7 +42,7 @@ export default function JobworkList() {
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState(null);
   const [status,   setStatus]   = useState('');
-  const [seedDemo, setSeedDemo] = useState('');
+  const [seedDemo, setSeedDemo] = useState('hide');
   const [page,     setPage]     = useState(1);
   const [total,    setTotal]    = useState(0);
   const [statusSavingId, setStatusSavingId] = useState(null);
@@ -50,7 +50,7 @@ export default function JobworkList() {
   const fetchData = useCallback(() => {
     setLoading(true); setError(null);
     const params = { status, page, limit: PAGE_LIMIT };
-    if (seedDemo) params.seedDemo = seedDemo;
+    if (seedDemo && seedDemo !== 'hide') params.seedDemo = seedDemo;
     api.get('/jobwork', { params })
       .then(r => { setChallans(r.data.data || []); setTotal(r.data.meta?.total || 0); })
       .catch(() => setError('Failed to load challans.'))
@@ -139,10 +139,10 @@ export default function JobworkList() {
         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider w-full sm:w-auto sm:mr-1">Demo data</span>
         {[
           { v: 'hide', label: 'Hide demo' },
-          { v: '', label: 'Show all' },
+          { v: 'all', label: 'Show all' },
           { v: 'only', label: 'Demo only' },
         ].map(({ v, label }) => (
-          <button key={v || 'all'} type="button" onClick={() => setSeedDemo(v)}
+          <button key={v} type="button" onClick={() => setSeedDemo(v)}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all duration-150 ${
               seedDemo === v
                 ? 'bg-slate-700 text-white border-slate-700 shadow-sm'
@@ -221,7 +221,7 @@ export default function JobworkList() {
                       {ch.items?.length || 0}
                     </span>
                   </td>
-                  <td className="td font-bold text-slate-800">₹ {parseFloat(ch.totalValue).toLocaleString('en-IN')}</td>
+                  <td className="td font-bold text-slate-800">₹ {Number(ch.totalValue || 0).toLocaleString('en-IN')}</td>
                   <td className="td min-w-[9.5rem]">
                     <label className="sr-only">Status for {ch.challanNo}</label>
                     <select

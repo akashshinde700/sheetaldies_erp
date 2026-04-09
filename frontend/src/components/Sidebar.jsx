@@ -47,12 +47,12 @@ const NavItem = ({ item, onNavigate }) => {
     onClick={onNavigate}
     className={({ isActive }) => {
       const active = resolvedActive(isActive);
-      return `group flex items-center gap-3 min-h-[42px] px-3 rounded-lg text-sm font-medium mb-0.5
+      return `group flex items-center gap-3 min-h-[42px] px-3.5 rounded-xl text-sm font-semibold mb-1
        transition-all duration-200 ease-out
        ${
          active
-           ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80 shadow-[inset_3px_0_0_0_rgb(2,132,199)]'
-           : 'text-slate-600 hover:text-slate-900 hover:bg-white/70 border border-transparent active:scale-[0.99]'
+           ? 'bg-white text-slate-900 shadow-sm border border-slate-200/90 shadow-[inset_3px_0_0_0_rgb(2,132,199)]'
+           : 'text-slate-700 hover:text-slate-900 hover:bg-white/85 border border-transparent hover:border-slate-200/70 active:scale-[0.99]'
        }`;
     }}
   >
@@ -60,7 +60,7 @@ const NavItem = ({ item, onNavigate }) => {
       <>
         <span
           className={`material-symbols-outlined text-[20px] transition-colors duration-200 shrink-0
-            ${resolvedActive(isActive) ? 'text-sky-700' : 'text-slate-400 group-hover:text-sky-700'}`}
+            ${resolvedActive(isActive) ? 'text-sky-700' : 'text-slate-500 group-hover:text-sky-700'}`}
         >
           {item.icon}
         </span>
@@ -72,7 +72,7 @@ const NavItem = ({ item, onNavigate }) => {
 };
 
 const SectionLabel = ({ label }) => (
-  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 px-3 pt-4 pb-1.5">
+  <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 px-3.5 pt-4 pb-1.5">
     {label}
   </p>
 );
@@ -98,14 +98,14 @@ export default function Sidebar({ open, onClose }) {
 
       <aside
         className={`h-dvh h-screen max-h-dvh fixed left-0 top-0 z-40 flex flex-col w-64 max-w-[min(16rem,calc(100vw-1.5rem))]
-          border-r border-slate-200/90 shadow-[4px_0_24px_-8px_rgba(15,23,42,0.08)] lg:shadow-none lg:max-w-none
+          border-r border-slate-200/90 shadow-[8px_0_30px_-10px_rgba(15,23,42,0.14)] lg:shadow-none lg:max-w-none
           transition-transform duration-300 ease-out will-change-transform
           bg-app-sidebar safe-pt safe-pb
           ${open ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
       >
         <div className="h-0.5 w-full bg-gradient-to-r from-sky-500 via-sky-400 to-blue-500 shrink-0" />
 
-        <div className="px-4 sm:px-5 py-4 sm:py-5 border-b border-sky-200/50 shrink-0">
+        <div className="px-4 sm:px-5 py-4 sm:py-5 border-b border-sky-200/60 shrink-0">
           <div className="flex items-center gap-3">
             <div
               className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 shadow-md shadow-slate-900/15
@@ -114,8 +114,8 @@ export default function Sidebar({ open, onClose }) {
               <span className="material-symbols-outlined text-[20px]">precision_manufacturing</span>
             </div>
             <div className="min-w-0">
-              <h1 className="text-slate-900 font-extrabold text-sm tracking-tight font-headline truncate">Sheetal Dies</h1>
-              <p className="text-slate-500 text-[10px] tracking-widest uppercase font-semibold">ERP System</p>
+              <h1 className="text-slate-950 font-extrabold text-sm tracking-tight font-headline truncate">Sheetal Dies</h1>
+              <p className="text-slate-600 text-[10px] tracking-widest uppercase font-semibold">ERP System</p>
             </div>
           </div>
         </div>
@@ -140,7 +140,7 @@ export default function Sidebar({ open, onClose }) {
           )}
         </nav>
 
-        <div className="px-2 sm:px-3 py-3 sm:py-4 border-t border-sky-200/50 space-y-1 shrink-0 safe-pb">
+        <div className="px-2 sm:px-3 py-3 sm:py-4 border-t border-sky-200/60 space-y-1 shrink-0 safe-pb">
           <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white/80 border border-slate-200/80 shadow-sm hover:bg-white transition-colors">
             <div
               className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0
@@ -149,14 +149,14 @@ export default function Sidebar({ open, onClose }) {
               {initials}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-slate-900 text-xs font-semibold truncate">{user?.name}</p>
-              <p className="text-slate-500 text-[10px] truncate font-medium uppercase tracking-wide">{user?.role}</p>
+              <p className="text-slate-900 text-xs font-bold truncate">{user?.name}</p>
+              <p className="text-slate-600 text-[10px] truncate font-semibold uppercase tracking-wide">{user?.role}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 min-h-[44px] px-3 rounded-lg text-slate-600
+            className="w-full flex items-center gap-3 min-h-[44px] px-3 rounded-lg text-slate-700
               hover:text-rose-600 hover:bg-rose-50 active:scale-[0.99]
               text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 rounded-lg"
           >

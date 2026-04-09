@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus } from 'lucide-react';
 import api from '../../utils/api';
 
 function formatDate(d) {
@@ -45,10 +44,10 @@ export default function VHTRunsheetList() {
   }, [page, furnaceId, status]);
 
   const totalWt = (items) =>
-    (items || []).reduce((s, it) => s + (parseFloat(it.weightKg) || 0), 0);
+    (items || []).reduce((s, it) => s + (Number(it.weightKg) || 0), 0);
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="page-stack w-full p-6 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">VHT Run Sheet</h1>
@@ -60,7 +59,7 @@ export default function VHTRunsheetList() {
           to="/manufacturing/runsheet/new"
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700"
         >
-          <Plus size={18} /> New run sheet
+          <span className="material-symbols-outlined text-[18px]">add</span> New run sheet
         </Link>
       </div>
 

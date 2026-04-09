@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import api from '../../utils/api';
+import toast from 'react-hot-toast';
 
 function formatCurrency2(v) {
-  const n = typeof v === 'number' ? v : parseFloat(String(v ?? '').replace(/,/g, ''));
+  const n = typeof v === 'number' ? v : Number(String(v ?? '').replace(/,/g, ''));
   return (Number.isFinite(n) ? n : 0).toFixed(2);
 }
 
@@ -25,12 +25,12 @@ export default function GoodsReceiptForm() {
       setPos(response.data.data || []);
     } catch (error) {
       console.error(error);
-      alert('Failed to load POs');
+      toast.error('Failed to load purchase orders.');
     }
   };
 
   const handlePOSelect = (poId) => {
-    const po = pos.find(p => p.id === poId);
+    const po = pos.find((p) => String(p.id) === String(poId));
     setSelectedPO(po);
     if (po?.items) {
       setPoItems(po.items.map(item => ({
@@ -52,12 +52,12 @@ export default function GoodsReceiptForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selectedPO || poItems.length === 0) {
-      alert('Select PO and add items');
+      toast.error('Select purchase order and add items.');
       return;
     }
 
     if (poItems.some(item => item.quantityAccepted === 0 && item.quantityReceived === 0)) {
-      alert('Enter quantities for all items');
+      toast.error('Enter quantities for all items.');
       return;
     }
 
@@ -65,30 +65,30 @@ export default function GoodsReceiptForm() {
       setLoading(true);
       const payload = {
         purchaseOrderId: selectedPO.id,
-        notes,
+        remarks: notes,
         items: poItems.map(item => ({
           itemId: item.itemId,
-          quantityReceived: parseFloat(item.quantityReceived),
-          quantityAccepted: parseFloat(item.quantityAccepted),
-          quantityRejected: parseFloat(item.quantityRejected || 0),
+          quantityReceived: Number(item.quantityReceived),
+          quantityAccepted: Number(item.quantityAccepted),
+          quantityRejected: Number(item.quantityRejected || 0),
           remarks: item.remarks
         }))
       };
 
       await api.post(`/purchase/${selectedPO.id}/grn`, payload);
-      alert('GRN created and inventory updated!');
+      toast.success('GRN created and inventory updated.');
       setSelectedPO(null);
       setPoItems([]);
       setNotes('');
     } catch (error) {
-      alert('Failed to create GRN');
+      toast.error(error?.response?.data?.message || 'Failed to create GRN.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="space-y-6 animate-slide-up w-full max-w-6xl mx-auto">
+    <div className="page-stack w-full space-y-6 animate-slide-up">
       <div>
         <h1 className="page-title">Goods Receipt (GRN)</h1>
         <p className="page-subtitle">Receive against draft purchase orders and update stock</p>
@@ -98,8 +98,9 @@ export default function GoodsReceiptForm() {
         <h2 className="text-lg font-bold text-slate-900 font-headline mb-4">Create GRN</h2>
 
         <div className="mb-6">
-          <label className="form-label">Purchase order *</label>
+          <label htmlFor="grn-po-select" className="form-label">Purchase order *</label>
           <select
+            id="grn-po-select"
             value={selectedPO?.id || ''}
             onChange={(e) => handlePOSelect(e.target.value)}
             className="form-input"
@@ -158,8 +159,8 @@ export default function GoodsReceiptForm() {
             </div>
 
             <div>
-              <label className="form-label">GRN notes</label>
-              <textarea placeholder="Optional notes" value={notes} onChange={(e) => setNotes(e.target.value)} className="form-input min-h-[88px]" rows={3} />
+              <label htmlFor="grn-notes" className="form-label">GRN notes</label>
+              <textarea id="grn-notes" placeholder="Optional notes" value={notes} onChange={(e) => setNotes(e.target.value)} className="form-input min-h-[88px]" rows={3} />
             </div>
 
             <div className="flex flex-wrap gap-2">

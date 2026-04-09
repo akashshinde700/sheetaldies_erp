@@ -39,8 +39,10 @@ app.use('/api/analytics',  require('./routes/analytics.routes'));
 app.use('/api/audit',      require('./routes/audit.routes'));
 app.use('/api/upload',     require('./routes/upload.routes'));
 app.use('/api/workflows',  require('./routes/workflow.routes'));
-app.use('/api/dev',        require('./routes/dev.routes'));
-app.use('/api/demo',       require('./routes/demo.routes'));  // Demo data & images
+if (process.env.NODE_ENV !== 'production') {
+  app.use('/api/dev', require('./routes/dev.routes'));
+  app.use('/api/demo', require('./routes/demo.routes'));  // Demo data/images only in non-production
+}
 
 // ── Health Check ──────────────────────────────────────────────
 app.get('/api/health', async (req, res) => {
@@ -57,7 +59,10 @@ app.get('/api/health', async (req, res) => {
 app.use((err, req, res, next) => {
   console.error(err.stack);
   const status = err.status || 500;
-  res.status(status).json({ success: false, message: err.message || 'Internal Server Error' });
+  const message = process.env.NODE_ENV === 'production'
+    ? 'Internal Server Error'
+    : (err.message || 'Internal Server Error');
+  res.status(status).json({ success: false, message });
 });
 
 module.exports = app;

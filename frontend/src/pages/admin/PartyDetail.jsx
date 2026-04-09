@@ -49,7 +49,7 @@ export default function PartyDetail() {
   const { party, summary, jobCards, invoices, certificates, jobworkAsFromParty, jobworkAsToParty, dispatchToParty, dispatchFromParty } = data;
 
   return (
-    <div className="space-y-6 animate-slide-up max-w-6xl">
+    <div className="page-stack w-full space-y-6 animate-slide-up">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
           <button type="button" onClick={() => navigate('/admin/parties')} className="text-xs font-semibold text-indigo-600 hover:underline mb-2">

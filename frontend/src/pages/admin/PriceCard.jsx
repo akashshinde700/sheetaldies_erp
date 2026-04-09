@@ -105,7 +105,7 @@ export default function PriceCard() {
                           <span className="text-[11px] font-semibold text-slate-500">Per KG</span>
                         </div>
                         <span className="text-base font-extrabold text-slate-800">
-                          ₹ {parseFloat(proc.pricePerKg).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          ₹ {Number(proc.pricePerKg).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         </span>
                       </div>
                     )}
@@ -116,7 +116,7 @@ export default function PriceCard() {
                           <span className="text-[11px] font-semibold text-slate-500">Per Piece</span>
                         </div>
                         <span className="text-base font-extrabold text-slate-800">
-                          ₹ {parseFloat(proc.pricePerPc).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          ₹ {Number(proc.pricePerPc).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         </span>
                       </div>
                     )}
@@ -124,7 +124,7 @@ export default function PriceCard() {
                       <div className="flex items-center justify-between border-t border-slate-100 pt-2">
                         <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Min. Charge</span>
                         <span className="text-sm font-bold text-slate-600">
-                          ₹ {parseFloat(proc.minCharge).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          ₹ {Number(proc.minCharge).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         </span>
                       </div>
                     )}
@@ -179,13 +179,13 @@ export default function PriceCard() {
                   </td>
                   <td className="px-4 py-2.5 text-xs font-mono text-slate-500">{proc.hsnSacCode || '—'}</td>
                   <td className="px-4 py-2.5 text-xs font-extrabold text-slate-800 text-right">
-                    {proc.pricePerKg ? `₹ ${parseFloat(proc.pricePerKg).toLocaleString('en-IN', {minimumFractionDigits:2})}` : '—'}
+                    {proc.pricePerKg ? `₹ ${Number(proc.pricePerKg).toLocaleString('en-IN', {minimumFractionDigits:2})}` : '—'}
                   </td>
                   <td className="px-4 py-2.5 text-xs font-bold text-slate-600 text-right">
-                    {proc.pricePerPc ? `₹ ${parseFloat(proc.pricePerPc).toLocaleString('en-IN', {minimumFractionDigits:2})}` : '—'}
+                    {proc.pricePerPc ? `₹ ${Number(proc.pricePerPc).toLocaleString('en-IN', {minimumFractionDigits:2})}` : '—'}
                   </td>
                   <td className="px-4 py-2.5 text-xs text-slate-500 text-right">
-                    {proc.minCharge ? `₹ ${parseFloat(proc.minCharge).toLocaleString('en-IN', {minimumFractionDigits:2})}` : '—'}
+                    {proc.minCharge ? `₹ ${Number(proc.minCharge).toLocaleString('en-IN', {minimumFractionDigits:2})}` : '—'}
                   </td>
                   <td className="px-4 py-2.5 text-center">
                     <span className="text-[10px] font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">{proc.gstRate}%</span>

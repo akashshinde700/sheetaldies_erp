@@ -15,6 +15,26 @@ This document describes how modules connect in **this codebase** (frontend route
 
 ---
 
+## 1.1 Data normalization standard (backend + frontend)
+
+To keep request/response parsing consistent and reduce silent type bugs:
+
+- **Backend:** use only `backend/src/utils/normalize.js` helpers:
+  - `toInt()`, `toNum()`, `toPositiveIntOrNull()`, `toDateOrNull()`, `asArray()`
+- **Frontend:** use only `frontend/src/utils/normalize.js` helpers:
+  - `toInt()`, `toNum()`
+- Avoid direct `parseInt()` / `parseFloat()` in app logic files.  
+  Use helper functions for:
+  - route/query/body ids
+  - numeric form values
+  - totals/tax calculations
+  - pagination values
+- If invalid input is possible, pass explicit fallback values in helper calls (example: `toInt(page, 1)`, `toNum(amount, 0)`).
+
+This standard is now applied across backend controllers/routes and core frontend forms/lists.
+
+---
+
 ## 2. User roles (RBAC)
 
 Defined in Prisma `User.role`: **ADMIN**, **MANAGER**, **OPERATOR**, **VIEWER**.
@@ -100,7 +120,8 @@ flowchart LR
    - **CREATED** → **IN_PROGRESS** (or **ON_HOLD**)  
    - **IN_PROGRESS** → **SENT_FOR_JOBWORK** (or ON_HOLD)  
    - **SENT_FOR_JOBWORK** → **INSPECTION** (or ON_HOLD)  
-   - **INSPECTION** → **COMPLETED** only if inspection status is **PASS** or **CONDITIONAL**  
+  - **INSPECTION** → **COMPLETED** only if inspection status is **PASS** or **CONDITIONAL**
+  - **INSPECTION** → **SENT_FOR_JOBWORK** for rework loop (allowed)
    - **ON_HOLD** → **CREATED** / **IN_PROGRESS** / **SENT_FOR_JOBWORK**  
    - **COMPLETED** → no further status changes  
    - Moving **to INSPECTION** requires an **inspection record** to exist.  
@@ -157,7 +178,7 @@ API under `/api/workflows` — used when templates are configured for guided ste
 | `/` | Dashboard |
 | `/jobcards`, `/jobcards/new`, `/jobcards/:id` | Job card list / form |
 | `/jobcards/:id/inspection` | Incoming inspection |
-| `/jobwork`, `/jobwork/new`, `/jobwork/:id` | Jobwork challans |
+| `/jobwork`, `/jobwork/new`, `/jobwork/:id/edit`, `/jobwork/:id` | Jobwork challans |
 | `/jobwork/register` | Inward / outward register |
 | `/quality/certificates` | Certificate list / CRUD / print |
 | `/invoices`, `/invoices/new`, `/invoices/:id`, `.../print` | Invoices |
@@ -181,7 +202,7 @@ Mounted in `backend/src/app.js`:
 |--------|--------|
 | `/api/auth` | Login / JWT |
 | `/api/jobcards` | Job cards + stats; quick status `PATCH /:id/status` |
-| `/api/jobwork` | Jobwork challans; list `?seedDemo=hide|only`; status `PATCH /:id/status` |
+| `/api/jobwork` | Jobwork challans; list `?seedDemo=hide|all|only`; status `PATCH /:id/status` |
 | `/api/quality` | Inspection + certificates |
 | `/api/invoices` | Tax invoices |
 | `/api/dispatch-challans` | Dispatch |

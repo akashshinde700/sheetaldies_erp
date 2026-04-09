@@ -127,7 +127,7 @@ export default function Analytics() {
   const passRate  = totalQual > 0 ? ((overview.quality.pass / totalQual) * 100).toFixed(1) : '—';
 
   return (
-    <div className="space-y-6 animate-slide-up max-w-7xl">
+    <div className="page-stack w-full space-y-6 animate-slide-up">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
         <div>
