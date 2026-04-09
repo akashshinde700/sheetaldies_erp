@@ -100,33 +100,40 @@ export default function AdvancedAnalytics() {
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
   const StatCard = ({ icon: Icon, label, value, subtext, color }) => (
-    <div className="bg-white rounded-lg p-6 shadow hover:shadow-lg transition">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm text-gray-600 mb-1">{label}</p>
-          <p className="text-3xl font-bold text-gray-800">{value ?? 0}</p>
-          {subtext && <p className="text-xs text-gray-500 mt-2">{subtext}</p>}
+    <div className="card p-5 card-interactive">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{label}</p>
+          <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-headline">{value ?? 0}</p>
+          {subtext && <p className="text-xs text-slate-500 mt-2 leading-snug">{subtext}</p>}
         </div>
-        <div className={`p-3 rounded-lg ${color}`}>
-          <Icon size={24} className="text-white" />
+        <div className={`p-3 rounded-xl shrink-0 shadow-sm ${color}`}>
+          <Icon size={22} className="text-white" />
         </div>
       </div>
     </div>
   );
 
   if (loading) {
-    return <div className="p-6 text-center">Loading analytics...</div>;
+    return (
+      <div className="flex items-center justify-center py-20 text-slate-500 text-sm gap-2">
+        <span className="material-symbols-outlined animate-spin text-xl">progress_activity</span>
+        Loading analytics…
+      </div>
+    );
   }
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">Advanced Analytics Dashboard</h1>
+    <div className="page-stack">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="page-title">Advanced analytics</h1>
+            <p className="page-subtitle">Deeper trends and breakdowns</p>
+          </div>
           <select
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value)}
-            className="px-4 py-2 border rounded bg-white"
+            className="form-input w-full sm:w-auto min-w-[14rem]"
           >
             <option value="week">Last 7 Days (≈ latest month)</option>
             <option value="month">Last 30 Days (≈ 3 months)</option>
@@ -140,34 +147,34 @@ export default function AdvancedAnalytics() {
             label="Total Job Cards"
             value={stats?.totalJobCards}
             subtext={`${stats?.completedJobCards || 0} completed`}
-            color="bg-blue-500"
+            color="bg-slate-800"
           />
           <StatCard
             icon={DollarSign}
             label="Total Revenue"
             value={`₹${fmtMoney(stats?.totalRevenue)}`}
             subtext={`${stats?.pendingInvoices || 0} invoices pending payment`}
-            color="bg-green-500"
+            color="bg-emerald-600"
           />
           <StatCard
             icon={Package}
             label="Challans"
             value={stats?.totalChallans}
             subtext={`${stats?.pendingChallans || 0} pending · ${stats?.jobsThisMonth || 0} new job cards this month`}
-            color="bg-orange-500"
+            color="bg-amber-600"
           />
           <StatCard
             icon={TrendingUp}
             label="Inspection pass rate"
             value={`${stats?.efficiency || 0}%`}
             subtext="Share of PASS vs FAIL in incoming inspections"
-            color="bg-purple-500"
+            color="bg-violet-600"
           />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <div className="bg-white rounded-lg p-6 shadow">
-            <h2 className="text-xl font-bold mb-4 text-gray-800">Monthly Trends</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="card p-5 sm:p-6">
+            <h2 className="text-sm font-bold text-slate-800 font-headline mb-4">Monthly trends</h2>
             {monthlyData.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={monthlyData}>
@@ -185,12 +192,12 @@ export default function AdvancedAnalytics() {
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <p className="text-gray-500 text-center py-12">No data available</p>
+              <p className="text-slate-500 text-center py-12 text-sm">No data available</p>
             )}
           </div>
 
-          <div className="bg-white rounded-lg p-6 shadow">
-            <h2 className="text-xl font-bold mb-4 text-gray-800">Process Distribution</h2>
+          <div className="card p-5 sm:p-6">
+            <h2 className="text-sm font-bold text-slate-800 font-headline mb-4">Process distribution</h2>
             {processData.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
@@ -212,13 +219,13 @@ export default function AdvancedAnalytics() {
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <p className="text-gray-500 text-center py-12">No data available</p>
+              <p className="text-slate-500 text-center py-12 text-sm">No data available</p>
             )}
           </div>
         </div>
 
-        <div className="bg-white rounded-lg p-6 shadow mb-6">
-          <h2 className="text-xl font-bold mb-4 text-gray-800">Invoice Analytics</h2>
+        <div className="card p-5 sm:p-6">
+          <h2 className="text-sm font-bold text-slate-800 font-headline mb-4">Invoice analytics</h2>
           {invoiceData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={invoiceData}>
@@ -233,28 +240,27 @@ export default function AdvancedAnalytics() {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <p className="text-gray-500 text-center py-12">No data available</p>
+            <p className="text-slate-500 text-center py-12 text-sm">No data available</p>
           )}
         </div>
 
-        <div className="bg-white rounded-lg p-6 shadow">
-          <h2 className="text-xl font-bold mb-4 text-gray-800">Summary Statistics</h2>
+        <div className="card p-5 sm:p-6">
+          <h2 className="text-sm font-bold text-slate-800 font-headline mb-4">Summary</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="border-l-4 border-blue-500 pl-4">
-              <p className="text-gray-600 text-sm">Avg turnaround (sample)</p>
-              <p className="text-2xl font-bold text-gray-800">{stats?.avgProcessingDays || 0} days</p>
+            <div className="border-l-4 border-sky-500 pl-4">
+              <p className="text-slate-500 text-xs font-semibold uppercase tracking-wide">Avg turnaround</p>
+              <p className="text-2xl font-extrabold text-slate-900 font-headline">{stats?.avgProcessingDays || 0} days</p>
             </div>
-            <div className="border-l-4 border-green-500 pl-4">
-              <p className="text-gray-600 text-sm">Inspection pass rate</p>
-              <p className="text-2xl font-bold text-gray-800">{stats?.inspectionPassPct || 0}%</p>
+            <div className="border-l-4 border-emerald-500 pl-4">
+              <p className="text-slate-500 text-xs font-semibold uppercase tracking-wide">Inspection pass</p>
+              <p className="text-2xl font-extrabold text-slate-900 font-headline">{stats?.inspectionPassPct || 0}%</p>
             </div>
-            <div className="border-l-4 border-orange-500 pl-4">
-              <p className="text-gray-600 text-sm">Invoices marked paid</p>
-              <p className="text-2xl font-bold text-gray-800">{stats?.invoicesPaidPct || 0}%</p>
+            <div className="border-l-4 border-amber-500 pl-4">
+              <p className="text-slate-500 text-xs font-semibold uppercase tracking-wide">Invoices paid</p>
+              <p className="text-2xl font-extrabold text-slate-900 font-headline">{stats?.invoicesPaidPct || 0}%</p>
             </div>
           </div>
         </div>
-      </div>
     </div>
   );
 }

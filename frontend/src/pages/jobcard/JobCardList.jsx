@@ -1,15 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import api from '../../utils/api';
-
-const STATUS_STYLE = {
-  CREATED:          'bg-slate-100 text-slate-600',
-  IN_PROGRESS:      'bg-blue-100 text-blue-700',
-  SENT_FOR_JOBWORK: 'bg-amber-100 text-amber-700',
-  INSPECTION:       'bg-violet-100 text-violet-700',
-  COMPLETED:        'bg-emerald-100 text-emerald-700',
-  ON_HOLD:          'bg-rose-100 text-rose-700',
-};
 
 const PAGE_LIMIT = 20;
 
@@ -50,6 +42,7 @@ export default function JobCardList() {
   const [status,  setStatus]  = useState('');
   const [page,    setPage]    = useState(1);
   const [total,   setTotal]   = useState(0);
+  const [statusSavingId, setStatusSavingId] = useState(null);
 
   const fetchCards = useCallback(() => {
     setLoading(true); setError(null);
@@ -64,6 +57,21 @@ export default function JobCardList() {
 
   const totalPages = Math.ceil(total / PAGE_LIMIT);
   const STATUS_OPTS = ['CREATED', 'IN_PROGRESS', 'SENT_FOR_JOBWORK', 'INSPECTION', 'COMPLETED', 'ON_HOLD'];
+
+  const updateStatus = async (card, nextStatus) => {
+    if (nextStatus === card.status) return;
+    setStatusSavingId(card.id);
+    try {
+      await api.patch(`/jobcards/${card.id}/status`, { status: nextStatus });
+      setCards((prev) => prev.map((c) => (c.id === card.id ? { ...c, status: nextStatus } : c)));
+      toast.success(`Status: ${nextStatus.replace(/_/g, ' ')}`);
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Could not update status.';
+      toast.error(msg);
+    } finally {
+      setStatusSavingId(null);
+    }
+  };
 
   return (
     <div className="space-y-5 animate-slide-up">
@@ -117,7 +125,7 @@ export default function JobCardList() {
           <table className="w-full text-left">
             <thead>
               <tr className="bg-gradient-to-r from-slate-50 to-indigo-50/30 border-b border-slate-100">
-                {['Job Card No', 'Part No / Desc', 'Drawing No', 'Machine', 'Qty', 'Status', 'Action'].map(h => (
+                {['Job Card No', 'Part No / Desc', 'Drawing No', 'Machine', 'Qty', 'Status (update)', 'Action'].map(h => (
                   <th key={h} className="th">{h}</th>
                 ))}
               </tr>
@@ -153,13 +161,27 @@ export default function JobCardList() {
                     <p className="text-xs font-semibold text-slate-700">{card.part?.partNo}</p>
                     <p className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[180px]">{card.part?.description}</p>
                   </td>
-                  <td className="td text-slate-500 font-mono">{card.drawingNo || '—'}</td>
-                  <td className="td">{card.machine?.code || '—'}</td>
+                  <td className="td text-slate-600 font-mono text-xs">{card.drawingNo || '—'}</td>
+                  <td className="td text-slate-600 text-xs font-medium">{card.machine?.code || '—'}</td>
                   <td className="td font-semibold text-slate-700">{card.quantity}</td>
-                  <td className="td">
-                    <span className={`badge ${STATUS_STYLE[card.status] || 'bg-slate-100 text-slate-600'}`}>
-                      {card.status.replace(/_/g, ' ')}
-                    </span>
+                  <td className="td min-w-[11rem]">
+                    <label className="sr-only">Status for job card {card.jobCardNo}</label>
+                    <select
+                      aria-label={`Update status for ${card.jobCardNo}`}
+                      value={card.status}
+                      disabled={statusSavingId === card.id}
+                      onChange={(e) => updateStatus(card, e.target.value)}
+                      className="form-input text-xs py-1.5 pr-8 font-semibold max-w-[11.5rem] cursor-pointer disabled:opacity-50"
+                    >
+                      {STATUS_OPTS.map((s) => (
+                        <option key={s} value={s}>
+                          {s.replace(/_/g, ' ')}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[9px] text-slate-400 mt-1 leading-tight hidden sm:block">
+                      Rules: e.g. COMPLETED needs inspection PASS
+                    </p>
                   </td>
                   <td className="td">
                     <div className="flex gap-2">

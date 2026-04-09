@@ -53,166 +53,152 @@ export default function AuditLogsViewer() {
   };
 
   const actionColors = {
-    CREATE: 'bg-green-100 text-green-700',
-    UPDATE: 'bg-blue-100 text-blue-700',
-    DELETE: 'bg-red-100 text-red-700',
-    MODIFY: 'bg-yellow-100 text-yellow-700'
+    CREATE: 'bg-emerald-100 text-emerald-800',
+    UPDATE: 'bg-sky-100 text-sky-900',
+    DELETE: 'bg-rose-100 text-rose-800',
+    MODIFY: 'bg-amber-100 text-amber-900',
   };
 
+  const tabBtn = (id) =>
+    `px-5 py-3 text-sm font-semibold transition-colors border-b-2 -mb-px ${
+      activeTab === id
+        ? 'text-sky-800 border-sky-600 bg-sky-50/50'
+        : 'text-slate-500 border-transparent hover:text-slate-800 hover:bg-slate-50/80'
+    }`;
+
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold">Audit Logs & Activity Tracking</h1>
-          <button
-            onClick={handleExport}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-          >
-            <Download size={20} /> Export CSV
+    <div className="page-stack-wide">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="page-title">Audit logs</h1>
+          <p className="page-subtitle">Activity tracking and export</p>
+        </div>
+        <button type="button" onClick={handleExport} className="btn-outline shrink-0 inline-flex items-center gap-2">
+          <Download size={20} /> Export CSV
+        </button>
+      </div>
+
+      <div className="card overflow-hidden">
+        <div className="flex border-b border-slate-200/80 bg-slate-50/40">
+          <button type="button" onClick={() => setActiveTab('dashboard')} className={tabBtn('dashboard')}>
+            Dashboard
+          </button>
+          <button type="button" onClick={() => setActiveTab('all')} className={tabBtn('all')}>
+            All logs
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="bg-white rounded-lg shadow mb-6">
-          <div className="flex border-b">
-            <button
-              onClick={() => setActiveTab('dashboard')}
-              className={`px-6 py-3 font-medium ${activeTab === 'dashboard' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
-            >
-              Dashboard
-            </button>
-            <button
-              onClick={() => setActiveTab('all')}
-              className={`px-6 py-3 font-medium ${activeTab === 'all' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
-            >
-              All Logs
-            </button>
-          </div>
+        {activeTab === 'dashboard' && dashboard && (
+          <div className="p-5 sm:p-6 space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              <div className="rounded-xl border border-slate-200/80 bg-white p-4 border-l-4 border-l-sky-500 shadow-sm">
+                <p className="text-slate-500 text-sm">Today&apos;s actions</p>
+                <p className="text-3xl font-bold text-sky-800 tabular-nums font-headline">{dashboard.todayActions}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200/80 bg-white p-4 border-l-4 border-l-emerald-500 shadow-sm">
+                <p className="text-slate-500 text-sm">This month</p>
+                <p className="text-3xl font-bold text-emerald-800 tabular-nums font-headline">{dashboard.monthActions}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200/80 bg-white p-4 border-l-4 border-l-violet-500 shadow-sm">
+                <p className="text-slate-500 text-sm">Top users</p>
+                <p className="text-3xl font-bold text-violet-900 tabular-nums font-headline">{dashboard.topUsers.length}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200/80 bg-white p-4 border-l-4 border-l-amber-500 shadow-sm">
+                <p className="text-slate-500 text-sm">Resources touched</p>
+                <p className="text-3xl font-bold text-amber-900 tabular-nums font-headline">{dashboard.topResources.length}</p>
+              </div>
+            </div>
 
-          {/* Dashboard Tab */}
-          {activeTab === 'dashboard' && dashboard && (
-            <div className="p-6">
-              {/* KPI Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded border-l-4 border-blue-500">
-                  <p className="text-gray-600 text-sm">Today's Actions</p>
-                  <p className="text-3xl font-bold text-blue-600">{dashboard.todayActions}</p>
-                </div>
-                <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded border-l-4 border-green-500">
-                  <p className="text-gray-600 text-sm">This Month</p>
-                  <p className="text-3xl font-bold text-green-600">{dashboard.monthActions}</p>
-                </div>
-                <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded border-l-4 border-purple-500">
-                  <p className="text-gray-600 text-sm">Top Users</p>
-                  <p className="text-3xl font-bold text-purple-600">{dashboard.topUsers.length}</p>
-                </div>
-                <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-4 rounded border-l-4 border-orange-500">
-                  <p className="text-gray-600 text-sm">Resources Modified</p>
-                  <p className="text-3xl font-bold text-orange-600">{dashboard.topResources.length}</p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="card p-4 sm:p-5">
+                <h3 className="text-sm font-bold text-slate-800 font-headline mb-3">Most active users</h3>
+                <div className="space-y-2">
+                  {dashboard.topUsers.map((user, idx) => (
+                    <div key={idx} className="flex justify-between items-center gap-2 p-2.5 rounded-lg bg-slate-50/80 border border-slate-100">
+                      <span className="font-medium text-slate-800 text-sm truncate">{user.userId}</span>
+                      <span className="badge bg-sky-100 text-sky-900 shrink-0 tabular-nums">{user.count} actions</span>
+                    </div>
+                  ))}
                 </div>
               </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Top Users */}
-                <div className="bg-white border rounded-lg p-4">
-                  <h3 className="font-bold mb-4">Most Active Users</h3>
-                  <div className="space-y-2">
-                    {dashboard.topUsers.map((user, idx) => (
-                      <div key={idx} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                        <span className="font-medium">{user.userId}</span>
-                        <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs">{user.count} actions</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Top Resources */}
-                <div className="bg-white border rounded-lg p-4">
-                  <h3 className="font-bold mb-4">Most Modified Resources</h3>
-                  <div className="space-y-2">
-                    {dashboard.topResources.map((resource, idx) => (
-                      <div key={idx} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                        <span className="font-medium">{resource.resource}</span>
-                        <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs">{resource.count} changes</span>
-                      </div>
-                    ))}
-                  </div>
+              <div className="card p-4 sm:p-5">
+                <h3 className="text-sm font-bold text-slate-800 font-headline mb-3">Most modified resources</h3>
+                <div className="space-y-2">
+                  {dashboard.topResources.map((resource, idx) => (
+                    <div key={idx} className="flex justify-between items-center gap-2 p-2.5 rounded-lg bg-slate-50/80 border border-slate-100">
+                      <span className="font-medium text-slate-800 text-sm truncate">{resource.resource}</span>
+                      <span className="badge bg-emerald-100 text-emerald-900 shrink-0 tabular-nums">{resource.count} changes</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* All Logs Tab */}
-          {activeTab === 'all' && (
-            <div>
-              <div className="p-4 border-b space-y-3">
-                <div className="flex gap-3">
-                  <input
-                    type="text"
-                    placeholder="Filter by User ID..."
-                    value={searchUser}
-                    onChange={(e) => setSearchUser(e.target.value)}
-                    className="flex-1 px-3 py-2 border rounded"
-                  />
-                  <select
-                    value={searchAction}
-                    onChange={(e) => setSearchAction(e.target.value)}
-                    className="px-3 py-2 border rounded"
-                  >
-                    <option value="">All Actions</option>
-                    <option value="CREATE">CREATE</option>
-                    <option value="UPDATE">UPDATE</option>
-                    <option value="DELETE">DELETE</option>
-                  </select>
-                  <button
-                    onClick={fetchLogs}
-                    disabled={loading}
-                    className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
-                  >
-                    {loading ? 'Loading...' : 'Search'}
-                  </button>
-                </div>
+        {activeTab === 'all' && (
+          <div>
+            <div className="p-4 border-b border-slate-200/80 bg-slate-50/40">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <input
+                  type="text"
+                  placeholder="Filter by user ID…"
+                  value={searchUser}
+                  onChange={(e) => setSearchUser(e.target.value)}
+                  className="flex-1 form-input"
+                />
+                <select value={searchAction} onChange={(e) => setSearchAction(e.target.value)} className="form-input sm:w-44 shrink-0">
+                  <option value="">All actions</option>
+                  <option value="CREATE">CREATE</option>
+                  <option value="UPDATE">UPDATE</option>
+                  <option value="DELETE">DELETE</option>
+                </select>
+                <button type="button" onClick={fetchLogs} disabled={loading} className="btn-primary sm:w-auto w-full disabled:opacity-50">
+                  {loading ? 'Loading…' : 'Search'}
+                </button>
               </div>
+            </div>
 
-              <table className="w-full text-sm">
-                <thead className="bg-gray-100 border-b">
-                  <tr>
-                    <th className="px-4 py-2 text-left">Timestamp</th>
-                    <th className="px-4 py-2 text-left">User</th>
-                    <th className="px-4 py-2 text-left">Action</th>
-                    <th className="px-4 py-2 text-left">Resource</th>
-                    <th className="px-4 py-2 text-left">Status</th>
-                    <th className="px-4 py-2 text-left">IP Address</th>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead>
+                  <tr className="border-b border-slate-200/80">
+                    <th className="th text-left">Timestamp</th>
+                    <th className="th text-left">User</th>
+                    <th className="th text-left">Action</th>
+                    <th className="th text-left">Resource</th>
+                    <th className="th text-left">Status</th>
+                    <th className="th text-left">IP</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-100">
                   {logs.map((log, idx) => (
-                    <tr key={idx} className="border-b hover:bg-gray-50">
-                      <td className="px-4 py-2 text-xs">{new Date(log.createdAt).toLocaleString()}</td>
-                      <td className="px-4 py-2 font-medium">{log.userId}</td>
-                      <td className="px-4 py-2">
-                        <span className={`px-2 py-1 rounded text-xs font-bold ${actionColors[log.action] || 'bg-gray-100'}`}>
-                          {log.action}
-                        </span>
+                    <tr key={idx} className="tr">
+                      <td className="td text-xs text-slate-600 whitespace-nowrap">{new Date(log.createdAt).toLocaleString()}</td>
+                      <td className="td font-medium text-slate-800">{log.userId}</td>
+                      <td className="td">
+                        <span className={`badge font-semibold ${actionColors[log.action] || 'bg-slate-100 text-slate-700'}`}>{log.action}</span>
                       </td>
-                      <td className="px-4 py-2">{log.resource}</td>
-                      <td className="px-4 py-2">
-                        <span className={`px-2 py-1 rounded text-xs ${log.status === 200 || log.status === 201 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                      <td className="td text-slate-700">{log.resource}</td>
+                      <td className="td">
+                        <span
+                          className={`badge ${
+                            log.status === 200 || log.status === 201 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                          }`}
+                        >
                           {log.status}
                         </span>
                       </td>
-                      <td className="px-4 py-2 text-xs text-gray-500">{log.ipAddress}</td>
+                      <td className="td text-xs text-slate-500 font-mono">{log.ipAddress}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-
-              {logs.length === 0 && (
-                <div className="p-8 text-center text-gray-500">No logs found</div>
-              )}
             </div>
-          )}
-        </div>
+
+            {logs.length === 0 && <div className="p-10 text-center text-slate-500 text-sm">No logs found</div>}
+          </div>
+        )}
       </div>
     </div>
   );

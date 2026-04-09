@@ -1,4 +1,5 @@
 const prisma = require('../utils/prisma');
+const { jobCardStatusBody, JOB_CARD_STATUSES } = require('../validation/schemas');
 
 // ── Job Card Status Transitions ───────────────────────────────
 // Valid transitions:
@@ -224,6 +225,9 @@ exports.update = async (req, res) => {
 
     // ── Status Transition Validation ──
     if (status !== undefined) {
+      if (!JOB_CARD_STATUSES.includes(status)) {
+        return res.status(400).json({ success: false, message: `Invalid status "${status}". Allowed: ${JOB_CARD_STATUSES.join(', ')}` });
+      }
       const currentCard = await prisma.jobCard.findUnique({ where: { id } });
       if (!currentCard) {
         return res.status(404).json({ success: false, message: 'Job card not found.' });
@@ -290,6 +294,37 @@ exports.update = async (req, res) => {
       data: updateData,
     });
     res.json({ success: true, data: card, message: 'Job card updated.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+/** PATCH body: `{ status }` only — no multipart (for list / quick updates). */
+exports.patchStatus = async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { error, value } = jobCardStatusBody.validate(req.body);
+    if (error) {
+      return res.status(400).json({ success: false, message: error.details[0].message });
+    }
+    const { status } = value;
+
+    const currentCard = await prisma.jobCard.findUnique({ where: { id } });
+    if (!currentCard) {
+      return res.status(404).json({ success: false, message: 'Job card not found.' });
+    }
+
+    const validationResult = await validateStatusTransition(currentCard.status, status, id);
+    if (validationResult !== true) {
+      return res.status(400).json({ success: false, message: validationResult });
+    }
+
+    const card = await prisma.jobCard.update({
+      where: { id },
+      data: { status },
+    });
+    res.json({ success: true, data: card, message: 'Status updated.' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error.' });

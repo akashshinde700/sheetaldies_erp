@@ -323,7 +323,7 @@ export default function CertForm() {
       const validHeatRows = heatRows.filter(r => r.equipment || r.processName);
       if (validHeatRows.length) fd.append('certHeatProcesses', JSON.stringify(validHeatRows));
       for (let i = 1; i <= 5; i++) { if (images[i] instanceof File) fd.append(`image${i}`, images[i]); }
-      const r = await api.post('/quality/certificates', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const r = await api.post('/quality/certificates', fd);
       toast.success(`Certificate ${r.data.data.certNo} created!`);
       navigate('/quality/certificates');
     } catch (err) {

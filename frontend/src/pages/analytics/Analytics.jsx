@@ -21,6 +21,17 @@ const fmt = (n) => {
   return `₹${n.toFixed(0)}`;
 };
 
+/** Merge duplicate `name` rows so Recharts bar keys stay unique (e.g. same customer twice). */
+function mergeByName(rows, valueKey) {
+  const m = new Map();
+  for (const r of rows || []) {
+    const name = (r?.name != null && String(r.name).trim()) || 'Unknown';
+    const add = Number(r[valueKey]) || 0;
+    m.set(name, (m.get(name) || 0) + add);
+  }
+  return [...m.entries()].map(([name, v]) => ({ name, [valueKey]: v }));
+}
+
 const CustomTooltip = ({ active, payload, label, prefix = '' }) => {
   if (!active || !payload?.length) return null;
   return (
@@ -83,8 +94,8 @@ export default function Analytics() {
         setRevData(rev.data.data);
         setJobsData(jbs.data.data);
         setStatusDist(st.data.data.filter(d => d.value > 0));
-        setCustomers(cust.data.data);
-        setProcDist(proc.data.data);
+        setCustomers(mergeByName(cust.data.data, 'revenue'));
+        setProcDist(mergeByName(proc.data.data, 'amount'));
         setQuality(qual.data.data);
         setTurnaround(turn.data.data);
         setPayment(pay.data.data);
@@ -232,15 +243,15 @@ export default function Analytics() {
                 <PieChart>
                   <Pie data={statusDist} cx="50%" cy="50%" innerRadius={45} outerRadius={75} dataKey="value" paddingAngle={3}>
                     {statusDist.map((d, i) => (
-                      <Cell key={d.name || i} fill={Object.values(STATUS_COLORS)[i % 6]} />
+                      <Cell key={`status-pie-${i}`} fill={Object.values(STATUS_COLORS)[i % 6]} />
                     ))}
                   </Pie>
                   <Tooltip formatter={(v, n) => [v, n]} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="space-y-1.5 mt-2">
-                {statusDist.map((d) => (
-                  <div key={d.name} className="flex items-center justify-between">
+                {statusDist.map((d, i) => (
+                  <div key={`status-leg-${i}-${d.name}`} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: Object.values(STATUS_COLORS)[i % 6] }} />
                       <span className="text-[11px] text-slate-600 font-medium">{d.name}</span>
@@ -276,10 +287,10 @@ export default function Analytics() {
                 </PieChart>
               </ResponsiveContainer>
               <div className="space-y-1.5 mt-2">
-                {payment.map((d) => (
-                  <div key={d.name} className="flex items-center justify-between">
+                {payment.map((d, i) => (
+                  <div key={`pay-leg-${i}-${d.name}`} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: ['#ef4444','#f59e0b','#10b981'][i] }} />
+                      <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: ['#ef4444','#f59e0b','#10b981'][i % 3] }} />
                       <span className="text-[11px] text-slate-600 font-medium">{d.name}</span>
                       <span className="text-[10px] text-slate-400">({d.count})</span>
                     </div>
@@ -339,7 +350,7 @@ export default function Analytics() {
                   tickFormatter={v => v.length > 14 ? v.slice(0, 13) + '…' : v} />
                 <Tooltip content={<CustomTooltip prefix="₹" />} />
                 <Bar dataKey="revenue" name="Revenue" radius={[0, 4, 4, 0]} maxBarSize={22}>
-                  {customers.map((c, i) => <Cell key={c.name || i} fill={COLORS[i % COLORS.length]} />)}
+                  {customers.map((c, i) => <Cell key={`cust-bar-${i}`} fill={COLORS[i % COLORS.length]} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -365,7 +376,7 @@ export default function Analytics() {
                   tickFormatter={v => v.length > 15 ? v.slice(0, 14) + '…' : v} />
                 <Tooltip content={<CustomTooltip prefix="₹" />} />
                 <Bar dataKey="amount" name="Revenue" radius={[0, 4, 4, 0]} maxBarSize={22}>
-                  {procDist.map((p, i) => <Cell key={p.name || i} fill={COLORS[(i + 3) % COLORS.length]} />)}
+                  {procDist.map((p, i) => <Cell key={`proc-bar-${i}`} fill={COLORS[(i + 3) % COLORS.length]} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>

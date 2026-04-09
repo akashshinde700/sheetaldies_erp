@@ -11,11 +11,9 @@ const STATUS_STYLE = {
   ON_HOLD:          'bg-rose-100 text-rose-700',
 };
 
-const KpiCard = ({ label, value, sub, icon, gradient, iconBg, to, loading, badge, badgeColor }) => (
+const KpiCard = ({ label, value, sub, icon, iconBg, to, loading, badge, badgeColor }) => (
   <Link to={to || '#'}
-    className="bg-white rounded-2xl border border-slate-100 shadow-card hover:shadow-card-hover transition-all duration-200 block group overflow-hidden">
-    {/* Gradient top strip */}
-    <div className={`h-1 w-full ${gradient}`} />
+    className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300/90 transition-all duration-200 block group overflow-hidden">
     <div className="p-5">
       <div className="flex justify-between items-start mb-4">
         <span className="text-xs font-bold text-slate-500 uppercase tracking-wider leading-tight">{label}</span>
@@ -33,7 +31,7 @@ const KpiCard = ({ label, value, sub, icon, gradient, iconBg, to, loading, badge
           )}
         </div>
       )}
-      <p className="text-[11px] text-slate-400 font-medium">{sub}</p>
+      <p className="text-[11px] text-slate-500 font-medium">{sub}</p>
     </div>
   </Link>
 );
@@ -81,16 +79,18 @@ export default function Dashboard() {
   return (
     <div className="space-y-6 animate-slide-up">
 
-      {/* ── Page Title ── */}
-      <div className="flex items-center justify-between">
+      {/* ── Page Title (industrial header: title + primary CTA, stacks on small screens) ── */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-2xl font-extrabold text-slate-800 font-headline">Production Dashboard</h2>
-          <p className="text-slate-400 text-sm mt-0.5">Sheetal Dies &amp; Tools Pvt. Ltd. — Live Overview</p>
+          <h2 className="text-2xl font-extrabold text-slate-900 font-headline tracking-tight">Production Dashboard</h2>
+          <p className="text-slate-500 text-sm mt-1">Sheetal Dies &amp; Tools Pvt. Ltd. — live overview</p>
         </div>
-        <Link to="/jobcards/new" className="btn-primary">
-          <span className="material-symbols-outlined text-sm">add</span>
-          New Job Card
-        </Link>
+        <div className="flex flex-wrap gap-2 shrink-0">
+          <Link to="/jobcards/new" className="btn-primary">
+            <span className="material-symbols-outlined text-[18px]">add</span>
+            New Job Card
+          </Link>
+        </div>
       </div>
 
       {/* ── Error ── */}
@@ -106,37 +106,31 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         <KpiCard
           label="Total Job Cards" value={stats?.total} loading={loading}
-          badge="All time" badgeColor="bg-indigo-50 text-indigo-600"
+          badge="All time" badgeColor="bg-sky-100 text-sky-900"
           sub="All production records" icon="description"
-          gradient="bg-gradient-to-r from-indigo-500 to-violet-500"
-          iconBg="bg-indigo-50 text-indigo-500"
+          iconBg="bg-sky-100 text-sky-700"
           to="/jobcards"
         />
         <KpiCard
           label="In Progress" value={stats?.inProgress} loading={loading}
-          badge="Floor" badgeColor="bg-blue-50 text-blue-600"
+          badge="Floor" badgeColor="bg-blue-100 text-blue-900"
           sub="Currently on machines" icon="precision_manufacturing"
-          gradient="bg-gradient-to-r from-blue-500 to-sky-400"
-          iconBg="bg-blue-50 text-blue-500"
+          iconBg="bg-blue-100 text-blue-700"
           to="/jobcards"
         />
         <KpiCard
           label="Pending Job Work" value={stats?.sentForJobwork} loading={loading}
-          badge="Outward" badgeColor="bg-amber-50 text-amber-600"
+          badge="Outward" badgeColor="bg-amber-100 text-amber-900"
           sub="Sent for heat treatment" icon="local_shipping"
-          gradient="bg-gradient-to-r from-amber-400 to-orange-500"
-          iconBg="bg-amber-50 text-amber-500"
+          iconBg="bg-amber-100 text-amber-700"
           to="/jobwork"
         />
         <KpiCard
           label="Quality Alerts" value={stats?.qualityAlerts} loading={loading}
           badge={!loading && stats?.qualityAlerts > 0 ? 'Action!' : 'All Clear'}
-          badgeColor={!loading && stats?.qualityAlerts > 0 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}
+          badgeColor={!loading && stats?.qualityAlerts > 0 ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'}
           sub="Inspection failures" icon="warning"
-          gradient={!loading && stats?.qualityAlerts > 0
-            ? "bg-gradient-to-r from-rose-500 to-pink-500"
-            : "bg-gradient-to-r from-emerald-400 to-teal-400"}
-          iconBg={!loading && stats?.qualityAlerts > 0 ? "bg-rose-50 text-rose-500" : "bg-emerald-50 text-emerald-500"}
+          iconBg={!loading && stats?.qualityAlerts > 0 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}
           to="/quality/certificates"
         />
       </div>
@@ -146,49 +140,44 @@ export default function Dashboard() {
         <KpiCard
           label="Completed Jobs" value={stats?.completed} loading={loading}
           sub="All time completions" icon="task_alt"
-          gradient="bg-gradient-to-r from-emerald-400 to-green-500"
-          iconBg="bg-emerald-50 text-emerald-500"
+          iconBg="bg-emerald-100 text-emerald-700"
           to="/jobcards"
         />
         <KpiCard
           label="Pending Invoices" value={invoiceMeta.pending} loading={loading}
           badge={invoiceMeta.pending > 0 ? 'Follow up' : 'All clear'}
-          badgeColor={invoiceMeta.pending > 0 ? 'bg-orange-50 text-orange-600' : 'bg-emerald-50 text-emerald-600'}
+          badgeColor={invoiceMeta.pending > 0 ? 'bg-orange-100 text-orange-900' : 'bg-emerald-100 text-emerald-800'}
           sub={`₹ ${invoiceMeta.pendingAmt.toLocaleString('en-IN', { maximumFractionDigits: 0 })} outstanding`}
           icon="receipt_long"
-          gradient="bg-gradient-to-r from-orange-400 to-rose-400"
-          iconBg="bg-orange-50 text-orange-500"
+          iconBg="bg-orange-100 text-orange-700"
           to="/invoices"
         />
         <KpiCard
           label="On Hold" value={stats?.onHold} loading={loading}
           badge={!loading && stats?.onHold > 0 ? 'Review' : 'None'}
-          badgeColor={!loading && stats?.onHold > 0 ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-500'}
+          badgeColor={!loading && stats?.onHold > 0 ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-600'}
           sub="Jobs paused / blocked" icon="pause_circle"
-          gradient={!loading && stats?.onHold > 0
-            ? "bg-gradient-to-r from-rose-400 to-pink-400"
-            : "bg-gradient-to-r from-slate-300 to-slate-400"}
-          iconBg="bg-rose-50 text-rose-400"
+          iconBg={!loading && stats?.onHold > 0 ? "bg-rose-100 text-rose-600" : "bg-slate-100 text-slate-500"}
           to="/jobcards"
         />
       </div>
 
       {/* ── Recent Job Cards ── */}
       <div className="card overflow-hidden">
-        <div className="px-5 py-4 flex justify-between items-center border-b border-slate-100">
+        <div className="px-5 py-4 flex justify-between items-center border-b border-slate-200/80">
           <div>
-            <h3 className="text-sm font-bold text-slate-800 font-headline">Recent Job Cards</h3>
-            <p className="text-[11px] text-slate-400 mt-0.5">Latest production activity</p>
+            <h3 className="text-sm font-bold text-slate-900 font-headline">Recent Job Cards</h3>
+            <p className="text-[11px] text-slate-500 mt-0.5">Latest production activity</p>
           </div>
           <Link to="/jobcards"
-            className="text-xs text-indigo-600 font-semibold hover:text-indigo-700 flex items-center gap-0.5 transition-colors">
+            className="text-xs text-sky-800 font-semibold hover:text-sky-950 flex items-center gap-0.5 transition-colors">
             View All <span className="material-symbols-outlined text-sm">chevron_right</span>
           </Link>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-100">
+              <tr className="border-b border-slate-200/80">
                 {['Job Card No', 'Part', 'Machine', 'Status', 'Start Date', 'Action'].map(h => (
                   <th key={h} className="th">{h}</th>
                 ))}
@@ -200,12 +189,12 @@ export default function Dashboard() {
               ) : recentCards.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-14 text-center">
-                    <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center mx-auto mb-3">
-                      <span className="material-symbols-outlined text-2xl text-indigo-300">description</span>
+                    <div className="w-14 h-14 rounded-xl bg-sky-100 flex items-center justify-center mx-auto mb-3">
+                      <span className="material-symbols-outlined text-2xl text-sky-400">description</span>
                     </div>
-                    <p className="text-sm text-slate-400 mb-2">No job cards yet.</p>
+                    <p className="text-sm text-slate-500 mb-2">No job cards yet.</p>
                     <Link to="/jobcards/new"
-                      className="inline-flex items-center gap-1 text-xs text-indigo-600 font-semibold hover:underline">
+                      className="inline-flex items-center gap-1 text-xs text-sky-800 font-semibold hover:underline">
                       <span className="material-symbols-outlined text-sm">add</span> Create first job card
                     </Link>
                   </td>
@@ -214,7 +203,7 @@ export default function Dashboard() {
                 <tr key={card.id} className="tr">
                   <td className="td">
                     <Link to={`/jobcards/${card.id}`}
-                      className="text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:underline font-mono">
+                      className="text-xs font-bold text-sky-800 hover:text-sky-950 hover:underline font-mono">
                       {card.jobCardNo}
                     </Link>
                   </td>
@@ -228,15 +217,15 @@ export default function Dashboard() {
                       {card.status.replace(/_/g, ' ')}
                     </span>
                   </td>
-                  <td className="td text-slate-400">
+                  <td className="td text-slate-500">
                     {card.startDate ? new Date(card.startDate).toLocaleDateString('en-IN') : '—'}
                   </td>
                   <td className="td">
                     <div className="flex gap-3">
                       <Link to={`/jobcards/${card.id}`}
-                        className="text-xs text-indigo-600 font-semibold hover:underline">Edit</Link>
+                        className="text-xs text-sky-800 font-semibold hover:underline">Edit</Link>
                       <Link to={`/jobcards/${card.id}/inspection`}
-                        className="text-xs text-violet-600 font-semibold hover:underline">Inspect</Link>
+                        className="text-xs text-slate-700 font-semibold hover:underline">Inspect</Link>
                     </div>
                   </td>
                 </tr>

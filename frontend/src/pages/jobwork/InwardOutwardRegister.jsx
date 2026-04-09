@@ -51,16 +51,22 @@ export default function InwardOutwardRegister() {
 
   return (
     <div className="space-y-5 animate-slide-up">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 flex-1">
           <h2 className="text-xl font-extrabold text-slate-800 font-headline">Inward / Outward Register</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Company to Challan to Material In to Process to Invoice to Dispatch to Balance/Performance</p>
+          <p className="text-xs text-slate-500 mt-1.5 max-w-3xl leading-relaxed">
+            Company → Challan → Material in → Process → Invoice → Dispatch → Balance & performance
+          </p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={exportRows} className="btn-outline">
-            <span className="material-symbols-outlined text-sm">file_download</span> Export Excel
+        <div className="flex flex-wrap items-stretch sm:items-center gap-2 lg:shrink-0 lg:pt-0.5">
+          <button type="button" onClick={exportRows} className="btn-outline whitespace-nowrap">
+            <span className="material-symbols-outlined text-[18px] shrink-0" aria-hidden>file_download</span>
+            Export Excel
           </button>
-          <Link to="/jobwork" className="btn-ghost">Back</Link>
+          <Link to="/jobwork" className="btn-ghost whitespace-nowrap">
+            <span className="material-symbols-outlined text-[18px] shrink-0" aria-hidden>arrow_back</span>
+            Back to job work
+          </Link>
         </div>
       </div>
 

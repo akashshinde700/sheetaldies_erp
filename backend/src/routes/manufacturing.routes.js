@@ -14,9 +14,9 @@ router.post('/batches', requireRole('ADMIN', 'MANAGER'), ctrl.createBatch);
 // VHT Run Sheets (actual furnace execution record)
 router.get('/runsheets', ctrl.listRunsheets);
 router.get('/runsheets/:id', validate(runsheetVal.idParamSchema, 'params'), ctrl.getRunsheet);
-router.post('/runsheet', requireRole('ADMIN', 'MANAGER'), validate(runsheetVal.createRunsheetSchema), ctrl.createRunsheet);
+router.post('/runsheets', requireRole('ADMIN', 'MANAGER'), validate(runsheetVal.createRunsheetSchema), ctrl.createRunsheet);
 router.put('/runsheets/:id', requireRole('ADMIN', 'MANAGER'), validate(runsheetVal.idParamSchema, 'params'), validate(runsheetVal.updateRunsheetSchema), ctrl.updateRunsheet);
-router.put('/runsheet/:id', requireRole('ADMIN', 'MANAGER'), ctrl.updateRunsheetStatus);
+router.put('/runsheets/:id/status', requireRole('ADMIN', 'MANAGER'), ctrl.updateRunsheetStatus);
 
 // Production Planning
 router.post('/production-plan', requireRole('ADMIN', 'MANAGER'), ctrl.createProductionPlan);

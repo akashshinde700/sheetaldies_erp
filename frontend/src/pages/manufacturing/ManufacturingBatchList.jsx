@@ -68,100 +68,80 @@ export default function ManufacturingBatchList() {
   };
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold">Manufacturing Batches</h1>
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            <Plus size={20} /> New Batch
-          </button>
+    <div className="page-stack-wide">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="page-title">Manufacturing batches</h1>
+          <p className="page-subtitle">Group job cards for production runs</p>
         </div>
+        <button type="button" onClick={() => setShowForm(!showForm)} className="btn-primary shrink-0 inline-flex items-center gap-2">
+          <Plus size={20} /> New batch
+        </button>
+      </div>
 
-        {showForm && (
-          <div className="bg-white p-6 rounded-lg shadow mb-6">
-            <h2 className="text-xl font-bold mb-4">Create Manufacturing Batch</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <input
-                  type="date"
-                  value={formData.batchDate}
-                  onChange={(e) => setFormData({ ...formData, batchDate: e.target.value })}
-                  className="px-4 py-2 border rounded"
-                  required
-                />
+      {showForm && (
+        <div className="card p-5 sm:p-6">
+          <h2 className="text-lg font-bold text-slate-900 font-headline mb-4">Create batch</h2>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="form-label">Batch date</label>
+              <input type="date" value={formData.batchDate} onChange={(e) => setFormData({ ...formData, batchDate: e.target.value })} className="form-input max-w-xs" required />
+            </div>
+            <div>
+              <label className="form-label">Remarks</label>
+              <textarea placeholder="Optional" value={formData.remarks} onChange={(e) => setFormData({ ...formData, remarks: e.target.value })} className="form-input min-h-[88px]" rows={3} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-700 mb-2">Job cards ({formData.jobCardIds.length} selected)</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-48 overflow-y-auto rounded-xl border border-slate-200/80 p-3 bg-slate-50/80">
+                {jobcards.map(jc => (
+                  <label key={jc.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-white cursor-pointer text-sm">
+                    <input type="checkbox" checked={formData.jobCardIds.includes(jc.id)} onChange={() => toggleJobcard(jc.id)} className="w-4 h-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500" />
+                    <span>{jc.jobCardNo} — {jc.customer?.name}</span>
+                  </label>
+                ))}
               </div>
-              <textarea
-                placeholder="Remarks"
-                value={formData.remarks}
-                onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                className="w-full px-4 py-2 border rounded"
-                rows="3"
-              />
-              <div>
-                <h3 className="font-bold mb-3">Select Job Cards ({formData.jobCardIds.length} selected)</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-48 overflow-y-auto border rounded p-3 bg-gray-50">
-                  {jobcards.map(jc => (
-                    <label key={jc.id} className="flex items-center gap-2 p-2 hover:bg-white rounded cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.jobCardIds.includes(jc.id)}
-                        onChange={() => toggleJobcard(jc.id)}
-                        className="w-4 h-4"
-                      />
-                      <span className="text-sm">{jc.jobCardNo} - {jc.customer?.name}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button type="submit" className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700">Create Batch</button>
-                <button type="button" onClick={() => setShowForm(false)} className="px-6 py-2 bg-gray-400 text-white rounded">Cancel</button>
-              </div>
-            </form>
-          </div>
-        )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="submit" className="btn-primary">Create batch</button>
+              <button type="button" onClick={() => setShowForm(false)} className="btn-ghost">Cancel</button>
+            </div>
+          </form>
+        </div>
+      )}
 
-        <div className="bg-white rounded-lg shadow">
-          <div className="p-4 border-b flex items-center gap-2">
-            <Search size={20} />
-            <input
-              type="text"
-              placeholder="Search batches..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyUp={fetchBatches}
-              className="flex-1 px-3 py-2 border rounded"
-            />
-          </div>
-          <table className="w-full text-sm">
-            <thead className="bg-gray-100 border-b">
-              <tr>
-                <th className="px-4 py-2 text-left">Batch No</th>
-                <th className="px-4 py-2 text-center">Job Cards</th>
-                <th className="px-4 py-2 text-left">Date</th>
-                <th className="px-4 py-2 text-left">Status</th>
-                <th className="px-4 py-2 text-center">Actions</th>
+      <div className="card overflow-hidden">
+        <div className="p-4 border-b border-slate-200/80 flex items-center gap-2 bg-slate-50/50">
+          <Search size={20} className="text-slate-400 shrink-0" />
+          <input type="text" placeholder="Search batches…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onKeyUp={fetchBatches} className="flex-1 form-input border-0 bg-transparent shadow-none focus:ring-0" />
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead>
+              <tr className="border-b border-slate-200/80">
+                <th className="th text-left">Batch</th>
+                <th className="th text-center">Job cards</th>
+                <th className="th text-left">Date</th>
+                <th className="th text-left">Status</th>
+                <th className="th text-center">Actions</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100">
               {batches.map(batch => (
-                <tr key={batch.id} className="border-b hover:bg-gray-50">
-                  <td className="px-4 py-2 font-bold">{batch.batchNumber}</td>
-                  <td className="px-4 py-2 text-center">{batch.jobCards?.length || 0}</td>
-                  <td className="px-4 py-2">{new Date(batch.batchDate).toLocaleDateString()}</td>
-                  <td className="px-4 py-2"><span className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-700">{batch.status}</span></td>
-                  <td className="px-4 py-2 text-center">
-                    <button className="text-blue-600 hover:text-blue-800"><FileText size={16} /></button>
+                <tr key={batch.id} className="tr">
+                  <td className="td font-semibold text-slate-800">{batch.batchNumber}</td>
+                  <td className="td text-center tabular-nums">{batch.jobCards?.length || 0}</td>
+                  <td className="td text-slate-600">{new Date(batch.batchDate).toLocaleDateString()}</td>
+                  <td className="td"><span className="badge bg-sky-100 text-sky-900">{batch.status}</span></td>
+                  <td className="td text-center">
+                    <button type="button" className="p-2 rounded-lg text-sky-800 hover:bg-sky-50 inline-flex" aria-label="Details"><FileText size={16} /></button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {batches.length === 0 && <div className="p-8 text-center text-gray-500">No batches yet</div>}
         </div>
+        {batches.length === 0 && <div className="p-10 text-center text-slate-500 text-sm">No batches yet</div>}
       </div>
     </div>
   );

@@ -1,14 +1,15 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const NAV_MAIN = [
   { label: 'Dashboard',    icon: 'dashboard',    to: '/',                       end: true },
   { label: 'Job Cards',    icon: 'description',  to: '/jobcards' },
   { label: 'Job Work',     icon: 'engineering',  to: '/jobwork' },
+  { label: 'Inward / Outward', icon: 'import_export', to: '/jobwork/register' },
   { label: 'Certificates', icon: 'verified',     to: '/quality/certificates' },
   { label: 'Invoices',     icon: 'receipt_long', to: '/invoices' },
+  /* One entry: highlights on /analytics and /analytics/advanced (prefix match) */
   { label: 'Analytics',    icon: 'analytics',    to: '/analytics' },
-  { label: 'Advanced analytics', icon: 'insights', to: '/analytics/advanced' },
 ];
 
 const NAV_OPERATIONS = [
@@ -31,35 +32,47 @@ const NAV_ADMIN = [
   { label: 'Audit Logs',      icon: 'history',      to: '/admin/audit-logs' },
 ];
 
-const NavItem = ({ item, onNavigate }) => (
+const NavItem = ({ item, onNavigate }) => {
+  const { pathname } = useLocation();
+  /* Job Work matches /jobwork/*; keep register page from highlighting both items */
+  const resolvedActive = (routerActive) => {
+    if (item.to === '/jobwork' && pathname.startsWith('/jobwork/register')) return false;
+    return routerActive;
+  };
+
+  return (
   <NavLink
     to={item.to}
-    end={item.end}
+    end={item.end ?? false}
     onClick={onNavigate}
-    className={({ isActive }) =>
-      `flex items-center gap-3 py-2.5 px-3 rounded-xl text-sm font-semibold transition-all duration-150 ${
-        isActive
-          ? 'bg-indigo-500/20 text-indigo-200 shadow-sm'
-          : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
-      }`
-    }
+    className={({ isActive }) => {
+      const active = resolvedActive(isActive);
+      return `group flex items-center gap-3 min-h-[42px] px-3 rounded-lg text-sm font-medium mb-0.5
+       transition-all duration-200 ease-out
+       ${
+         active
+           ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80 shadow-[inset_3px_0_0_0_rgb(2,132,199)]'
+           : 'text-slate-600 hover:text-slate-900 hover:bg-white/70 border border-transparent active:scale-[0.99]'
+       }`;
+    }}
   >
     {({ isActive }) => (
       <>
-        <span className={`material-symbols-outlined text-[18px] transition-colors ${isActive ? 'text-indigo-300' : ''}`}>
+        <span
+          className={`material-symbols-outlined text-[20px] transition-colors duration-200 shrink-0
+            ${resolvedActive(isActive) ? 'text-sky-700' : 'text-slate-400 group-hover:text-sky-700'}`}
+        >
           {item.icon}
         </span>
-        <span className="truncate">{item.label}</span>
-        {isActive && (
-          <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-400 flex-shrink-0" />
-        )}
+        <span className="truncate flex-1 text-left">{item.label}</span>
       </>
     )}
   </NavLink>
-);
+  );
+};
 
 const SectionLabel = ({ label }) => (
-  <p className="text-[9px] font-extrabold uppercase tracking-[0.15em] text-slate-600 px-3 pt-4 pb-1.5">
+  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 px-3 pt-4 pb-1.5">
     {label}
   </p>
 );
@@ -74,38 +87,40 @@ export default function Sidebar({ open, onClose }) {
 
   return (
     <>
-      {/* Mobile backdrop overlay */}
       {open && (
-        <div
-          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+        <button
+          type="button"
+          aria-label="Close menu"
+          className="fixed inset-0 z-30 lg:hidden bg-slate-900/40 backdrop-blur-[2px] animate-backdrop-in"
           onClick={onClose}
         />
       )}
 
       <aside
-        className={`h-screen w-64 fixed left-0 top-0 z-40 flex flex-col transition-transform duration-300
+        className={`h-dvh h-screen max-h-dvh fixed left-0 top-0 z-40 flex flex-col w-64 max-w-[min(16rem,calc(100vw-1.5rem))]
+          border-r border-slate-200/90 shadow-[4px_0_24px_-8px_rgba(15,23,42,0.08)] lg:shadow-none lg:max-w-none
+          transition-transform duration-300 ease-out will-change-transform
+          bg-app-sidebar safe-pt safe-pb
           ${open ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
-        style={{ background: 'linear-gradient(160deg, #0f172a 0%, #1e1b4b 60%, #0f172a 100%)' }}
       >
-        {/* Subtle top border accent */}
-        <div className="h-0.5 w-full bg-gradient-to-r from-indigo-500 via-violet-500 to-indigo-500 opacity-80" />
+        <div className="h-0.5 w-full bg-gradient-to-r from-sky-500 via-sky-400 to-blue-500 shrink-0" />
 
-        {/* Logo */}
-        <div className="px-5 py-5 border-b border-white/5">
+        <div className="px-4 sm:px-5 py-4 sm:py-5 border-b border-sky-200/50 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg"
-              style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
-              <span className="material-symbols-outlined text-white text-[18px]">precision_manufacturing</span>
+            <div
+              className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 shadow-md shadow-slate-900/15
+                bg-slate-900 text-white ring-2 ring-white/90 transition-transform duration-200 hover:scale-[1.02]"
+            >
+              <span className="material-symbols-outlined text-[20px]">precision_manufacturing</span>
             </div>
             <div className="min-w-0">
-              <h1 className="text-white font-extrabold text-sm tracking-wide font-headline truncate">Sheetal Dies</h1>
-              <p className="text-indigo-400 text-[9px] tracking-[0.15em] uppercase font-medium">ERP System</p>
+              <h1 className="text-slate-900 font-extrabold text-sm tracking-tight font-headline truncate">Sheetal Dies</h1>
+              <p className="text-slate-500 text-[10px] tracking-widest uppercase font-semibold">ERP System</p>
             </div>
           </div>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-3 space-y-0.5 px-3">
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-2 sm:px-3 overscroll-contain [scrollbar-width:thin]">
           <SectionLabel label="Main" />
           {NAV_MAIN.map(item => <NavItem key={item.to} item={item} onNavigate={onClose} />)}
 
@@ -125,23 +140,27 @@ export default function Sidebar({ open, onClose }) {
           )}
         </nav>
 
-        {/* User + Logout */}
-        <div className="px-3 py-4 border-t border-white/5 space-y-1">
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white/5 border border-white/5">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-extrabold flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+        <div className="px-2 sm:px-3 py-3 sm:py-4 border-t border-sky-200/50 space-y-1 shrink-0 safe-pb">
+          <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white/80 border border-slate-200/80 shadow-sm hover:bg-white transition-colors">
+            <div
+              className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0
+                bg-slate-800 shadow-sm"
+            >
               {initials}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-white text-xs font-semibold truncate">{user?.name}</p>
-              <p className="text-indigo-400 text-[10px] truncate font-medium">{user?.role}</p>
+              <p className="text-slate-900 text-xs font-semibold truncate">{user?.name}</p>
+              <p className="text-slate-500 text-[10px] truncate font-medium uppercase tracking-wide">{user?.role}</p>
             </div>
           </div>
           <button
+            type="button"
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 py-2.5 px-3 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-400/10 text-sm font-semibold transition-all duration-150"
+            className="w-full flex items-center gap-3 min-h-[44px] px-3 rounded-lg text-slate-600
+              hover:text-rose-600 hover:bg-rose-50 active:scale-[0.99]
+              text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 rounded-lg"
           >
-            <span className="material-symbols-outlined text-[18px]">logout</span>
+            <span className="material-symbols-outlined text-[20px]">logout</span>
             Sign Out
           </button>
         </div>

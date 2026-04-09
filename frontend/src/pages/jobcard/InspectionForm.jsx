@@ -185,7 +185,7 @@ export default function InspectionForm() {
       for (let i = 1; i <= 5; i++) {
         if (images[i] instanceof File) fd.append(`image${i}`, images[i]);
       }
-      await api.post(`/quality/${id}/inspection`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      await api.post(`/quality/${id}/inspection`, fd);
       toast.success('Inspection saved!');
       navigate(`/jobcards/${id}`);
     } catch (err) {

@@ -1,4 +1,5 @@
 const prisma = require('../utils/prisma');
+const { jobworkStatusBody } = require('../validation/schemas');
 
 const generateChallanNo = async () => {
   const y  = new Date().getFullYear().toString().slice(-2);   // "26"
@@ -33,8 +34,20 @@ const generateChallanNo = async () => {
 // ── List Challans ─────────────────────────────────────────────
 exports.list = async (req, res) => {
   try {
-    const { status, page = 1, limit = 20 } = req.query;
-    const where = status ? { status } : {};
+    const { status, page = 1, limit = 20, seedDemo } = req.query;
+    const and = [];
+    if (status) and.push({ status });
+    if (seedDemo === 'only') {
+      and.push({ processingNotes: { contains: 'Seed: demo challan' } });
+    } else if (seedDemo === 'hide') {
+      and.push({
+        OR: [
+          { processingNotes: null },
+          { processingNotes: { not: { contains: 'Seed: demo challan' } } },
+        ],
+      });
+    }
+    const where = and.length ? { AND: and } : {};
     const [total, challans] = await Promise.all([
       prisma.jobworkChallan.count({ where }),
       prisma.jobworkChallan.findMany({
@@ -42,6 +55,7 @@ exports.list = async (req, res) => {
         include: {
           fromParty: { select: { name: true } },
           toParty:   { select: { name: true } },
+          jobCard:   { select: { id: true, jobCardNo: true } },
           items:     true,
           createdBy: { select: { name: true } },
         },
@@ -256,8 +270,12 @@ exports.update = async (req, res) => {
 // ── Update Challan status ─────────────────────────────────────
 exports.updateStatus = async (req, res) => {
   try {
-    const id     = parseInt(req.params.id);
-    const { status, receivedDate, natureOfProcess, qtyReturned, reworkQty, scrapQtyKg, scrapDetails } = req.body;
+    const id = parseInt(req.params.id, 10);
+    const { error, value } = jobworkStatusBody.validate(req.body, { stripUnknown: true });
+    if (error) {
+      return res.status(400).json({ success: false, message: error.details[0].message });
+    }
+    const { status, receivedDate, natureOfProcess, qtyReturned, reworkQty, scrapQtyKg, scrapDetails } = value;
 
     const challan = await prisma.jobworkChallan.update({
       where: { id },

@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import SearchSelect from '../../components/SearchSelect';
 
 const EMPTY = {
   name:'', partyCode:'', address:'', city:'', state:'Maharashtra', pinCode:'',
@@ -15,6 +18,28 @@ const TYPE_BADGE = {
   BOTH:     'bg-emerald-100 text-emerald-700',
 };
 
+const partyToFormFields = (p) => ({
+  name: p.name || '',
+  partyCode: p.partyCode || '',
+  address: p.address || '',
+  city: p.city || '',
+  state: p.state || '',
+  pinCode: p.pinCode || '',
+  gstin: p.gstin || '',
+  pan: p.pan || '',
+  stateCode: p.stateCode || '',
+  phone: p.phone || '',
+  email: p.email || '',
+  partyType: p.partyType || 'CUSTOMER',
+  vatTin: p.vatTin || '',
+  cstNo: p.cstNo || '',
+  bankAccountHolder: p.bankAccountHolder || '',
+  bankName: p.bankName || '',
+  accountNo: p.accountNo || '',
+  ifscCode: p.ifscCode || '',
+  swiftCode: p.swiftCode || '',
+});
+
 export default function PartyList() {
   const [parties,  setParties]  = useState([]);
   const [loading,  setLoading]  = useState(true);
@@ -24,6 +49,7 @@ export default function PartyList() {
   const [editId,   setEditId]   = useState(null);
   const [form,     setForm]     = useState(EMPTY);
   const [saving,   setSaving]   = useState(false);
+  const [clonePickerKey, setClonePickerKey] = useState(0);
 
   const load = () => {
     setLoading(true);
@@ -125,7 +151,7 @@ export default function PartyList() {
           <table className="w-full text-left">
             <thead>
               <tr className="bg-gradient-to-r from-slate-50 to-indigo-50/30 border-b border-slate-100">
-                {['Name', 'City / State', 'GSTIN', 'Phone', 'Email', 'Type', 'Action'].map(h => (
+                {['Name', 'City / State', 'GSTIN', 'Phone', 'Email', 'Type', 'Actions'].map(h => (
                   <th key={h} className="th">{h}</th>
                 ))}
               </tr>
@@ -165,10 +191,17 @@ export default function PartyList() {
                     <span className={`badge ${TYPE_BADGE[p.partyType] || 'bg-slate-100 text-slate-600'}`}>{p.partyType}</span>
                   </td>
                   <td className="td">
-                    <button onClick={() => openEdit(p)}
-                      className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">
-                      <span className="material-symbols-outlined text-sm">edit</span> Edit
-                    </button>
+                    <div className="flex flex-col sm:flex-row gap-1 sm:gap-2">
+                      <Link
+                        to={`/admin/parties/${p.id}`}
+                        className="flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-indigo-700 hover:underline">
+                        <span className="material-symbols-outlined text-sm">visibility</span> View
+                      </Link>
+                      <button type="button" onClick={() => openEdit(p)}
+                        className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">
+                        <span className="material-symbols-outlined text-sm">edit</span> Edit
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -177,31 +210,35 @@ export default function PartyList() {
         </div>
       </div>
 
-      {/* Slide-in Form Panel */}
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex">
-          <div className="flex-1 bg-black/40 backdrop-blur-sm" onClick={() => setShowForm(false)} />
-          <div className="w-full max-w-lg bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
+      {/* Modal: portal to body — avoids broken fixed positioning inside Layout animate-slide-up (transform) */}
+      {showForm &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 md:p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="party-form-title"
+          >
+            <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm animate-backdrop-in" onClick={() => setShowForm(false)} aria-hidden />
+            <div className="relative w-full max-w-lg max-h-[min(100dvh-1.5rem,920px)] flex flex-col rounded-2xl bg-white shadow-2xl shadow-slate-900/20 border border-slate-200/80 overflow-hidden animate-scale-in">
 
             {/* Panel Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white z-10"
-              style={{ background: 'linear-gradient(135deg, #f8f9ff 0%, #f0f0ff 100%)' }}>
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center"
-                  style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' }}>
-                  <span className="material-symbols-outlined text-white text-[16px]">group</span>
+            <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-slate-100 shrink-0 bg-gradient-to-br from-slate-50 to-indigo-50/40">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-gradient-to-br from-indigo-600 to-violet-600 shadow-sm">
+                  <span className="material-symbols-outlined text-white text-[18px]">group</span>
                 </div>
-                <h3 className="text-base font-extrabold text-slate-800">
+                <h3 id="party-form-title" className="text-base font-extrabold text-slate-800 truncate">
                   {editId ? 'Edit Party' : 'Add New Party'}
                 </h3>
               </div>
-              <button onClick={() => setShowForm(false)}
-                className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:border-rose-200 transition-colors shadow-sm">
-                <span className="material-symbols-outlined text-[18px]">close</span>
+              <button type="button" onClick={() => setShowForm(false)}
+                className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:border-rose-200 transition-colors shadow-sm shrink-0">
+                <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
 
-            <form onSubmit={handleSave} className="flex-1 px-6 py-5 space-y-4">
+            <form onSubmit={handleSave} className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 sm:px-6 py-5 space-y-4">
 
               {/* Party Type */}
               <div>
@@ -220,6 +257,27 @@ export default function PartyList() {
                   ))}
                 </div>
               </div>
+
+              {!editId && (
+                <div>
+                  <label className="form-label">Copy from existing party (optional)</label>
+                  <SearchSelect
+                    key={clonePickerKey}
+                    value=""
+                    onChange={(pid) => {
+                      if (!pid) return;
+                      const p = parties.find((x) => String(x.id) === String(pid));
+                      if (p) {
+                        setForm(partyToFormFields(p));
+                        toast.success(`Loaded details from ${p.name}. Review and save as new party.`);
+                      }
+                      setClonePickerKey((k) => k + 1);
+                    }}
+                    options={parties.map((p) => ({ value: p.id, label: `${p.name} (${p.partyType})` }))}
+                    placeholder="Search & select — all fields fill below"
+                  />
+                </div>
+              )}
 
               {/* Name + Party Code */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -288,19 +346,20 @@ export default function PartyList() {
               </div>
 
               {/* Actions */}
-              <div className="flex gap-3 pt-2 sticky bottom-0 bg-white pb-3">
-                <button type="submit" disabled={saving} className="flex-1 btn-primary justify-center">
+              <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-2 pb-1 border-t border-slate-100 mt-2 bg-white">
+                <button type="button" onClick={() => setShowForm(false)} className="btn-ghost sm:w-auto w-full justify-center">Cancel</button>
+                <button type="submit" disabled={saving} className="flex-1 btn-primary justify-center min-h-[44px]">
                   {saving
                     ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Saving...</>
                     : <><span className="material-symbols-outlined text-sm">save</span> {editId ? 'Update Party' : 'Add Party'}</>
                   }
                 </button>
-                <button type="button" onClick={() => setShowForm(false)} className="btn-ghost">Cancel</button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

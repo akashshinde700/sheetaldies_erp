@@ -39,108 +39,114 @@ export default function InventoryView() {
   const displayData = activeTab === 'low-stock' ? lowStock : inventory;
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Inventory Management</h1>
+    <div className="page-stack">
+      <div>
+        <h1 className="page-title">Inventory</h1>
+        <p className="page-subtitle">On-hand quantities and reorder alerts</p>
+      </div>
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white p-4 rounded-lg shadow">
-            <p className="text-gray-600 text-sm">Total Items in Stock</p>
-            <p className="text-3xl font-bold text-blue-600">{inventory.length}</p>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow">
-            <p className="text-gray-600 text-sm">Total Quantity</p>
-            <p className="text-3xl font-bold text-green-600">{inventory.reduce((sum, i) => sum + (i.quantityOnHand || 0), 0)}</p>
-          </div>
-          <div className="bg-yellow-50 p-4 rounded-lg shadow border-l-4 border-yellow-400">
-            <p className="text-gray-600 text-sm">Low Stock Alerts</p>
-            <p className="text-3xl font-bold text-yellow-600">{lowStock.length}</p>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="card p-5">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">SKU rows</p>
+          <p className="text-3xl font-extrabold text-sky-800 font-headline mt-1">{inventory.length}</p>
+        </div>
+        <div className="card p-5">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Total on hand</p>
+          <p className="text-3xl font-extrabold text-emerald-700 font-headline mt-1">
+            {inventory.reduce((sum, i) => sum + (i.quantityOnHand || 0), 0)}
+          </p>
+        </div>
+        <div className="card p-5 border-l-4 border-amber-400">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Low stock</p>
+          <p className="text-3xl font-extrabold text-amber-700 font-headline mt-1">{lowStock.length}</p>
+        </div>
+      </div>
+
+      {lowStock.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 flex gap-3 items-start">
+          <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={20} />
+          <div>
+            <h3 className="font-bold text-amber-900 text-sm">Low stock</h3>
+            <p className="text-sm text-amber-800/90">{lowStock.length} items at or below reorder level</p>
           </div>
         </div>
+      )}
 
-        {/* Low Stock Alert */}
-        {lowStock.length > 0 && (
-          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded">
-            <div className="flex gap-2 items-start">
-              <AlertTriangle className="text-yellow-600 flex-shrink-0 mt-1" size={20} />
-              <div>
-                <h3 className="font-bold text-yellow-800">Low Stock Alert</h3>
-                <p className="text-sm text-yellow-700">{lowStock.length} items are below reorder level</p>
-              </div>
-            </div>
-          </div>
-        )}
+      <div className="card overflow-hidden">
+        <div className="flex border-b border-slate-200/80">
+          <button
+            type="button"
+            onClick={() => setActiveTab('all')}
+            className={`px-5 py-3 text-sm font-semibold transition-colors ${
+              activeTab === 'all'
+                ? 'text-sky-800 border-b-2 border-sky-600 bg-sky-50/50'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            All ({inventory.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('low-stock')}
+            className={`px-5 py-3 text-sm font-semibold transition-colors ${
+              activeTab === 'low-stock'
+                ? 'text-sky-800 border-b-2 border-sky-600 bg-sky-50/50'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            Low stock ({lowStock.length})
+          </button>
+        </div>
 
-        {/* Tabs */}
-        <div className="bg-white rounded-lg shadow mb-6">
-          <div className="flex border-b">
-            <button
-              onClick={() => setActiveTab('all')}
-              className={`px-6 py-3 font-medium ${activeTab === 'all' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
-            >
-              All Items ({inventory.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('low-stock')}
-              className={`px-6 py-3 font-medium ${activeTab === 'low-stock' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-600'}`}
-            >
-              Low Stock ({lowStock.length})
-            </button>
-          </div>
+        <div className="p-4 border-b border-slate-200/80 flex items-center gap-2 bg-slate-50/50">
+          <Search size={20} className="text-slate-400 shrink-0" />
+          <input
+            type="text"
+            placeholder="Search items…"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            onKeyUp={fetchInventory}
+            className="flex-1 form-input border-0 bg-transparent shadow-none focus:ring-0"
+          />
+        </div>
 
-          {/* Search */}
-          <div className="p-4 border-b flex items-center gap-2">
-            <Search size={20} className="text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search items..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyUp={fetchInventory}
-              className="flex-1 px-3 py-2 border rounded"
-            />
-          </div>
-
-          {/* Table */}
-          <table className="w-full text-sm">
-            <thead className="bg-gray-100 border-b">
-              <tr>
-                <th className="px-4 py-2 text-left">Item Name</th>
-                <th className="px-4 py-2 text-center">On Hand</th>
-                <th className="px-4 py-2 text-center">Reorder Level</th>
-                <th className="px-4 py-2 text-center">Status</th>
-                <th className="px-4 py-2 text-left">Last Updated</th>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead>
+              <tr className="border-b border-slate-200/80">
+                <th className="th text-left">Item</th>
+                <th className="th text-center">On hand</th>
+                <th className="th text-center">Reorder</th>
+                <th className="th text-center">Status</th>
+                <th className="th text-left">Updated</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100">
               {displayData.map(item => {
                 const isLow = item.quantityOnHand <= (item.reorderLevel || 10);
                 return (
-                  <tr key={item.id} className={`border-b hover:bg-gray-50 ${isLow ? 'bg-yellow-50' : ''}`}>
-                    <td className="px-4 py-2">{item.item?.partNo || item.item?.description}</td>
-                    <td className="px-4 py-2 text-center font-bold">{item.quantityOnHand || 0}</td>
-                    <td className="px-4 py-2 text-center">{item.reorderLevel}</td>
-                    <td className="px-4 py-2 text-center">
-                      <span className={`px-2 py-1 rounded text-xs font-bold ${isLow ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                        {isLow ? '⚠️ LOW' : '✓ OK'}
+                  <tr key={item.id} className={`tr ${isLow ? 'bg-amber-50/40' : ''}`}>
+                    <td className="td font-medium text-slate-800">{item.item?.partNo || item.item?.description}</td>
+                    <td className="td text-center font-semibold tabular-nums">{item.quantityOnHand || 0}</td>
+                    <td className="td text-center text-slate-600">{item.reorderLevel}</td>
+                    <td className="td text-center">
+                      <span className={`badge ${isLow ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                        {isLow ? 'Low' : 'OK'}
                       </span>
                     </td>
-                    <td className="px-4 py-2 text-sm text-gray-600">
-                      {item.lastRestockDate ? new Date(item.lastRestockDate).toLocaleDateString() : '-'}
+                    <td className="td text-slate-500 text-xs">
+                      {item.lastRestockDate ? new Date(item.lastRestockDate).toLocaleDateString() : '—'}
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-
-          {displayData.length === 0 && (
-            <div className="p-8 text-center text-gray-500">
-              No items found
-            </div>
-          )}
         </div>
+
+        {displayData.length === 0 && !loading && (
+          <div className="p-10 text-center text-slate-500 text-sm">No items found</div>
+        )}
       </div>
     </div>
   );
