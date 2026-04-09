@@ -319,6 +319,101 @@ export default function JobworkForm() {
           <option value="M2 Tool" />
         </datalist>
 
+        {/* Line Items */}
+        <div className="card p-5 space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            <p className="section-title">Line Items</p>
+            <button type="button" onClick={() => setLineItems(prev => [...prev, { ...EMPTY_ROW }])}
+              className="btn-secondary text-xs px-3 py-1.5">
+              <span className="material-symbols-outlined text-sm">add</span> Add Row
+            </button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-100">
+                  <th className="th">Item</th>
+                  <th className="th">Description</th>
+                  <th className="th">Drawing No</th>
+                  <th className="th">Material</th>
+                  <th className="th">HRC</th>
+                  <th className="th">HSN</th>
+                  <th className="th">Qty</th>
+                  <th className="th">Qty Out</th>
+                  <th className="th">UOM</th>
+                  <th className="th">Weight</th>
+                  <th className="th">Rate</th>
+                  <th className="th">Amount</th>
+                  <th className="th"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {lineItems.map((row, i) => (
+                  <tr key={i}>
+                    <td className="td">
+                      <select value={row.itemId} onChange={e => updateLineItem(i, 'itemId', e.target.value)}
+                        className="form-input text-xs py-1 w-28">
+                        <option value="">—</option>
+                        {items.map(it => <option key={it.id} value={it.id}>{it.partNo}</option>)}
+                      </select>
+                    </td>
+                    <td className="td"><input list="challan-desc-suggestions" value={row.description} onChange={e => updateLineItem(i, 'description', e.target.value)} className="form-input text-xs py-1 w-36" /></td>
+                    <td className="td"><input value={row.drawingNo} onChange={e => updateLineItem(i, 'drawingNo', e.target.value)} className="form-input text-xs py-1 w-20" /></td>
+                    <td className="td"><input value={row.material} onChange={e => updateLineItem(i, 'material', e.target.value)} className="form-input text-xs py-1 w-16" /></td>
+                    <td className="td"><input value={row.hrc} onChange={e => updateLineItem(i, 'hrc', e.target.value)} className="form-input text-xs py-1 w-14" /></td>
+                    <td className="td"><input value={row.hsnCode} onChange={e => updateLineItem(i, 'hsnCode', e.target.value)} className="form-input text-xs py-1 w-20" /></td>
+                    <td className="td"><input type="number" min="0" value={row.quantity} onChange={e => updateLineItem(i, 'quantity', e.target.value)} className="form-input text-xs py-1 w-16 tabular-nums" /></td>
+                    <td className="td"><input type="number" min="0" value={row.qtyOut} onChange={e => updateLineItem(i, 'qtyOut', e.target.value)} className="form-input text-xs py-1 w-16 tabular-nums" /></td>
+                    <td className="td">
+                      <select value={row.uom} onChange={e => updateLineItem(i, 'uom', e.target.value)} className="form-input text-xs py-1 w-16">
+                        <option>KGS</option><option>NOS</option><option>PCS</option><option>SET</option>
+                      </select>
+                    </td>
+                    <td className="td"><input type="number" step="0.001" value={row.weight} onChange={e => updateLineItem(i, 'weight', e.target.value)} className="form-input text-xs py-1 w-18 tabular-nums" /></td>
+                    <td className="td"><input type="number" step="0.01" value={row.rate} onChange={e => updateLineItem(i, 'rate', e.target.value)} className="form-input text-xs py-1 w-18 tabular-nums" /></td>
+                    <td className="td font-semibold tabular-nums text-right">{parseFloat(row.amount || 0).toFixed(2)}</td>
+                    <td className="td">
+                      {lineItems.length > 1 && (
+                        <button type="button" onClick={() => setLineItems(prev => prev.filter((_, idx) => idx !== i))}
+                          className="text-rose-400 hover:text-rose-600 transition-colors">
+                          <span className="material-symbols-outlined text-sm">delete</span>
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Tax & Totals */}
+        <div className="card p-5 space-y-4">
+          <p className="section-title border-b border-slate-100 pb-2">Tax &amp; Totals</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <F label="Handling Charges">
+              <input type="number" step="0.01" value={form.handlingCharges} onChange={e => setForm(p => ({ ...p, handlingCharges: e.target.value }))} className="form-input" />
+            </F>
+            <F label="CGST %">
+              <input type="number" step="0.01" value={form.cgstRate} onChange={e => setForm(p => ({ ...p, cgstRate: e.target.value }))} className="form-input" />
+            </F>
+            <F label="SGST %">
+              <input type="number" step="0.01" value={form.sgstRate} onChange={e => setForm(p => ({ ...p, sgstRate: e.target.value }))} className="form-input" />
+            </F>
+            <F label="IGST %">
+              <input type="number" step="0.01" value={form.igstRate} onChange={e => setForm(p => ({ ...p, igstRate: e.target.value }))} className="form-input" />
+            </F>
+          </div>
+          <div className="bg-slate-50 rounded-xl p-4 space-y-1 text-sm">
+            <div className="flex justify-between"><span className="text-slate-500">Subtotal</span><span className="font-semibold tabular-nums">₹{subtotal.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">Handling</span><span className="tabular-nums">₹{(parseFloat(form.handlingCharges) || 0).toFixed(2)}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">CGST ({form.cgstRate}%)</span><span className="tabular-nums">₹{cgstAmt.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">SGST ({form.sgstRate}%)</span><span className="tabular-nums">₹{sgstAmt.toFixed(2)}</span></div>
+            {parseFloat(form.igstRate) > 0 && <div className="flex justify-between"><span className="text-slate-500">IGST ({form.igstRate}%)</span><span className="tabular-nums">₹{igstAmt.toFixed(2)}</span></div>}
+            <div className="flex justify-between border-t border-slate-200 pt-1 mt-1"><span className="font-bold text-slate-800">Grand Total</span><span className="font-extrabold text-slate-900 tabular-nums">₹{grandTotal.toFixed(2)}</span></div>
+          </div>
+        </div>
+
         {/* Actions */}
         <div className="flex gap-3 pt-1">
           <button type="submit" disabled={loading} className="btn-primary">

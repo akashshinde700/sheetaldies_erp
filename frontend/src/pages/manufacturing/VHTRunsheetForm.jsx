@@ -285,7 +285,7 @@ export default function VHTRunsheetForm() {
     setSaving(true);
     try {
       if (isNew) {
-        await api.post('/manufacturing/runsheet', payload);
+        await api.post('/manufacturing/runsheets', payload);
         alert('Run sheet saved.');
         navigate('/manufacturing/runsheet');
       } else {

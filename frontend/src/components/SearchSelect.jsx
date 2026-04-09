@@ -109,22 +109,24 @@ export default function SearchSelect({
 
       {/* Dropdown List */}
       {open && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
-          <div className="max-h-56 overflow-y-auto">
+        <div className="absolute z-50 top-full left-0 right-0 mt-1.5 bg-white border border-slate-200/90 rounded-xl shadow-card-hover overflow-hidden">
+          <div className="max-h-[min(14rem,50dvh)] overflow-y-auto overscroll-contain [webkit-overflow-scrolling:touch]">
             {filtered.length === 0 ? (
-              <div className="px-4 py-3 text-xs text-slate-400 text-center">No results found</div>
+              <div className="px-4 py-4 text-xs text-slate-400 text-center">No results found</div>
             ) : (
               filtered.map(opt => (
                 <button
                   key={opt.value}
                   type="button"
                   onClick={() => handleSelect(opt)}
-                  className={`w-full text-left px-4 py-2.5 text-sm hover:bg-indigo-50 hover:text-indigo-700 transition-colors flex items-center gap-2 ${
-                    String(opt.value) === String(value) ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-700'
-                  }`}
+                  className={`w-full text-left min-h-[44px] px-4 py-2.5 text-sm flex items-center gap-2 transition-colors duration-150
+                    active:bg-brand-100/80
+                    ${String(opt.value) === String(value)
+                      ? 'bg-brand-50 text-brand-800 font-semibold'
+                      : 'text-slate-700 hover:bg-brand-50/80 hover:text-brand-800'}`}
                 >
                   {String(opt.value) === String(value) && (
-                    <span className="material-symbols-outlined text-[14px] text-indigo-500 flex-shrink-0">check</span>
+                    <span className="material-symbols-outlined text-[14px] text-brand-600 flex-shrink-0">check</span>
                   )}
                   <span className={String(opt.value) === String(value) ? '' : 'ml-[22px]'}>{opt.label}</span>
                 </button>

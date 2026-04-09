@@ -4,14 +4,6 @@ import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { exportToExcel } from '../../utils/export';
 
-const STATUS_STYLE = {
-  DRAFT:     'bg-slate-100 text-slate-600',
-  SENT:      'bg-amber-100 text-amber-700',
-  RECEIVED:  'bg-blue-100 text-blue-700',
-  COMPLETED: 'bg-emerald-100 text-emerald-700',
-  CANCELLED: 'bg-rose-100 text-rose-700',
-};
-
 const STATUS_OPTS = ['DRAFT', 'SENT', 'RECEIVED', 'COMPLETED', 'CANCELLED'];
 const PAGE_LIMIT = 20;
 
@@ -42,24 +34,45 @@ const Pagination = ({ page, totalPages, total, limit, setPage }) => (
   </div>
 );
 
+const isDemoChallan = (ch) =>
+  typeof ch.processingNotes === 'string' && ch.processingNotes.includes('Seed: demo challan');
+
 export default function JobworkList() {
   const [challans, setChallans] = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState(null);
   const [status,   setStatus]   = useState('');
+  const [seedDemo, setSeedDemo] = useState('');
   const [page,     setPage]     = useState(1);
   const [total,    setTotal]    = useState(0);
+  const [statusSavingId, setStatusSavingId] = useState(null);
 
   const fetchData = useCallback(() => {
     setLoading(true); setError(null);
-    api.get('/jobwork', { params: { status, page, limit: PAGE_LIMIT } })
+    const params = { status, page, limit: PAGE_LIMIT };
+    if (seedDemo) params.seedDemo = seedDemo;
+    api.get('/jobwork', { params })
       .then(r => { setChallans(r.data.data || []); setTotal(r.data.meta?.total || 0); })
       .catch(() => setError('Failed to load challans.'))
       .finally(() => setLoading(false));
-  }, [status, page]);
+  }, [status, page, seedDemo]);
 
-  useEffect(() => { setPage(1); }, [status]);
+  useEffect(() => { setPage(1); }, [status, seedDemo]);
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  const updateChallanStatus = async (ch, nextStatus) => {
+    if (nextStatus === ch.status) return;
+    setStatusSavingId(ch.id);
+    try {
+      await api.patch(`/jobwork/${ch.id}/status`, { status: nextStatus });
+      setChallans((prev) => prev.map((c) => (c.id === ch.id ? { ...c, status: nextStatus } : c)));
+      toast.success(`Status: ${nextStatus}`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not update status.');
+    } finally {
+      setStatusSavingId(null);
+    }
+  };
 
   const exportChallans = () => {
     if (!challans.length) { toast.error('No challans to export.'); return; }
@@ -82,35 +95,60 @@ export default function JobworkList() {
   return (
     <div className="space-y-5 animate-slide-up">
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      {/* Header: title block + action row (stacks on narrow screens) */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 flex-1">
           <h2 className="text-xl font-extrabold text-slate-800 font-headline">Jobwork Challans</h2>
-          <p className="text-xs text-slate-400 mt-0.5">{total > 0 ? `${total} total` : 'Heat treatment job work'} · Rule 45(1) CGST</p>
+          <p className="text-xs text-slate-500 mt-1">
+            {total > 0 ? `${total} total` : 'Heat treatment job work'} · Rule 45(1) CGST
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link to="/jobwork/register" className="btn-outline">
-            <span className="material-symbols-outlined text-sm">table_view</span> Inward/Outward Register
+        <div className="flex flex-wrap items-stretch sm:items-center gap-2 lg:shrink-0 lg:pt-0.5">
+          <Link to="/jobwork/register" className="btn-outline whitespace-nowrap">
+            <span className="material-symbols-outlined text-[18px] shrink-0" aria-hidden>table_view</span>
+            <span className="hidden sm:inline">Inward / Outward</span>
+            <span className="sm:hidden">I/O Register</span>
           </Link>
-          <button onClick={exportChallans} className="btn-outline">
-            <span className="material-symbols-outlined text-sm">file_download</span> Export Excel
+          <button type="button" onClick={exportChallans} className="btn-outline whitespace-nowrap">
+            <span className="material-symbols-outlined text-[18px] shrink-0" aria-hidden>file_download</span>
+            Export Excel
           </button>
-          <Link to="/jobwork/new" className="btn-primary">
-            <span className="material-symbols-outlined text-sm">add</span> New Challan
+          <Link to="/jobwork/new" className="btn-primary whitespace-nowrap">
+            <span className="material-symbols-outlined text-[18px] shrink-0" aria-hidden>add</span>
+            New Challan
           </Link>
         </div>
       </div>
 
       {/* Status filter chips */}
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 flex-wrap items-center">
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider w-full sm:w-auto sm:mr-1">Status</span>
         {['', ...STATUS_OPTS].map(f => (
-          <button key={f} onClick={() => setStatus(f)}
+          <button key={f || 'all'} type="button" onClick={() => setStatus(f)}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all duration-150 ${
               status === f
                 ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-200'
                 : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
             }`}>
             {f || 'All'}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex gap-2 flex-wrap items-center">
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider w-full sm:w-auto sm:mr-1">Demo data</span>
+        {[
+          { v: 'hide', label: 'Hide demo' },
+          { v: '', label: 'Show all' },
+          { v: 'only', label: 'Demo only' },
+        ].map(({ v, label }) => (
+          <button key={v || 'all'} type="button" onClick={() => setSeedDemo(v)}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all duration-150 ${
+              seedDemo === v
+                ? 'bg-slate-700 text-white border-slate-700 shadow-sm'
+                : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400 hover:text-slate-800'
+            }`}>
+            {label}
           </button>
         ))}
       </div>
@@ -129,9 +167,9 @@ export default function JobworkList() {
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="bg-gradient-to-r from-slate-50 to-indigo-50/30 border-b border-slate-100">
-                {['Challan No', 'Date', 'From', 'To Party', 'Job Card', 'Items', 'Total', 'Status', 'Action'].map(h => (
-                  <th key={h} className="th">{h}</th>
+              <tr className="border-b border-slate-200/80">
+                {['Challan No', 'Date', 'From', 'To Party', 'Job Card', 'Items', 'Total', 'Status', 'Action'].map((h, i) => (
+                  <th key={h} className={`th ${i === 0 ? 'sticky left-0 z-[1] bg-white shadow-[4px_0_12px_-8px_rgba(15,23,42,0.2)]' : ''}`}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -155,9 +193,16 @@ export default function JobworkList() {
                   </td>
                 </tr>
               ) : challans.map(ch => (
-                <tr key={ch.id} className="tr">
-                  <td className="td">
-                    <span className="text-xs font-bold text-indigo-600 font-mono">{ch.challanNo}</span>
+                <tr key={ch.id} className="tr group">
+                  <td className="td sticky left-0 z-[1] bg-white group-hover:bg-slate-50/90 shadow-[4px_0_12px_-8px_rgba(15,23,42,0.12)]">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs font-bold text-indigo-600 font-mono">{ch.challanNo}</span>
+                      {isDemoChallan(ch) && (
+                        <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-200" title="Seeded demo challan">
+                          Demo
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="td text-slate-500">{new Date(ch.challanDate).toLocaleDateString('en-IN')}</td>
                   <td className="td text-slate-500 truncate max-w-[120px]">{ch.fromParty?.name || '—'}</td>
@@ -165,7 +210,11 @@ export default function JobworkList() {
                   <td className="td">
                     {ch.jobCard ? (
                       <span className="text-xs text-indigo-600 font-mono">{ch.jobCard.jobCardNo || ch.jobCard}</span>
-                    ) : <span className="text-slate-300">—</span>}
+                    ) : (
+                      <span className="text-slate-300 cursor-help" title="No job card linked — open challan to attach one">
+                        —
+                      </span>
+                    )}
                   </td>
                   <td className="td">
                     <span className="bg-slate-100 text-slate-600 rounded-lg px-2 py-0.5 text-[11px] font-bold">
@@ -173,10 +222,19 @@ export default function JobworkList() {
                     </span>
                   </td>
                   <td className="td font-bold text-slate-800">₹ {parseFloat(ch.totalValue).toLocaleString('en-IN')}</td>
-                  <td className="td">
-                    <span className={`badge ${STATUS_STYLE[ch.status] || 'bg-slate-100 text-slate-600'}`}>
-                      {ch.status}
-                    </span>
+                  <td className="td min-w-[9.5rem]">
+                    <label className="sr-only">Status for {ch.challanNo}</label>
+                    <select
+                      aria-label={`Update status for ${ch.challanNo}`}
+                      value={ch.status}
+                      disabled={statusSavingId === ch.id}
+                      onChange={(e) => updateChallanStatus(ch, e.target.value)}
+                      className="form-input text-xs py-1.5 pr-7 font-semibold max-w-[10rem] cursor-pointer disabled:opacity-50"
+                    >
+                      {STATUS_OPTS.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
                   </td>
                   <td className="td">
                     <Link to={`/jobwork/${ch.id}`}

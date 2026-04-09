@@ -8,6 +8,7 @@ router.get   ('/stats', auth, ctrl.stats);
 router.get   ('/',      auth, ctrl.list);
 router.get   ('/:id',   auth, ctrl.getOne);
 router.post  ('/',      auth, requireRole('OPERATOR'), uploadFiveImages('jobcards'), ctrl.create);
+router.patch ('/:id/status', auth, requireRole('OPERATOR'), ctrl.patchStatus);
 router.put   ('/:id',   auth, requireRole('OPERATOR'), uploadFiveImages('jobcards'), ctrl.update);
 
 module.exports = router;

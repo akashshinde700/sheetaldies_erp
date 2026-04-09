@@ -15,7 +15,11 @@ router.post('/single', auth, upload.single('file'), (req, res) => {
 router.delete('/', auth, (req, res) => {
   const { filepath } = req.body;
   if (!filepath) return res.status(400).json({ success: false, message: 'File path required.' });
-  const abs = path.join(__dirname, '../../', filepath);
+  const abs = path.resolve(__dirname, '../../', filepath);
+  const uploadsRoot = path.resolve(__dirname, '../../uploads');
+  if (!abs.startsWith(uploadsRoot)) {
+    return res.status(403).json({ success: false, message: 'Cannot delete files outside uploads directory.' });
+  }
   if (fs.existsSync(abs)) {
     fs.unlinkSync(abs);
     res.json({ success: true, message: 'File deleted.' });

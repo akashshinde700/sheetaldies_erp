@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import api from '../../utils/api';
 
+function formatCurrency2(v) {
+  const n = typeof v === 'number' ? v : parseFloat(String(v ?? '').replace(/,/g, ''));
+  return (Number.isFinite(n) ? n : 0).toFixed(2);
+}
+
 export default function GoodsReceiptForm() {
   const [pos, setPos] = useState([]);
   const [selectedPO, setSelectedPO] = useState(null);
@@ -83,125 +88,88 @@ export default function GoodsReceiptForm() {
   };
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Goods Receipt Note (GRN)</h1>
+    <div className="space-y-6 animate-slide-up w-full max-w-6xl mx-auto">
+      <div>
+        <h1 className="page-title">Goods Receipt (GRN)</h1>
+        <p className="page-subtitle">Receive against draft purchase orders and update stock</p>
+      </div>
 
-        <div className="bg-white p-6 rounded-lg shadow mb-6">
-          <h2 className="text-xl font-bold mb-4">Create GRN</h2>
+      <div className="card p-5 sm:p-6">
+        <h2 className="text-lg font-bold text-slate-900 font-headline mb-4">Create GRN</h2>
 
-          <div className="mb-6">
-            <label className="block text-sm font-medium mb-2">Select Purchase Order *</label>
-            <select
-              value={selectedPO?.id || ''}
-              onChange={(e) => handlePOSelect(e.target.value)}
-              className="w-full px-4 py-2 border rounded"
-              required
-            >
-              <option value="">-- Choose PO --</option>
-              {pos.map(po => (
-                <option key={po.id} value={po.id}>
-                  {po.poNumber} - {po.vendor?.name} (₹{po.totalAmount?.toFixed(2)})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {selectedPO && (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="bg-blue-50 p-4 rounded">
-                <p className="font-bold">{selectedPO.poNumber}</p>
-                <p className="text-sm text-gray-600">{selectedPO.vendor?.name}</p>
-                <p className="text-sm">Expected: {new Date(selectedPO.expectedDelivery).toLocaleDateString()}</p>
-              </div>
-
-              {/* Items Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="border p-2 text-left">Item</th>
-                      <th className="border p-2 text-center">PO Qty</th>
-                      <th className="border p-2 text-center">Received</th>
-                      <th className="border p-2 text-center">Accepted</th>
-                      <th className="border p-2 text-center">Rejected</th>
-                      <th className="border p-2 text-left">Remarks</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {poItems.map((item, idx) => (
-                      <tr key={idx} className="border-b hover:bg-gray-50">
-                        <td className="border p-2">{item.item?.partNo || item.item?.description}</td>
-                        <td className="border p-2 text-center font-bold">{item.quantity}</td>
-                        <td className="border p-2">
-                          <input
-                            type="number"
-                            value={item.quantityReceived}
-                            onChange={(e) => handleItemUpdate(idx, 'quantityReceived', e.target.value)}
-                            className="w-full px-2 py-1 border rounded text-center"
-                            placeholder="0"
-                          />
-                        </td>
-                        <td className="border p-2">
-                          <input
-                            type="number"
-                            value={item.quantityAccepted}
-                            onChange={(e) => handleItemUpdate(idx, 'quantityAccepted', e.target.value)}
-                            className="w-full px-2 py-1 border rounded text-center"
-                            placeholder="0"
-                          />
-                        </td>
-                        <td className="border p-2">
-                          <input
-                            type="number"
-                            value={item.quantityRejected}
-                            onChange={(e) => handleItemUpdate(idx, 'quantityRejected', e.target.value)}
-                            className="w-full px-2 py-1 border rounded text-center"
-                            placeholder="0"
-                          />
-                        </td>
-                        <td className="border p-2">
-                          <input
-                            type="text"
-                            value={item.remarks}
-                            onChange={(e) => handleItemUpdate(idx, 'remarks', e.target.value)}
-                            className="w-full px-2 py-1 border rounded text-sm"
-                            placeholder="Quality issues..."
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <textarea
-                placeholder="GRN Notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="w-full px-4 py-2 border rounded"
-                rows="3"
-              />
-
-              <div className="flex gap-2">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400"
-                >
-                  {loading ? 'Creating GRN...' : 'Create GRN & Update Inventory'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedPO(null)}
-                  className="px-6 py-2 bg-gray-400 text-white rounded hover:bg-gray-500"
-                >
-                  Clear
-                </button>
-              </div>
-            </form>
-          )}
+        <div className="mb-6">
+          <label className="form-label">Purchase order *</label>
+          <select
+            value={selectedPO?.id || ''}
+            onChange={(e) => handlePOSelect(e.target.value)}
+            className="form-input"
+            required
+          >
+            <option value="">Choose PO…</option>
+            {pos.map(po => (
+              <option key={po.id} value={po.id}>
+                {po.poNumber} — {po.vendor?.name} (₹{formatCurrency2(po.totalAmount)})
+              </option>
+            ))}
+          </select>
         </div>
+
+        {selectedPO && (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="rounded-xl border border-sky-200/80 bg-sky-50/60 p-4">
+              <p className="font-bold text-slate-900">{selectedPO.poNumber}</p>
+              <p className="text-sm text-slate-600">{selectedPO.vendor?.name}</p>
+              <p className="text-sm text-slate-500">Expected: {new Date(selectedPO.expectedDelivery).toLocaleDateString()}</p>
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-slate-200/80">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-sky-50/80 border-b border-slate-200/80">
+                    <th className="th text-left">Item</th>
+                    <th className="th text-center">PO Qty</th>
+                    <th className="th text-center">Received</th>
+                    <th className="th text-center">Accepted</th>
+                    <th className="th text-center">Rejected</th>
+                    <th className="th text-left">Remarks</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {poItems.map((item, idx) => (
+                    <tr key={idx} className="tr">
+                      <td className="td">{item.item?.partNo || item.item?.description}</td>
+                      <td className="td text-center font-semibold">{item.quantity}</td>
+                      <td className="td">
+                        <input type="number" value={item.quantityReceived} onChange={(e) => handleItemUpdate(idx, 'quantityReceived', e.target.value)} className="form-input py-2 text-center text-sm" placeholder="0" />
+                      </td>
+                      <td className="td">
+                        <input type="number" value={item.quantityAccepted} onChange={(e) => handleItemUpdate(idx, 'quantityAccepted', e.target.value)} className="form-input py-2 text-center text-sm" placeholder="0" />
+                      </td>
+                      <td className="td">
+                        <input type="number" value={item.quantityRejected} onChange={(e) => handleItemUpdate(idx, 'quantityRejected', e.target.value)} className="form-input py-2 text-center text-sm" placeholder="0" />
+                      </td>
+                      <td className="td">
+                        <input type="text" value={item.remarks} onChange={(e) => handleItemUpdate(idx, 'remarks', e.target.value)} className="form-input py-2 text-sm" placeholder="Notes…" />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div>
+              <label className="form-label">GRN notes</label>
+              <textarea placeholder="Optional notes" value={notes} onChange={(e) => setNotes(e.target.value)} className="form-input min-h-[88px]" rows={3} />
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button type="submit" disabled={loading} className="btn-primary disabled:opacity-50">
+                {loading ? 'Creating…' : 'Create GRN & update inventory'}
+              </button>
+              <button type="button" onClick={() => setSelectedPO(null)} className="btn-ghost">Clear</button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );

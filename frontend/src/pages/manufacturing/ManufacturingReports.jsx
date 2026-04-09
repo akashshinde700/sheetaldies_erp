@@ -244,12 +244,12 @@ export default function ManufacturingReports() {
     : 0;
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Manufacturing Reports & Analytics</h1>
+    <div className="page-stack-wide">
+        <h1 className="page-title mb-2">Manufacturing Reports &amp; Analytics</h1>
+        <p className="page-subtitle mb-6">Utilization, plant losses, and shift data</p>
 
         {/* Filters */}
-        <div className="bg-white p-4 rounded-lg shadow mb-6 flex gap-4 items-end">
+        <div className="card p-5 mb-6 flex gap-4 items-end">
           <div>
             <label className="block text-sm font-medium mb-1">Start Date</label>
             <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="px-3 py-2 border rounded" />
@@ -258,17 +258,17 @@ export default function ManufacturingReports() {
             <label className="block text-sm font-medium mb-1">End Date</label>
             <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="px-3 py-2 border rounded" />
           </div>
-          <button onClick={fetchReports} disabled={loading} className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400">
+          <button onClick={fetchReports} disabled={loading} className="btn-primary disabled:opacity-50">
             {loading ? 'Loading...' : 'Generate Reports'}
           </button>
         </div>
 
         {/* Plant Losses (Monthly) */}
-        <div className="bg-white p-4 rounded-lg shadow mb-6">
+        <div className="card p-5 mb-6">
           <div className="flex items-end gap-3 flex-wrap justify-between">
             <div>
               <h2 className="text-lg font-bold">Plant Losses (Monthly)</h2>
-              <p className="text-xs text-gray-500">Loading/Unloading, waiting, cleaning, breakdown, no power/material → efficiency</p>
+              <p className="text-xs text-slate-500">Loading/Unloading, waiting, cleaning, breakdown, no power/material → efficiency</p>
             </div>
             <div className="flex items-end gap-3 flex-wrap">
               <div>
@@ -281,9 +281,9 @@ export default function ManufacturingReports() {
                   {Array.from({ length: 12 }).map((_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}
                 </select>
               </div>
-              <button onClick={fetchPlantLoss} className="px-4 py-2 bg-gray-800 text-white rounded hover:bg-black">Load</button>
-              <button onClick={addLossRow} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">+ Row</button>
-              <button onClick={savePlantLoss} disabled={savingLoss} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400">
+              <button onClick={fetchPlantLoss} className="btn-primary">Load</button>
+              <button onClick={addLossRow} className="btn-secondary">+ Row</button>
+              <button onClick={savePlantLoss} disabled={savingLoss} className="btn-primary disabled:opacity-50">
                 {savingLoss ? 'Saving...' : 'Save'}
               </button>
             </div>
@@ -291,16 +291,16 @@ export default function ManufacturingReports() {
 
           {plantLossMonth?.totals && (
             <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-3">
-              <div className="p-3 bg-gray-50 rounded border"><div className="text-xs text-gray-500">Total Available</div><div className="text-xl font-bold">{plantLossMonth.totals.totalAvailable}h</div></div>
-              <div className="p-3 bg-gray-50 rounded border"><div className="text-xs text-gray-500">Total Used</div><div className="text-xl font-bold">{plantLossMonth.totals.totalUsed}h</div></div>
-              <div className="p-3 bg-gray-50 rounded border"><div className="text-xs text-gray-500">Total Loss</div><div className="text-xl font-bold text-red-600">{plantLossMonth.totals.totalLoss}h</div></div>
-              <div className="p-3 bg-gray-50 rounded border"><div className="text-xs text-gray-500">Efficiency</div><div className="text-xl font-bold text-blue-700">{plantLossMonth.totals.efficiencyPercent}%</div></div>
+              <div className="p-3 rounded-lg border border-slate-200/80 bg-slate-50/90"><div className="text-xs text-slate-500">Total Available</div><div className="text-xl font-bold">{plantLossMonth.totals.totalAvailable}h</div></div>
+              <div className="p-3 rounded-lg border border-slate-200/80 bg-slate-50/90"><div className="text-xs text-slate-500">Total Used</div><div className="text-xl font-bold">{plantLossMonth.totals.totalUsed}h</div></div>
+              <div className="p-3 rounded-lg border border-slate-200/80 bg-slate-50/90"><div className="text-xs text-slate-500">Total Loss</div><div className="text-xl font-bold text-red-600">{plantLossMonth.totals.totalLoss}h</div></div>
+              <div className="p-3 rounded-lg border border-slate-200/80 bg-slate-50/90"><div className="text-xs text-slate-500">Efficiency</div><div className="text-xl font-bold text-blue-700">{plantLossMonth.totals.efficiencyPercent}%</div></div>
             </div>
           )}
 
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-sm border">
-              <thead className="bg-gray-100">
+              <thead className="bg-sky-50/80 border-b border-slate-200/80">
                 <tr>
                   <th className="p-2 border text-left">Furnace</th>
                   <th className="p-2 border text-center">Available (h)</th>
@@ -316,9 +316,9 @@ export default function ManufacturingReports() {
               </thead>
               <tbody>
                 {lossRows.length === 0 ? (
-                  <tr><td colSpan={10} className="p-3 text-center text-gray-500">No data. Click “+ Row”.</td></tr>
+                  <tr><td colSpan={10} className="p-3 text-center text-slate-500">No data. Click “+ Row”.</td></tr>
                 ) : lossRows.map((r, i) => (
-                  <tr key={i} className="hover:bg-gray-50">
+                  <tr key={i} className="hover:bg-slate-50/90">
                     <td className="p-2 border">
                       <select value={r.machineId} onChange={(e) => updateLossRow(i, 'machineId', e.target.value)} className="px-2 py-1 border rounded w-64">
                         <option value="">Select machine (optional)</option>
@@ -341,11 +341,11 @@ export default function ManufacturingReports() {
         </div>
 
         {/* Daily Idle Time Sheet (raw data) */}
-        <div className="bg-white p-4 rounded-lg shadow mb-6">
+        <div className="card p-5 mb-6">
           <div className="flex items-end gap-3 flex-wrap justify-between">
             <div>
               <h2 className="text-lg font-bold">Daily Idle Time Sheet (Raw)</h2>
-              <p className="text-xs text-gray-500">Minutes per day → monthly loss report auto-derives from this</p>
+              <p className="text-xs text-slate-500">Minutes per day → monthly loss report auto-derives from this</p>
             </div>
             <div className="flex items-end gap-3 flex-wrap">
               <div>
@@ -365,42 +365,42 @@ export default function ManufacturingReports() {
                   {Array.from({ length: 12 }).map((_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}
                 </select>
               </div>
-              <button onClick={fetchDailyIdle} className="px-4 py-2 bg-gray-800 text-white rounded hover:bg-black">Load</button>
-              <button onClick={saveDailyIdle} disabled={savingIdle || !idleSheet} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400">
+              <button onClick={fetchDailyIdle} className="btn-primary">Load</button>
+              <button onClick={saveDailyIdle} disabled={savingIdle || !idleSheet} className="btn-primary disabled:opacity-50">
                 {savingIdle ? 'Saving...' : 'Save'}
               </button>
-              <button onClick={deriveMonthlyFromDaily} disabled={savingLoss || !idleSheet} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400">
+              <button onClick={deriveMonthlyFromDaily} disabled={savingLoss || !idleSheet} className="btn-secondary disabled:opacity-50">
                 Derive Monthly
               </button>
             </div>
           </div>
 
           {!idleSheet ? (
-            <p className="text-gray-500 text-sm mt-3">Select a machine and click Load.</p>
+            <p className="text-slate-500 text-sm mt-3">Select a machine and click Load.</p>
           ) : (
             <>
               <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-3">
-                <div className="p-3 bg-gray-50 rounded border">
-                  <div className="text-xs text-gray-500">Loading/Unloading</div>
+                <div className="p-3 rounded-lg border border-slate-200/80 bg-slate-50/90">
+                  <div className="text-xs text-slate-500">Loading/Unloading</div>
                   <div className="text-xl font-bold">{idleSheet.totalsHours.loadingUnloadingHrs}h</div>
                 </div>
-                <div className="p-3 bg-gray-50 rounded border">
-                  <div className="text-xs text-gray-500">Waiting Cycle Prep</div>
+                <div className="p-3 rounded-lg border border-slate-200/80 bg-slate-50/90">
+                  <div className="text-xs text-slate-500">Waiting Cycle Prep</div>
                   <div className="text-xl font-bold">{idleSheet.totalsHours.waitingCyclePrepHrs}h</div>
                 </div>
-                <div className="p-3 bg-gray-50 rounded border">
-                  <div className="text-xs text-gray-500">Preventive Maint</div>
+                <div className="p-3 rounded-lg border border-slate-200/80 bg-slate-50/90">
+                  <div className="text-xs text-slate-500">Preventive Maint</div>
                   <div className="text-xl font-bold">{idleSheet.totalsHours.preventiveMaintHrs}h</div>
                 </div>
-                <div className="p-3 bg-gray-50 rounded border">
-                  <div className="text-xs text-gray-500">Total Idle</div>
+                <div className="p-3 rounded-lg border border-slate-200/80 bg-slate-50/90">
+                  <div className="text-xs text-slate-500">Total Idle</div>
                   <div className="text-xl font-bold text-red-600">{idleSheet.totalsHours.totalIdleHrs}h</div>
                 </div>
               </div>
 
               <div className="mt-4 overflow-x-auto">
                 <table className="w-full text-xs border">
-                  <thead className="bg-gray-100">
+                  <thead className="bg-sky-50/80 border-b border-slate-200/80">
                     <tr>
                       <th className="p-2 border">Day</th>
                       <th className="p-2 border">Load/Unload (min)</th>
@@ -441,11 +441,11 @@ export default function ManufacturingReports() {
         </div>
 
         {/* Furnace Utilisation Statement (Shift-wise) */}
-        <div className="bg-white p-4 rounded-lg shadow mb-6">
+        <div className="card p-5 mb-6">
           <div className="flex items-end gap-3 flex-wrap justify-between">
             <div>
               <h2 className="text-lg font-bold">Furnace Utilisation Statement (Shift-wise)</h2>
-              <p className="text-xs text-gray-500">3 shifts × 480 min/day, reason codes A–g + used minutes</p>
+              <p className="text-xs text-slate-500">3 shifts × 480 min/day, reason codes A–g + used minutes</p>
             </div>
             <div className="flex items-end gap-3 flex-wrap">
               <div>
@@ -459,19 +459,19 @@ export default function ManufacturingReports() {
                 <label className="block text-sm font-medium mb-1">Date</label>
                 <input type="date" value={utilDate} onChange={(e) => setUtilDate(e.target.value)} className="px-3 py-2 border rounded" />
               </div>
-              <button onClick={fetchUtilDay} className="px-4 py-2 bg-gray-800 text-white rounded hover:bg-black">Load</button>
-              <button onClick={saveUtilDay} disabled={!utilRow || savingUtil} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400">
+              <button onClick={fetchUtilDay} className="btn-primary">Load</button>
+              <button onClick={saveUtilDay} disabled={!utilRow || savingUtil} className="btn-primary disabled:opacity-50">
                 {savingUtil ? 'Saving...' : 'Save'}
               </button>
             </div>
           </div>
 
           {!utilRow ? (
-            <p className="text-gray-500 text-sm mt-3">Select machine + date and click Load.</p>
+            <p className="text-slate-500 text-sm mt-3">Select machine + date and click Load.</p>
           ) : (
             <div className="mt-4 overflow-x-auto">
               <table className="w-full text-xs border">
-                <thead className="bg-gray-100">
+                <thead className="bg-sky-50/80 border-b border-slate-200/80">
                   <tr>
                     <th className="p-2 border text-left">Shift</th>
                     <th className="p-2 border text-center">Used (min)</th>
@@ -516,7 +516,7 @@ export default function ManufacturingReports() {
                 </div>
               </div>
 
-              <p className="text-[11px] text-gray-500 mt-3">
+              <p className="text-[11px] text-slate-500 mt-3">
                 Legend: A Loading/Unloading · B Cycle Preparation · C Waiting Material · D Preventive · E Breakdown · F No Power · g No Material
               </p>
             </div>
@@ -525,16 +525,16 @@ export default function ManufacturingReports() {
 
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white p-4 rounded-lg shadow border-l-4 border-blue-500">
-            <p className="text-gray-600 text-sm">Avg Utilization</p>
+          <div className="card p-5 border-l-4 border-sky-600">
+            <p className="text-slate-600 text-sm">Avg Utilization</p>
             <p className="text-3xl font-bold text-blue-600">{avgUtilization}%</p>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow border-l-4 border-red-500">
-            <p className="text-gray-600 text-sm">Total Idle Hours</p>
+          <div className="card p-5 border-l-4 border-rose-500">
+            <p className="text-slate-600 text-sm">Total Idle Hours</p>
             <p className="text-3xl font-bold text-red-600">{totalIdleHours}h</p>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow border-l-4 border-green-500">
-            <p className="text-gray-600 text-sm">Machines Tracked</p>
+          <div className="card p-5 border-l-4 border-emerald-500">
+            <p className="text-slate-600 text-sm">Machines Tracked</p>
             <p className="text-3xl font-bold text-green-600">{utilization.length}</p>
           </div>
         </div>
@@ -542,7 +542,7 @@ export default function ManufacturingReports() {
         {/* Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           {/* Machine Utilization */}
-          <div className="bg-white p-4 rounded-lg shadow">
+          <div className="card p-5">
             <h2 className="text-lg font-bold mb-4">Machine Utilization %</h2>
             {utilization.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
@@ -555,12 +555,12 @@ export default function ManufacturingReports() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <p className="text-gray-500 text-center py-8">No data available</p>
+              <p className="text-slate-500 text-center py-8">No data available</p>
             )}
           </div>
 
           {/* Active vs Idle Hours */}
-          <div className="bg-white p-4 rounded-lg shadow">
+          <div className="card p-5">
             <h2 className="text-lg font-bold mb-4">Active vs Idle Hours</h2>
             {utilization.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
@@ -578,17 +578,17 @@ export default function ManufacturingReports() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <p className="text-gray-500 text-center py-8">No data available</p>
+              <p className="text-slate-500 text-center py-8">No data available</p>
             )}
           </div>
         </div>
 
         {/* Idle Time Details */}
         {idleTime?.shifts.length > 0 && (
-          <div className="bg-white p-4 rounded-lg shadow mb-6">
+          <div className="card p-5 mb-6">
             <h2 className="text-lg font-bold mb-4">Idle Time Detail</h2>
             <table className="w-full text-sm">
-              <thead className="bg-gray-100">
+              <thead className="bg-sky-50/80 border-b border-slate-200/80">
                 <tr>
                   <th className="px-4 py-2 text-left">Date</th>
                   <th className="px-4 py-2 text-left">Machine</th>
@@ -599,11 +599,11 @@ export default function ManufacturingReports() {
               </thead>
               <tbody>
                 {idleTime.shifts.map((shift, idx) => (
-                  <tr key={idx} className="border-b hover:bg-gray-50">
+                  <tr key={idx} className="border-b hover:bg-slate-50/90">
                     <td className="px-4 py-2">{new Date(shift.shiftDate).toLocaleDateString()}</td>
                     <td className="px-4 py-2">{shift.machine}</td>
                     <td className="px-4 py-2">Shift {shift.shiftNumber}</td>
-                    <td className="px-4 py-2 text-sm text-gray-600">{shift.reason}</td>
+                    <td className="px-4 py-2 text-sm text-slate-600">{shift.reason}</td>
                     <td className="px-4 py-2 text-center font-bold">{shift.duration}</td>
                   </tr>
                 ))}
@@ -614,11 +614,11 @@ export default function ManufacturingReports() {
 
         {/* Shift Summary */}
         {shifts.length > 0 && (
-          <div className="bg-white p-4 rounded-lg shadow">
+          <div className="card p-5">
             <h2 className="text-lg font-bold mb-4">Shift Summary</h2>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-100">
+                <thead className="bg-sky-50/80 border-b border-slate-200/80">
                   <tr>
                     <th className="px-4 py-2 text-left">Date</th>
                     <th className="px-4 py-2 text-center">Shift</th>
@@ -629,7 +629,7 @@ export default function ManufacturingReports() {
                 </thead>
                 <tbody>
                   {shifts.slice(0, 10).map((shift, idx) => (
-                    <tr key={idx} className="border-b hover:bg-gray-50">
+                    <tr key={idx} className="border-b hover:bg-slate-50/90">
                       <td className="px-4 py-2">{new Date(shift.productionPlan?.planDate).toLocaleDateString()}</td>
                       <td className="px-4 py-2 text-center">Shift {shift.shiftNumber}</td>
                       <td className="px-4 py-2">{shift.machineryAssigned}</td>
@@ -642,7 +642,6 @@ export default function ManufacturingReports() {
             </div>
           </div>
         )}
-      </div>
     </div>
   );
 }

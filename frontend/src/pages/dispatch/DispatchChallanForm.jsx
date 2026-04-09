@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import api from '../../utils/api';
 
 const STATUS_OPTIONS = ['DRAFT', 'SENT', 'RECEIVED', 'COMPLETED', 'CANCELLED'];
@@ -85,7 +85,7 @@ export default function DispatchChallanForm() {
         }
       } catch (err) {
         console.error('Error fetching challan:', err);
-        alert('Failed to load dispatch challan');
+        toast.error('Failed to load dispatch challan');
       } finally {
         setLoading(false);
       }
@@ -122,12 +122,12 @@ export default function DispatchChallanForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.fromPartyId || !formData.toPartyId) {
-      alert('From Party and To Party are required.');
+      toast.error('From Party and To Party are required.');
       return;
     }
     const validItems = items.filter((it) => it.itemId || it.description?.trim());
     if (validItems.length === 0) {
-      alert('At least one item is required.');
+      toast.error('At least one item is required.');
       return;
     }
     try {
@@ -152,15 +152,15 @@ export default function DispatchChallanForm() {
       };
       if (isEdit) {
         await api.put(`/dispatch-challans/${id}`, payload);
-        alert('Dispatch challan updated successfully!');
+        toast.success('Dispatch challan updated successfully!');
       } else {
         await api.post('/dispatch-challans', payload);
-        alert('Dispatch challan created successfully!');
+        toast.success('Dispatch challan created successfully!');
       }
       navigate('/dispatch');
     } catch (err) {
       console.error('Error saving challan:', err);
-      alert(err.response?.data?.message || 'Failed to save dispatch challan');
+      toast.error(err.response?.data?.message || 'Failed to save dispatch challan');
     } finally {
       setLoading(false);
     }
@@ -170,228 +170,168 @@ export default function DispatchChallanForm() {
   const totalWeight = items.reduce((sum, it) => sum + (parseFloat(it.weightKg) || 0), 0);
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-5xl mx-auto">
-        <button
-          type="button"
-          onClick={() => navigate('/dispatch')}
-          className="flex items-center gap-2 mb-6 text-blue-600 hover:text-blue-800 transition-colors"
-        >
-          <ArrowLeft size={20} /> Back to Dispatch Challans
-        </button>
+    <div className="space-y-6 max-w-5xl mx-auto">
+      <button type="button" onClick={() => navigate('/dispatch')} className="btn-ghost -ml-2 inline-flex items-center gap-2 text-sky-800">
+        <span className="material-symbols-outlined text-[20px]">arrow_back</span> Back to dispatch challans
+      </button>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <h1 className="text-3xl font-bold mb-6">{isEdit ? 'Edit Dispatch Challan' : 'New Dispatch Challan'}</h1>
+      <div className="card p-5 sm:p-6">
+        <h1 className="page-title mb-1">{isEdit ? 'Edit dispatch challan' : 'New dispatch challan'}</h1>
+        <p className="page-subtitle mb-6">Parties, transport, and line items</p>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="border-b pb-4 mb-4">
-              <h2 className="text-lg font-semibold text-gray-700 mb-4">Challan Details</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Challan Date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.challanDate}
-                    onChange={(e) => handleChange('challanDate', e.target.value)}
-                    className="w-full px-4 py-2 border rounded"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">From Party *</label>
-                  <select
-                    required
-                    value={formData.fromPartyId}
-                    onChange={(e) => handleChange('fromPartyId', e.target.value)}
-                    className="w-full px-4 py-2 border rounded"
-                  >
-                    <option value="">Select From Party</option>
-                    {parties.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">To Party *</label>
-                  <select
-                    required
-                    value={formData.toPartyId}
-                    onChange={(e) => handleChange('toPartyId', e.target.value)}
-                    className="w-full px-4 py-2 border rounded"
-                  >
-                    <option value="">Select To Party</option>
-                    {parties.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Jobwork Challan</label>
-                  <select
-                    value={formData.jobworkChallanId}
-                    onChange={(e) => handleChange('jobworkChallanId', e.target.value)}
-                    className="w-full px-4 py-2 border rounded"
-                  >
-                    <option value="">Select Jobwork Challan</option>
-                    {jobworkChallans.map((j) => (
-                      <option key={j.id} value={j.id}>
-                        {j.challanNo || `JW-${j.id}`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Dispatch Mode</label>
-                  <input
-                    value={formData.dispatchMode}
-                    onChange={(e) => handleChange('dispatchMode', e.target.value)}
-                    className="w-full px-4 py-2 border rounded"
-                    placeholder="Transport / Courier"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Vehicle No</label>
-                  <input
-                    value={formData.vehicleNo}
-                    onChange={(e) => handleChange('vehicleNo', e.target.value)}
-                    className="w-full px-4 py-2 border rounded"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Status</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => handleChange('status', e.target.value)}
-                    className="w-full px-4 py-2 border rounded"
-                  >
-                    {STATUS_OPTIONS.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="md:col-span-2 lg:col-span-3">
-                  <label className="block text-sm font-medium mb-2">Remarks</label>
-                  <textarea
-                    rows={2}
-                    value={formData.remarks}
-                    onChange={(e) => handleChange('remarks', e.target.value)}
-                    className="w-full px-4 py-2 border rounded"
-                  />
-                </div>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="border-b border-slate-200/80 pb-6">
+            <h2 className="text-sm font-bold text-slate-800 font-headline mb-4">Challan details</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <label className="form-label">Challan date *</label>
+                <input type="date" required value={formData.challanDate} onChange={(e) => handleChange('challanDate', e.target.value)} className="form-input w-full" />
+              </div>
+              <div>
+                <label className="form-label">From party *</label>
+                <select required value={formData.fromPartyId} onChange={(e) => handleChange('fromPartyId', e.target.value)} className="form-input w-full">
+                  <option value="">Select from party</option>
+                  {parties.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="form-label">To party *</label>
+                <select required value={formData.toPartyId} onChange={(e) => handleChange('toPartyId', e.target.value)} className="form-input w-full">
+                  <option value="">Select to party</option>
+                  {parties.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="form-label">Jobwork challan</label>
+                <select value={formData.jobworkChallanId} onChange={(e) => handleChange('jobworkChallanId', e.target.value)} className="form-input w-full">
+                  <option value="">Optional link</option>
+                  {jobworkChallans.map((j) => (
+                    <option key={j.id} value={j.id}>
+                      {j.challanNo || `JW-${j.id}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="form-label">Dispatch mode</label>
+                <input
+                  value={formData.dispatchMode}
+                  onChange={(e) => handleChange('dispatchMode', e.target.value)}
+                  className="form-input w-full"
+                  placeholder="Transport / courier"
+                />
+              </div>
+              <div>
+                <label className="form-label">Vehicle no.</label>
+                <input value={formData.vehicleNo} onChange={(e) => handleChange('vehicleNo', e.target.value)} className="form-input w-full" />
+              </div>
+              <div>
+                <label className="form-label">Status</label>
+                <select value={formData.status} onChange={(e) => handleChange('status', e.target.value)} className="form-input w-full">
+                  {STATUS_OPTIONS.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="md:col-span-2 lg:col-span-3">
+                <label className="form-label">Remarks</label>
+                <textarea rows={2} value={formData.remarks} onChange={(e) => handleChange('remarks', e.target.value)} className="form-input w-full min-h-[72px]" />
               </div>
             </div>
+          </div>
 
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-700">Items</h2>
-                <button type="button" onClick={addItem} className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-                  <Plus size={16} /> Add Item
-                </button>
-              </div>
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <h2 className="text-sm font-bold text-slate-800 font-headline">Items</h2>
+              <button type="button" onClick={addItem} className="btn-primary inline-flex items-center gap-2 shrink-0">
+                <span className="material-symbols-outlined text-[16px]">add</span> Add item
+              </button>
+            </div>
 
-              {items.map((item, idx) => (
-                <div key={idx} className="grid grid-cols-1 md:grid-cols-6 gap-3 p-3 border rounded-lg bg-gray-50">
-                  {formData.jobworkChallanId && (
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-medium mb-1">Source Challan Line</label>
-                      <select
-                        value={item.sourceChallanItemId || ''}
-                        onChange={(e) => updateItem(idx, 'sourceChallanItemId', e.target.value)}
-                        className="w-full px-3 py-2 border rounded"
-                      >
-                        <option value="">Select line</option>
-                        {selectedJwItems.map((chIt) => (
-                          <option key={chIt.id} value={chIt.id}>
-                            {chIt.description || `Line ${chIt.id}`} (Qty {chIt.quantity})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  <div>
-                    <label className="block text-xs font-medium mb-1">Item</label>
+            {items.map((item, idx) => (
+              <div key={idx} className="grid grid-cols-1 md:grid-cols-6 gap-3 p-4 rounded-xl border border-slate-200/80 bg-slate-50/60">
+                {formData.jobworkChallanId && (
+                  <div className="md:col-span-2">
+                    <label className="form-label text-xs">Source challan line</label>
                     <select
-                      value={item.itemId}
-                      onChange={(e) => updateItem(idx, 'itemId', e.target.value)}
-                      className="w-full px-3 py-2 border rounded"
+                      value={item.sourceChallanItemId || ''}
+                      onChange={(e) => updateItem(idx, 'sourceChallanItemId', e.target.value)}
+                      className="form-input w-full text-sm"
                     >
-                      <option value="">Select Item</option>
-                      {itemsMaster.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.name || m.partNo || `Item ${m.id}`}
+                      <option value="">Select line</option>
+                      {selectedJwItems.map((chIt) => (
+                        <option key={chIt.id} value={chIt.id}>
+                          {chIt.description || `Line ${chIt.id}`} (Qty {chIt.quantity})
                         </option>
                       ))}
                     </select>
                   </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-xs font-medium mb-1">Description</label>
-                    <input
-                      value={item.description}
-                      onChange={(e) => updateItem(idx, 'description', e.target.value)}
-                      className="w-full px-3 py-2 border rounded"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1">Qty</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={item.quantity}
-                      onChange={(e) => updateItem(idx, 'quantity', e.target.value)}
-                      className="w-full px-3 py-2 border rounded"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1">Weight (Kg)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={item.weightKg}
-                      onChange={(e) => updateItem(idx, 'weightKg', e.target.value)}
-                      className="w-full px-3 py-2 border rounded"
-                    />
-                  </div>
-                  <div className="flex items-end">
-                    <button type="button" onClick={() => removeItem(idx)} className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 bg-red-50 text-red-600 rounded hover:bg-red-100">
-                      <Trash2 size={16} /> Remove
-                    </button>
-                  </div>
-                  <div className="md:col-span-6">
-                    <label className="block text-xs font-medium mb-1">Item Remarks</label>
-                    <input
-                      value={item.remarks}
-                      onChange={(e) => updateItem(idx, 'remarks', e.target.value)}
-                      className="w-full px-3 py-2 border rounded"
-                    />
-                  </div>
+                )}
+                <div>
+                  <label className="form-label text-xs">Item</label>
+                  <select value={item.itemId} onChange={(e) => updateItem(idx, 'itemId', e.target.value)} className="form-input w-full text-sm">
+                    <option value="">Select item</option>
+                    {itemsMaster.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.partNo || m.description || `Item ${m.id}`}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              ))}
-            </div>
+                <div className="md:col-span-2">
+                  <label className="form-label text-xs">Description</label>
+                  <input value={item.description} onChange={(e) => updateItem(idx, 'description', e.target.value)} className="form-input w-full text-sm" />
+                </div>
+                <div>
+                  <label className="form-label text-xs">Qty</label>
+                  <input type="number" min="0" step="0.01" value={item.quantity} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} className="form-input w-full text-sm tabular-nums" />
+                </div>
+                <div>
+                  <label className="form-label text-xs">Weight (kg)</label>
+                  <input type="number" min="0" step="0.01" value={item.weightKg} onChange={(e) => updateItem(idx, 'weightKg', e.target.value)} className="form-input w-full text-sm tabular-nums" />
+                </div>
+                <div className="flex items-end">
+                  <button type="button" onClick={() => removeItem(idx)} className="btn-danger w-full inline-flex items-center justify-center gap-2">
+                    <span className="material-symbols-outlined text-[16px]">delete</span> Remove
+                  </button>
+                </div>
+                <div className="md:col-span-6">
+                  <label className="form-label text-xs">Item remarks</label>
+                  <input value={item.remarks} onChange={(e) => updateItem(idx, 'remarks', e.target.value)} className="form-input w-full text-sm" />
+                </div>
+              </div>
+            ))}
+          </div>
 
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t pt-4">
-              <div className="text-sm text-gray-600">
-                <span className="mr-4">Total Qty: <strong>{totalQty.toFixed(2)}</strong></span>
-                <span>Total Weight: <strong>{totalWeight.toFixed(2)} Kg</strong></span>
-              </div>
-              <div className="flex gap-2">
-                <button type="button" onClick={() => navigate('/dispatch')} className="px-4 py-2 border rounded hover:bg-gray-50">
-                  Cancel
-                </button>
-                <button type="submit" disabled={loading} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-60">
-                  {loading ? 'Saving...' : isEdit ? 'Update Challan' : 'Create Challan'}
-                </button>
-              </div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-slate-200/80 pt-5">
+            <div className="text-sm text-slate-600">
+              <span className="mr-4 tabular-nums">
+                Total qty: <strong className="text-slate-900">{totalQty.toFixed(2)}</strong>
+              </span>
+              <span className="tabular-nums">
+                Total weight: <strong className="text-slate-900">{totalWeight.toFixed(2)} kg</strong>
+              </span>
             </div>
-          </form>
-        </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => navigate('/dispatch')} className="btn-outline">
+                Cancel
+              </button>
+              <button type="submit" disabled={loading} className="btn-primary disabled:opacity-50">
+                {loading ? 'Saving…' : isEdit ? 'Update challan' : 'Create challan'}
+              </button>
+            </div>
+          </div>
+        </form>
       </div>
     </div>
   );

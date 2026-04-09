@@ -2,6 +2,7 @@ const router = require('express').Router();
 const prisma = require('../utils/prisma');
 const auth   = require('../middleware/auth');
 const { requireRole } = require('../middleware/role');
+const ctrl = require('../controllers/party.controller');
 
 router.get('/', auth, async (req, res) => {
   try {
@@ -15,6 +16,10 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
+router.post('/quick', auth, requireRole('OPERATOR'), ctrl.quickCreateCustomer);
+
+router.get('/:id/activity', auth, ctrl.activity);
+
 router.get('/:id', auth, async (req, res) => {
   try {
     const p = await prisma.party.findUnique({ where: { id: parseInt(req.params.id) } });
@@ -26,6 +31,32 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
+const normalizeGstin = (v) => {
+  const s = String(v ?? '').trim().toUpperCase().replace(/\s+/g, '');
+  return s === '' ? null : s;
+};
+
+const normalizePan = (v) => {
+  const s = String(v ?? '').trim().toUpperCase().replace(/\s+/g, '');
+  return s === '' ? null : s;
+};
+
+function isGstinUniqueViolation(err) {
+  if (err.code !== 'P2002') return false;
+  const t = err.meta?.target;
+  if (Array.isArray(t) && t.includes('gstin')) return true;
+  if (typeof t === 'string' && (t === 'parties_gstin_key' || t.includes('gstin'))) return true;
+  return false;
+}
+
+function isPanUniqueViolation(err) {
+  if (err.code !== 'P2002') return false;
+  const t = err.meta?.target;
+  if (Array.isArray(t) && t.includes('pan')) return true;
+  if (typeof t === 'string' && (t === 'parties_pan_key' || t.includes('pan'))) return true;
+  return false;
+}
+
 const partyFields = (body) => ({
   name:               body.name               || undefined,
   partyCode:          body.partyCode          || null,
@@ -33,8 +64,8 @@ const partyFields = (body) => ({
   city:               body.city               || null,
   state:              body.state              || null,
   pinCode:            body.pinCode            || null,
-  gstin:              body.gstin              || null,
-  pan:                body.pan                || null,
+  gstin:              normalizeGstin(body.gstin),
+  pan:                normalizePan(body.pan),
   stateCode:          body.stateCode          || null,
   phone:              body.phone              || null,
   email:              body.email              || null,
@@ -55,8 +86,13 @@ router.post('/', auth, requireRole('MANAGER'), async (req, res) => {
     const party = await prisma.party.create({ data: partyFields(req.body) });
     res.status(201).json({ success: true, data: party });
   } catch (err) {
-    if (err.code === 'P2002')
+    if (err.code === 'P2002') {
+      if (isGstinUniqueViolation(err))
+        return res.status(400).json({ success: false, message: 'This GSTIN is already registered for another party.' });
+      if (isPanUniqueViolation(err))
+        return res.status(400).json({ success: false, message: 'This PAN is already registered for another party.' });
       return res.status(400).json({ success: false, message: 'Party Code already exists.' });
+    }
     res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -69,8 +105,13 @@ router.put('/:id', auth, requireRole('MANAGER'), async (req, res) => {
     const party = await prisma.party.update({ where: { id: parseInt(req.params.id) }, data });
     res.json({ success: true, data: party });
   } catch (err) {
-    if (err.code === 'P2002')
+    if (err.code === 'P2002') {
+      if (isGstinUniqueViolation(err))
+        return res.status(400).json({ success: false, message: 'This GSTIN is already registered for another party.' });
+      if (isPanUniqueViolation(err))
+        return res.status(400).json({ success: false, message: 'This PAN is already registered for another party.' });
       return res.status(400).json({ success: false, message: 'Party Code already exists.' });
+    }
     res.status(500).json({ success: false, message: err.message });
   }
 });

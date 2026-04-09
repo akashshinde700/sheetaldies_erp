@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Search, FileText } from 'lucide-react';
 import api from '../../utils/api';
 
+function formatCurrency2(v) {
+  const n = typeof v === 'number' ? v : parseFloat(String(v ?? '').replace(/,/g, ''));
+  return (Number.isFinite(n) ? n : 0).toFixed(2);
+}
+
 export default function PurchaseOrderList() {
   const [orders, setOrders] = useState([]);
   const [vendors, setVendors] = useState([]);
@@ -79,94 +84,105 @@ export default function PurchaseOrderList() {
   };
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold">Purchase Orders</h1>
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            <Plus size={20} /> New PO
-          </button>
+    <div className="page-stack">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="page-title">Purchase Orders</h1>
+          <p className="page-subtitle">Vendors, amounts, and PO status</p>
         </div>
+        <button type="button" onClick={() => setShowForm(!showForm)} className="btn-primary shrink-0">
+          <Plus size={20} /> New PO
+        </button>
+      </div>
 
-        {showForm && (
-          <div className="bg-white p-6 rounded-lg shadow mb-6">
-            <h2 className="text-xl font-bold mb-4">{editingId ? 'Edit PO' : 'New Purchase Order'}</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+      {showForm && (
+        <div className="card p-5 sm:p-6">
+          <h2 className="text-lg font-bold text-slate-900 font-headline mb-4">{editingId ? 'Edit PO' : 'New Purchase Order'}</h2>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="form-label">Vendor</label>
                 <select
                   value={formData.vendorId}
                   onChange={(e) => setFormData({ ...formData, vendorId: e.target.value })}
-                  className="px-4 py-2 border rounded"
+                  className="form-input"
                   required
                 >
-                  <option value="">Select Vendor *</option>
+                  <option value="">Select vendor *</option>
                   {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                 </select>
-                <input type="date" value={formData.expectedDelivery} onChange={(e) => setFormData({ ...formData, expectedDelivery: e.target.value })} className="px-4 py-2 border rounded" />
               </div>
+              <div>
+                <label className="form-label">Expected delivery</label>
+                <input type="date" value={formData.expectedDelivery} onChange={(e) => setFormData({ ...formData, expectedDelivery: e.target.value })} className="form-input" />
+              </div>
+            </div>
+            <div>
+              <label className="form-label">Remarks</label>
               <textarea
                 placeholder="Remarks"
                 value={formData.remarks}
                 onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                className="w-full px-4 py-2 border rounded"
+                className="form-input min-h-[88px]"
               />
-              <div className="space-y-2">
-                <h3 className="font-bold">Items</h3>
-                {formData.items.map((item, idx) => (
-                  <div key={idx} className="grid grid-cols-4 gap-2">
-                    <input placeholder="Item ID" value={item.itemId} onChange={(e) => { const newItems = [...formData.items]; newItems[idx].itemId = e.target.value; setFormData({ ...formData, items: newItems }); }} className="px-2 py-2 border rounded" />
-                    <input type="number" placeholder="Qty" value={item.quantity} onChange={(e) => { const newItems = [...formData.items]; newItems[idx].quantity = e.target.value; setFormData({ ...formData, items: newItems }); }} className="px-2 py-2 border rounded" />
-                    <input type="number" placeholder="Price" value={item.unitPrice} onChange={(e) => { const newItems = [...formData.items]; newItems[idx].unitPrice = e.target.value; setFormData({ ...formData, items: newItems }); }} className="px-2 py-2 border rounded" />
-                    <button type="button" onClick={() => { const newItems = formData.items.filter((_, i) => i !== idx); setFormData({ ...formData, items: newItems }); }} className="px-2 py-2 bg-red-500 text-white rounded">Remove</button>
-                  </div>
-                ))}
-                <button type="button" onClick={() => setFormData({ ...formData, items: [...formData.items, { itemId: '', quantity: '', unitPrice: '', description: '' }] })} className="px-4 py-2 bg-green-500 text-white rounded">+ Add Item</button>
-              </div>
-              <div className="flex gap-2">
-                <button type="submit" className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700">Save</button>
-                <button type="button" onClick={() => setShowForm(false)} className="px-6 py-2 bg-gray-400 text-white rounded">Cancel</button>
-              </div>
-            </form>
-          </div>
-        )}
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-sm font-bold text-slate-700">Line items</h3>
+              {formData.items.map((item, idx) => (
+                <div key={idx} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+                  <input placeholder="Item ID" value={item.itemId} onChange={(e) => { const newItems = [...formData.items]; newItems[idx].itemId = e.target.value; setFormData({ ...formData, items: newItems }); }} className="form-input sm:col-span-4" />
+                  <input type="number" placeholder="Qty" value={item.quantity} onChange={(e) => { const newItems = [...formData.items]; newItems[idx].quantity = e.target.value; setFormData({ ...formData, items: newItems }); }} className="form-input sm:col-span-3" />
+                  <input type="number" placeholder="Price" value={item.unitPrice} onChange={(e) => { const newItems = [...formData.items]; newItems[idx].unitPrice = e.target.value; setFormData({ ...formData, items: newItems }); }} className="form-input sm:col-span-3" />
+                  <button type="button" onClick={() => { const newItems = formData.items.filter((_, i) => i !== idx); setFormData({ ...formData, items: newItems }); }} className="btn-danger text-sm py-2 sm:col-span-2">Remove</button>
+                </div>
+              ))}
+              <button type="button" onClick={() => setFormData({ ...formData, items: [...formData.items, { itemId: '', quantity: '', unitPrice: '', description: '' }] })} className="btn-outline text-sm">+ Add item</button>
+            </div>
+            <div className="flex flex-wrap gap-2 pt-2">
+              <button type="submit" className="btn-primary">Save</button>
+              <button type="button" onClick={() => setShowForm(false)} className="btn-ghost">Cancel</button>
+            </div>
+          </form>
+        </div>
+      )}
 
-        <div className="bg-white rounded-lg shadow">
-          <div className="p-4 border-b flex items-center gap-2">
-            <Search size={20} />
-            <input
-              type="text"
-              placeholder="Search POs..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyUp={fetchPOs}
-              className="flex-1 px-3 py-2 border rounded"
-            />
-          </div>
-          <table className="w-full text-sm">
-            <thead className="bg-gray-100 border-b">
-              <tr>
-                <th className="px-4 py-2 text-left">PO No</th>
-                <th className="px-4 py-2 text-left">Vendor</th>
-                <th className="px-4 py-2 text-right">Amount</th>
-                <th className="px-4 py-2 text-left">Expected Date</th>
-                <th className="px-4 py-2 text-left">Status</th>
-                <th className="px-4 py-2 text-center">Actions</th>
+      <div className="card overflow-hidden">
+        <div className="p-4 border-b border-slate-200/80 flex items-center gap-2 bg-slate-50/50">
+          <Search size={20} className="text-slate-400 shrink-0" />
+          <input
+            type="text"
+            placeholder="Search POs..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            onKeyUp={fetchPOs}
+            className="flex-1 form-input border-0 bg-transparent shadow-none focus:ring-0"
+          />
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead>
+              <tr className="border-b border-slate-200/80">
+                <th className="th text-left">PO No</th>
+                <th className="th text-left">Vendor</th>
+                <th className="th text-right">Amount</th>
+                <th className="th text-left">Expected</th>
+                <th className="th text-left">Status</th>
+                <th className="th text-center">Actions</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100">
               {orders.map(po => (
-                <tr key={po.id} className="border-b hover:bg-gray-50">
-                  <td className="px-4 py-2 font-bold">{po.poNumber}</td>
-                  <td className="px-4 py-2">{po.vendor?.name}</td>
-                  <td className="px-4 py-2 text-right">₹{po.totalAmount?.toFixed(2)}</td>
-                  <td className="px-4 py-2">{new Date(po.expectedDelivery).toLocaleDateString()}</td>
-                  <td className="px-4 py-2"><span className={`px-2 py-1 rounded text-xs ${po.status === 'DRAFT' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>{po.status}</span></td>
-                  <td className="px-4 py-2 text-center flex gap-2 justify-center">
-                    <button onClick={() => { setEditingId(po.id); setFormData(po); setShowForm(true); }} className="text-blue-600 hover:text-blue-800"><Edit2 size={16} /></button>
-                    <button onClick={() => handleDelete(po.id)} className="text-red-600 hover:text-red-800"><Trash2 size={16} /></button>
+                <tr key={po.id} className="tr">
+                  <td className="td font-semibold text-slate-800">{po.poNumber}</td>
+                  <td className="td">{po.vendor?.name}</td>
+                  <td className="td text-right tabular-nums">₹{formatCurrency2(po.totalAmount)}</td>
+                  <td className="td">{new Date(po.expectedDelivery).toLocaleDateString()}</td>
+                  <td className="td"><span className={`badge ${po.status === 'DRAFT' ? 'bg-sky-100 text-sky-900' : 'bg-emerald-100 text-emerald-800'}`}>{po.status}</span></td>
+                  <td className="td">
+                    <div className="flex gap-2 justify-center">
+                      <button type="button" onClick={() => { setEditingId(po.id); setFormData(po); setShowForm(true); }} className="p-2 rounded-lg text-sky-800 hover:bg-sky-50" aria-label="Edit"><Edit2 size={16} /></button>
+                      <button type="button" onClick={() => handleDelete(po.id)} className="p-2 rounded-lg text-rose-600 hover:bg-rose-50" aria-label="Delete"><Trash2 size={16} /></button>
+                    </div>
                   </td>
                 </tr>
               ))}

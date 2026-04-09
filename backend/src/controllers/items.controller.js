@@ -11,6 +11,7 @@ exports.list = async (req, res) => {
             { partNo: { contains: search } },
             { description: { contains: search } },
             { hsnCode: { contains: search } },
+            { drawingNo: { contains: search } },
           ],
         }
       : {};
@@ -48,14 +49,16 @@ exports.create = async (req, res) => {
   try {
     const { partNo, unit, hsnCode, description, material, drawingNo, weightKg } = req.body;
 
-    if (!partNo || !unit) {
-      return res.status(400).json({ success: false, message: 'Part number and unit are required.' });
+    if (!partNo) {
+      return res.status(400).json({ success: false, message: 'Part number is required.' });
     }
+
+    const unitVal = unit != null && String(unit).trim() !== '' ? String(unit).trim() : 'NOS';
 
     const item = await prisma.item.create({
       data: {
         partNo,
-        unit,
+        unit: unitVal,
         hsnCode: hsnCode || null,
         description: description || '',
         material: material || null,

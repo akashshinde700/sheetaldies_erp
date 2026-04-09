@@ -75,60 +75,114 @@ export default function JobCardForm() {
   const partWrapRef = useRef(null);
   const partInputRef = useRef(null);
 
-  useEffect(() => {
-    api.get('/items').then(r => setParts(r.data.data));
-    api.get('/machines').then(r => setMachines(r.data.data));
-    api.get('/parties').then(r => setCustomers(r.data.data || [])).catch(() => {});
-    if (isEdit) {
-      api.get(`/jobcards/${id}`).then(r => {
-        const d = r.data.data;
-        setCardData(d);
-        setForm({
-          partId:       d.partId       || '',
-          dieNo:        d.dieNo        || '',
-          yourNo:       d.yourNo       || '',
-          heatNo:       d.heatNo       || '',
-          dieMaterial:  d.dieMaterial  || '',
-          customerId:   d.customerId   || '',
-          operationNo:  d.operationNo  || '',
-          drawingNo:    d.drawingNo    || '',
-          machineId:    d.machineId    || '',
-          operatorName: d.operatorName || '',
-          quantity:     d.quantity     || '',
-          totalWeight:  d.totalWeight  || '',
-          startDate:    d.startDate    ? d.startDate.split('T')[0]    : '',
-          receivedDate: d.receivedDate ? d.receivedDate.split('T')[0] : '',
-          dueDate:      d.dueDate      ? d.dueDate.split('T')[0]      : '',
-          endDate:      d.endDate      ? d.endDate.split('T')[0]      : '',
-          issueDate:    d.issueDate    ? d.issueDate.split('T')[0]    : '',
-          issueBy:      d.issueBy      || '',
-          certificateNo: d.certificateNo || '',
-          customerNameSnapshot: d.customerNameSnapshot || '',
-          customerAddressSnapshot: d.customerAddressSnapshot || '',
-          factoryName: d.factoryName || 'SHITAL VACUUM TREAT PVT LTD.',
-          factoryAddress: d.factoryAddress || 'Plot No.84/1, Sector No.10, PCNTDA, Bhosari, Pune',
-          contactEmail: d.contactEmail || 'info@shitalgroup.com',
-          dispatchByOurVehicle: d.dispatchByOurVehicle || false,
-          dispatchByCourier: d.dispatchByCourier || false,
-          collectedByCustomer: d.collectedByCustomer || false,
-          hrcRange: d.hrcRange || '',
-          specialRequirements: d.specialRequirements || '',
-          precautions: d.precautions || '',
-          documentNo: d.documentNo || 'QF-PD-01',
-          revisionNo: d.revisionNo || '01',
-          revisionDate: d.revisionDate ? d.revisionDate.split('T')[0] : '',
-          pageNo: d.pageNo || '1 OF 2',
-          remarks:       d.remarks       || '',
-          dispatchMode: d.dispatchMode || '',
-          status:        d.status        || 'CREATED',
-          operationMode: d.operationMode || 'NORMAL',
-          specInstrCert: d.specInstrCert || false,
-          specInstrMPIRep: d.specInstrMPIRep || false,
-          specInstrGraph: d.specInstrGraph || false,
-        });
-      });
+  const buildPartyAddress = (p) => {
+    if (!p) return '';
+    const line = [p.address, p.city, p.state, p.pinCode].filter(Boolean).join(', ');
+    return line || p.address || '';
+  };
+
+  const applyCustomerFromParty = (partyIdStr) => {
+    const idStr = partyIdStr === '' ? '' : String(partyIdStr);
+    if (!idStr) {
+      setForm((prev) => ({ ...prev, customerId: '' }));
+      return;
     }
-  }, [id]);
+    const p = customers.find((c) => String(c.id) === idStr);
+    setForm((prev) => ({
+      ...prev,
+      customerId: idStr,
+      ...(p
+        ? {
+            customerNameSnapshot: p.name || '',
+            customerAddressSnapshot: buildPartyAddress(p),
+            contactEmail: p.email || prev.contactEmail,
+          }
+        : {}),
+    }));
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [itemsR, machR, partiesR] = await Promise.all([
+          api.get('/items'),
+          api.get('/machines'),
+          // All party types (CUSTOMER, VENDOR, BOTH) — job card bill-to can be any party for flexibility / QA
+          api.get('/parties'),
+        ]);
+        if (cancelled) return;
+        setParts(itemsR.data.data);
+        setMachines(machR.data.data);
+        let list = partiesR.data.data || [];
+
+        if (isEdit) {
+          const jr = await api.get(`/jobcards/${id}`);
+          if (cancelled) return;
+          const d = jr.data.data;
+          setCardData(d);
+          const cid = d.customerId;
+          if (cid && !list.some((p) => String(p.id) === String(cid))) {
+            try {
+              const pr = await api.get(`/parties/${cid}`);
+              if (pr.data?.data) list = [...list, pr.data.data];
+            } catch {
+              /* missing party */
+            }
+          }
+          setForm({
+            partId:       d.partId       || '',
+            dieNo:        d.dieNo        || '',
+            yourNo:       d.yourNo       || '',
+            heatNo:       d.heatNo       || '',
+            dieMaterial:  d.dieMaterial  || '',
+            customerId:   d.customerId   ? String(d.customerId) : '',
+            operationNo:  d.operationNo  || '',
+            drawingNo:    d.drawingNo    || '',
+            machineId:    d.machineId    || '',
+            operatorName: d.operatorName || '',
+            quantity:     d.quantity     || '',
+            totalWeight:  d.totalWeight  || '',
+            startDate:    d.startDate    ? d.startDate.split('T')[0]    : '',
+            receivedDate: d.receivedDate ? d.receivedDate.split('T')[0] : '',
+            dueDate:      d.dueDate      ? d.dueDate.split('T')[0]      : '',
+            endDate:      d.endDate      ? d.endDate.split('T')[0]      : '',
+            issueDate:    d.issueDate    ? d.issueDate.split('T')[0]    : '',
+            issueBy:      d.issueBy      || '',
+            certificateNo: d.certificateNo || '',
+            customerNameSnapshot: d.customerNameSnapshot || '',
+            customerAddressSnapshot: d.customerAddressSnapshot || '',
+            factoryName: d.factoryName || 'SHITAL VACUUM TREAT PVT LTD.',
+            factoryAddress: d.factoryAddress || 'Plot No.84/1, Sector No.10, PCNTDA, Bhosari, Pune',
+            contactEmail: d.contactEmail || 'info@shitalgroup.com',
+            dispatchByOurVehicle: d.dispatchByOurVehicle || false,
+            dispatchByCourier: d.dispatchByCourier || false,
+            collectedByCustomer: d.collectedByCustomer || false,
+            hrcRange: d.hrcRange || '',
+            specialRequirements: d.specialRequirements || '',
+            precautions: d.precautions || '',
+            documentNo: d.documentNo || 'QF-PD-01',
+            revisionNo: d.revisionNo || '01',
+            revisionDate: d.revisionDate ? d.revisionDate.split('T')[0] : '',
+            pageNo: d.pageNo || '1 OF 2',
+            remarks:       d.remarks       || '',
+            dispatchMode: d.dispatchMode || '',
+            status:        d.status        || 'CREATED',
+            operationMode: d.operationMode || 'NORMAL',
+            specInstrCert: d.specInstrCert || false,
+            specInstrMPIRep: d.specInstrMPIRep || false,
+            specInstrGraph: d.specInstrGraph || false,
+          });
+        }
+
+        list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        if (!cancelled) setCustomers(list);
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
 
   // Close part dropdown on outside click
   useEffect(() => {
@@ -155,13 +209,17 @@ export default function JobCardForm() {
   };
 
   const selectPart = (part) => {
-    setForm(p => ({ ...p, partId: String(part.id) }));
+    setForm((p) => ({
+      ...p,
+      partId: String(part.id),
+      drawingNo: part.drawingNo != null ? String(part.drawingNo) : '',
+    }));
     setPartOpen(false); setPartQuery(''); setShowAddForm(false);
   };
 
   const clearPart = (e) => {
     e.stopPropagation();
-    setForm(p => ({ ...p, partId: '' }));
+    setForm(p => ({ ...p, partId: '', drawingNo: '' }));
     setPartOpen(false); setPartQuery('');
   };
 
@@ -201,14 +259,46 @@ export default function JobCardForm() {
     }
     setLoading(true);
     try {
+      let customerIdOut = form.customerId?.trim() || '';
+      if (!customerIdOut) {
+        const cname = form.customerNameSnapshot?.trim();
+        const caddr = form.customerAddressSnapshot?.trim();
+        if (cname && caddr) {
+          try {
+            const pr = await api.post('/parties/quick', {
+              name: cname,
+              address: caddr,
+              email: form.contactEmail?.trim() || undefined,
+            });
+            customerIdOut = String(pr.data.data.id);
+            setForm((p) => ({ ...p, customerId: customerIdOut }));
+            setCustomers((prev) => {
+              if (prev.some((x) => String(x.id) === customerIdOut)) return prev;
+              return [...prev, pr.data.data].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+            });
+            toast.success(pr.data.reused ? 'Existing customer in master linked.' : 'Customer added to party master.');
+          } catch (err) {
+            toast.error(err.response?.data?.message || 'Could not add customer to parties.');
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
+      const payload = { ...form, customerId: customerIdOut };
       const fd = new FormData();
-      Object.keys(form).forEach(k => fd.append(k, form[k]));
+      Object.keys(payload).forEach((k) => {
+        const v = payload[k];
+        if (v === undefined || v === null) fd.append(k, '');
+        else fd.append(k, typeof v === 'boolean' ? (v ? 'true' : 'false') : v);
+      });
       for (let i = 1; i <= 5; i++) { if (images[i] instanceof File) fd.append(`image${i}`, images[i]); }
       if (isEdit) {
-        await api.put(`/jobcards/${id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        // Let the browser set multipart boundary — never set Content-Type to bare "multipart/form-data"
+        await api.put(`/jobcards/${id}`, fd);
         toast.success('Job card updated.');
       } else {
-        const r = await api.post('/jobcards', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        const r = await api.post('/jobcards', fd);
         toast.success(`Job card ${r.data.data.jobCardNo} created!`);
         navigate('/jobcards');
       }
@@ -259,7 +349,7 @@ export default function JobCardForm() {
       operationMode: selectedPart.operationMode || 'NORMAL',
       certificateNo: '',
       customerNameSnapshot: selectedCustomer.name || '',
-      customerAddressSnapshot: selectedCustomer.address || '',
+      customerAddressSnapshot: buildPartyAddress(selectedCustomer) || selectedCustomer.address || '',
       factoryName: 'SHITAL VACUUM TREAT PVT LTD.',
       factoryAddress: 'Plot No.84/1, Sector No.10, PCNTDA, Bhosari, Pune',
       contactEmail: 'info@shitalgroup.com',
@@ -317,6 +407,20 @@ export default function JobCardForm() {
         <div className="card p-5 space-y-4">
           <p className="section-title border-b border-slate-100 pb-2">Company & Customer Details</p>
           <div className="grid grid-cols-2 gap-4">
+            <F label="Party (bill-to / customer)" className="col-span-2">
+              <SearchSelect
+                value={form.customerId}
+                onChange={applyCustomerFromParty}
+                options={customers.map((c) => ({
+                  value: c.id,
+                  label: `${c.name} · ${c.partyType || 'PARTY'}`,
+                }))}
+                placeholder="Search party — Customer, Vendor, or Both"
+              />
+              <p className="text-[10px] text-slate-400 mt-1">
+                Lists every party from <strong>Party Management</strong>. Choosing one fills name, address, and email below. You can also type name + address only; save will add/link in Parties.
+              </p>
+            </F>
             <F label="Customer Name">
               <input value={form.customerNameSnapshot} onChange={e => setForm(p => ({ ...p, customerNameSnapshot: e.target.value }))} className="form-input" />
             </F>
@@ -339,7 +443,7 @@ export default function JobCardForm() {
           <p className="section-title border-b border-slate-100 pb-2">Job Card Info</p>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="form-label">Customer's</label>
+              <label className="form-label">Part / item</label>
               <div ref={partWrapRef} className="relative">
 
                 {/* Trigger */}
@@ -551,7 +655,7 @@ export default function JobCardForm() {
         <div className="card p-5 space-y-4">
           <p className="section-title border-b border-slate-100 pb-2">Dates</p>
           <div className="grid grid-cols-2 gap-4">
-            <F label="Issue Date">
+            <F label="Received Date">
               <input type="date" value={form.receivedDate} onChange={e => setForm(p => ({...p, receivedDate: e.target.value}))} className="form-input" />
             </F>
             <F label="Due Date">

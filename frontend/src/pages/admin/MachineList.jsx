@@ -93,135 +93,83 @@ export default function MachineList() {
   );
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">Machines Management</h1>
-          <button
-            onClick={() => {
-              setShowForm(!showForm);
-              if (editingId) {
-                setEditingId(null);
-                setFormData({ code: '', name: '', type: '', make: '' });
-              }
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            <Plus size={20} /> Add Machine
-          </button>
+    <div className="space-y-6 animate-slide-up w-full max-w-6xl mx-auto">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="page-title">Machines</h1>
+          <p className="page-subtitle">Shop floor equipment master</p>
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            setShowForm(!showForm);
+            if (editingId) {
+              setEditingId(null);
+              setFormData({ code: '', name: '', type: '', make: '' });
+            }
+          }}
+          className="btn-primary shrink-0 inline-flex items-center gap-2"
+        >
+          <Plus size={20} /> Add machine
+        </button>
+      </div>
 
-        {showForm && (
-          <div className="bg-white p-6 rounded-lg shadow mb-6">
-            <h2 className="text-xl font-bold mb-4">{editingId ? 'Edit Machine' : 'New Machine'}</h2>
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <input
-                type="text"
-                placeholder="Code *"
-                value={formData.code}
-                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                className="px-4 py-2 border rounded"
-                required
-              />
-              <input
-                type="text"
-                placeholder="Machine Name *"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="px-4 py-2 border rounded"
-                required
-              />
-              <input
-                type="text"
-                placeholder="Type"
-                value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                className="px-4 py-2 border rounded"
-              />
-              <input
-                type="text"
-                placeholder="Make"
-                value={formData.make}
-                onChange={(e) => setFormData({ ...formData, make: e.target.value })}
-                className="px-4 py-2 border rounded"
-              />
-              <div className="col-span-1 md:col-span-2 flex gap-2">
-                <button
-                  type="submit"
-                  className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-                >
-                  {editingId ? 'Update' : 'Create'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowForm(false);
-                    setEditingId(null);
-                    setFormData({ code: '', name: '', type: '', make: '' });
-                  }}
-                  className="px-6 py-2 bg-gray-400 text-white rounded hover:bg-gray-500"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
+      {showForm && (
+        <div className="card p-5 sm:p-6">
+          <h2 className="text-lg font-bold text-slate-900 font-headline mb-4">{editingId ? 'Edit machine' : 'New machine'}</h2>
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input type="text" placeholder="Code *" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} className="form-input" required />
+            <input type="text" placeholder="Machine name *" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="form-input" required />
+            <input type="text" placeholder="Type" value={formData.type} onChange={(e) => setFormData({ ...formData, type: e.target.value })} className="form-input" />
+            <input type="text" placeholder="Make" value={formData.make} onChange={(e) => setFormData({ ...formData, make: e.target.value })} className="form-input" />
+            <div className="col-span-1 md:col-span-2 flex flex-wrap gap-2">
+              <button type="submit" className="btn-primary">{editingId ? 'Update' : 'Create'}</button>
+              <button type="button" onClick={() => { setShowForm(false); setEditingId(null); setFormData({ code: '', name: '', type: '', make: '' }); }} className="btn-ghost">Cancel</button>
+            </div>
+          </form>
+        </div>
+      )}
 
-        <div className="bg-white rounded-lg shadow">
-          <div className="p-4 border-b flex items-center gap-2">
-            <Search size={20} className="text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search machines..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 outline-none"
-            />
-          </div>
-
-          {loading ? (
-            <div className="text-center py-8">Loading...</div>
-          ) : filteredMachines.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">No machines found</div>
-          ) : (
-            <table className="w-full">
+      <div className="card overflow-hidden">
+        <div className="p-4 border-b border-slate-200/80 flex items-center gap-2 bg-slate-50/50">
+          <Search size={20} className="text-slate-400 shrink-0" />
+          <input type="text" placeholder="Search machines…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-1 form-input border-0 bg-transparent shadow-none focus:ring-0" />
+        </div>
+        {loading ? (
+          <div className="text-center py-10 text-slate-500 text-sm">Loading…</div>
+        ) : filteredMachines.length === 0 ? (
+          <div className="text-center py-10 text-slate-500 text-sm">No machines found</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
               <thead>
-                <tr className="bg-gray-100 border-b">
-                  <th className="px-4 py-3 text-left font-semibold">Code</th>
-                  <th className="px-4 py-3 text-left font-semibold">Machine Name</th>
-                  <th className="px-4 py-3 text-left font-semibold">Type</th>
-                  <th className="px-4 py-3 text-left font-semibold">Make</th>
-                  <th className="px-4 py-3 text-center font-semibold">Actions</th>
+                <tr className="border-b border-slate-200/80">
+                  <th className="th text-left">Code</th>
+                  <th className="th text-left">Name</th>
+                  <th className="th text-left">Type</th>
+                  <th className="th text-left">Make</th>
+                  <th className="th text-center">Actions</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100">
                 {filteredMachines.map((machine) => (
-                  <tr key={machine.id} className="border-b hover:bg-gray-50">
-                    <td className="px-4 py-3">{machine.code}</td>
-                    <td className="px-4 py-3">{machine.name}</td>
-                    <td className="px-4 py-3">{machine.type || '-'}</td>
-                    <td className="px-4 py-3">{machine.make || '-'}</td>
-                    <td className="px-4 py-3 flex justify-center gap-2">
-                      <button
-                        onClick={() => handleEdit(machine)}
-                        className="p-2 text-blue-600 hover:bg-blue-100 rounded"
-                      >
-                        <Edit2 size={18} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(machine.id)}
-                        className="p-2 text-red-600 hover:bg-red-100 rounded"
-                      >
-                        <Trash2 size={18} />
-                      </button>
+                  <tr key={machine.id} className="tr">
+                    <td className="td font-mono font-medium text-slate-800">{machine.code}</td>
+                    <td className="td font-medium">{machine.name}</td>
+                    <td className="td text-slate-600">{machine.type || '—'}</td>
+                    <td className="td text-slate-600">{machine.make || '—'}</td>
+                    <td className="td">
+                      <div className="flex justify-center gap-1">
+                        <button type="button" onClick={() => handleEdit(machine)} className="p-2 rounded-lg text-sky-800 hover:bg-sky-50" aria-label="Edit"><Edit2 size={18} /></button>
+                        <button type="button" onClick={() => handleDelete(machine.id)} className="p-2 rounded-lg text-rose-600 hover:bg-rose-50" aria-label="Delete"><Trash2 size={18} /></button>
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
