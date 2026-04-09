@@ -89,6 +89,9 @@ export default {
       },
       maxWidth: {
         readable: '72rem',
+        /** Widescreen / projector-friendly upper bound (used with CSS in index.css) */
+        shell: '90rem',
+        'shell-wide': '112rem',
       },
     },
   },

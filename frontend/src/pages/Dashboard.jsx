@@ -2,6 +2,37 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../utils/api';
 
+const CARDS_PAGE_SIZE = 10;
+
+const Pagination = ({ page, totalPages, total, limit, setPage }) => (
+  <div className="flex flex-col xs:flex-row xs:items-center xs:justify-between gap-2 px-4 py-3 border-t border-slate-100 bg-slate-50/50">
+    <span className="text-xs text-slate-400">
+      {(page - 1) * limit + 1}–{Math.min(page * limit, total)} of <span className="font-semibold">{total}</span>
+    </span>
+    <div className="flex items-center gap-1.5">
+      <button
+        type="button"
+        onClick={() => setPage((p) => Math.max(1, p - 1))}
+        disabled={page === 1}
+        className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 hover:bg-sky-50 hover:border-sky-200 hover:text-sky-800 transition-colors"
+      >
+        <span className="material-symbols-outlined text-sm">chevron_left</span> Prev
+      </button>
+      <span className="text-xs font-semibold text-slate-500 px-2">
+        {page} / {totalPages}
+      </span>
+      <button
+        type="button"
+        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+        disabled={page === totalPages}
+        className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 hover:bg-sky-50 hover:border-sky-200 hover:text-sky-800 transition-colors"
+      >
+        Next <span className="material-symbols-outlined text-sm">chevron_right</span>
+      </button>
+    </div>
+  </div>
+);
+
 const STATUS_STYLE = {
   CREATED:          'bg-slate-100 text-slate-600',
   IN_PROGRESS:      'bg-blue-100 text-blue-700',
@@ -13,25 +44,25 @@ const STATUS_STYLE = {
 
 const KpiCard = ({ label, value, sub, icon, iconBg, to, loading, badge, badgeColor }) => (
   <Link to={to || '#'}
-    className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300/90 transition-all duration-200 block group overflow-hidden">
-    <div className="p-5">
-      <div className="flex justify-between items-start mb-4">
-        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider leading-tight">{label}</span>
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg}`}>
-          <span className="material-symbols-outlined text-[18px]">{icon}</span>
+    className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300/90 transition-all duration-200 block group overflow-hidden min-w-0">
+    <div className="p-4 sm:p-5 3xl:p-6">
+      <div className="flex justify-between items-start gap-2 mb-3 sm:mb-4">
+        <span className="text-[10px] sm:text-xs font-bold text-slate-600 uppercase tracking-wider leading-tight line-clamp-2">{label}</span>
+        <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg}`}>
+          <span className="material-symbols-outlined text-[17px] sm:text-[18px]">{icon}</span>
         </div>
       </div>
       {loading ? (
         <div className="h-8 bg-slate-100 rounded-lg animate-pulse w-16 mb-2" />
       ) : (
-        <div className="flex items-baseline gap-2 mb-1">
-          <span className="text-3xl font-extrabold text-slate-800 font-headline">{value ?? 0}</span>
+        <div className="flex flex-wrap items-baseline gap-2 mb-1">
+          <span className="text-2xl sm:text-3xl font-extrabold text-slate-800 font-headline tabular-nums">{value ?? 0}</span>
           {badge && (
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badgeColor}`}>{badge}</span>
           )}
         </div>
       )}
-      <p className="text-[11px] text-slate-500 font-medium">{sub}</p>
+      <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium line-clamp-2">{sub}</p>
     </div>
   </Link>
 );
@@ -53,40 +84,92 @@ const TableSkeleton = ({ rows = 4, cols = 5 }) => (
 export default function Dashboard() {
   const [stats,       setStats]       = useState(null);
   const [recentCards, setRecentCards] = useState([]);
+  const [cardsTotal,  setCardsTotal]  = useState(0);
+  const [cardsPage,   setCardsPage]   = useState(1);
   const [invoiceMeta, setInvoiceMeta] = useState({ pending: 0, pendingAmt: 0 });
-  const [loading,     setLoading]     = useState(true);
+  const [kpiLoading,  setKpiLoading]  = useState(true);
+  const [cardsLoading, setCardsLoading] = useState(true);
   const [error,       setError]       = useState(null);
 
-  const load = () => {
-    setLoading(true);
+  const cardsTotalPages = Math.max(1, Math.ceil(cardsTotal / CARDS_PAGE_SIZE));
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setKpiLoading(true);
+      setError(null);
+      try {
+        const [s, inv] = await Promise.all([
+          api.get('/jobcards/stats'),
+          api.get('/invoices', { params: { paymentStatus: 'PENDING', limit: 100 } }),
+        ]);
+        if (cancelled) return;
+        setStats(s.data.data);
+        const pendingInvs = inv.data.data || [];
+        const pendingAmt = pendingInvs.reduce((sum, i) => sum + Number(i.totalAmount || 0), 0);
+        setInvoiceMeta({ pending: inv.data.meta?.total || pendingInvs.length, pendingAmt });
+      } catch {
+        if (!cancelled) setError('Failed to load dashboard data.');
+      } finally {
+        if (!cancelled) setKpiLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setCardsLoading(true);
+      try {
+        const c = await api.get('/jobcards', { params: { page: cardsPage, limit: CARDS_PAGE_SIZE } });
+        if (cancelled) return;
+        setRecentCards(c.data.data || []);
+        setCardsTotal(c.data.meta?.total ?? 0);
+      } catch {
+        if (!cancelled) setError('Failed to load recent job cards.');
+      } finally {
+        if (!cancelled) setCardsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [cardsPage]);
+
+  const retryAll = () => {
+    setKpiLoading(true);
+    setCardsLoading(true);
     setError(null);
     Promise.all([
       api.get('/jobcards/stats'),
-      api.get('/jobcards', { params: { limit: 8 } }),
+      api.get('/jobcards', { params: { page: cardsPage, limit: CARDS_PAGE_SIZE } }),
       api.get('/invoices', { params: { paymentStatus: 'PENDING', limit: 100 } }),
     ]).then(([s, c, inv]) => {
       setStats(s.data.data);
       setRecentCards(c.data.data || []);
+      setCardsTotal(c.data.meta?.total ?? 0);
       const pendingInvs = inv.data.data || [];
-      const pendingAmt  = pendingInvs.reduce((sum, i) => sum + Number(i.totalAmount || 0), 0);
+      const pendingAmt = pendingInvs.reduce((sum, i) => sum + Number(i.totalAmount || 0), 0);
       setInvoiceMeta({ pending: inv.data.meta?.total || pendingInvs.length, pendingAmt });
     }).catch(() => setError('Failed to load dashboard data.'))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setKpiLoading(false);
+        setCardsLoading(false);
+      });
   };
 
-  useEffect(() => { load(); }, []);
-
   return (
-    <div className="space-y-6 animate-slide-up">
+    <div className="space-y-5 sm:space-y-6 animate-slide-up min-w-0 w-full">
 
       {/* ── Page Title (industrial header: title + primary CTA, stacks on small screens) ── */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-extrabold text-slate-900 font-headline tracking-tight">Production Dashboard</h2>
-          <p className="text-slate-500 text-sm mt-1">Sheetal Dies &amp; Tools Pvt. Ltd. — live overview</p>
+      <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-end sm:justify-between min-w-0">
+        <div className="min-w-0 pr-1">
+          <h2 className="text-lg xs:text-xl sm:text-2xl font-extrabold text-slate-900 font-headline tracking-tight">
+            Production Dashboard
+          </h2>
+          <p className="text-slate-500 text-xs sm:text-sm mt-1 leading-snug">Sheetal Dies &amp; Tools Pvt. Ltd. — live overview</p>
         </div>
-        <div className="flex flex-wrap gap-2 shrink-0">
-          <Link to="/jobcards/new" className="btn-primary">
+        <div className="flex flex-wrap gap-2 shrink-0 w-full sm:w-auto">
+          <Link to="/jobcards/new" className="btn-primary w-full sm:w-auto justify-center">
             <span className="material-symbols-outlined text-[18px]">add</span>
             New Job Card
           </Link>
@@ -98,53 +181,53 @@ export default function Dashboard() {
         <div className="flex items-center gap-3 bg-rose-50 border border-rose-200 text-rose-700 text-sm px-4 py-3 rounded-xl">
           <span className="material-symbols-outlined text-lg">error</span>
           {error}
-          <button onClick={load} className="ml-auto text-xs font-bold hover:underline">Retry</button>
+          <button type="button" onClick={retryAll} className="ml-auto text-xs font-bold hover:underline">Retry</button>
         </div>
       )}
 
       {/* ── KPIs Row 1 ── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 3xl:gap-5">
         <KpiCard
-          label="Total Job Cards" value={stats?.total} loading={loading}
+          label="Total Job Cards" value={stats?.total} loading={kpiLoading}
           badge="All time" badgeColor="bg-sky-100 text-sky-900"
           sub="All production records" icon="description"
           iconBg="bg-sky-100 text-sky-700"
           to="/jobcards"
         />
         <KpiCard
-          label="In Progress" value={stats?.inProgress} loading={loading}
+          label="In Progress" value={stats?.inProgress} loading={kpiLoading}
           badge="Floor" badgeColor="bg-blue-100 text-blue-900"
           sub="Currently on machines" icon="precision_manufacturing"
           iconBg="bg-blue-100 text-blue-700"
           to="/jobcards"
         />
         <KpiCard
-          label="Pending Job Work" value={stats?.sentForJobwork} loading={loading}
+          label="Pending Job Work" value={stats?.sentForJobwork} loading={kpiLoading}
           badge="Outward" badgeColor="bg-amber-100 text-amber-900"
           sub="Sent for heat treatment" icon="local_shipping"
           iconBg="bg-amber-100 text-amber-700"
           to="/jobwork"
         />
         <KpiCard
-          label="Quality Alerts" value={stats?.qualityAlerts} loading={loading}
-          badge={!loading && stats?.qualityAlerts > 0 ? 'Action!' : 'All Clear'}
-          badgeColor={!loading && stats?.qualityAlerts > 0 ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'}
+          label="Quality Alerts" value={stats?.qualityAlerts} loading={kpiLoading}
+          badge={!kpiLoading && stats?.qualityAlerts > 0 ? 'Action!' : 'All Clear'}
+          badgeColor={!kpiLoading && stats?.qualityAlerts > 0 ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'}
           sub="Inspection failures" icon="warning"
-          iconBg={!loading && stats?.qualityAlerts > 0 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}
+          iconBg={!kpiLoading && stats?.qualityAlerts > 0 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}
           to="/quality/certificates"
         />
       </div>
 
       {/* ── KPIs Row 2 ── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 3xl:gap-5">
         <KpiCard
-          label="Completed Jobs" value={stats?.completed} loading={loading}
+          label="Completed Jobs" value={stats?.completed} loading={kpiLoading}
           sub="All time completions" icon="task_alt"
           iconBg="bg-emerald-100 text-emerald-700"
           to="/jobcards"
         />
         <KpiCard
-          label="Pending Invoices" value={invoiceMeta.pending} loading={loading}
+          label="Pending Invoices" value={invoiceMeta.pending} loading={kpiLoading}
           badge={invoiceMeta.pending > 0 ? 'Follow up' : 'All clear'}
           badgeColor={invoiceMeta.pending > 0 ? 'bg-orange-100 text-orange-900' : 'bg-emerald-100 text-emerald-800'}
           sub={`₹ ${invoiceMeta.pendingAmt.toLocaleString('en-IN', { maximumFractionDigits: 0 })} outstanding`}
@@ -153,29 +236,31 @@ export default function Dashboard() {
           to="/invoices"
         />
         <KpiCard
-          label="On Hold" value={stats?.onHold} loading={loading}
-          badge={!loading && stats?.onHold > 0 ? 'Review' : 'None'}
-          badgeColor={!loading && stats?.onHold > 0 ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-600'}
+          label="On Hold" value={stats?.onHold} loading={kpiLoading}
+          badge={!kpiLoading && stats?.onHold > 0 ? 'Review' : 'None'}
+          badgeColor={!kpiLoading && stats?.onHold > 0 ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-600'}
           sub="Jobs paused / blocked" icon="pause_circle"
-          iconBg={!loading && stats?.onHold > 0 ? "bg-rose-100 text-rose-600" : "bg-slate-100 text-slate-500"}
+          iconBg={!kpiLoading && stats?.onHold > 0 ? "bg-rose-100 text-rose-600" : "bg-slate-100 text-slate-500"}
           to="/jobcards"
         />
       </div>
 
       {/* ── Recent Job Cards ── */}
-      <div className="card overflow-hidden">
-        <div className="px-5 py-4 flex justify-between items-center border-b border-slate-200/80">
+      <div className="card overflow-hidden min-w-0">
+        <div className="px-3 sm:px-5 py-3 sm:py-4 flex flex-col xs:flex-row xs:justify-between xs:items-center gap-2 border-b border-slate-200/80">
           <div>
             <h3 className="text-sm font-bold text-slate-900 font-headline">Recent Job Cards</h3>
-            <p className="text-[11px] text-slate-500 mt-0.5">Latest production activity</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              {cardsTotal > 0 ? `${cardsTotal} total · page ${cardsPage} of ${cardsTotalPages}` : 'Latest production activity'}
+            </p>
           </div>
           <Link to="/jobcards"
             className="text-xs text-sky-800 font-semibold hover:text-sky-950 flex items-center gap-0.5 transition-colors">
             View All <span className="material-symbols-outlined text-sm">chevron_right</span>
           </Link>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
+        <div className="overflow-x-auto overscroll-x-contain -mx-0 touch-pan-x">
+          <table className="w-full text-left min-w-[640px]">
             <thead>
               <tr className="border-b border-slate-200/80">
                 {['Job Card No', 'Part', 'Machine', 'Status', 'Start Date', 'Action'].map(h => (
@@ -184,7 +269,7 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {loading ? (
+              {cardsLoading ? (
                 <TableSkeleton rows={5} cols={6} />
               ) : recentCards.length === 0 ? (
                 <tr>
@@ -233,10 +318,19 @@ export default function Dashboard() {
             </tbody>
           </table>
         </div>
+        {!cardsLoading && cardsTotal > 0 && (
+          <Pagination
+            page={cardsPage}
+            totalPages={cardsTotalPages}
+            total={cardsTotal}
+            limit={CARDS_PAGE_SIZE}
+            setPage={setCardsPage}
+          />
+        )}
       </div>
 
       {/* ── Quick Actions ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3 3xl:gap-4">
         {[
           { label: 'New Challan',     icon: 'engineering',   to: '/jobwork/new',              color: 'text-amber-600',  bg: 'bg-amber-50',   ring: 'ring-amber-100' },
           { label: 'New Certificate', icon: 'verified',      to: '/quality/certificates/new', color: 'text-emerald-600', bg: 'bg-emerald-50', ring: 'ring-emerald-100' },
@@ -244,12 +338,12 @@ export default function Dashboard() {
           { label: 'Manage Parties',  icon: 'group',         to: '/admin/parties',            color: 'text-violet-600', bg: 'bg-violet-50',  ring: 'ring-violet-100' },
         ].map(q => (
           <Link key={q.to} to={q.to}
-            className="card flex items-center gap-3 p-4 hover:shadow-card-hover transition-all duration-200 group ring-1 ring-transparent hover:ring-1">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${q.bg} ${q.color} group-hover:scale-110 transition-transform`}>
-              <span className="material-symbols-outlined text-[18px]">{q.icon}</span>
+            className="card flex items-center gap-2 sm:gap-3 p-3 sm:p-4 min-w-0 hover:shadow-card-hover transition-all duration-200 group ring-1 ring-transparent hover:ring-1">
+            <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${q.bg} ${q.color} group-hover:scale-110 transition-transform`}>
+              <span className="material-symbols-outlined text-[17px] sm:text-[18px]">{q.icon}</span>
             </div>
-            <span className="text-sm font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">{q.label}</span>
-            <span className="material-symbols-outlined text-slate-300 text-sm ml-auto group-hover:translate-x-0.5 transition-transform">chevron_right</span>
+            <span className="text-xs sm:text-sm font-semibold text-slate-700 group-hover:text-slate-900 transition-colors truncate">{q.label}</span>
+            <span className="material-symbols-outlined text-slate-300 text-sm ml-auto shrink-0 group-hover:translate-x-0.5 transition-transform">chevron_right</span>
           </Link>
         ))}
       </div>

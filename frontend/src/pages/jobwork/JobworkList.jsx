@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { exportToExcel } from '../../utils/export';
 
 const STATUS_OPTS = ['DRAFT', 'SENT', 'RECEIVED', 'COMPLETED', 'CANCELLED'];
-const PAGE_LIMIT = 20;
+const PAGE_LIMIT = 10;
 
 const SkeletonRow = () => (
   <tr className="animate-pulse">
@@ -34,30 +34,24 @@ const Pagination = ({ page, totalPages, total, limit, setPage }) => (
   </div>
 );
 
-const isDemoChallan = (ch) =>
-  typeof ch.processingNotes === 'string' && ch.processingNotes.includes('Seed: demo challan');
-
 export default function JobworkList() {
   const [challans, setChallans] = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState(null);
   const [status,   setStatus]   = useState('');
-  const [seedDemo, setSeedDemo] = useState('hide');
   const [page,     setPage]     = useState(1);
   const [total,    setTotal]    = useState(0);
   const [statusSavingId, setStatusSavingId] = useState(null);
 
   const fetchData = useCallback(() => {
     setLoading(true); setError(null);
-    const params = { status, page, limit: PAGE_LIMIT };
-    if (seedDemo && seedDemo !== 'hide') params.seedDemo = seedDemo;
-    api.get('/jobwork', { params })
+    api.get('/jobwork', { params: { status, page, limit: PAGE_LIMIT } })
       .then(r => { setChallans(r.data.data || []); setTotal(r.data.meta?.total || 0); })
       .catch(() => setError('Failed to load challans.'))
       .finally(() => setLoading(false));
-  }, [status, page, seedDemo]);
+  }, [status, page]);
 
-  useEffect(() => { setPage(1); }, [status, seedDemo]);
+  useEffect(() => { setPage(1); }, [status]);
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const updateChallanStatus = async (ch, nextStatus) => {
@@ -90,7 +84,7 @@ export default function JobworkList() {
     toast.success('Jobwork challans exported to Excel.');
   };
 
-  const totalPages = Math.ceil(total / PAGE_LIMIT);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_LIMIT));
 
   return (
     <div className="space-y-5 animate-slide-up">
@@ -131,24 +125,6 @@ export default function JobworkList() {
                 : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
             }`}>
             {f || 'All'}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex gap-2 flex-wrap items-center">
-        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider w-full sm:w-auto sm:mr-1">Demo data</span>
-        {[
-          { v: 'hide', label: 'Hide demo' },
-          { v: 'all', label: 'Show all' },
-          { v: 'only', label: 'Demo only' },
-        ].map(({ v, label }) => (
-          <button key={v} type="button" onClick={() => setSeedDemo(v)}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all duration-150 ${
-              seedDemo === v
-                ? 'bg-slate-700 text-white border-slate-700 shadow-sm'
-                : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400 hover:text-slate-800'
-            }`}>
-            {label}
           </button>
         ))}
       </div>
@@ -195,14 +171,7 @@ export default function JobworkList() {
               ) : challans.map(ch => (
                 <tr key={ch.id} className="tr group">
                   <td className="td sticky left-0 z-[1] bg-white group-hover:bg-slate-50/90 shadow-[4px_0_12px_-8px_rgba(15,23,42,0.12)]">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-xs font-bold text-indigo-600 font-mono">{ch.challanNo}</span>
-                      {isDemoChallan(ch) && (
-                        <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-200" title="Seeded demo challan">
-                          Demo
-                        </span>
-                      )}
-                    </div>
+                    <span className="text-xs font-bold text-indigo-600 font-mono">{ch.challanNo}</span>
                   </td>
                   <td className="td text-slate-500">{new Date(ch.challanDate).toLocaleDateString('en-IN')}</td>
                   <td className="td text-slate-500 truncate max-w-[120px]">{ch.fromParty?.name || '—'}</td>
@@ -245,7 +214,7 @@ export default function JobworkList() {
             </tbody>
           </table>
         </div>
-        {!loading && totalPages > 1 && (
+        {!loading && total > 0 && (
           <Pagination page={page} totalPages={totalPages} total={total} limit={PAGE_LIMIT} setPage={setPage} />
         )}
       </div>

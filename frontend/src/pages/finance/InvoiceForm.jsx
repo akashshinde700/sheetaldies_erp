@@ -223,30 +223,34 @@ export default function InvoiceForm() {
   const PAY_BADGE = { PENDING:'bg-orange-100 text-orange-700', PARTIAL:'bg-sky-100 text-sky-700', PAID:'bg-emerald-100 text-emerald-700' };
 
   return (
-    <div className="page-stack w-full animate-slide-up">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <Link to="/invoices"
-          className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-300 transition-colors shadow-sm">
-          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-        </Link>
-        <div>
-          <h2 className="text-xl font-extrabold text-slate-800 font-headline">New Tax Invoice</h2>
-          <p className="text-xs text-slate-400 mt-0.5">GST Invoice under CGST Act</p>
-          <p className="text-xs text-slate-500 mt-1">Flow ref: 5 (Tax Invoice). Related image: <span className="font-mono">all\\5.jpeg</span></p>
+    <div className="page-stack w-full min-w-0 max-w-5xl 3xl:max-w-6xl mx-auto animate-slide-up">
+      {/* Header — stacks on narrow screens / phones */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6 min-w-0">
+        <div className="flex items-start gap-3 min-w-0 flex-1">
+          <Link to="/invoices"
+            className="w-9 h-9 shrink-0 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-300 transition-colors shadow-sm">
+            <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+          </Link>
+          <div className="min-w-0">
+            <h2 className="text-lg sm:text-xl font-extrabold text-slate-800 font-headline">New Tax Invoice</h2>
+            <p className="text-xs text-slate-400 mt-0.5">GST Invoice under CGST Act</p>
+            <p className="text-xs text-slate-500 mt-1 break-words">Flow ref: 5 (Tax Invoice). Related image: <span className="font-mono">all\\5.jpeg</span></p>
+          </div>
         </div>
-        <button type="button" onClick={fillFromImage} className="btn-outline ml-auto mr-2">
-          <span className="material-symbols-outlined text-sm">file_upload</span> Load sample data
-        </button>
-        <span className="flex items-center gap-1.5 text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-full">
-          <span className="material-symbols-outlined text-[12px]">receipt_long</span> Tax Invoice
-        </span>
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end shrink-0">
+          <button type="button" onClick={fillFromImage} className="btn-outline w-full sm:w-auto">
+            <span className="material-symbols-outlined text-sm">file_upload</span> Load sample data
+          </button>
+          <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1.5 rounded-full">
+            <span className="material-symbols-outlined text-[12px]">receipt_long</span> Tax Invoice
+          </span>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
 
         {/* Challan Selection */}
-        <div className="card p-5 space-y-4">
+        <div className="card p-4 sm:p-5 3xl:p-6 space-y-4 min-w-0">
           <p className="section-title border-b border-slate-100 pb-2">Link to Challan</p>
           <div>
             <label className="form-label">
@@ -313,9 +317,9 @@ export default function InvoiceForm() {
         </div>
 
         {/* From / To / Refs */}
-        <div className="card p-5 space-y-4">
+        <div className="card p-4 sm:p-5 3xl:p-6 space-y-4 min-w-0">
           <p className="section-title border-b border-slate-100 pb-2">Invoice Details</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 3xl:gap-5">
             <F label="Invoice Date">
               <input type="date" value={form.invoiceDate} onChange={e => setForm(p => ({ ...p, invoiceDate: e.target.value }))} className="form-input" />
             </F>
@@ -362,8 +366,8 @@ export default function InvoiceForm() {
         </div>
 
         {/* Line Items */}
-        <div className="card p-5">
-          <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-4">
+        <div className="card p-4 sm:p-5 3xl:p-6 min-w-0">
+          <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center border-b border-slate-100 pb-2 mb-4">
             <div>
               <p className="section-title">Services / Items</p>
               {challanInfo && <p className="text-[10px] text-slate-400 mt-0.5">Auto-filled from challan — edit if partial delivery</p>}
@@ -540,9 +544,9 @@ export default function InvoiceForm() {
         </div>
 
         {/* GST + Totals */}
-        <div className="card p-5">
+        <div className="card p-4 sm:p-5 3xl:p-6 min-w-0">
           <div className="flex justify-end">
-            <div className="w-full max-w-sm space-y-2 text-sm">
+            <div className="w-full max-w-sm 3xl:max-w-md space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-slate-500">Subtotal</span>
                 <span className="font-semibold text-slate-700">₹ {subtotal.toLocaleString('en-IN', { minimumFractionDigits:2 })}</span>

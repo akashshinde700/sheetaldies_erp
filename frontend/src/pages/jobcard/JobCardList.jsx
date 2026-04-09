@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
 
-const PAGE_LIMIT = 20;
+const PAGE_LIMIT = 10;
 const STATUS_OPTS = ['CREATED', 'IN_PROGRESS', 'SENT_FOR_JOBWORK', 'INSPECTION', 'COMPLETED', 'ON_HOLD'];
 const STATUS_TRANSITIONS = {
   CREATED: ['IN_PROGRESS'],
@@ -64,7 +64,7 @@ export default function JobCardList() {
   useEffect(() => { setPage(1); }, [search, status]);
   useEffect(() => { fetchCards(); }, [fetchCards]);
 
-  const totalPages = Math.ceil(total / PAGE_LIMIT);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_LIMIT));
   const getAllowedStatusOptions = (currentStatus) => {
     const next = STATUS_TRANSITIONS[currentStatus] || [];
     return [currentStatus, ...next];
@@ -209,7 +209,7 @@ export default function JobCardList() {
             </tbody>
           </table>
         </div>
-        {!loading && totalPages > 1 && (
+        {!loading && total > 0 && (
           <Pagination page={page} totalPages={totalPages} total={total} limit={PAGE_LIMIT} setPage={setPage} />
         )}
       </div>

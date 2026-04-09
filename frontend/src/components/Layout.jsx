@@ -90,10 +90,10 @@ export default function Layout() {
 
         <header
           className="fixed top-0 right-0 left-0 lg:left-64 z-30 flex items-center gap-3
-            h-[calc(3.75rem+env(safe-area-inset-top,0px))] px-3 xs:px-4 sm:px-5
+            h-[calc(3.75rem+env(safe-area-inset-top,0px))] header-bar-padding
             pt-[env(safe-area-inset-top,0px)]
             bg-white/90 supports-[backdrop-filter]:bg-white/75 backdrop-blur-xl backdrop-saturate-150
-            border-b border-slate-200/80 shadow-header safe-pr safe-pl"
+            border-b border-slate-200/80 shadow-header"
         >
           <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink">
             <button
@@ -175,15 +175,15 @@ export default function Layout() {
         </header>
 
         <main
-          className="flex-1 mt-[calc(3.75rem+env(safe-area-inset-top,0px))] px-3 xs:px-4 sm:px-5 md:px-6 lg:px-8
-            py-4 sm:py-5 md:py-7 pb-8 sm:pb-10 overflow-x-hidden overflow-y-auto animate-fade-in safe-pb"
+          className="flex-1 mt-[calc(3.75rem+env(safe-area-inset-top,0px))] main-area-padding
+            py-4 sm:py-5 md:py-7 pb-8 sm:pb-10 overflow-x-hidden overflow-y-auto overscroll-y-contain touch-pan-y animate-fade-in safe-pb"
         >
           <div className="w-full animate-slide-up">
             <Outlet />
           </div>
         </main>
 
-        <footer className="px-3 xs:px-4 sm:px-6 py-2.5 border-t border-slate-200/70 bg-white/85 backdrop-blur-sm safe-pb safe-pl safe-pr">
+        <footer className="footer-bar-padding py-2.5 border-t border-slate-200/70 bg-white/85 backdrop-blur-sm safe-pb">
           <p className="text-[10px] text-slate-400 text-center leading-relaxed tracking-wide">
             Sheetal Dies &amp; Tools Pvt. Ltd. · Precision Engineering ERP
           </p>
