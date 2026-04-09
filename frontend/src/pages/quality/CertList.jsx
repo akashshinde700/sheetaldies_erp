@@ -10,7 +10,7 @@ const STATUS_STYLE = {
   APPROVED: 'bg-emerald-100 text-emerald-700',
 };
 
-const PAGE_LIMIT = 20;
+const PAGE_LIMIT = 10;
 
 const SkeletonRow = () => (
   <tr className="animate-pulse">
@@ -71,7 +71,7 @@ export default function CertList() {
     toast.success('Certificates exported to Excel.');
   };
 
-  const totalPages = Math.ceil(total / PAGE_LIMIT);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_LIMIT));
 
   return (
     <div className="space-y-5 animate-slide-up">
@@ -164,7 +164,7 @@ export default function CertList() {
             </tbody>
           </table>
         </div>
-        {!loading && totalPages > 1 && (
+        {!loading && total > 0 && (
           <Pagination page={page} totalPages={totalPages} total={total} limit={PAGE_LIMIT} setPage={setPage} />
         )}
       </div>

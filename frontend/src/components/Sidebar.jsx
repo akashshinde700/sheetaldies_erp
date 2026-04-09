@@ -47,7 +47,7 @@ const NavItem = ({ item, onNavigate }) => {
     onClick={onNavigate}
     className={({ isActive }) => {
       const active = resolvedActive(isActive);
-      return `group flex items-center gap-3 min-h-[42px] px-3.5 rounded-xl text-sm font-semibold mb-1
+      return `group flex items-center gap-3 min-h-[44px] sm:min-h-[42px] px-3.5 rounded-xl text-sm font-semibold mb-1
        transition-all duration-200 ease-out
        ${
          active

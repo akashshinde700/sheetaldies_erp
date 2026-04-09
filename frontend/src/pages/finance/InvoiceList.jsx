@@ -10,7 +10,7 @@ const PAY_STYLE = {
   PAID:    'bg-emerald-100 text-emerald-700',
 };
 
-const PAGE_LIMIT = 20;
+const PAGE_LIMIT = 10;
 
 const SkeletonRow = () => (
   <tr className="animate-pulse">
@@ -85,7 +85,7 @@ export default function InvoiceList() {
     toast.success('Invoice data exported to Excel.');
   };
 
-  const totalPages   = Math.ceil(total / PAGE_LIMIT);
+  const totalPages   = Math.max(1, Math.ceil(total / PAGE_LIMIT));
   const pendingCount = invoices.filter(i => i.paymentStatus === 'PENDING').length;
 
   const FILTER_OPTS = [
@@ -222,7 +222,7 @@ export default function InvoiceList() {
             </tbody>
           </table>
         </div>
-        {!loading && totalPages > 1 && (
+        {!loading && total > 0 && (
           <Pagination page={page} totalPages={totalPages} total={total} limit={PAGE_LIMIT} setPage={setPage} />
         )}
       </div>

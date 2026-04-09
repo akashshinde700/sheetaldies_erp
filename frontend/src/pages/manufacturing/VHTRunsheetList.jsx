@@ -17,7 +17,7 @@ export default function VHTRunsheetList() {
   const [status, setStatus] = useState('');
   const [machines, setMachines] = useState([]);
 
-  const limit = 15;
+  const limit = 10;
 
   const fetchList = async () => {
     setLoading(true);
@@ -42,6 +42,8 @@ export default function VHTRunsheetList() {
   useEffect(() => {
     fetchList();
   }, [page, furnaceId, status]);
+
+  const totalPages = Math.max(1, Math.ceil(total / limit));
 
   const totalWt = (items) =>
     (items || []).reduce((s, it) => s + (Number(it.weightKg) || 0), 0);
@@ -148,27 +150,28 @@ export default function VHTRunsheetList() {
           </div>
         )}
 
-        {total > limit && (
-          <div className="flex justify-between items-center px-4 py-3 border-t border-slate-100 text-sm text-slate-600">
+        {!loading && total > 0 && (
+          <div className="flex flex-col xs:flex-row xs:items-center xs:justify-between gap-2 px-4 py-3 border-t border-slate-100 bg-slate-50/50 text-xs text-slate-600">
             <span>
-              Page {page} of {Math.ceil(total / limit)}
+              {(page - 1) * limit + 1}–{Math.min(page * limit, total)} of <span className="font-semibold">{total}</span>
             </span>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 disabled={page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="px-3 py-1 rounded border border-slate-200 disabled:opacity-40"
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600"
               >
-                Prev
+                <span className="material-symbols-outlined text-sm">chevron_left</span> Prev
               </button>
+              <span className="font-semibold text-slate-500 px-1">{page} / {totalPages}</span>
               <button
                 type="button"
-                disabled={page >= Math.ceil(total / limit)}
+                disabled={page >= totalPages}
                 onClick={() => setPage((p) => p + 1)}
-                className="px-3 py-1 rounded border border-slate-200 disabled:opacity-40"
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600"
               >
-                Next
+                Next <span className="material-symbols-outlined text-sm">chevron_right</span>
               </button>
             </div>
           </div>

@@ -27,7 +27,7 @@ export default function InventoryView() {
   const [historySource, setHistorySource] = useState('');
   const [historyItemId, setHistoryItemId] = useState('');
   const [historyPage, setHistoryPage] = useState(1);
-  const [historyLimit, setHistoryLimit] = useState(20);
+  const [historyLimit, setHistoryLimit] = useState(10);
   const [historyTotal, setHistoryTotal] = useState(0);
   const [historyJumpPage, setHistoryJumpPage] = useState('1');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
@@ -280,31 +280,31 @@ export default function InventoryView() {
   }, [historyPage]);
 
   return (
-    <div className="page-stack">
-      <div>
-        <h1 className="page-title">Inventory</h1>
-        <p className="page-subtitle">On-hand quantities and reorder alerts</p>
-      </div>
-      <div className="flex justify-end">
-        <button type="button" className="btn-primary" onClick={openAddModal}>
+    <div className="page-stack min-w-0 w-full">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between min-w-0">
+        <div className="min-w-0">
+          <h1 className="page-title">Inventory</h1>
+          <p className="page-subtitle">On-hand quantities and reorder alerts</p>
+        </div>
+        <button type="button" className="btn-primary w-full sm:w-auto shrink-0" onClick={openAddModal}>
           <span className="material-symbols-outlined text-[18px]">add</span> Add / Update Inventory
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="card p-5">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 3xl:gap-5">
+        <div className="card p-4 sm:p-5 3xl:p-6 min-w-0">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">SKU rows</p>
-          <p className="text-3xl font-extrabold text-sky-800 font-headline mt-1">{inventory.length}</p>
+          <p className="text-2xl sm:text-3xl font-extrabold text-sky-800 font-headline mt-1 tabular-nums">{inventory.length}</p>
         </div>
-        <div className="card p-5">
+        <div className="card p-4 sm:p-5 3xl:p-6 min-w-0">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Total on hand</p>
-          <p className="text-3xl font-extrabold text-emerald-700 font-headline mt-1">
+          <p className="text-2xl sm:text-3xl font-extrabold text-emerald-700 font-headline mt-1 tabular-nums">
             {inventory.reduce((sum, i) => sum + (i.quantityOnHand || 0), 0)}
           </p>
         </div>
-        <div className="card p-5 border-l-4 border-amber-400">
+        <div className="card p-4 sm:p-5 3xl:p-6 border-l-4 border-amber-400 min-w-0">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Low stock</p>
-          <p className="text-3xl font-extrabold text-amber-700 font-headline mt-1">{lowStock.length}</p>
+          <p className="text-2xl sm:text-3xl font-extrabold text-amber-700 font-headline mt-1 tabular-nums">{lowStock.length}</p>
         </div>
       </div>
 
@@ -318,12 +318,12 @@ export default function InventoryView() {
         </div>
       )}
 
-      <div className="card overflow-hidden">
-        <div className="flex border-b border-slate-200/80">
+      <div className="card overflow-hidden min-w-0">
+        <div className="flex overflow-x-auto overscroll-x-contain border-b border-slate-200/80 touch-pan-x">
           <button
             type="button"
             onClick={() => setActiveTab('all')}
-            className={`px-5 py-3 text-sm font-semibold transition-colors ${
+            className={`shrink-0 px-4 sm:px-5 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold whitespace-nowrap transition-colors ${
               activeTab === 'all'
                 ? 'text-sky-800 border-b-2 border-sky-600 bg-sky-50/50'
                 : 'text-slate-500 hover:text-slate-800'
@@ -334,7 +334,7 @@ export default function InventoryView() {
           <button
             type="button"
             onClick={() => setActiveTab('low-stock')}
-            className={`px-5 py-3 text-sm font-semibold transition-colors ${
+            className={`shrink-0 px-4 sm:px-5 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold whitespace-nowrap transition-colors ${
               activeTab === 'low-stock'
                 ? 'text-sky-800 border-b-2 border-sky-600 bg-sky-50/50'
                 : 'text-slate-500 hover:text-slate-800'
@@ -345,7 +345,7 @@ export default function InventoryView() {
           <button
             type="button"
             onClick={() => setActiveTab('history')}
-            className={`px-5 py-3 text-sm font-semibold transition-colors ${
+            className={`shrink-0 px-4 sm:px-5 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold whitespace-nowrap transition-colors ${
               activeTab === 'history'
                 ? 'text-sky-800 border-b-2 border-sky-600 bg-sky-50/50'
                 : 'text-slate-500 hover:text-slate-800'
@@ -408,26 +408,26 @@ export default function InventoryView() {
           </>
         ) : (
           <>
-            <div className="p-4 border-b border-slate-200/80 bg-slate-50/50 flex flex-wrap items-end gap-2">
-              <div>
+            <div className="p-3 sm:p-4 border-b border-slate-200/80 bg-slate-50/50 flex flex-col xs:flex-row flex-wrap items-stretch xs:items-end gap-3">
+              <div className="w-full xs:w-auto min-w-0 xs:min-w-[160px]">
                 <label htmlFor="history-from-date" className="form-label">From</label>
-                <input id="history-from-date" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="form-input min-w-[160px]" />
+                <input id="history-from-date" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="form-input w-full" />
               </div>
-              <div>
+              <div className="w-full xs:w-auto min-w-0 xs:min-w-[160px]">
                 <label htmlFor="history-to-date" className="form-label">To</label>
-                <input id="history-to-date" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="form-input min-w-[160px]" />
+                <input id="history-to-date" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="form-input w-full" />
               </div>
-              <div>
+              <div className="w-full xs:w-auto min-w-0 xs:min-w-[150px]">
                 <label htmlFor="history-source" className="form-label">Source</label>
-                <select id="history-source" className="form-input min-w-[150px]" value={historySource} onChange={(e) => setHistorySource(e.target.value)}>
+                <select id="history-source" className="form-input w-full" value={historySource} onChange={(e) => setHistorySource(e.target.value)}>
                   <option value="">All</option>
                   <option value="GRN">GRN</option>
                   <option value="MANUAL_ADJUSTMENT">Manual</option>
                 </select>
               </div>
-              <div>
+              <div className="w-full xs:flex-1 xs:min-w-[200px] min-w-0">
                 <label htmlFor="history-item" className="form-label">Item</label>
-                <select id="history-item" className="form-input min-w-[220px]" value={historyItemId} onChange={(e) => setHistoryItemId(e.target.value)}>
+                <select id="history-item" className="form-input w-full max-w-full" value={historyItemId} onChange={(e) => setHistoryItemId(e.target.value)}>
                   <option value="">All items</option>
                   {items.map((it) => (
                     <option key={it.id} value={it.id}>

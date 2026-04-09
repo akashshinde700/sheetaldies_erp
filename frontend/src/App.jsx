@@ -65,10 +65,10 @@ const PrivateRoute = ({ children, role }) => {
 
 const AppRoutes = () => (
   <Suspense fallback={
-    <div className="flex items-center justify-center h-64">
-      <div className="flex items-center gap-3 text-slate-400">
-        <span className="material-symbols-outlined animate-spin">progress_activity</span>
-        <span className="text-sm font-medium">Loading...</span>
+    <div className="flex min-h-dvh min-h-screen items-center justify-center bg-app-shell px-4 safe-pt safe-pb main-area-padding">
+      <div className="flex flex-col sm:flex-row items-center gap-3 text-slate-500">
+        <span className="material-symbols-outlined animate-spin text-2xl text-sky-600" aria-hidden>progress_activity</span>
+        <span className="text-sm font-semibold tracking-tight">Loading module…</span>
       </div>
     </div>
   }>
