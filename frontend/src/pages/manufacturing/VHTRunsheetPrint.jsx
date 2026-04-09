@@ -73,7 +73,7 @@ export default function VHTRunsheetPrint() {
   }, [id]);
 
   const totalWt = useMemo(
-    () => (row?.items || []).reduce((s, it) => s + (parseFloat(it.weightKg) || 0), 0),
+    () => (row?.items || []).reduce((s, it) => s + (Number(it.weightKg) || 0), 0),
     [row]
   );
 
@@ -156,7 +156,7 @@ export default function VHTRunsheetPrint() {
                 <td className="border border-slate-800 px-1 py-1">{it.hrcRequired || '—'}</td>
                 <td className="border border-slate-800 px-1 py-1 text-right">{it.quantity}</td>
                 <td className="border border-slate-800 px-1 py-1 text-right tabular-nums">
-                  {it.weightKg != null ? parseFloat(it.weightKg).toFixed(2) : '—'}
+                  {it.weightKg != null ? Number(it.weightKg).toFixed(2) : '—'}
                 </td>
               </tr>
             ))}

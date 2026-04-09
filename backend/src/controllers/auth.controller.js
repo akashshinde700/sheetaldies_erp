@@ -2,6 +2,7 @@ const bcrypt   = require('bcryptjs');
 const jwt      = require('jsonwebtoken');
 const prisma   = require('../utils/prisma');
 const { sendOtpEmail, sendWelcomeEmail } = require('../utils/email');
+const { toInt } = require('../utils/normalize');
 
 // Generate 6-digit OTP
 const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
@@ -187,7 +188,7 @@ exports.listUsers = async (req, res) => {
 // ── Admin: Update user (name, role, reset password) ──────────
 exports.updateUser = async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = toInt(req.params.id);
     const { name, role, resetPassword } = req.body;
 
     // Prevent admin from changing their own role
@@ -222,11 +223,11 @@ exports.updateUser = async (req, res) => {
 exports.toggleUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const user   = await prisma.user.findUnique({ where: { id: parseInt(id) } });
+    const user   = await prisma.user.findUnique({ where: { id: toInt(id) } });
     if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
 
     const updated = await prisma.user.update({
-      where: { id: parseInt(id) },
+      where: { id: toInt(id) },
       data:  { isActive: !user.isActive },
       select: { id: true, name: true, isActive: true },
     });

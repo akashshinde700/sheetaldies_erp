@@ -3,12 +3,25 @@ const prisma = require('../utils/prisma');
 const auth   = require('../middleware/auth');
 const { requireRole } = require('../middleware/role');
 const ctrl = require('../controllers/party.controller');
+const { toInt } = require('../utils/normalize');
 
 router.get('/', auth, async (req, res) => {
   try {
     const { type } = req.query;
     const where = type ? { partyType: { in: [type, 'BOTH'] } } : {};
-    const parties = await prisma.party.findMany({ where, orderBy: { name: 'asc' } });
+    // Keep list payload minimal so UI remains stable even if some optional DB columns drift.
+    const parties = await prisma.party.findMany({
+      where,
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        phone: true,
+        email: true,
+        partyType: true,
+      },
+    });
     res.json({ success: true, data: parties });
   } catch (err) {
     console.error(err);
@@ -22,7 +35,17 @@ router.get('/:id/activity', auth, ctrl.activity);
 
 router.get('/:id', auth, async (req, res) => {
   try {
-    const p = await prisma.party.findUnique({ where: { id: parseInt(req.params.id) } });
+    const p = await prisma.party.findUnique({
+      where: { id: toInt(req.params.id) },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        phone: true,
+        email: true,
+        partyType: true,
+      },
+    });
     if (!p) return res.status(404).json({ success: false, message: 'Party not found.' });
     res.json({ success: true, data: p });
   } catch (err) {
@@ -102,7 +125,7 @@ router.put('/:id', auth, requireRole('MANAGER'), async (req, res) => {
     const data = partyFields(req.body);
     // Remove undefined so existing values are not overwritten
     Object.keys(data).forEach(k => data[k] === undefined && delete data[k]);
-    const party = await prisma.party.update({ where: { id: parseInt(req.params.id) }, data });
+    const party = await prisma.party.update({ where: { id: toInt(req.params.id) }, data });
     res.json({ success: true, data: party });
   } catch (err) {
     if (err.code === 'P2002') {

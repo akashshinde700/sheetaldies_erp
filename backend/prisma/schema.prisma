@@ -201,6 +201,7 @@ model Item {
   grnItems             GRNItem[]
   vhtRunsheetItems     VHTRunsheetItem[]
   inventory            Inventory?
+  inventoryMovements   InventoryMovement[]
 
   @@map("items")
 }
@@ -1119,6 +1120,13 @@ enum GRNStatus {
   @@map("grn_status")
 }
 
+enum InventoryMovementSource {
+  GRN
+  MANUAL_ADJUSTMENT
+
+  @@map("inventory_movement_source")
+}
+
 enum BatchStatus {
   CREATED
   IN_PROGRESS
@@ -1237,6 +1245,25 @@ model Inventory {
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
   @@map("inventories")
+}
+
+model InventoryMovement {
+  id                Int                     @id @default(autoincrement())
+  itemId            Int                     @map("item_id")
+  item              Item                    @relation(fields: [itemId], references: [id])
+  source            InventoryMovementSource
+  quantityChange    Int                     @map("quantity_change")
+  balanceAfter      Int                     @map("balance_after")
+  reorderLevelAfter Int                     @map("reorder_level_after")
+  referenceType     String?                 @map("reference_type") @db.VarChar(50)
+  referenceId       Int?                    @map("reference_id")
+  remarks           String?                 @db.VarChar(300)
+  createdById       Int                     @map("created_by")
+  createdAt         DateTime                @default(now()) @map("created_at")
+
+  @@index([itemId, createdAt])
+  @@index([source, createdAt])
+  @@map("inventory_movements")
 }
 
 // ============================================================

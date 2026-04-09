@@ -75,7 +75,7 @@ export default function JobworkDetail() {
   );
 
   return (
-    <div className="max-w-4xl space-y-4 animate-slide-up">
+    <div className="page-stack w-full space-y-4 animate-slide-up">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Link to="/jobwork"
@@ -166,9 +166,9 @@ export default function JobworkDetail() {
                   <td className="px-2 py-2 font-mono text-slate-500">{it.hsnCode || '—'}</td>
                   <td className="px-2 py-2 text-slate-600 text-right">{it.quantity}</td>
                   <td className="px-2 py-2 text-slate-500">{it.uom || 'KGS'}</td>
-                  <td className="px-2 py-2 text-slate-600 text-right">{it.weight ? parseFloat(it.weight).toFixed(3) : '—'}</td>
-                  <td className="px-2 py-2 text-slate-600 text-right">₹ {parseFloat(it.rate).toLocaleString('en-IN')}</td>
-                  <td className="px-2 py-2 font-bold text-slate-800 text-right">₹ {parseFloat(it.amount).toLocaleString('en-IN')}</td>
+                  <td className="px-2 py-2 text-slate-600 text-right">{it.weight ? Number(it.weight).toFixed(3) : '—'}</td>
+                  <td className="px-2 py-2 text-slate-600 text-right">₹ {Number(it.rate || 0).toLocaleString('en-IN')}</td>
+                  <td className="px-2 py-2 font-bold text-slate-800 text-right">₹ {Number(it.amount || 0).toLocaleString('en-IN')}</td>
                 </tr>
               ))}
             </tbody>
@@ -180,39 +180,39 @@ export default function JobworkDetail() {
           <div className="w-80 space-y-1.5 text-sm">
             <div className="flex justify-between">
               <span className="text-slate-500">Subtotal</span>
-              <span className="font-semibold text-slate-700">₹ {parseFloat(ch.subtotal).toLocaleString('en-IN')}</span>
+              <span className="font-semibold text-slate-700">₹ {Number(ch.subtotal || 0).toLocaleString('en-IN')}</span>
             </div>
-            {parseFloat(ch.handlingCharges) > 0 && (
+            {Number(ch.handlingCharges || 0) > 0 && (
               <div className="flex justify-between">
                 <span className="text-slate-500">Handling</span>
-                <span className="text-slate-700">₹ {parseFloat(ch.handlingCharges).toLocaleString('en-IN')}</span>
+                <span className="text-slate-700">₹ {Number(ch.handlingCharges || 0).toLocaleString('en-IN')}</span>
               </div>
             )}
             <div className="flex justify-between font-bold border-t border-slate-200 pt-1.5">
               <span>Total (before tax)</span>
-              <span className="text-slate-800">₹ {parseFloat(ch.totalValue).toLocaleString('en-IN')}</span>
+              <span className="text-slate-800">₹ {Number(ch.totalValue || 0).toLocaleString('en-IN')}</span>
             </div>
-            {parseFloat(ch.cgstAmount) > 0 && (
+            {Number(ch.cgstAmount || 0) > 0 && (
               <div className="flex justify-between">
                 <span className="text-slate-500">CGST @ {ch.cgstRate}%</span>
-                <span className="text-slate-700">₹ {parseFloat(ch.cgstAmount).toLocaleString('en-IN')}</span>
+                <span className="text-slate-700">₹ {Number(ch.cgstAmount || 0).toLocaleString('en-IN')}</span>
               </div>
             )}
-            {parseFloat(ch.sgstAmount) > 0 && (
+            {Number(ch.sgstAmount || 0) > 0 && (
               <div className="flex justify-between">
                 <span className="text-slate-500">SGST @ {ch.sgstRate}%</span>
-                <span className="text-slate-700">₹ {parseFloat(ch.sgstAmount).toLocaleString('en-IN')}</span>
+                <span className="text-slate-700">₹ {Number(ch.sgstAmount || 0).toLocaleString('en-IN')}</span>
               </div>
             )}
-            {parseFloat(ch.igstAmount) > 0 && (
+            {Number(ch.igstAmount || 0) > 0 && (
               <div className="flex justify-between">
                 <span className="text-slate-500">IGST @ {ch.igstRate}%</span>
-                <span className="text-slate-700">₹ {parseFloat(ch.igstAmount).toLocaleString('en-IN')}</span>
+                <span className="text-slate-700">₹ {Number(ch.igstAmount || 0).toLocaleString('en-IN')}</span>
               </div>
             )}
             <div className="flex justify-between font-extrabold text-base border-t border-slate-200 pt-2">
               <span className="text-slate-800">Grand Total</span>
-              <span className="text-indigo-700">₹ {parseFloat(ch.grandTotal || ch.totalValue).toLocaleString('en-IN')}</span>
+              <span className="text-indigo-700">₹ {Number(ch.grandTotal || ch.totalValue || 0).toLocaleString('en-IN')}</span>
             </div>
           </div>
         </div>

@@ -1,4 +1,5 @@
 const prisma = require('../utils/prisma');
+const { toInt } = require('../utils/normalize');
 
 const CONDITION = {
   ALWAYS: 'ALWAYS',
@@ -17,8 +18,6 @@ const STEP_STATUS = {
 };
 
 const QC_PASS_SET = new Set(['PASS', 'CONDITIONAL']);
-
-const toInt = (v) => parseInt(v, 10);
 
 const getJobWithWorkflow = async (jobCardId) => {
   return prisma.jobCard.findUnique({

@@ -1,4 +1,5 @@
 const prisma = require('../utils/prisma');
+const { toInt, toNum } = require('../utils/normalize');
 
 /** Minimal customer row from job card etc. — allowed for OPERATOR + MANAGER */
 exports.quickCreateCustomer = async (req, res) => {
@@ -38,7 +39,7 @@ exports.quickCreateCustomer = async (req, res) => {
 /** Job cards, invoices, certificates, challans, dispatch — for customer 360 view */
 exports.activity = async (req, res) => {
   try {
-    const partyId = parseInt(req.params.id, 10);
+    const partyId = toInt(req.params.id);
     if (Number.isNaN(partyId)) {
       return res.status(400).json({ success: false, message: 'Invalid party id.' });
     }
@@ -151,12 +152,12 @@ exports.activity = async (req, res) => {
     let invTotal = 0;
     const processFromItems = {};
     for (const inv of invoices) {
-      invTotal += parseFloat(inv.grandTotal || 0);
+      invTotal += toNum(inv.grandTotal, 0);
       for (const li of inv.items || []) {
         const pname = li.processType?.name || li.processType?.code || li.description || '—';
         if (!processFromItems[pname]) processFromItems[pname] = { count: 0, amount: 0 };
         processFromItems[pname].count += 1;
-        processFromItems[pname].amount += parseFloat(li.amount || 0);
+        processFromItems[pname].amount += toNum(li.amount, 0);
       }
     }
 

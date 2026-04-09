@@ -6,12 +6,12 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 
 const CB = ({ label, checked, onChange }) => (
   <label className="flex items-center gap-2 cursor-pointer group py-0.5">
-    <div onClick={() => onChange(!checked)}
+    <button type="button" onClick={() => onChange(!checked)}
       className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all ${
         checked ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 group-hover:border-indigo-400'
       }`}>
       {checked && <span className="material-symbols-outlined text-white text-[11px] leading-none">check</span>}
-    </div>
+    </button>
     <span className="text-xs text-slate-700 font-medium">{label}</span>
   </label>
 );
@@ -27,7 +27,7 @@ function ImageSlot({ index, onChange }) {
   };
   return (
     <div className="relative">
-      <div onClick={() => !preview && inputRef.current.click()}
+      <button type="button" onClick={() => !preview && inputRef.current.click()}
         className={`w-full aspect-square rounded-xl border-2 border-dashed flex items-center justify-center overflow-hidden cursor-pointer transition-all ${
           preview ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-slate-50 hover:border-indigo-300 hover:bg-indigo-50/50'
         }`}>
@@ -38,7 +38,7 @@ function ImageSlot({ index, onChange }) {
               <span className="text-[10px] text-slate-400 mt-1 block">Photo {index}</span>
             </div>
         }
-      </div>
+      </button>
       {preview && (
         <button type="button" onClick={() => { setPreview(null); onChange(index, null); inputRef.current.value = ''; }}
           className="absolute -top-2 -right-2 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center text-[10px] shadow hover:bg-rose-600">✕</button>
@@ -303,7 +303,7 @@ export default function CertForm() {
     e.preventDefault();
     if (!form.jobCardId) { toast.error('Job Card is required.'); return; }
     if (!form.customerId) { toast.error('Customer is required.'); return; }
-    if (!certItems.length || !certItems.some(it => it.description && parseFloat(it.quantity) > 0)) {
+    if (!certItems.length || !certItems.some(it => it.description && Number(it.quantity) > 0)) {
       toast.error('At least one item with description and quantity is required.'); return;
     }
     setLoading(true);
@@ -311,7 +311,7 @@ export default function CertForm() {
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => {
         if (k === 'distortionBefore' || k === 'distortionAfter') {
-          fd.append(k, JSON.stringify(v.map((val, i) => ({ pt: i + 1, val: parseFloat(val) || 0 }))));
+          fd.append(k, JSON.stringify(v.map((val, i) => ({ pt: i + 1, val: Number(val) || 0 }))));
         } else {
           fd.append(k, v);
         }
@@ -339,7 +339,7 @@ export default function CertForm() {
   );
 
   return (
-    <div className="max-w-5xl animate-slide-up">
+    <div className="page-stack w-full animate-slide-up">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Link to="/quality/certificates"
@@ -534,7 +534,7 @@ export default function CertForm() {
                   </td>
                   <td className="px-1 py-2">
                     <input type="number" step="0.001" value={it.weightPerPc}
-                      onChange={e => { const a = [...certItems]; a[i].weightPerPc = e.target.value; a[i].totalWeight = (parseFloat(e.target.value || 0) * parseFloat(a[i].quantity || 0)).toFixed(3); setCertItems(a); }}
+                      onChange={e => { const a = [...certItems]; a[i].weightPerPc = e.target.value; a[i].totalWeight = (Number(e.target.value || 0) * Number(a[i].quantity || 0)).toFixed(3); setCertItems(a); }}
                       className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-20 text-right focus:outline-none focus:ring-1 focus:ring-indigo-300" />
                   </td>
                   <td className="px-1 py-2">
@@ -605,7 +605,7 @@ export default function CertForm() {
                 <tr className="bg-slate-50/80">
                   <td className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase text-left">Δ Diff</td>
                   {form.distortionBefore.map((before, i) => {
-                    const diff = parseFloat(form.distortionAfter[i] || 0) - parseFloat(before || 0);
+                    const diff = Number(form.distortionAfter[i] || 0) - Number(before || 0);
                     return (
                       <td key={i} className={`py-2 px-1 text-xs font-bold ${
                         Math.abs(diff) > 0.05 ? 'text-rose-500' : diff !== 0 ? 'text-amber-500' : 'text-slate-300'
@@ -833,7 +833,7 @@ export default function CertForm() {
                   ...r,
                   index: i + 1,
                   time: r.time || 'T' + (i + 1),
-                  temp: parseFloat(r.temp) || 0,
+                  temp: Number(r.temp) || 0,
                 }))}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis 

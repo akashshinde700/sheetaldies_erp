@@ -4,6 +4,15 @@ import toast from 'react-hot-toast';
 import api from '../../utils/api';
 
 const PAGE_LIMIT = 20;
+const STATUS_OPTS = ['CREATED', 'IN_PROGRESS', 'SENT_FOR_JOBWORK', 'INSPECTION', 'COMPLETED', 'ON_HOLD'];
+const STATUS_TRANSITIONS = {
+  CREATED: ['IN_PROGRESS'],
+  IN_PROGRESS: ['SENT_FOR_JOBWORK'],
+  SENT_FOR_JOBWORK: ['INSPECTION'],
+  INSPECTION: ['COMPLETED', 'SENT_FOR_JOBWORK'],
+  ON_HOLD: ['CREATED', 'IN_PROGRESS', 'SENT_FOR_JOBWORK'],
+  COMPLETED: [],
+};
 
 const SkeletonRow = ({ cols = 7 }) => (
   <tr className="animate-pulse">
@@ -56,7 +65,10 @@ export default function JobCardList() {
   useEffect(() => { fetchCards(); }, [fetchCards]);
 
   const totalPages = Math.ceil(total / PAGE_LIMIT);
-  const STATUS_OPTS = ['CREATED', 'IN_PROGRESS', 'SENT_FOR_JOBWORK', 'INSPECTION', 'COMPLETED', 'ON_HOLD'];
+  const getAllowedStatusOptions = (currentStatus) => {
+    const next = STATUS_TRANSITIONS[currentStatus] || [];
+    return [currentStatus, ...next];
+  };
 
   const updateStatus = async (card, nextStatus) => {
     if (nextStatus === card.status) return;
@@ -173,7 +185,7 @@ export default function JobCardList() {
                       onChange={(e) => updateStatus(card, e.target.value)}
                       className="form-input text-xs py-1.5 pr-8 font-semibold max-w-[11.5rem] cursor-pointer disabled:opacity-50"
                     >
-                      {STATUS_OPTS.map((s) => (
+                      {getAllowedStatusOptions(card.status).map((s) => (
                         <option key={s} value={s}>
                           {s.replace(/_/g, ' ')}
                         </option>

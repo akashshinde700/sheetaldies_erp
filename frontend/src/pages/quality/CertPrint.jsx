@@ -12,7 +12,7 @@ function asArrayJson(v) {
 }
 
 function num(v) {
-  const n = typeof v === 'number' ? v : parseFloat(v);
+  const n = typeof v === 'number' ? v : Number(v);
   return Number.isFinite(n) ? n : null;
 }
 
@@ -115,7 +115,7 @@ export default function CertPrint() {
   const companyAddr = 'Plot No.84/1, Sector No.10, PCNTDA, Bhosari, Pune';
   const companyEmail = 'info@shitalgroup.com';
 
-  const totalQty = (cert.items || []).reduce((s, it) => s + (parseInt(it.quantity) || 0), 0);
+  const totalQty = (cert.items || []).reduce((s, it) => s + (Number(it.quantity) || 0), 0);
   const totalWt = (cert.items || []).reduce((s, it) => s + (num(it.totalWeight) || 0), 0);
 
   const decisionBadge =

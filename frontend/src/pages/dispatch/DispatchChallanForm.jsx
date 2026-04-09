@@ -47,7 +47,7 @@ export default function DispatchChallanForm() {
   }, []);
 
   useEffect(() => {
-    const jwId = formData.jobworkChallanId ? parseInt(formData.jobworkChallanId, 10) : null;
+    const jwId = formData.jobworkChallanId ? Number(formData.jobworkChallanId) : null;
     if (!jwId) { setSelectedJwItems([]); return; }
     api.get(`/jobwork/${jwId}`)
       .then(r => setSelectedJwItems(r.data.data?.items || []))
@@ -134,19 +134,19 @@ export default function DispatchChallanForm() {
       setLoading(true);
       const payload = {
         challanDate: formData.challanDate,
-        fromPartyId: parseInt(formData.fromPartyId, 10),
-        toPartyId: parseInt(formData.toPartyId, 10),
-        jobworkChallanId: formData.jobworkChallanId ? parseInt(formData.jobworkChallanId, 10) : null,
+        fromPartyId: Number(formData.fromPartyId),
+        toPartyId: Number(formData.toPartyId),
+        jobworkChallanId: formData.jobworkChallanId ? Number(formData.jobworkChallanId) : null,
         dispatchMode: formData.dispatchMode || null,
         vehicleNo: formData.vehicleNo || null,
         remarks: formData.remarks || null,
         status: formData.status,
         items: validItems.map((it) => ({
-          itemId: it.itemId ? parseInt(it.itemId, 10) : null,
-          sourceChallanItemId: it.sourceChallanItemId ? parseInt(it.sourceChallanItemId, 10) : null,
+          itemId: it.itemId ? Number(it.itemId) : null,
+          sourceChallanItemId: it.sourceChallanItemId ? Number(it.sourceChallanItemId) : null,
           description: it.description || '',
-          quantity: parseFloat(it.quantity) || 0,
-          weightKg: parseFloat(it.weightKg) || 0,
+          quantity: Number(it.quantity) || 0,
+          weightKg: Number(it.weightKg) || 0,
           remarks: it.remarks || '',
         })),
       };
@@ -166,11 +166,11 @@ export default function DispatchChallanForm() {
     }
   };
 
-  const totalQty = items.reduce((sum, it) => sum + (parseFloat(it.quantity) || 0), 0);
-  const totalWeight = items.reduce((sum, it) => sum + (parseFloat(it.weightKg) || 0), 0);
+  const totalQty = items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+  const totalWeight = items.reduce((sum, it) => sum + (Number(it.weightKg) || 0), 0);
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="page-stack w-full space-y-6">
       <button type="button" onClick={() => navigate('/dispatch')} className="btn-ghost -ml-2 inline-flex items-center gap-2 text-sky-800">
         <span className="material-symbols-outlined text-[20px]">arrow_back</span> Back to dispatch challans
       </button>

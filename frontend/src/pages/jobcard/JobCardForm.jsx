@@ -15,19 +15,19 @@ function ImageSlot({ index, onChange }) {
   };
   return (
     <div className="relative">
-      <div onClick={() => !preview && inputRef.current.click()}
+      <button type="button" onClick={() => !preview && inputRef.current.click()}
         className={`w-full aspect-square rounded-lg border-2 border-dashed flex items-center justify-center cursor-pointer transition-all ${
           preview ? 'border-emerald-300 bg-emerald-50' : 'border-slate-300 bg-slate-50 hover:border-indigo-300'
         }`}>
         {preview ? (
-          <img src={preview} className="w-full h-full object-cover rounded-md" />
+          <img src={preview} alt={`Part ${index}`} className="w-full h-full object-cover rounded-md" />
         ) : (
           <div className="text-center">
             <span className="material-symbols-outlined text-2xl text-slate-300">add_photo_alternate</span>
             <p className="text-[10px] text-slate-400 mt-1">Photo {index}</p>
           </div>
         )}
-      </div>
+      </button>
       <input ref={inputRef} type="file" onChange={handleFile} accept="image/*"
         className="hidden" />
       {preview && (
@@ -379,7 +379,7 @@ export default function JobCardForm() {
   };
 
   return (
-    <div className="max-w-2xl animate-slide-up">
+    <div className="page-stack w-full animate-slide-up">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Link to="/jobcards"
@@ -452,7 +452,16 @@ export default function JobCardForm() {
                     className={`form-input w-full text-left flex items-center justify-between gap-2 ${!form.partId ? 'text-slate-400' : 'text-slate-800'}`}>
                     <span className="truncate text-sm">{form.partId ? selectedPartLabel : '— Select or Add Part —'}</span>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      {form.partId && <span onClick={clearPart} className="material-symbols-outlined text-[16px] text-slate-300 hover:text-rose-400 transition-colors">close</span>}
+                      {form.partId && (
+                        <button
+                          type="button"
+                          onClick={clearPart}
+                          className="material-symbols-outlined text-[16px] text-slate-300 hover:text-rose-400 transition-colors"
+                          aria-label="Clear selected part"
+                        >
+                          close
+                        </button>
+                      )}
                       <span className="material-symbols-outlined text-[16px] text-slate-400">expand_more</span>
                     </div>
                   </button>

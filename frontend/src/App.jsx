@@ -83,6 +83,7 @@ const AppRoutes = () => (
       <Route path="jobwork"                element={<JobworkList />} />
       <Route path="jobwork/register"       element={<InwardOutwardRegister />} />
       <Route path="jobwork/new"            element={<JobworkForm />} />
+      <Route path="jobwork/:id/edit"       element={<JobworkForm />} />
       <Route path="jobwork/:id"            element={<JobworkDetail />} />
       <Route path="quality/certificates"       element={<CertList />} />
       <Route path="quality/certificates/new"  element={<CertForm />} />

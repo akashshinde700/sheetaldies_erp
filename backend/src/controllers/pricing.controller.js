@@ -1,4 +1,5 @@
 const prisma = require('../utils/prisma');
+const { toInt, toNum } = require('../utils/normalize');
 
 // Get all process types with pricing
 exports.list = async (req, res) => {
@@ -30,7 +31,8 @@ exports.list = async (req, res) => {
 // Get single process type pricing
 exports.getOne = async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = toInt(req.params.id);
+    if (Number.isNaN(id)) return res.status(400).json({ success: false, message: 'Invalid ID.' });
 
     const pricing = await prisma.processType.findUnique({
       where: { id },
@@ -66,10 +68,10 @@ exports.create = async (req, res) => {
         name,
         description: description || null,
         hsnSacCode: hsnSacCode || null,
-        pricePerKg: pricePerKg ? parseFloat(pricePerKg) : null,
-        pricePerPc: pricePerPc ? parseFloat(pricePerPc) : null,
-        minCharge: minCharge ? parseFloat(minCharge) : null,
-        gstRate: gstRate ? parseFloat(gstRate) : 18.00,
+        pricePerKg: pricePerKg ? toNum(pricePerKg, null) : null,
+        pricePerPc: pricePerPc ? toNum(pricePerPc, null) : null,
+        minCharge: minCharge ? toNum(minCharge, null) : null,
+        gstRate: gstRate ? toNum(gstRate, 18) : 18.00,
         updatedById: req.user.id,
       },
     });
@@ -84,7 +86,8 @@ exports.create = async (req, res) => {
 // Update process type pricing
 exports.update = async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = toInt(req.params.id);
+    if (Number.isNaN(id)) return res.status(400).json({ success: false, message: 'Invalid ID.' });
     const { name, description, hsnSacCode, pricePerKg, pricePerPc, minCharge, gstRate, isActive } = req.body;
 
     const pricing = await prisma.processType.update({
@@ -93,10 +96,10 @@ exports.update = async (req, res) => {
         ...(name !== undefined && { name }),
         ...(description !== undefined && { description }),
         ...(hsnSacCode !== undefined && { hsnSacCode }),
-        ...(pricePerKg !== undefined && { pricePerKg: pricePerKg ? parseFloat(pricePerKg) : null }),
-        ...(pricePerPc !== undefined && { pricePerPc: pricePerPc ? parseFloat(pricePerPc) : null }),
-        ...(minCharge !== undefined && { minCharge: minCharge ? parseFloat(minCharge) : null }),
-        ...(gstRate !== undefined && { gstRate: parseFloat(gstRate) }),
+        ...(pricePerKg !== undefined && { pricePerKg: pricePerKg ? toNum(pricePerKg, null) : null }),
+        ...(pricePerPc !== undefined && { pricePerPc: pricePerPc ? toNum(pricePerPc, null) : null }),
+        ...(minCharge !== undefined && { minCharge: minCharge ? toNum(minCharge, null) : null }),
+        ...(gstRate !== undefined && { gstRate: toNum(gstRate, 18) }),
         ...(isActive !== undefined && { isActive: Boolean(isActive) }),
         updatedById: req.user.id,
       },
@@ -115,7 +118,8 @@ exports.update = async (req, res) => {
 // Delete process type
 exports.delete = async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = toInt(req.params.id);
+    if (Number.isNaN(id)) return res.status(400).json({ success: false, message: 'Invalid ID.' });
 
     await prisma.processType.delete({ where: { id } });
 

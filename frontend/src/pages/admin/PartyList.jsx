@@ -69,16 +69,7 @@ export default function PartyList() {
   const openNew = () => { setForm(EMPTY); setEditId(null); setShowForm(true); };
 
   const openEdit = (p) => {
-    setForm({
-      name: p.name || '', partyCode: p.partyCode || '',
-      address: p.address || '', city: p.city || '',
-      state: p.state || '', pinCode: p.pinCode || '', gstin: p.gstin || '',
-      pan: p.pan || '', stateCode: p.stateCode || '', phone: p.phone || '',
-      email: p.email || '', partyType: p.partyType || 'CUSTOMER',
-      vatTin: p.vatTin || '', cstNo: p.cstNo || '',
-      bankAccountHolder: p.bankAccountHolder || '', bankName: p.bankName || '',
-      accountNo: p.accountNo || '', ifscCode: p.ifscCode || '', swiftCode: p.swiftCode || '',
-    });
+    setForm(partyToFormFields(p));
     setEditId(p.id);
     setShowForm(true);
   };

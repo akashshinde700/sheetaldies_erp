@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Search, FileText } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import api from '../../utils/api';
+import toast from 'react-hot-toast';
 
 export default function ManufacturingBatchList() {
   const [batches, setBatches] = useState([]);
@@ -26,7 +26,7 @@ export default function ManufacturingBatchList() {
       setBatches(response.data.data || []);
     } catch (error) {
       console.error(error);
-      alert('Failed to load batches');
+      toast.error('Failed to load batches.');
     } finally {
       setLoading(false);
     }
@@ -44,18 +44,18 @@ export default function ManufacturingBatchList() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (formData.jobCardIds.length === 0) {
-      alert('Select at least 1 job card');
+      toast.error('Select at least one job card.');
       return;
     }
 
     try {
       await api.post('/manufacturing/batches', formData);
-      alert('Batch created');
+      toast.success('Batch created.');
       setShowForm(false);
       setFormData({ jobCardIds: [], batchDate: new Date().toISOString().split('T')[0], remarks: '' });
       fetchBatches();
     } catch (error) {
-      alert('Failed to create batch');
+      toast.error(error?.response?.data?.message || 'Failed to create batch.');
     }
   };
 
@@ -75,7 +75,7 @@ export default function ManufacturingBatchList() {
           <p className="page-subtitle">Group job cards for production runs</p>
         </div>
         <button type="button" onClick={() => setShowForm(!showForm)} className="btn-primary shrink-0 inline-flex items-center gap-2">
-          <Plus size={20} /> New batch
+          <span className="material-symbols-outlined text-[20px]">add</span> New batch
         </button>
       </div>
 
@@ -112,7 +112,7 @@ export default function ManufacturingBatchList() {
 
       <div className="card overflow-hidden">
         <div className="p-4 border-b border-slate-200/80 flex items-center gap-2 bg-slate-50/50">
-          <Search size={20} className="text-slate-400 shrink-0" />
+          <span className="material-symbols-outlined text-[20px] text-slate-400 shrink-0">search</span>
           <input type="text" placeholder="Search batches…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onKeyUp={fetchBatches} className="flex-1 form-input border-0 bg-transparent shadow-none focus:ring-0" />
         </div>
         <div className="overflow-x-auto">
@@ -134,7 +134,7 @@ export default function ManufacturingBatchList() {
                   <td className="td text-slate-600">{new Date(batch.batchDate).toLocaleDateString()}</td>
                   <td className="td"><span className="badge bg-sky-100 text-sky-900">{batch.status}</span></td>
                   <td className="td text-center">
-                    <button type="button" className="p-2 rounded-lg text-sky-800 hover:bg-sky-50 inline-flex" aria-label="Details"><FileText size={16} /></button>
+                    <button type="button" className="p-2 rounded-lg text-sky-800 hover:bg-sky-50 inline-flex" aria-label="Details"><span className="material-symbols-outlined text-[16px]">description</span></button>
                   </td>
                 </tr>
               ))}

@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { TrendingUp, DollarSign, Package, CheckCircle } from 'lucide-react';
 import api from '../../utils/api';
 
 const fmtMoney = (n) =>
@@ -99,7 +98,7 @@ export default function AdvancedAnalytics() {
 
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
-  const StatCard = ({ icon: Icon, label, value, subtext, color }) => (
+  const StatCard = ({ icon, label, value, subtext, color }) => (
     <div className="card p-5 card-interactive">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -108,7 +107,7 @@ export default function AdvancedAnalytics() {
           {subtext && <p className="text-xs text-slate-500 mt-2 leading-snug">{subtext}</p>}
         </div>
         <div className={`p-3 rounded-xl shrink-0 shadow-sm ${color}`}>
-          <Icon size={22} className="text-white" />
+          <span className="material-symbols-outlined text-[22px] text-white">{icon}</span>
         </div>
       </div>
     </div>
@@ -143,28 +142,28 @@ export default function AdvancedAnalytics() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard
-            icon={CheckCircle}
+            icon="check_circle"
             label="Total Job Cards"
             value={stats?.totalJobCards}
             subtext={`${stats?.completedJobCards || 0} completed`}
             color="bg-slate-800"
           />
           <StatCard
-            icon={DollarSign}
+            icon="currency_rupee"
             label="Total Revenue"
             value={`₹${fmtMoney(stats?.totalRevenue)}`}
             subtext={`${stats?.pendingInvoices || 0} invoices pending payment`}
             color="bg-emerald-600"
           />
           <StatCard
-            icon={Package}
+            icon="inventory_2"
             label="Challans"
             value={stats?.totalChallans}
             subtext={`${stats?.pendingChallans || 0} pending · ${stats?.jobsThisMonth || 0} new job cards this month`}
             color="bg-amber-600"
           />
           <StatCard
-            icon={TrendingUp}
+            icon="trending_up"
             label="Inspection pass rate"
             value={`${stats?.efficiency || 0}%`}
             subtext="Share of PASS vs FAIL in incoming inspections"

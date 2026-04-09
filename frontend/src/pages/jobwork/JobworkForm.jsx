@@ -1,15 +1,19 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import SearchSelect from '../../components/SearchSelect';
+import { toInt, toNum } from '../../utils/normalize';
 
 export default function JobworkForm() {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEdit = Boolean(id);
   const [parties,  setParties]  = useState([]);
   const [items,    setItems]    = useState([]);
   const [jobCards, setJobCards] = useState([]);
   const [loading,  setLoading]  = useState(false);
+  const [initLoading, setInitLoading] = useState(true);
 
   const addDays = (dateStr, days) => {
     const d = new Date(dateStr);
@@ -51,41 +55,104 @@ export default function JobworkForm() {
   };
 
   useEffect(() => {
-    api.get('/parties').then(r => {
-      const list = r.data.data || [];
-      setParties(list);
-      const own = list.find(p => p.partyType === 'BOTH') || list[0];
-      if (own) setForm(p => ({ ...p, fromPartyId: String(own.id) }));
-    });
-    api.get('/items').then(r => setItems(r.data.data));
-    api.get('/jobcards?limit=100').then(r => {
-      const availableJobCards = (r.data.data || []).filter(jc => ['CREATED', 'IN_PROGRESS'].includes(jc.status));
-      setJobCards(availableJobCards);
-    });
-  }, []);
+    let mounted = true;
+    const load = async () => {
+      try {
+        const [partiesRes, itemsRes, jobcardsRes] = await Promise.all([
+          api.get('/parties'),
+          api.get('/items'),
+          api.get('/jobcards?limit=100'),
+        ]);
+        if (!mounted) return;
+        const list = partiesRes.data.data || [];
+        setParties(list);
+        setItems(itemsRes.data.data || []);
+        setJobCards(jobcardsRes.data.data || []);
+        const own = list.find((p) => p.partyType === 'BOTH') || list[0];
+        if (own && !isEdit) setForm((p) => ({ ...p, fromPartyId: String(own.id) }));
+
+        if (isEdit) {
+          const challanRes = await api.get(`/jobwork/${id}`);
+          if (!mounted) return;
+          const challan = challanRes.data.data;
+          setForm((prev) => ({
+            ...prev,
+            challanDate: challan.challanDate ? challan.challanDate.split('T')[0] : today,
+            jobCardId: challan.jobCardId ? String(challan.jobCardId) : '',
+            fromPartyId: challan.fromPartyId ? String(challan.fromPartyId) : '',
+            toPartyId: challan.toPartyId ? String(challan.toPartyId) : '',
+            invoiceChNo: challan.invoiceChNo || '',
+            invoiceChDate: challan.invoiceChDate ? challan.invoiceChDate.split('T')[0] : '',
+            transportMode: challan.transportMode || 'Hand Delivery',
+            vehicleNo: challan.vehicleNo || '',
+            deliveryPerson: challan.deliveryPerson || '',
+            dispatchDate: challan.dispatchDate ? challan.dispatchDate.split('T')[0] : '',
+            dueDate: challan.dueDate ? challan.dueDate.split('T')[0] : '',
+            processingNotes: challan.processingNotes || '',
+            handlingCharges: String(challan.handlingCharges ?? 0),
+            cgstRate: String(challan.cgstRate ?? 0),
+            sgstRate: String(challan.sgstRate ?? 0),
+            igstRate: String(challan.igstRate ?? 0),
+          }));
+          setChallanNoInput(challan.challanNo || '');
+          setManualChallanNo(false);
+
+          const mappedItems = (challan.items || []).map((it) => ({
+            itemId: it.itemId ? String(it.itemId) : '',
+            description: it.description || '',
+            drawingNo: it.drawingNo || '',
+            material: it.material || '',
+            hrc: it.hrc || '',
+            woNo: it.woNo || '',
+            hsnCode: it.hsnCode || '',
+            quantity: String(it.quantity ?? ''),
+            qtyOut: String(it.qtyOut ?? ''),
+            uom: it.uom || 'KGS',
+            weight: String(it.weight ?? ''),
+            rate: String(it.rate ?? ''),
+            amount: String(it.amount ?? ''),
+            _processKey: '',
+          }));
+          if (mappedItems.length) {
+            setLineItems(mappedItems);
+            const selected = mappedItems
+              .map((it) => it.description)
+              .filter((desc) => PROCESSES.includes(desc));
+            setSelectedProcesses(new Set(selected));
+          }
+        }
+      } catch (err) {
+        toast.error(err.response?.data?.message || 'Failed to load jobwork form data.');
+      } finally {
+        if (mounted) setInitLoading(false);
+      }
+    };
+    load();
+    return () => { mounted = false; };
+  }, [id, isEdit]);
 
   const updateLineItem = (i, field, val) => {
     setLineItems(prev => {
       const arr = [...prev];
       arr[i] = { ...arr[i], [field]: val };
       if (field === 'quantity' || field === 'rate') {
-        const q = parseFloat(field === 'quantity' ? val : arr[i].quantity) || 0;
-        const r = parseFloat(field === 'rate'     ? val : arr[i].rate)     || 0;
+        const q = toNum(field === 'quantity' ? val : arr[i].quantity, 0);
+        const r = toNum(field === 'rate' ? val : arr[i].rate, 0);
         arr[i].amount = (q * r).toFixed(2);
       }
       if (field === 'itemId') {
-        const item = items.find(it => it.id === parseInt(val));
+        const item = items.find(it => it.id === toInt(val));
         if (item) { arr[i].description = item.description || item.partNo || ''; arr[i].hsnCode = item.hsnCode || ''; }
       }
       return arr;
     });
   };
 
-  const subtotal   = lineItems.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0);
-  const total      = subtotal + (parseFloat(form.handlingCharges) || 0);
-  const cgstAmt    = parseFloat((total * (parseFloat(form.cgstRate) || 0) / 100).toFixed(2));
-  const sgstAmt    = parseFloat((total * (parseFloat(form.sgstRate) || 0) / 100).toFixed(2));
-  const igstAmt    = parseFloat((total * (parseFloat(form.igstRate) || 0) / 100).toFixed(2));
+  const subtotal   = lineItems.reduce((s, it) => s + toNum(it.amount, 0), 0);
+  const total      = subtotal + toNum(form.handlingCharges, 0);
+  const cgstAmt    = toNum((total * toNum(form.cgstRate, 0) / 100).toFixed(2), 0);
+  const sgstAmt    = toNum((total * toNum(form.sgstRate, 0) / 100).toFixed(2), 0);
+  const igstAmt    = toNum((total * toNum(form.igstRate, 0) / 100).toFixed(2), 0);
   const grandTotal = total + cgstAmt + sgstAmt + igstAmt;
 
   const fillFromImage = () => {
@@ -144,18 +211,21 @@ export default function JobworkForm() {
       toast.error('Challan number is required when manual  ticked.');
       return;
     }
-    const validItems = lineItems.filter(it => it.description?.trim() || (parseFloat(it.quantity) > 0 && parseFloat(it.rate) > 0));
+    const validItems = lineItems.filter(it => it.description?.trim() || (toNum(it.quantity, 0) > 0 && toNum(it.rate, 0) > 0));
     if (!validItems.length) {
       toast.error('At least one line item with quantity and rate is required.');
       return;
     }
     setLoading(true);
     try {
-      const r = await api.post('/jobwork', { ...form, items: lineItems, manualChallanNo: manualChallanNo ? challanNoInput.trim() : '' });
-      toast.success(`Challan ${r.data.data.challanNo} created!`);
+      const payload = { ...form, items: lineItems, manualChallanNo: manualChallanNo ? challanNoInput.trim() : '' };
+      const r = isEdit
+        ? await api.put(`/jobwork/${id}`, payload)
+        : await api.post('/jobwork', payload);
+      toast.success(isEdit ? 'Challan updated successfully!' : `Challan ${r.data.data.challanNo} created!`);
       navigate('/jobwork');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Error creating challan.');
+      toast.error(err.response?.data?.message || (isEdit ? 'Error updating challan.' : 'Error creating challan.'));
     } finally {
       setLoading(false);
     }
@@ -168,8 +238,19 @@ export default function JobworkForm() {
     </div>
   );
 
+  if (initLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="flex items-center gap-3 text-slate-400">
+          <span className="material-symbols-outlined animate-spin">progress_activity</span>
+          <span className="text-sm">Loading challan form...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-5xl animate-slide-up">
+    <div className="page-stack w-full animate-slide-up">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Link to="/jobwork"
@@ -177,13 +258,19 @@ export default function JobworkForm() {
           <span className="material-symbols-outlined text-[18px]">arrow_back</span>
         </Link>
         <div>
-          <h2 className="text-xl font-extrabold text-slate-800 font-headline">New Jobwork Challan</h2>
+          <h2 className="text-xl font-extrabold text-slate-800 font-headline">{isEdit ? 'Edit Jobwork Challan' : 'New Jobwork Challan'}</h2>
           <p className="text-xs text-slate-400 mt-0.5">Rule 45(1) CGST Rules, 2017</p>
-          <p className="text-xs text-slate-500 mt-1">Flow ref: 1 (Jobwork). Related image: <span className="font-mono">all\\1.jpeg</span></p>
+          {isEdit ? (
+            <p className="text-xs text-slate-500 mt-1">Editing: <span className="font-mono">{challanNoInput || `#${id}`}</span></p>
+          ) : (
+            <p className="text-xs text-slate-500 mt-1">Flow ref: 1 (Jobwork). Related image: <span className="font-mono">all\\1.jpeg</span></p>
+          )}
         </div>
-        <button type="button" onClick={fillFromImage} className="btn-outline ml-auto">
-          <span className="material-symbols-outlined text-sm">file_upload</span> Load sample data
-        </button>
+        {!isEdit && (
+          <button type="button" onClick={fillFromImage} className="btn-outline ml-auto">
+            <span className="material-symbols-outlined text-sm">file_upload</span> Load sample data
+          </button>
+        )}
         <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
           Challan for Job Work
         </span>
@@ -200,36 +287,47 @@ export default function JobworkForm() {
                 required className="form-input" />
             </F>
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="form-label mb-0">Challan No</label>
-                <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={manualChallanNo}
-                    onChange={e => { setManualChallanNo(e.target.checked); if (!e.target.checked) setChallanNoInput(''); }}
-                    className="w-3.5 h-3.5 accent-indigo-600"
-                  />
-                  <span className="text-[11px] text-slate-500">Manual</span>
-                </label>
-              </div>
-              {manualChallanNo ? (
-                <input
-                  type="text"
-                  value={challanNoInput}
-                  onChange={e => setChallanNoInput(e.target.value)}
-                  placeholder="e.g. SDT/JW/25-26/0050"
-                  required
-                  className="form-input"
-                />
+              {isEdit ? (
+                <>
+                  <label className="form-label mb-1">Challan No</label>
+                  <input type="text" value={challanNoInput || '-'} disabled className="form-input opacity-60 cursor-not-allowed" />
+                </>
               ) : (
-                <input type="text" value="Auto-generated" disabled className="form-input opacity-50 cursor-not-allowed" />
+                <>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="form-label mb-0">Challan No</label>
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={manualChallanNo}
+                        onChange={e => { setManualChallanNo(e.target.checked); if (!e.target.checked) setChallanNoInput(''); }}
+                        className="w-3.5 h-3.5 accent-indigo-600"
+                      />
+                      <span className="text-[11px] text-slate-500">Manual</span>
+                    </label>
+                  </div>
+                  {manualChallanNo ? (
+                    <input
+                      type="text"
+                      value={challanNoInput}
+                      onChange={e => setChallanNoInput(e.target.value)}
+                      placeholder="e.g. SDT/JW/25-26/0050"
+                      required
+                      className="form-input"
+                    />
+                  ) : (
+                    <input type="text" value="Auto-generated" disabled className="form-input opacity-50 cursor-not-allowed" />
+                  )}
+                </>
               )}
             </div>
             <F label="Link Job Card">
               <SearchSelect
                 value={form.jobCardId}
                 onChange={v => setForm(p => ({ ...p, jobCardId: v }))}
-                options={jobCards.map(jc => ({ value: jc.id, label: `${jc.jobCardNo} — ${jc.part?.partNo || ''}` }))}
+                options={jobCards
+                  .filter((jc) => ['CREATED', 'IN_PROGRESS'].includes(jc.status) || String(jc.id) === String(form.jobCardId))
+                  .map(jc => ({ value: jc.id, label: `${jc.jobCardNo} — ${jc.part?.partNo || ''}` }))}
                 placeholder="— Optional —"
               />
             </F>
@@ -371,7 +469,7 @@ export default function JobworkForm() {
                     </td>
                     <td className="td"><input type="number" step="0.001" value={row.weight} onChange={e => updateLineItem(i, 'weight', e.target.value)} className="form-input text-xs py-1 w-18 tabular-nums" /></td>
                     <td className="td"><input type="number" step="0.01" value={row.rate} onChange={e => updateLineItem(i, 'rate', e.target.value)} className="form-input text-xs py-1 w-18 tabular-nums" /></td>
-                    <td className="td font-semibold tabular-nums text-right">{parseFloat(row.amount || 0).toFixed(2)}</td>
+                    <td className="td font-semibold tabular-nums text-right">{toNum(row.amount, 0).toFixed(2)}</td>
                     <td className="td">
                       {lineItems.length > 1 && (
                         <button type="button" onClick={() => setLineItems(prev => prev.filter((_, idx) => idx !== i))}
@@ -406,10 +504,10 @@ export default function JobworkForm() {
           </div>
           <div className="bg-slate-50 rounded-xl p-4 space-y-1 text-sm">
             <div className="flex justify-between"><span className="text-slate-500">Subtotal</span><span className="font-semibold tabular-nums">₹{subtotal.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">Handling</span><span className="tabular-nums">₹{(parseFloat(form.handlingCharges) || 0).toFixed(2)}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">Handling</span><span className="tabular-nums">₹{toNum(form.handlingCharges, 0).toFixed(2)}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">CGST ({form.cgstRate}%)</span><span className="tabular-nums">₹{cgstAmt.toFixed(2)}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">SGST ({form.sgstRate}%)</span><span className="tabular-nums">₹{sgstAmt.toFixed(2)}</span></div>
-            {parseFloat(form.igstRate) > 0 && <div className="flex justify-between"><span className="text-slate-500">IGST ({form.igstRate}%)</span><span className="tabular-nums">₹{igstAmt.toFixed(2)}</span></div>}
+            {toNum(form.igstRate, 0) > 0 && <div className="flex justify-between"><span className="text-slate-500">IGST ({form.igstRate}%)</span><span className="tabular-nums">₹{igstAmt.toFixed(2)}</span></div>}
             <div className="flex justify-between border-t border-slate-200 pt-1 mt-1"><span className="font-bold text-slate-800">Grand Total</span><span className="font-extrabold text-slate-900 tabular-nums">₹{grandTotal.toFixed(2)}</span></div>
           </div>
         </div>
@@ -418,8 +516,8 @@ export default function JobworkForm() {
         <div className="flex gap-3 pt-1">
           <button type="submit" disabled={loading} className="btn-primary">
             {loading
-              ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Creating...</>
-              : <><span className="material-symbols-outlined text-sm">save</span> Create Challan</>
+              ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> {isEdit ? 'Updating...' : 'Creating...'}</>
+              : <><span className="material-symbols-outlined text-sm">save</span> {isEdit ? 'Update Challan' : 'Create Challan'}</>
             }
           </button>
           <Link to="/jobwork" className="btn-ghost">Cancel</Link>

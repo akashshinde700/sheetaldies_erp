@@ -1,4 +1,5 @@
 const prisma = require('../utils/prisma');
+const { toInt, toNum } = require('../utils/normalize');
 
 function toDateOnly(input) {
   const x = input instanceof Date ? input : new Date(input);
@@ -7,20 +8,20 @@ function toDateOnly(input) {
 }
 
 async function resolveRunsheetLine(line) {
-  const qty = parseInt(line.quantity, 10);
+  const qty = toInt(line.quantity);
   if (Number.isNaN(qty) || qty < 1) throw new Error('Invalid quantity on line.');
 
   if (line.jobCardId) {
     const jc = await prisma.jobCard.findUnique({
-      where: { id: parseInt(line.jobCardId, 10) },
+      where: { id: toInt(line.jobCardId) },
       include: { customer: true, part: true },
     });
     if (!jc) throw new Error(`Job card #${line.jobCardId} not found.`);
     const w =
       line.weightKg !== undefined && line.weightKg !== null && line.weightKg !== ''
-        ? parseFloat(line.weightKg)
+        ? toNum(line.weightKg, null)
         : jc.totalWeight != null
-          ? parseFloat(jc.totalWeight)
+          ? toNum(jc.totalWeight, null)
           : null;
     return {
       jobCardId: jc.id,
@@ -36,13 +37,13 @@ async function resolveRunsheetLine(line) {
   }
 
   if (line.itemId) {
-    const item = await prisma.item.findUnique({ where: { id: parseInt(line.itemId, 10) } });
+    const item = await prisma.item.findUnique({ where: { id: toInt(line.itemId) } });
     if (!item) throw new Error(`Item #${line.itemId} not found.`);
     const w =
       line.weightKg !== undefined && line.weightKg !== null && line.weightKg !== ''
-        ? parseFloat(line.weightKg)
+        ? toNum(line.weightKg, null)
         : item.weightKg != null
-          ? parseFloat(item.weightKg)
+          ? toNum(item.weightKg, null)
           : null;
     return {
       jobCardId: null,
@@ -62,23 +63,23 @@ async function resolveRunsheetLine(line) {
 
 function buildRunsheetHeaderPayload(body, opts = {}) {
   const payload = {
-    batchId: body.batchId != null ? parseInt(body.batchId, 10) : null,
-    furnaceId: parseInt(body.furnaceId, 10),
+    batchId: body.batchId != null ? toInt(body.batchId) : null,
+    furnaceId: toInt(body.furnaceId),
     runDate: toDateOnly(body.runDate),
     cycleEndTime: body.cycleEndTime || null,
     totalTimeDisplay: body.totalTimeDisplay || null,
-    mrStart: body.mrStart != null ? parseInt(body.mrStart, 10) : null,
-    mrEnd: body.mrEnd != null ? parseInt(body.mrEnd, 10) : null,
-    totalMr: body.totalMr != null ? parseInt(body.totalMr, 10) : null,
+    mrStart: body.mrStart != null ? toInt(body.mrStart) : null,
+    mrEnd: body.mrEnd != null ? toInt(body.mrEnd) : null,
+    totalMr: body.totalMr != null ? toInt(body.totalMr) : null,
     loadingOperatorName: body.loadingOperatorName || null,
     docRevNo: body.docRevNo || null,
     docEffectiveDate: body.docEffectiveDate ? toDateOnly(body.docEffectiveDate) : null,
     docPageOf: body.docPageOf || null,
     tempProfile: body.tempProfile || null,
-    cycleTime: body.cycleTime != null ? parseInt(body.cycleTime, 10) : 240,
+    cycleTime: body.cycleTime != null ? toInt(body.cycleTime, 240) : 240,
     hardeningType: body.hardeningType || null,
-    quenchPressureBar: body.quenchPressureBar != null ? parseFloat(body.quenchPressureBar) : null,
-    fanRpm: body.fanRpm != null ? parseInt(body.fanRpm, 10) : null,
+    quenchPressureBar: body.quenchPressureBar != null ? toNum(body.quenchPressureBar, null) : null,
+    fanRpm: body.fanRpm != null ? toInt(body.fanRpm) : null,
     fixturesPosition: body.fixturesPosition || null,
     tempGraphPoints: body.tempGraphPoints != null ? body.tempGraphPoints : null,
     operatorSign: body.operatorSign || null,
@@ -86,7 +87,7 @@ function buildRunsheetHeaderPayload(body, opts = {}) {
     supervisorVerifiedAt: body.supervisorVerifiedAt ? new Date(body.supervisorVerifiedAt) : null,
     verificationNote: body.verificationNote || null,
     status: body.status || 'PLANNED',
-    actualOutput: body.actualOutput != null ? parseInt(body.actualOutput, 10) : null,
+    actualOutput: body.actualOutput != null ? toInt(body.actualOutput) : null,
     remarks: body.remarks || null,
   };
   if (opts.runsheetNumber) payload.runsheetNumber = opts.runsheetNumber;
@@ -98,7 +99,7 @@ function buildRunsheetHeaderPayload(body, opts = {}) {
 exports.listBatches = async (req, res) => {
   try {
     const { status = '', search = '', page = 1, limit = 20 } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const skip = (toInt(page, 1) - 1) * toInt(limit, 20);
 
     const where = {};
     if (status) where.status = status;
@@ -114,12 +115,12 @@ exports.listBatches = async (req, res) => {
         },
         orderBy: { createdAt: 'desc' },
         skip,
-        take: parseInt(limit),
+        take: toInt(limit, 20),
       }),
       prisma.manufacturingBatch.count({ where }),
     ]);
 
-    res.json({ success: true, data: batches, total, page: parseInt(page), limit: parseInt(limit) });
+    res.json({ success: true, data: batches, total, page: toInt(page, 1), limit: toInt(limit, 20) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Failed to fetch batches.' });
@@ -141,7 +142,7 @@ exports.createBatch = async (req, res) => {
       select: { batchNumber: true },
     });
 
-    const lastNum = lastBatch?.batchNumber ? parseInt(lastBatch.batchNumber.split('/').pop()) : 0;
+    const lastNum = lastBatch?.batchNumber ? toInt(lastBatch.batchNumber.split('/').pop(), 0) : 0;
     const batchNumber = `BATCH/${new Date().getFullYear()}/${String(lastNum + 1).padStart(4, '0')}`;
 
     const batch = await prisma.manufacturingBatch.create({
@@ -153,7 +154,7 @@ exports.createBatch = async (req, res) => {
         createdById: req.user.id,
         jobCards: {
           create: jobCardIds.map(jobCardId => ({
-            jobCard: { connect: { id: parseInt(jobCardId) } },
+            jobCard: { connect: { id: toInt(jobCardId) } },
           })),
         },
       },
@@ -183,7 +184,7 @@ exports.createRunsheet = async (req, res) => {
       select: { runsheetNumber: true },
     });
 
-    const lastNum = lastRS?.runsheetNumber ? parseInt(lastRS.runsheetNumber.split('/').pop(), 10) : 0;
+    const lastNum = lastRS?.runsheetNumber ? toInt(lastRS.runsheetNumber.split('/').pop(), 0) : 0;
     const runsheetNumber = `VHT/${new Date().getFullYear()}/${String(lastNum + 1).padStart(5, '0')}`;
 
     const header = buildRunsheetHeaderPayload(body, {
@@ -215,11 +216,11 @@ exports.createRunsheet = async (req, res) => {
 exports.listRunsheets = async (req, res) => {
   try {
     const { page = 1, limit = 20, furnaceId, status, from, to } = req.query;
-    const p = Math.max(1, parseInt(page, 10) || 1);
-    const l = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const p = Math.max(1, toInt(page, 1) || 1);
+    const l = Math.min(100, Math.max(1, toInt(limit, 20) || 20));
     const skip = (p - 1) * l;
     const where = {};
-    if (furnaceId) where.furnaceId = parseInt(furnaceId, 10);
+    if (furnaceId) where.furnaceId = toInt(furnaceId);
     if (status) where.status = status;
     if (from || to) {
       where.runDate = {};
@@ -258,7 +259,8 @@ exports.listRunsheets = async (req, res) => {
 // ── Get one VHT Run Sheet ─────────────────────────────────────
 exports.getRunsheet = async (req, res) => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = toInt(req.params.id);
+    if (Number.isNaN(id)) return res.status(400).json({ success: false, message: 'Invalid ID.' });
     const rs = await prisma.vHTRunsheet.findUnique({
       where: { id },
       include: {
@@ -279,7 +281,8 @@ exports.getRunsheet = async (req, res) => {
 // ── Update full VHT Run Sheet ─────────────────────────────────
 exports.updateRunsheet = async (req, res) => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = toInt(req.params.id);
+    if (Number.isNaN(id)) return res.status(400).json({ success: false, message: 'Invalid ID.' });
     const body = req.body;
     const parsedItems = typeof body.items === 'string' ? JSON.parse(body.items) : body.items;
 
@@ -328,7 +331,7 @@ exports.createProductionPlan = async (req, res) => {
 
     const plan = await prisma.productionPlan.create({
       data: {
-        batchId: parseInt(batchId),
+        batchId: toInt(batchId),
         planDate: new Date(planDate),
         status: 'DRAFT',
         createdById: req.user.id,
@@ -339,7 +342,7 @@ exports.createProductionPlan = async (req, res) => {
             endTime: new Date(shift.endTime),
             machineryAssigned: shift.machineryAssigned || null,
             operatorAssigned: shift.operatorAssigned || null,
-            plannedOutput: parseInt(shift.plannedOutput || 0),
+            plannedOutput: toInt(shift.plannedOutput || 0, 0),
           })),
         },
       },
@@ -419,8 +422,8 @@ exports.getIdleTimeReport = async (req, res) => {
 // ── Plant Losses (Monthly) ────────────────────────────────────
 exports.getPlantLossMonth = async (req, res) => {
   try {
-    const year = parseInt(req.query.year);
-    const month = parseInt(req.query.month);
+    const year = toInt(req.query.year);
+    const month = toInt(req.query.month);
     if (!year || !month || month < 1 || month > 12) {
       return res.status(400).json({ success: false, message: 'year and month (1-12) are required.' });
     }
@@ -433,20 +436,20 @@ exports.getPlantLossMonth = async (req, res) => {
     if (!data) return res.json({ success: true, data: null });
 
     const entries = (data.entries || []).map((e) => {
-      const available = parseFloat(e.availableHours || 0);
-      const used = parseFloat(e.usedHours || 0);
+      const available = toNum(e.availableHours, 0);
+      const used = toNum(e.usedHours, 0);
       const loss = Math.max(0, available - used);
       const efficiency = available > 0 ? (used / available) * 100 : 0;
       return {
         ...e,
         furnaceLabel: e.machine ? `${e.machine.code} – ${e.machine.name}` : (e.furnaceName || '—'),
-        lossHours: parseFloat(loss.toFixed(2)),
-        efficiencyPercent: parseFloat(efficiency.toFixed(1)),
+        lossHours: toNum(loss.toFixed(2), 0),
+        efficiencyPercent: toNum(efficiency.toFixed(1), 0),
       };
     });
 
-    const totalAvailable = entries.reduce((s, e) => s + parseFloat(e.availableHours || 0), 0);
-    const totalUsed = entries.reduce((s, e) => s + parseFloat(e.usedHours || 0), 0);
+    const totalAvailable = entries.reduce((s, e) => s + toNum(e.availableHours, 0), 0);
+    const totalUsed = entries.reduce((s, e) => s + toNum(e.usedHours, 0), 0);
     const totalLoss = Math.max(0, totalAvailable - totalUsed);
     const totalEff = totalAvailable > 0 ? (totalUsed / totalAvailable) * 100 : 0;
 
@@ -456,10 +459,10 @@ exports.getPlantLossMonth = async (req, res) => {
         ...data,
         entries,
         totals: {
-          totalAvailable: parseFloat(totalAvailable.toFixed(2)),
-          totalUsed: parseFloat(totalUsed.toFixed(2)),
-          totalLoss: parseFloat(totalLoss.toFixed(2)),
-          efficiencyPercent: parseFloat(totalEff.toFixed(1)),
+          totalAvailable: toNum(totalAvailable.toFixed(2), 0),
+          totalUsed: toNum(totalUsed.toFixed(2), 0),
+          totalLoss: toNum(totalLoss.toFixed(2), 0),
+          efficiencyPercent: toNum(totalEff.toFixed(1), 0),
         },
       },
     });
@@ -472,8 +475,8 @@ exports.getPlantLossMonth = async (req, res) => {
 exports.upsertPlantLossMonth = async (req, res) => {
   try {
     const { year, month, notes, entries } = req.body;
-    const y = parseInt(year);
-    const m = parseInt(month);
+    const y = toInt(year);
+    const m = toInt(month);
     if (!y || !m || m < 1 || m > 12) {
       return res.status(400).json({ success: false, message: 'year and month (1-12) are required.' });
     }
@@ -494,17 +497,17 @@ exports.upsertPlantLossMonth = async (req, res) => {
         await tx.plantLossEntry.createMany({
           data: parsedEntries.map((e) => ({
             monthId: monthRow.id,
-            machineId: e.machineId ? parseInt(e.machineId) : null,
+            machineId: e.machineId ? toInt(e.machineId) : null,
             furnaceName: e.furnaceName || null,
-            availableHours: e.availableHours != null ? parseFloat(e.availableHours) : 624,
-            usedHours: e.usedHours != null ? parseFloat(e.usedHours) : 0,
-            loadingUnloadingMin: e.loadingUnloadingMin != null ? parseFloat(e.loadingUnloadingMin) : null,
-            waitingCyclePrepHrs: e.waitingCyclePrepHrs != null ? parseFloat(e.waitingCyclePrepHrs) : null,
-            waitingMaterialHrs: e.waitingMaterialHrs != null ? parseFloat(e.waitingMaterialHrs) : null,
-            cleaningFurnaceHrs: e.cleaningFurnaceHrs != null ? parseFloat(e.cleaningFurnaceHrs) : null,
-            breakdownMaintHrs: e.breakdownMaintHrs != null ? parseFloat(e.breakdownMaintHrs) : null,
-            noPowerHrs: e.noPowerHrs != null ? parseFloat(e.noPowerHrs) : null,
-            noMaterialHrs: e.noMaterialHrs != null ? parseFloat(e.noMaterialHrs) : null,
+            availableHours: e.availableHours != null ? toNum(e.availableHours, 624) : 624,
+            usedHours: e.usedHours != null ? toNum(e.usedHours, 0) : 0,
+            loadingUnloadingMin: e.loadingUnloadingMin != null ? toNum(e.loadingUnloadingMin, null) : null,
+            waitingCyclePrepHrs: e.waitingCyclePrepHrs != null ? toNum(e.waitingCyclePrepHrs, null) : null,
+            waitingMaterialHrs: e.waitingMaterialHrs != null ? toNum(e.waitingMaterialHrs, null) : null,
+            cleaningFurnaceHrs: e.cleaningFurnaceHrs != null ? toNum(e.cleaningFurnaceHrs, null) : null,
+            breakdownMaintHrs: e.breakdownMaintHrs != null ? toNum(e.breakdownMaintHrs, null) : null,
+            noPowerHrs: e.noPowerHrs != null ? toNum(e.noPowerHrs, null) : null,
+            noMaterialHrs: e.noMaterialHrs != null ? toNum(e.noMaterialHrs, null) : null,
           })),
         });
       }
@@ -524,16 +527,16 @@ exports.upsertPlantLossMonth = async (req, res) => {
 
 const daysInMonth = (year, month1to12) => new Date(year, month1to12, 0).getDate();
 const d0 = (v) => {
-  const n = typeof v === 'number' ? v : parseInt(v || 0, 10);
+  const n = typeof v === 'number' ? v : toInt(v || 0, 0);
   return Number.isFinite(n) ? n : 0;
 };
 
 // ── Daily Idle Logs (Machine-wise) ────────────────────────────
 exports.getDailyIdleSheet = async (req, res) => {
   try {
-    const machineId = parseInt(req.query.machineId);
-    const year = parseInt(req.query.year);
-    const month = parseInt(req.query.month);
+    const machineId = toInt(req.query.machineId);
+    const year = toInt(req.query.year);
+    const month = toInt(req.query.month);
     if (!machineId || !year || !month || month < 1 || month > 12) {
       return res.status(400).json({ success: false, message: 'machineId, year, month are required.' });
     }
@@ -579,7 +582,7 @@ exports.getDailyIdleSheet = async (req, res) => {
       preventiveMaintMin: 0, breakdownMaintMin: 0, noPowerMin: 0, noMaterialMin: 0,
     });
 
-    const toHours = (min) => parseFloat((min / 60).toFixed(2));
+    const toHours = (min) => toNum((min / 60).toFixed(2), 0);
     const totalsHours = {
       loadingUnloadingHrs: toHours(totalsMin.loadingUnloadingMin),
       waitingCyclePrepHrs: toHours(totalsMin.waitingCyclePrepMin),
@@ -609,9 +612,9 @@ exports.getDailyIdleSheet = async (req, res) => {
 exports.upsertDailyIdleSheet = async (req, res) => {
   try {
     const { machineId, year, month, days } = req.body;
-    const mid = parseInt(machineId);
-    const y = parseInt(year);
-    const m = parseInt(month);
+    const mid = toInt(machineId);
+    const y = toInt(year);
+    const m = toInt(month);
     if (!mid || !y || !m || m < 1 || m > 12) {
       return res.status(400).json({ success: false, message: 'machineId, year, month are required.' });
     }
@@ -621,7 +624,7 @@ exports.upsertDailyIdleSheet = async (req, res) => {
     const normalized = parsedDays
       .filter(d => d?.day >= 1 && d?.day <= dim)
       .map(d => {
-        const date = new Date(Date.UTC(y, m - 1, parseInt(d.day))).toISOString().slice(0, 10);
+        const date = new Date(Date.UTC(y, m - 1, toInt(d.day))).toISOString().slice(0, 10);
         return {
           date,
           loadingUnloadingMin: d0(d.loadingUnloadingMin),
@@ -670,8 +673,8 @@ exports.upsertDailyIdleSheet = async (req, res) => {
 // ── Derive Monthly Plant Loss from Daily (raw → summary) ───────
 exports.derivePlantLossFromDaily = async (req, res) => {
   try {
-    const year = parseInt(req.body.year);
-    const month = parseInt(req.body.month);
+    const year = toInt(req.body.year);
+    const month = toInt(req.body.month);
     if (!year || !month || month < 1 || month > 12) {
       return res.status(400).json({ success: false, message: 'year and month (1-12) are required.' });
     }
@@ -708,7 +711,7 @@ exports.derivePlantLossFromDaily = async (req, res) => {
       a.noMaterialMin += l.noMaterialMin || 0;
     }
 
-    const toHrs = (min) => parseFloat((min / 60).toFixed(2));
+    const toHrs = (min) => toNum((min / 60).toFixed(2), 0);
 
     const entries = Array.from(byMachine.values()).map((x) => {
       const lossHrs =
@@ -726,8 +729,8 @@ exports.derivePlantLossFromDaily = async (req, res) => {
       return {
         machineId: x.machineId,
         availableHours: available,
-        usedHours: parseFloat(used.toFixed(2)),
-        loadingUnloadingMin: parseFloat(x.loadingUnloadingMin.toFixed(2)),
+        usedHours: toNum(used.toFixed(2), 0),
+        loadingUnloadingMin: toNum(x.loadingUnloadingMin.toFixed(2), 0),
         waitingCyclePrepHrs: toHrs(x.waitingCyclePrepMin),
         waitingMaterialHrs: toHrs(x.waitingMaterialMin),
         cleaningFurnaceHrs: 0,
@@ -775,7 +778,7 @@ exports.derivePlantLossFromDaily = async (req, res) => {
 // ── Furnace Utilisation Statement (Shift-wise) ────────────────
 exports.getFurnaceUtilizationDay = async (req, res) => {
   try {
-    const machineId = parseInt(req.query.machineId);
+    const machineId = toInt(req.query.machineId);
     const date = req.query.date;
     if (!machineId || !date) {
       return res.status(400).json({ success: false, message: 'machineId and date (YYYY-MM-DD) are required.' });
@@ -795,14 +798,14 @@ exports.getFurnaceUtilizationDay = async (req, res) => {
 exports.upsertFurnaceUtilizationDay = async (req, res) => {
   try {
     const { machineId, date, signedBy, remarks, shifts } = req.body;
-    const mid = parseInt(machineId);
+    const mid = toInt(machineId);
     if (!mid || !date) {
       return res.status(400).json({ success: false, message: 'machineId and date are required.' });
     }
     const d = new Date(date);
     const s = typeof shifts === 'string' ? JSON.parse(shifts) : (shifts || {});
     const g = (x) => {
-      const n = typeof x === 'number' ? x : parseInt(x || 0, 10);
+      const n = typeof x === 'number' ? x : toInt(x || 0, 0);
       return Number.isFinite(n) ? Math.max(0, n) : 0;
     };
 
@@ -849,14 +852,15 @@ exports.getShiftReport = async (req, res) => {
 // ── Update Runsheet Status ────────────────────────────────────
 exports.updateRunsheetStatus = async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = toInt(req.params.id);
+    if (Number.isNaN(id)) return res.status(400).json({ success: false, message: 'Invalid ID.' });
     const { status, actualOutput, remarks } = req.body;
 
     const runsheet = await prisma.vHTRunsheet.update({
       where: { id },
       data: {
         ...(status !== undefined && { status }),
-        ...(actualOutput !== undefined && { actualOutput: parseInt(actualOutput) }),
+        ...(actualOutput !== undefined && { actualOutput: toInt(actualOutput) }),
         ...(remarks !== undefined && { remarks }),
       },
       include: { items: { include: { item: true, jobCard: { select: { jobCardNo: true } } } } },
@@ -872,7 +876,8 @@ exports.updateRunsheetStatus = async (req, res) => {
 // ── Batch Completion Report ───────────────────────────────────
 exports.getBatchReport = async (req, res) => {
   try {
-    const batchId = parseInt(req.params.batchId);
+    const batchId = toInt(req.params.batchId);
+    if (Number.isNaN(batchId)) return res.status(400).json({ success: false, message: 'Invalid ID.' });
 
     const batch = await prisma.manufacturingBatch.findUnique({
       where: { id: batchId },

@@ -39,6 +39,7 @@ export default function UserManagement() {
   const [editRole, setEditRole] = useState('');
   const [editName, setEditName] = useState('');
   const [saving,   setSaving]   = useState(false);
+  const [viewUser, setViewUser] = useState(null);
 
   const load = () => {
     setLoading(true);
@@ -96,7 +97,7 @@ export default function UserManagement() {
   };
 
   return (
-    <div className="space-y-5 max-w-5xl animate-slide-up">
+    <div className="page-stack w-full space-y-5 animate-slide-up">
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -104,7 +105,7 @@ export default function UserManagement() {
           <h2 className="text-xl font-extrabold text-slate-800 font-headline">User Management</h2>
           <p className="text-xs text-slate-400 mt-0.5">Create users and assign roles — Admin only</p>
         </div>
-        <button onClick={() => setShowNew(p => !p)} className="btn-primary">
+        <button type="button" onClick={() => setShowNew(p => !p)} className="btn-primary">
           <span className="material-symbols-outlined text-sm">{showNew ? 'close' : 'person_add'}</span>
           {showNew ? 'Cancel' : 'Add User'}
         </button>
@@ -251,27 +252,31 @@ export default function UserManagement() {
                     <div className="flex items-center gap-3 flex-wrap">
                       {editId === u.id ? (
                         <>
-                          <button onClick={() => saveEdit(u.id)} disabled={saving}
+                          <button type="button" onClick={() => saveEdit(u.id)} disabled={saving}
                             className="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-bold hover:bg-emerald-700 disabled:opacity-60">
                             {saving ? 'Saving...' : 'Save'}
                           </button>
-                          <button onClick={() => setEditId(null)}
+                          <button type="button" onClick={() => setEditId(null)}
                             className="text-xs text-slate-500 hover:text-slate-700 font-semibold">
                             Cancel
                           </button>
                         </>
                       ) : (
                         <>
-                          <button onClick={() => startEdit(u)}
+                          <button type="button" onClick={() => startEdit(u)}
                             className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">
                             <span className="material-symbols-outlined text-sm">edit</span> Edit
                           </button>
-                          <button onClick={() => resetPassword(u)}
+                          <button type="button" onClick={() => setViewUser(u)}
+                            className="flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:underline">
+                            <span className="material-symbols-outlined text-sm">visibility</span> View
+                          </button>
+                          <button type="button" onClick={() => resetPassword(u)}
                             className="flex items-center gap-1 text-xs font-semibold text-amber-600 hover:text-amber-700 hover:underline">
                             <span className="material-symbols-outlined text-sm">lock_reset</span> Reset PW
                           </button>
                           {u.id !== me?.id && (
-                            <button onClick={() => toggleActive(u)}
+                            <button type="button" onClick={() => toggleActive(u)}
                               className={`flex items-center gap-1 text-xs font-semibold hover:underline ${u.isActive ? 'text-rose-400 hover:text-rose-600' : 'text-emerald-600 hover:text-emerald-700'}`}>
                               <span className="material-symbols-outlined text-sm">{u.isActive ? 'person_off' : 'person'}</span>
                               {u.isActive ? 'Deactivate' : 'Activate'}
@@ -291,6 +296,25 @@ export default function UserManagement() {
       <p className="text-[11px] text-slate-400">
         Total {users.length} users · {users.filter(u => u.isActive).length} active
       </p>
+
+      {viewUser && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/50 p-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl border border-slate-200">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="text-base font-bold text-slate-800">User details</h3>
+              <button type="button" onClick={() => setViewUser(null)} className="btn-ghost">Close</button>
+            </div>
+            <div className="p-5 grid grid-cols-2 gap-3 text-sm">
+              <div><p className="text-slate-400 text-xs">Name</p><p className="font-semibold">{viewUser.name || '—'}</p></div>
+              <div><p className="text-slate-400 text-xs">Email</p><p className="font-semibold">{viewUser.email || '—'}</p></div>
+              <div><p className="text-slate-400 text-xs">Role</p><p className="font-semibold">{viewUser.role || '—'}</p></div>
+              <div><p className="text-slate-400 text-xs">Status</p><p className="font-semibold">{viewUser.isActive ? 'Active' : 'Inactive'}</p></div>
+              <div><p className="text-slate-400 text-xs">Last Login</p><p className="font-semibold">{viewUser.lastLogin ? new Date(viewUser.lastLogin).toLocaleString() : 'Never'}</p></div>
+              <div><p className="text-slate-400 text-xs">Created</p><p className="font-semibold">{viewUser.createdAt ? new Date(viewUser.createdAt).toLocaleString() : '—'}</p></div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

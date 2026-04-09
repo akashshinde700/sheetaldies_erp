@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import { toNum } from '../../utils/normalize';
 
 const PAY_COLOR = {
   PENDING: 'bg-orange-100 text-orange-700',
@@ -78,7 +79,7 @@ export default function InvoiceDetail() {
       return;
     }
 
-    const message = `Invoice ${inv.invoiceNo} of ₹${parseFloat(inv.grandTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })} has been generated. Please check the ERP system.`;
+    const message = `Invoice ${inv.invoiceNo} of ₹${toNum(inv.grandTotal, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })} has been generated. Please check the ERP system.`;
 
     try {
       const r = await api.post(`/invoices/${id}/notify`, { type, to, message });
@@ -118,7 +119,7 @@ export default function InvoiceDetail() {
   const siblings = inv.siblingInvoices || [];
 
   return (
-    <div className="max-w-3xl space-y-4 animate-slide-up">
+    <div className="page-stack w-full space-y-4 animate-slide-up">
 
       {/* Header */}
       <div className="flex items-center gap-3 flex-wrap">
@@ -255,7 +256,7 @@ export default function InvoiceDetail() {
               <div key={s.id} className="flex items-center justify-between text-sm border border-slate-100 rounded-xl px-4 py-2.5 hover:bg-slate-50 transition-colors">
                 <Link to={`/invoices/${s.id}`} className="font-mono text-indigo-600 hover:underline">{s.invoiceNo}</Link>
                 <span className="text-slate-500 text-xs">{new Date(s.createdAt).toLocaleDateString('en-IN')}</span>
-                <span className="font-semibold text-slate-700">₹ {parseFloat(s.totalAmount).toLocaleString('en-IN')}</span>
+                <span className="font-semibold text-slate-700">₹ {toNum(s.totalAmount, 0).toLocaleString('en-IN')}</span>
                 <span className={`badge text-[10px] ${PAY_COLOR[s.paymentStatus] || 'bg-slate-100 text-slate-600'}`}>{s.paymentStatus}</span>
                 {s.sentToTally && <span className="badge text-[10px] bg-violet-100 text-violet-700">TALLY SENT</span>}
               </div>
@@ -347,9 +348,9 @@ export default function InvoiceDetail() {
                           <td className="px-2 py-2.5 font-mono text-slate-500">{it.hsnSac || '—'}</td>
                           <td className="px-2 py-2.5 text-slate-600 text-right">{it.quantity}</td>
                           <td className="px-2 py-2.5 text-slate-500">{it.unit || 'KGS'}</td>
-                          <td className="px-2 py-2.5 text-slate-600 text-right">{it.weight ? parseFloat(it.weight).toFixed(3) : '—'}</td>
-                          <td className="px-2 py-2.5 text-slate-600 text-right">₹ {parseFloat(it.rate).toLocaleString('en-IN')}</td>
-                          <td className="px-2 py-2.5 font-bold text-slate-800 text-right">₹ {parseFloat(it.amount).toLocaleString('en-IN')}</td>
+                          <td className="px-2 py-2.5 text-slate-600 text-right">{it.weight ? toNum(it.weight, 0).toFixed(3) : '—'}</td>
+                          <td className="px-2 py-2.5 text-slate-600 text-right">₹ {toNum(it.rate, 0).toLocaleString('en-IN')}</td>
+                          <td className="px-2 py-2.5 font-bold text-slate-800 text-right">₹ {toNum(it.amount, 0).toLocaleString('en-IN')}</td>
                         </tr>
                       );
                     })}
@@ -363,16 +364,16 @@ export default function InvoiceDetail() {
         {/* Totals */}
         <div className="flex justify-end mt-4 pt-4 border-t border-slate-100">
           <div className="w-full max-w-sm space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-slate-500">Total Value</span><span className="font-semibold text-slate-700">₹ {parseFloat(inv.subtotal).toLocaleString('en-IN', {minimumFractionDigits:2})}</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">Transport / Freight</span><span className="text-slate-700">₹ {parseFloat(inv.transportFreight||0).toLocaleString('en-IN', {minimumFractionDigits:2})}</span></div>
-            {parseFloat(inv.cgstAmount) > 0 && <div className="flex justify-between"><span className="text-slate-500">CGST ({inv.cgstRate}%)</span><span>₹ {parseFloat(inv.cgstAmount).toLocaleString('en-IN', {minimumFractionDigits:2})}</span></div>}
-            {parseFloat(inv.sgstAmount) > 0 && <div className="flex justify-between"><span className="text-slate-500">SGST ({inv.sgstRate}%)</span><span>₹ {parseFloat(inv.sgstAmount).toLocaleString('en-IN', {minimumFractionDigits:2})}</span></div>}
-            {parseFloat(inv.igstAmount) > 0 && <div className="flex justify-between"><span className="text-slate-500">IGST ({inv.igstRate}%)</span><span>₹ {parseFloat(inv.igstAmount).toLocaleString('en-IN', {minimumFractionDigits:2})}</span></div>}
-            {parseFloat(inv.tcsRate||0) > 0 && <div className="flex justify-between"><span className="text-slate-500">TCS ({inv.tcsRate}%)</span><span>₹ {parseFloat(inv.tcsAmount||0).toLocaleString('en-IN', {minimumFractionDigits:2})}</span></div>}
-            {parseFloat(inv.extraAmt||0) > 0 && <div className="flex justify-between"><span className="text-slate-500">Extra Amt</span><span>₹ {parseFloat(inv.extraAmt).toLocaleString('en-IN', {minimumFractionDigits:2})}</span></div>}
+            <div className="flex justify-between"><span className="text-slate-500">Total Value</span><span className="font-semibold text-slate-700">₹ {toNum(inv.subtotal, 0).toLocaleString('en-IN', {minimumFractionDigits:2})}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">Transport / Freight</span><span className="text-slate-700">₹ {toNum(inv.transportFreight, 0).toLocaleString('en-IN', {minimumFractionDigits:2})}</span></div>
+            {toNum(inv.cgstAmount, 0) > 0 && <div className="flex justify-between"><span className="text-slate-500">CGST ({inv.cgstRate}%)</span><span>₹ {toNum(inv.cgstAmount, 0).toLocaleString('en-IN', {minimumFractionDigits:2})}</span></div>}
+            {toNum(inv.sgstAmount, 0) > 0 && <div className="flex justify-between"><span className="text-slate-500">SGST ({inv.sgstRate}%)</span><span>₹ {toNum(inv.sgstAmount, 0).toLocaleString('en-IN', {minimumFractionDigits:2})}</span></div>}
+            {toNum(inv.igstAmount, 0) > 0 && <div className="flex justify-between"><span className="text-slate-500">IGST ({inv.igstRate}%)</span><span>₹ {toNum(inv.igstAmount, 0).toLocaleString('en-IN', {minimumFractionDigits:2})}</span></div>}
+            {toNum(inv.tcsRate, 0) > 0 && <div className="flex justify-between"><span className="text-slate-500">TCS ({inv.tcsRate}%)</span><span>₹ {toNum(inv.tcsAmount, 0).toLocaleString('en-IN', {minimumFractionDigits:2})}</span></div>}
+            {toNum(inv.extraAmt, 0) > 0 && <div className="flex justify-between"><span className="text-slate-500">Extra Amt</span><span>₹ {toNum(inv.extraAmt, 0).toLocaleString('en-IN', {minimumFractionDigits:2})}</span></div>}
             <div className="flex justify-between font-extrabold text-base border-t border-slate-200 pt-2.5">
               <span className="text-slate-800">Grand Total</span>
-              <span className="text-indigo-700">₹ {parseFloat(inv.grandTotal||inv.totalAmount).toLocaleString('en-IN', {minimumFractionDigits:2})}</span>
+              <span className="text-indigo-700">₹ {toNum(inv.grandTotal ?? inv.totalAmount, 0).toLocaleString('en-IN', {minimumFractionDigits:2})}</span>
             </div>
           </div>
         </div>
@@ -391,7 +392,7 @@ export default function InvoiceDetail() {
                     <th className="px-3 py-2.5 text-right  text-[10px] font-bold text-slate-500 uppercase">CGST Amt</th>
                     <th className="px-3 py-2.5 text-center text-[10px] font-bold text-slate-500 uppercase">SGST Rate</th>
                     <th className="px-3 py-2.5 text-right  text-[10px] font-bold text-slate-500 uppercase">SGST Amt</th>
-                    {parseFloat(inv.igstRate||0) > 0 && <>
+                    {toNum(inv.igstRate, 0) > 0 && <>
                       <th className="px-3 py-2.5 text-center text-[10px] font-bold text-slate-500 uppercase">IGST Rate</th>
                       <th className="px-3 py-2.5 text-right  text-[10px] font-bold text-slate-500 uppercase">IGST Amt</th>
                     </>}
@@ -403,13 +404,13 @@ export default function InvoiceDetail() {
                     (inv.items || []).reduce((acc, it) => {
                       const key = it.hsnSac || '—';
                       if (!acc[key]) acc[key] = 0;
-                      acc[key] += parseFloat(it.amount || 0);
+                      acc[key] += toNum(it.amount, 0);
                       return acc;
                     }, {})
                   ).map(([hsn, taxable]) => {
-                    const cgstAmt = taxable * parseFloat(inv.cgstRate || 0) / 100;
-                    const sgstAmt = taxable * parseFloat(inv.sgstRate || 0) / 100;
-                    const igstAmt = taxable * parseFloat(inv.igstRate || 0) / 100;
+                    const cgstAmt = taxable * toNum(inv.cgstRate, 0) / 100;
+                    const sgstAmt = taxable * toNum(inv.sgstRate, 0) / 100;
+                    const igstAmt = taxable * toNum(inv.igstRate, 0) / 100;
                     const totalTax = cgstAmt + sgstAmt + igstAmt;
                     return (
                       <tr key={hsn} className="hover:bg-slate-50/50 transition-colors">
@@ -419,7 +420,7 @@ export default function InvoiceDetail() {
                         <td className="px-3 py-2 text-right text-slate-600">₹ {cgstAmt.toLocaleString('en-IN', {minimumFractionDigits:2})}</td>
                         <td className="px-3 py-2 text-center text-slate-600">{inv.sgstRate}%</td>
                         <td className="px-3 py-2 text-right text-slate-600">₹ {sgstAmt.toLocaleString('en-IN', {minimumFractionDigits:2})}</td>
-                        {parseFloat(inv.igstRate||0) > 0 && <>
+                        {toNum(inv.igstRate, 0) > 0 && <>
                           <td className="px-3 py-2 text-center text-slate-600">{inv.igstRate}%</td>
                           <td className="px-3 py-2 text-right text-slate-600">₹ {igstAmt.toLocaleString('en-IN', {minimumFractionDigits:2})}</td>
                         </>}
@@ -429,13 +430,13 @@ export default function InvoiceDetail() {
                   })}
                   <tr className="border-t-2 border-slate-200 bg-slate-50 font-bold">
                     <td className="px-3 py-2 text-slate-700">Total</td>
-                    <td className="px-3 py-2 text-right text-slate-700">₹ {parseFloat(inv.subtotal).toLocaleString('en-IN', {minimumFractionDigits:2})}</td>
-                    <td /><td className="px-3 py-2 text-right text-slate-700">₹ {parseFloat(inv.cgstAmount||0).toLocaleString('en-IN', {minimumFractionDigits:2})}</td>
-                    <td /><td className="px-3 py-2 text-right text-slate-700">₹ {parseFloat(inv.sgstAmount||0).toLocaleString('en-IN', {minimumFractionDigits:2})}</td>
-                    {parseFloat(inv.igstRate||0) > 0 && <>
-                      <td /><td className="px-3 py-2 text-right text-slate-700">₹ {parseFloat(inv.igstAmount||0).toLocaleString('en-IN', {minimumFractionDigits:2})}</td>
+                    <td className="px-3 py-2 text-right text-slate-700">₹ {toNum(inv.subtotal, 0).toLocaleString('en-IN', {minimumFractionDigits:2})}</td>
+                    <td /><td className="px-3 py-2 text-right text-slate-700">₹ {toNum(inv.cgstAmount, 0).toLocaleString('en-IN', {minimumFractionDigits:2})}</td>
+                    <td /><td className="px-3 py-2 text-right text-slate-700">₹ {toNum(inv.sgstAmount, 0).toLocaleString('en-IN', {minimumFractionDigits:2})}</td>
+                    {toNum(inv.igstRate, 0) > 0 && <>
+                      <td /><td className="px-3 py-2 text-right text-slate-700">₹ {toNum(inv.igstAmount, 0).toLocaleString('en-IN', {minimumFractionDigits:2})}</td>
                     </>}
-                    <td className="px-3 py-2 text-right text-indigo-700">₹ {(parseFloat(inv.cgstAmount||0)+parseFloat(inv.sgstAmount||0)+parseFloat(inv.igstAmount||0)).toLocaleString('en-IN', {minimumFractionDigits:2})}</td>
+                    <td className="px-3 py-2 text-right text-indigo-700">₹ {(toNum(inv.cgstAmount, 0)+toNum(inv.sgstAmount, 0)+toNum(inv.igstAmount, 0)).toLocaleString('en-IN', {minimumFractionDigits:2})}</td>
                   </tr>
                 </tbody>
               </table>

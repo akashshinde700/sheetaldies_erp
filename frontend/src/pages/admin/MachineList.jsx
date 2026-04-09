@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Search } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import api from '../../utils/api';
+import toast from 'react-hot-toast';
 
 export default function MachineList() {
   const [machines, setMachines] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [viewMachine, setViewMachine] = useState(null);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ code: '', name: '', type: '', make: '' });
 
@@ -21,7 +22,7 @@ export default function MachineList() {
       setMachines(response.data.data || []);
     } catch (error) {
       console.error('Error fetching machines:', error);
-      alert('Failed to load machines');
+      toast.error('Failed to load machines.');
     } finally {
       setLoading(false);
     }
@@ -30,7 +31,7 @@ export default function MachineList() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.code.trim() || !formData.name.trim()) {
-      alert('Code and Name are required');
+      toast.error('Code and name are required.');
       return;
     }
 
@@ -43,7 +44,7 @@ export default function MachineList() {
           make: formData.make,
           isActive: true,
         });
-        alert('Machine updated successfully');
+        toast.success('Machine updated successfully.');
       } else {
         await api.post('/machines', {
           code: formData.code,
@@ -51,7 +52,7 @@ export default function MachineList() {
           type: formData.type,
           make: formData.make,
         });
-        alert('Machine created successfully');
+        toast.success('Machine created successfully.');
       }
       setFormData({ code: '', name: '', type: '', make: '' });
       setEditingId(null);
@@ -59,7 +60,7 @@ export default function MachineList() {
       fetchMachines();
     } catch (error) {
       console.error('Error saving machine:', error);
-      alert(error.response?.data?.message || 'Failed to save machine');
+      toast.error(error.response?.data?.message || 'Failed to save machine.');
     }
   };
 
@@ -78,11 +79,11 @@ export default function MachineList() {
     if (!window.confirm('Are you sure?')) return;
     try {
       await api.delete(`/machines/${id}`);
-      alert('Machine deleted');
+      toast.success('Machine deleted.');
       fetchMachines();
     } catch (error) {
       console.error('Error deleting:', error);
-      alert('Failed to delete');
+      toast.error(error?.response?.data?.message || 'Failed to delete machine.');
     }
   };
 
@@ -93,7 +94,7 @@ export default function MachineList() {
   );
 
   return (
-    <div className="space-y-6 animate-slide-up w-full max-w-6xl mx-auto">
+    <div className="page-stack w-full space-y-6 animate-slide-up">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="page-title">Machines</h1>
@@ -110,7 +111,7 @@ export default function MachineList() {
           }}
           className="btn-primary shrink-0 inline-flex items-center gap-2"
         >
-          <Plus size={20} /> Add machine
+          <span className="material-symbols-outlined text-[20px]">add</span> Add machine
         </button>
       </div>
 
@@ -132,7 +133,7 @@ export default function MachineList() {
 
       <div className="card overflow-hidden">
         <div className="p-4 border-b border-slate-200/80 flex items-center gap-2 bg-slate-50/50">
-          <Search size={20} className="text-slate-400 shrink-0" />
+          <span className="material-symbols-outlined text-[20px] text-slate-400 shrink-0">search</span>
           <input type="text" placeholder="Search machines…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-1 form-input border-0 bg-transparent shadow-none focus:ring-0" />
         </div>
         {loading ? (
@@ -160,8 +161,9 @@ export default function MachineList() {
                     <td className="td text-slate-600">{machine.make || '—'}</td>
                     <td className="td">
                       <div className="flex justify-center gap-1">
-                        <button type="button" onClick={() => handleEdit(machine)} className="p-2 rounded-lg text-sky-800 hover:bg-sky-50" aria-label="Edit"><Edit2 size={18} /></button>
-                        <button type="button" onClick={() => handleDelete(machine.id)} className="p-2 rounded-lg text-rose-600 hover:bg-rose-50" aria-label="Delete"><Trash2 size={18} /></button>
+                        <button type="button" onClick={() => setViewMachine(machine)} className="p-2 rounded-lg text-slate-700 hover:bg-slate-100" aria-label="View"><span className="material-symbols-outlined text-[18px]">visibility</span></button>
+                        <button type="button" onClick={() => handleEdit(machine)} className="p-2 rounded-lg text-sky-800 hover:bg-sky-50" aria-label="Edit"><span className="material-symbols-outlined text-[18px]">edit</span></button>
+                        <button type="button" onClick={() => handleDelete(machine.id)} className="p-2 rounded-lg text-rose-600 hover:bg-rose-50" aria-label="Delete"><span className="material-symbols-outlined text-[18px]">delete</span></button>
                       </div>
                     </td>
                   </tr>
@@ -171,6 +173,23 @@ export default function MachineList() {
           </div>
         )}
       </div>
+
+      {viewMachine && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/50 p-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl border border-slate-200">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="text-base font-bold text-slate-800">Machine details</h3>
+              <button type="button" onClick={() => setViewMachine(null)} className="btn-ghost">Close</button>
+            </div>
+            <div className="p-5 grid grid-cols-2 gap-3 text-sm">
+              <div><p className="text-slate-400 text-xs">Code</p><p className="font-semibold">{viewMachine.code || '—'}</p></div>
+              <div><p className="text-slate-400 text-xs">Name</p><p className="font-semibold">{viewMachine.name || '—'}</p></div>
+              <div><p className="text-slate-400 text-xs">Type</p><p className="font-semibold">{viewMachine.type || '—'}</p></div>
+              <div><p className="text-slate-400 text-xs">Make</p><p className="font-semibold">{viewMachine.make || '—'}</p></div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

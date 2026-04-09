@@ -107,9 +107,9 @@ export default function Layout() {
               <span className="material-symbols-outlined text-[24px]">menu</span>
             </button>
 
-            <div className="hidden xl:flex flex-col min-w-0 pr-2 border-r border-slate-100 mr-1">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 leading-none">Sheetal Dies</span>
-              <span className="text-xs font-extrabold text-slate-800 font-headline leading-tight truncate max-w-[10rem]">ERP</span>
+            <div className="hidden xl:flex flex-col min-w-0 pr-2 border-r border-slate-200/80 mr-1">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 leading-none">Sheetal Dies</span>
+              <span className="text-xs font-extrabold text-slate-900 font-headline leading-tight truncate max-w-[10rem]">ERP</span>
             </div>
 
             <div className="w-9 h-9 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br from-sky-100 to-sky-50 border border-sky-200/90 shadow-sm flex items-center justify-center shrink-0 ring-1 ring-white/80">
@@ -126,13 +126,13 @@ export default function Layout() {
                 transition-all duration-200 focus-within:bg-white focus-within:border-sky-300/80 focus-within:ring-2 focus-within:ring-sky-400/25"
             >
               <label className="flex items-center w-full cursor-text">
-                <span className="material-symbols-outlined pl-3 text-slate-400 text-[18px] shrink-0" aria-hidden>
+                <span className="material-symbols-outlined pl-3 text-slate-500 text-[18px] shrink-0" aria-hidden>
                   search
                 </span>
                 <input
                   type="search"
                   placeholder="Search job cards, parties, invoices…"
-                  className="w-full min-w-0 py-2.5 pr-3 pl-2 bg-transparent border-0 text-sm text-slate-800
+                  className="w-full min-w-0 py-2.5 pr-3 pl-2 bg-transparent border-0 text-sm text-slate-900
                     placeholder:text-slate-400 focus:outline-none focus:ring-0"
                   aria-label="Quick search"
                 />
@@ -168,7 +168,7 @@ export default function Layout() {
                 <p className="text-xs font-semibold text-slate-900 leading-tight truncate max-w-[140px] md:max-w-[200px]">
                   {user?.name}
                 </p>
-                <p className="text-[10px] text-slate-500 mt-0.5 font-semibold uppercase tracking-wide">{user?.role}</p>
+                <p className="text-[10px] text-slate-600 mt-0.5 font-semibold uppercase tracking-wide">{user?.role}</p>
               </div>
             </div>
           </div>
@@ -178,7 +178,7 @@ export default function Layout() {
           className="flex-1 mt-[calc(3.75rem+env(safe-area-inset-top,0px))] px-3 xs:px-4 sm:px-5 md:px-6 lg:px-8
             py-4 sm:py-5 md:py-7 pb-8 sm:pb-10 overflow-x-hidden overflow-y-auto animate-fade-in safe-pb"
         >
-          <div className="max-w-[1600px] mx-auto w-full animate-slide-up">
+          <div className="w-full animate-slide-up">
             <Outlet />
           </div>
         </main>

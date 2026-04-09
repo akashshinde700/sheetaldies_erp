@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import SearchSelect from '../../components/SearchSelect';
+import { toInt, toNum } from '../../utils/normalize';
 
 const EMPTY_LINE = { description:'', material:'', hrc:'', woNo:'', hsnSac:'998898', quantity:'', unit:'KGS', weight:'', rate:'', amount:'', processTypeId:'', sourceChallanItemId:'' };
 
@@ -72,7 +73,7 @@ export default function InvoiceForm() {
       if (ch.items?.length > 0) {
         setLineItems(ch.items.map(it => {
           const line = (billRes.data.data?.lineStatus || []).find(x => x.challanItemId === it.id);
-          const dispatchQty = line ? line.remainingQty : parseFloat(it.quantity || 0);
+          const dispatchQty = line ? line.remainingQty : toNum(it.quantity, 0);
           return {
           description:   it.description || it.item?.name || '',
           material:      it.material    || '',
@@ -83,7 +84,7 @@ export default function InvoiceForm() {
           unit:          it.uom         || 'KGS',
           weight:        it.weight      ? String(it.weight) : '',
           rate:          String(it.rate),
-          amount:        String((dispatchQty * parseFloat(it.rate || 0)).toFixed(2)),
+          amount:        String((dispatchQty * toNum(it.rate, 0)).toFixed(2)),
           processTypeId: '',
           sourceChallanItemId: String(it.id),
         }}));
@@ -148,12 +149,12 @@ export default function InvoiceForm() {
       const arr = [...prev];
       arr[i] = { ...arr[i], [field]: val };
       if (field === 'quantity' || field === 'rate') {
-        const q = parseFloat(field === 'quantity' ? val : arr[i].quantity) || 0;
-        const r = parseFloat(field === 'rate'     ? val : arr[i].rate)     || 0;
+        const q = toNum(field === 'quantity' ? val : arr[i].quantity, 0);
+        const r = toNum(field === 'rate' ? val : arr[i].rate, 0);
         arr[i].amount = (q * r).toFixed(2);
       }
       if (field === 'processTypeId' && val) {
-        const proc = processes.find(p => p.id === parseInt(val));
+        const proc = processes.find(p => p.id === toInt(val));
         if (proc) {
           arr[i].description = proc.name;
           arr[i].hsnSac      = proc.hsnSacCode || '998898';
@@ -164,18 +165,18 @@ export default function InvoiceForm() {
     });
   };
 
-  const subtotal   = lineItems.reduce((s, it) => s + (parseFloat(it.amount) || 0), 0);
-  const cgst       = subtotal * (parseFloat(form.cgstRate) || 0) / 100;
-  const sgst       = subtotal * (parseFloat(form.sgstRate) || 0) / 100;
-  const igst       = subtotal * (parseFloat(form.igstRate) || 0) / 100;
+  const subtotal   = lineItems.reduce((s, it) => s + toNum(it.amount, 0), 0);
+  const cgst       = subtotal * toNum(form.cgstRate, 0) / 100;
+  const sgst       = subtotal * toNum(form.sgstRate, 0) / 100;
+  const igst       = subtotal * toNum(form.igstRate, 0) / 100;
   const total      = subtotal + cgst + sgst + igst;
-  const transport  = parseFloat(form.transportFreight) || 0;
-  const tcsAmt     = total * (parseFloat(form.tcsRate) || 0) / 100;
-  const extraAmt   = parseFloat(form.extraAmt) || 0;
+  const transport  = toNum(form.transportFreight, 0);
+  const tcsAmt     = total * toNum(form.tcsRate, 0) / 100;
+  const extraAmt   = toNum(form.extraAmt, 0);
   const grandTotal = total + transport + tcsAmt + extraAmt;
 
-  const alreadyInvoiced = challanHistory.reduce((s, inv) => s + parseFloat(inv.subtotal || 0), 0);
-  const challanSubtotal = challanInfo ? parseFloat(challanInfo.subtotal || 0) : 0;
+  const alreadyInvoiced = challanHistory.reduce((s, inv) => s + toNum(inv.subtotal, 0), 0);
+  const challanSubtotal = challanInfo ? toNum(challanInfo.subtotal, 0) : 0;
   const remaining       = challanSubtotal - alreadyInvoiced;
   const fullyInvoiced   = challanInfo && remaining <= 0.01;
   const wouldExceed     = challanInfo && subtotal > remaining + 0.01;
@@ -183,14 +184,14 @@ export default function InvoiceForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.fromPartyId || !form.toPartyId) { toast.error('From and To party are required.'); return; }
-    if (!lineItems.length || !lineItems.some(it => it.description && parseFloat(it.quantity) > 0 && parseFloat(it.rate) > 0)) {
+    if (!lineItems.length || !lineItems.some(it => it.description && toNum(it.quantity, 0) > 0 && toNum(it.rate, 0) > 0)) {
       toast.error('At least one line item with description, quantity and rate is required.'); return;
     }
     if (form.challanId) {
       for (const it of lineItems) {
         const mapped = remainingByChallanItem.get(String(it.sourceChallanItemId || ''));
         if (!mapped) { toast.error('Each line must be mapped to challan item for partial dispatch billing.'); return; }
-        if ((parseFloat(it.quantity) || 0) > mapped.remainingQty + 0.00001) {
+        if (toNum(it.quantity, 0) > mapped.remainingQty + 0.00001) {
           toast.error(`Line qty exceeds remaining challan qty (remaining ${mapped.remainingQty}).`);
           return;
         }
@@ -222,7 +223,7 @@ export default function InvoiceForm() {
   const PAY_BADGE = { PENDING:'bg-orange-100 text-orange-700', PARTIAL:'bg-sky-100 text-sky-700', PAID:'bg-emerald-100 text-emerald-700' };
 
   return (
-    <div className="max-w-5xl animate-slide-up">
+    <div className="page-stack w-full animate-slide-up">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Link to="/invoices"
@@ -257,7 +258,7 @@ export default function InvoiceForm() {
               onChange={v => handleChallanChange(v)}
               options={challans.map(c => ({
                 value: c.id,
-                label: `${c.challanNo} · ${c.toParty?.name || ''} · ${new Date(c.challanDate).toLocaleDateString('en-IN')} · ₹${parseFloat(c.totalValue || 0).toLocaleString('en-IN')}`,
+                label: `${c.challanNo} · ${c.toParty?.name || ''} · ${new Date(c.challanDate).toLocaleDateString('en-IN')} · ₹${toNum(c.totalValue, 0).toLocaleString('en-IN')}`,
               }))}
               placeholder="— No Challan (manual entry) —"
             />
@@ -300,7 +301,7 @@ export default function InvoiceForm() {
                   {challanHistory.map(inv => (
                     <div key={inv.id} className="flex items-center gap-3 text-[11px]">
                       <span className="font-mono text-slate-600">{inv.invoiceNo}</span>
-                      <span className="text-slate-500">₹ {parseFloat(inv.subtotal || 0).toLocaleString('en-IN')}</span>
+                      <span className="text-slate-500">₹ {toNum(inv.subtotal, 0).toLocaleString('en-IN')}</span>
                       <span className={`badge text-[10px] ${PAY_BADGE[inv.paymentStatus] || 'bg-slate-100 text-slate-600'}`}>{inv.paymentStatus}</span>
                       {inv.sentToTally && <span className="badge text-[10px] bg-violet-100 text-violet-700">TALLY</span>}
                     </div>
@@ -418,7 +419,7 @@ export default function InvoiceForm() {
                     className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white text-right focus:outline-none focus:ring-1 focus:ring-indigo-300 w-full" />
 
                   <p className="text-xs font-bold text-indigo-700 text-right whitespace-nowrap">
-                    {it.amount ? `₹ ${parseFloat(it.amount).toLocaleString('en-IN')}` : '—'}
+                    {it.amount ? `₹ ${toNum(it.amount, 0).toLocaleString('en-IN')}` : '—'}
                   </p>
 
                   <div className="flex justify-center">
@@ -475,7 +476,7 @@ export default function InvoiceForm() {
                     </div>
                   </div>
                   <div className="flex justify-end">
-                    <p className="text-xs font-bold text-indigo-700">{it.amount ? `₹ ${parseFloat(it.amount).toLocaleString('en-IN')}` : '—'}</p>
+                    <p className="text-xs font-bold text-indigo-700">{it.amount ? `₹ ${toNum(it.amount, 0).toLocaleString('en-IN')}` : '—'}</p>
                   </div>
                 </div>
 

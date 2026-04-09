@@ -1,8 +1,9 @@
 const nodemailer = require('nodemailer');
+const { toInt } = require('./normalize');
 
 const transporter = nodemailer.createTransport({
   host:   process.env.SMTP_HOST || 'smtp.gmail.com',
-  port:   parseInt(process.env.SMTP_PORT) || 587,
+  port:   toInt(process.env.SMTP_PORT, 587),
   secure: false,
   auth: {
     user: process.env.SMTP_USER,

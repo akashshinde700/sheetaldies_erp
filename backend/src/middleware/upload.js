@@ -1,6 +1,7 @@
 const multer = require('multer');
 const path   = require('path');
 const fs     = require('fs');
+const { toInt } = require('../utils/normalize');
 
 const uploadDir = path.join(__dirname, '../../uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -31,7 +32,7 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
   storage,
   fileFilter,
-  limits: { fileSize: parseInt(process.env.MAX_FILE_SIZE) || 5 * 1024 * 1024 }, // 5 MB
+  limits: { fileSize: toInt(process.env.MAX_FILE_SIZE, 5 * 1024 * 1024) }, // 5 MB
 });
 
 // Middleware for exactly 5 image slots named image1..image5

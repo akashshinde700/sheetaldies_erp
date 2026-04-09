@@ -1,4 +1,5 @@
 const prisma = require('../utils/prisma');
+const { toInt, toNum } = require('../utils/normalize');
 
 // Get all items with search
 exports.list = async (req, res) => {
@@ -31,7 +32,8 @@ exports.list = async (req, res) => {
 // Get single item
 exports.getOne = async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = toInt(req.params.id);
+    if (Number.isNaN(id)) return res.status(400).json({ success: false, message: 'Invalid ID.' });
 
     const item = await prisma.item.findUnique({ where: { id } });
 
@@ -63,7 +65,7 @@ exports.create = async (req, res) => {
         description: description || '',
         material: material || null,
         drawingNo: drawingNo || null,
-        weightKg: weightKg ? parseFloat(weightKg) : null,
+        weightKg: weightKg ? toNum(weightKg, null) : null,
       },
     });
 
@@ -80,7 +82,8 @@ exports.create = async (req, res) => {
 // Update item
 exports.update = async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = toInt(req.params.id);
+    if (Number.isNaN(id)) return res.status(400).json({ success: false, message: 'Invalid ID.' });
     const { partNo, unit, hsnCode, description, material, drawingNo, weightKg } = req.body;
 
     const item = await prisma.item.update({
@@ -92,7 +95,7 @@ exports.update = async (req, res) => {
         ...(description !== undefined && { description: description || '' }),
         ...(material !== undefined && { material: material || null }),
         ...(drawingNo !== undefined && { drawingNo: drawingNo || null }),
-        ...(weightKg !== undefined && { weightKg: weightKg ? parseFloat(weightKg) : null }),
+        ...(weightKg !== undefined && { weightKg: weightKg ? toNum(weightKg, null) : null }),
       },
     });
 
@@ -109,7 +112,8 @@ exports.update = async (req, res) => {
 // Delete item
 exports.delete = async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = toInt(req.params.id);
+    if (Number.isNaN(id)) return res.status(400).json({ success: false, message: 'Invalid ID.' });
 
     await prisma.item.delete({ where: { id } });
 

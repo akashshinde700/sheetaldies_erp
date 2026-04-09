@@ -80,7 +80,7 @@ export default function Login() {
               className={`flex-1 min-h-[48px] py-3 text-xs font-bold uppercase tracking-wider transition-all duration-200
                 ${mode === 'password'
                   ? 'text-sky-950 border-b-2 border-sky-600 bg-sky-50/80'
-                  : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600 active:bg-slate-100'}`}
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800 active:bg-slate-100'}`}
             >
               Password Login
             </button>
@@ -90,7 +90,7 @@ export default function Login() {
               className={`flex-1 min-h-[48px] py-3 text-xs font-bold uppercase tracking-wider transition-all duration-200
                 ${mode === 'otp'
                   ? 'text-sky-950 border-b-2 border-sky-600 bg-sky-50/80'
-                  : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600 active:bg-slate-100'}`}
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800 active:bg-slate-100'}`}
             >
               OTP Login
             </button>

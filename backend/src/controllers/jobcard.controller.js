@@ -1,12 +1,13 @@
 const prisma = require('../utils/prisma');
 const { jobCardStatusBody, JOB_CARD_STATUSES } = require('../validation/schemas');
+const { toInt, toNum } = require('../utils/normalize');
 
 // ── Job Card Status Transitions ───────────────────────────────
 // Valid transitions:
 // CREATED → IN_PROGRESS or ON_HOLD
 // IN_PROGRESS → SENT_FOR_JOBWORK  or ON_HOLD
 // SENT_FOR_JOBWORK → INSPECTION or ON_HOLD
-// INSPECTION → COMPLETED or ON_HOLD (must have inspection result PASS/CONDITIONAL)
+// INSPECTION → COMPLETED or SENT_FOR_JOBWORK or ON_HOLD (rework loop allowed)
 // ON_HOLD → CREATED or IN_PROGRESS or SENT_FOR_JOBWORK
 // COMPLETED → (no transitions allowed, only update remarks/endDate)
 const validateStatusTransition = async (currentStatus, newStatus, jobCardId) => {
@@ -17,7 +18,7 @@ const validateStatusTransition = async (currentStatus, newStatus, jobCardId) => 
     CREATED: ['IN_PROGRESS'],
     IN_PROGRESS: ['SENT_FOR_JOBWORK'],
     SENT_FOR_JOBWORK: ['INSPECTION'],
-    INSPECTION: ['COMPLETED'],
+    INSPECTION: ['COMPLETED', 'SENT_FOR_JOBWORK'],
     ON_HOLD: ['CREATED', 'IN_PROGRESS', 'SENT_FOR_JOBWORK'],
     COMPLETED: [],  // Terminal state
   };
@@ -29,7 +30,7 @@ const validateStatusTransition = async (currentStatus, newStatus, jobCardId) => 
   // If transitioning to INSPECTION, must have inspection record
   if (newStatus === 'INSPECTION') {
     const inspection = await prisma.incomingInspection.findFirst({
-      where: { jobCardId: parseInt(jobCardId) },
+      where: { jobCardId: toInt(jobCardId) },
     });
     if (!inspection) {
       return 'Inspection record not found. Cannot transition to INSPECTION state.';
@@ -39,7 +40,7 @@ const validateStatusTransition = async (currentStatus, newStatus, jobCardId) => 
   // If transitioning to COMPLETED, must have passed inspection
   if (newStatus === 'COMPLETED') {
     const inspection = await prisma.incomingInspection.findFirst({
-      where: { jobCardId: parseInt(jobCardId) },
+      where: { jobCardId: toInt(jobCardId) },
     });
     if (!inspection || (inspection.inspectionStatus !== 'PASS' && inspection.inspectionStatus !== 'CONDITIONAL')) {
       return 'Inspection must be PASS or CONDITIONAL before completing job card.';
@@ -47,6 +48,101 @@ const validateStatusTransition = async (currentStatus, newStatus, jobCardId) => 
   }
 
   return true;
+};
+
+const generateJobworkChallanNo = async (db = prisma) => {
+  const y = new Date().getFullYear().toString().slice(-2);
+  const yn = String(toInt(y, 0) + 1);
+  const prefix = `SDT/JW/${y}-${yn}/`;
+
+  const last = await db.jobworkChallan.findFirst({
+    where: { challanNo: { startsWith: prefix } },
+    orderBy: { challanNo: 'desc' },
+  });
+
+  let nextSerial = 1;
+  if (last) {
+    const parts = String(last.challanNo || '').split('/');
+    nextSerial = (toInt(parts[parts.length - 1], 0) || 0) + 1;
+  }
+
+  while (nextSerial < 9999) {
+    const challanNo = `${prefix}${String(nextSerial).padStart(4, '0')}`;
+    const exists = await db.jobworkChallan.findUnique({ where: { challanNo } });
+    if (!exists) return challanNo;
+    nextSerial += 1;
+  }
+  throw new Error('Could not generate unique jobwork challan number.');
+};
+
+const autoCreateJobworkChallanIfNeeded = async (jobCardId, createdById) => {
+  const id = toInt(jobCardId);
+  if (!id || !createdById) return;
+
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.jobworkChallan.findFirst({
+      where: { jobCardId: id },
+      select: { id: true },
+    });
+    if (existing) return;
+
+    const card = await tx.jobCard.findUnique({
+      where: { id },
+      include: { part: true },
+    });
+    if (!card) return;
+
+    const parties = await tx.party.findMany({
+      select: { id: true, name: true, partyType: true },
+      orderBy: { id: 'asc' },
+    });
+    if (!parties.length) return;
+
+    const lower = (v) => String(v || '').toLowerCase();
+    const companyParty = parties.find((p) => lower(p.name).includes('sheetal dies'))
+      || parties.find((p) => lower(p.name).includes('sheetal'))
+      || parties[0];
+    const vendorParty = parties.find((p) => p.partyType === 'VENDOR' && p.id !== companyParty.id)
+      || parties.find((p) => p.partyType === 'BOTH' && p.id !== companyParty.id)
+      || parties.find((p) => p.id !== companyParty.id)
+      || companyParty;
+    if (!companyParty || !vendorParty) return;
+
+    const qty = toNum(card.quantity, 0);
+    const challanNo = await generateJobworkChallanNo(tx);
+    await tx.jobworkChallan.create({
+      data: {
+        challanNo,
+        challanDate: new Date(),
+        jobCardId: card.id,
+        fromPartyId: companyParty.id,
+        toPartyId: vendorParty.id,
+        transportMode: 'Hand Delivery',
+        processingNotes: 'Auto-created from job card status SENT_FOR_JOBWORK.',
+        subtotal: 0,
+        handlingCharges: 0,
+        totalValue: 0,
+        grandTotal: 0,
+        createdById,
+        items: {
+          create: [{
+            itemId: card.partId || null,
+            description: card.part?.description || null,
+            drawingNo: card.drawingNo || card.part?.drawingNo || null,
+            material: card.dieMaterial || card.part?.material || null,
+            hrc: card.hrcRange || null,
+            woNo: card.jobCardNo || null,
+            hsnCode: card.part?.hsnCode || null,
+            quantity: qty > 0 ? qty : 1,
+            uom: card.part?.unit || 'NOS',
+            weight: card.totalWeight ? toNum(card.totalWeight, null) : null,
+            rate: 0,
+            amount: 0,
+          }],
+        },
+      },
+    });
+  }, { isolationLevel: 'Serializable' });
 };
 
 
@@ -97,12 +193,12 @@ exports.list = async (req, res) => {
           inspection: { select: { inspectionStatus: true } },
         },
         orderBy: { createdAt: 'desc' },
-        skip:  (parseInt(page) - 1) * parseInt(limit),
-        take:  parseInt(limit),
+        skip:  (toInt(page, 1) - 1) * toInt(limit, 20),
+        take:  toInt(limit, 20),
       }),
     ]);
 
-    res.json({ success: true, data: cards, meta: { total, page: parseInt(page), limit: parseInt(limit) } });
+    res.json({ success: true, data: cards, meta: { total, page: toInt(page, 1), limit: toInt(limit, 20) } });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error.' });
@@ -113,7 +209,7 @@ exports.list = async (req, res) => {
 exports.getOne = async (req, res) => {
   try {
     const card = await prisma.jobCard.findUnique({
-      where: { id: parseInt(req.params.id) },
+      where: { id: toInt(req.params.id) },
       include: {
         part:     true,
         machine:  true,
@@ -151,18 +247,18 @@ exports.create = async (req, res) => {
 
     const cardData = {
       jobCardNo,
-      partId:       parseInt(partId),
+      partId:       toInt(partId),
       dieNo:        dieNo        || null,
       yourNo:       yourNo       || null,
       heatNo:       heatNo       || null,
       dieMaterial:  dieMaterial  || null,
-      customerId:   customerId   ? parseInt(customerId) : null,
+      customerId:   customerId   ? toInt(customerId) : null,
       operationNo:  operationNo  || null,
       drawingNo:    drawingNo    || null,
-      machineId:    machineId    ? parseInt(machineId) : null,
+      machineId:    machineId    ? toInt(machineId) : null,
       operatorName: operatorName || null,
-      quantity:     parseInt(quantity),
-      totalWeight:  totalWeight  ? parseFloat(totalWeight) : null,
+      quantity:     toInt(quantity),
+      totalWeight:  totalWeight  ? toNum(totalWeight, null) : null,
       startDate:    startDate    ? new Date(startDate) : null,
       receivedDate: receivedDate ? new Date(receivedDate) : null,
       dueDate:      dueDate      ? new Date(dueDate) : null,
@@ -215,7 +311,7 @@ exports.create = async (req, res) => {
 // ── Update Job Card ───────────────────────────────────────────
 exports.update = async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = toInt(req.params.id);
     const { operationNo, drawingNo, machineId, operatorName, quantity, timeTaken, startDate, endDate, status, remarks,
             dieNo, yourNo, heatNo, dieMaterial, customerId, receivedDate, dueDate, totalWeight, operationMode,
             issueDate, issueBy, specInstrCert, specInstrMPIRep, specInstrGraph,
@@ -244,14 +340,14 @@ exports.update = async (req, res) => {
         ...(yourNo       !== undefined && { yourNo:      yourNo || null }),
         ...(heatNo       !== undefined && { heatNo:      heatNo || null }),
         ...(dieMaterial  !== undefined && { dieMaterial: dieMaterial || null }),
-        ...(customerId   !== undefined && { customerId:  customerId ? parseInt(customerId) : null }),
+        ...(customerId   !== undefined && { customerId:  customerId ? toInt(customerId) : null }),
         ...(operationNo  !== undefined && { operationNo }),
         ...(drawingNo    !== undefined && { drawingNo }),
-        ...(machineId    !== undefined && { machineId: machineId ? parseInt(machineId) : null }),
+        ...(machineId    !== undefined && { machineId: machineId ? toInt(machineId) : null }),
         ...(operatorName !== undefined && { operatorName }),
-        ...(quantity     !== undefined && { quantity: parseInt(quantity) }),
-        ...(totalWeight  !== undefined && { totalWeight: totalWeight ? parseFloat(totalWeight) : null }),
-        ...(timeTaken    !== undefined && { timeTaken: parseFloat(timeTaken) }),
+        ...(quantity     !== undefined && { quantity: toInt(quantity) }),
+        ...(totalWeight  !== undefined && { totalWeight: totalWeight ? toNum(totalWeight, null) : null }),
+        ...(timeTaken    !== undefined && { timeTaken: toNum(timeTaken, null) }),
         ...(startDate    !== undefined && { startDate:    startDate    ? new Date(startDate)    : null }),
         ...(receivedDate !== undefined && { receivedDate: receivedDate ? new Date(receivedDate) : null }),
         ...(dueDate      !== undefined && { dueDate:      dueDate      ? new Date(dueDate)      : null }),
@@ -293,6 +389,9 @@ exports.update = async (req, res) => {
       where: { id },
       data: updateData,
     });
+    if (updateData.status === 'SENT_FOR_JOBWORK') {
+      await autoCreateJobworkChallanIfNeeded(id, req.user.id);
+    }
     res.json({ success: true, data: card, message: 'Job card updated.' });
   } catch (err) {
     console.error(err);
@@ -303,7 +402,7 @@ exports.update = async (req, res) => {
 /** PATCH body: `{ status }` only — no multipart (for list / quick updates). */
 exports.patchStatus = async (req, res) => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = toInt(req.params.id);
     const { error, value } = jobCardStatusBody.validate(req.body);
     if (error) {
       return res.status(400).json({ success: false, message: error.details[0].message });
@@ -324,6 +423,9 @@ exports.patchStatus = async (req, res) => {
       where: { id },
       data: { status },
     });
+    if (status === 'SENT_FOR_JOBWORK') {
+      await autoCreateJobworkChallanIfNeeded(id, req.user.id);
+    }
     res.json({ success: true, data: card, message: 'Status updated.' });
   } catch (err) {
     console.error(err);

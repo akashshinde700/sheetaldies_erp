@@ -1,9 +1,10 @@
 const prisma = require('../utils/prisma');
 const { jobworkStatusBody } = require('../validation/schemas');
+const { toInt, toNum, asArray, toDateOrNull } = require('../utils/normalize');
 
 const generateChallanNo = async () => {
   const y  = new Date().getFullYear().toString().slice(-2);   // "26"
-  const yn = String(parseInt(y) + 1);                        // "27"
+  const yn = String(toInt(y, 0) + 1);                        // "27"
   const prefix = `SDT/JW/${y}-${yn}/`;
 
   // Find the highest existing serial for this financial year
@@ -15,7 +16,7 @@ const generateChallanNo = async () => {
   let nextSerial = 1;
   if (last) {
     const parts = last.challanNo.split('/');
-    const lastSerial = parseInt(parts[parts.length - 1]) || 0;
+    const lastSerial = toInt(parts[parts.length - 1], 0) || 0;
     nextSerial = lastSerial + 1;
   }
 
@@ -37,9 +38,11 @@ exports.list = async (req, res) => {
     const { status, page = 1, limit = 20, seedDemo } = req.query;
     const and = [];
     if (status) and.push({ status });
-    if (seedDemo === 'only') {
+    // Hide seeded demo challans by default; allow explicit override via query.
+    const demoMode = seedDemo === 'only' ? 'only' : (seedDemo === 'all' ? 'all' : 'hide');
+    if (demoMode === 'only') {
       and.push({ processingNotes: { contains: 'Seed: demo challan' } });
-    } else if (seedDemo === 'hide') {
+    } else if (demoMode === 'hide') {
       and.push({
         OR: [
           { processingNotes: null },
@@ -60,8 +63,8 @@ exports.list = async (req, res) => {
           createdBy: { select: { name: true } },
         },
         orderBy: { createdAt: 'desc' },
-        skip:  (parseInt(page) - 1) * parseInt(limit),
-        take:  parseInt(limit),
+        skip:  (toInt(page, 1) - 1) * toInt(limit, 20),
+        take:  toInt(limit, 20),
       }),
     ]);
     res.json({ success: true, data: challans, meta: { total } });
@@ -74,7 +77,7 @@ exports.list = async (req, res) => {
 exports.getOne = async (req, res) => {
   try {
     const challan = await prisma.jobworkChallan.findUnique({
-      where: { id: parseInt(req.params.id) },
+      where: { id: toInt(req.params.id) },
       include: {
         fromParty: true,
         toParty:   true,
@@ -105,17 +108,17 @@ exports.create = async (req, res) => {
     if (!fromPartyId || !toPartyId)
       return res.status(400).json({ success: false, message: 'From and To party are required.' });
 
-    const parsedItems = typeof items === 'string' ? JSON.parse(items) : (items || []);
-    const subtotal    = parsedItems.reduce((s, it) => s + parseFloat(it.amount || 0), 0);
-    const handling    = parseFloat(handlingCharges || 0);
+    const parsedItems = asArray(items);
+    const subtotal    = parsedItems.reduce((s, it) => s + toNum(it.amount, 0), 0);
+    const handling    = toNum(handlingCharges, 0);
     const total       = subtotal + handling;
-    const cgstRateVal = parseFloat(cgstRate || 0);
-    const sgstRateVal = parseFloat(sgstRate || 0);
-    const igstRateVal = parseFloat(igstRate || 0);
-    const cgstAmt     = parseFloat((total * cgstRateVal / 100).toFixed(2));
-    const sgstAmt     = parseFloat((total * sgstRateVal / 100).toFixed(2));
-    const igstAmt     = parseFloat((total * igstRateVal / 100).toFixed(2));
-    const grandTotalVal = parseFloat((total + cgstAmt + sgstAmt + igstAmt).toFixed(2));
+    const cgstRateVal = toNum(cgstRate, 0);
+    const sgstRateVal = toNum(sgstRate, 0);
+    const igstRateVal = toNum(igstRate, 0);
+    const cgstAmt     = toNum((total * cgstRateVal / 100).toFixed(2), 0);
+    const sgstAmt     = toNum((total * sgstRateVal / 100).toFixed(2), 0);
+    const igstAmt     = toNum((total * igstRateVal / 100).toFixed(2), 0);
+    const grandTotalVal = toNum((total + cgstAmt + sgstAmt + igstAmt).toFixed(2), 0);
 
     let challanNo;
     if (manualChallanNo && manualChallanNo.trim()) {
@@ -132,9 +135,9 @@ exports.create = async (req, res) => {
       data: {
         challanNo,
         challanDate:     new Date(challanDate || new Date()),
-        jobCardId:       jobCardId       ? parseInt(jobCardId)       : null,
-        fromPartyId:     parseInt(fromPartyId),
-        toPartyId:       parseInt(toPartyId),
+        jobCardId:       jobCardId       ? toInt(jobCardId)       : null,
+        fromPartyId:     toInt(fromPartyId),
+        toPartyId:       toInt(toPartyId),
         invoiceChNo:     invoiceChNo     || null,
         invoiceChDate:   invoiceChDate   ? new Date(invoiceChDate)   : null,
         transportMode:   transportMode   || 'Hand Delivery',
@@ -156,19 +159,19 @@ exports.create = async (req, res) => {
         createdById:     req.user.id,
         items: {
           create: parsedItems.map(it => ({
-            itemId:      it.itemId    ? parseInt(it.itemId) : null,
+            itemId:      it.itemId    ? toInt(it.itemId) : null,
             description: it.description || null,
             drawingNo:   it.drawingNo   || null,
             material:    it.material    || null,
             hrc:         it.hrc         || null,
             woNo:        it.woNo        || null,
             hsnCode:     it.hsnCode     || null,
-            quantity:    parseFloat(it.quantity),
-            qtyOut:      it.qtyOut      ? parseFloat(it.qtyOut) : null,
+            quantity:    toNum(it.quantity, 0),
+            qtyOut:      it.qtyOut      ? toNum(it.qtyOut, null) : null,
             uom:         it.uom         || 'KGS',
-            weight:      it.weight      ? parseFloat(it.weight) : null,
-            rate:        parseFloat(it.rate),
-            amount:      parseFloat(it.amount),
+            weight:      it.weight      ? toNum(it.weight, null) : null,
+            rate:        toNum(it.rate, 0),
+            amount:      toNum(it.amount, 0),
           })),
         },
       },
@@ -178,7 +181,7 @@ exports.create = async (req, res) => {
     // Update job card status
     if (jobCardId) {
       await prisma.jobCard.update({
-        where: { id: parseInt(jobCardId) },
+        where: { id: toInt(jobCardId) },
         data:  { status: 'SENT_FOR_JOBWORK' },
       });
     }
@@ -193,7 +196,7 @@ exports.create = async (req, res) => {
 // ── Full Update Challan ───────────────────────────────────────
 exports.update = async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = toInt(req.params.id);
     const {
       challanDate, jobCardId, fromPartyId, toPartyId,
       transportMode, vehicleNo, deliveryPerson, dispatchDate, dueDate, processingNotes,
@@ -202,16 +205,16 @@ exports.update = async (req, res) => {
     } = req.body;
 
     const parsedItems = typeof items === 'string' ? JSON.parse(items) : (items || []);
-    const subtotal    = parsedItems.reduce((s, it) => s + parseFloat(it.amount || 0), 0);
-    const handling    = parseFloat(handlingCharges || 0);
+    const subtotal    = parsedItems.reduce((s, it) => s + toNum(it.amount, 0), 0);
+    const handling    = toNum(handlingCharges, 0);
     const total       = subtotal + handling;
-    const cgstRateVal = parseFloat(cgstRate || 0);
-    const sgstRateVal = parseFloat(sgstRate || 0);
-    const igstRateVal = parseFloat(igstRate || 0);
-    const cgstAmt     = parseFloat((total * cgstRateVal / 100).toFixed(2));
-    const sgstAmt     = parseFloat((total * sgstRateVal / 100).toFixed(2));
-    const igstAmt     = parseFloat((total * igstRateVal / 100).toFixed(2));
-    const grandTotalVal = parseFloat((total + cgstAmt + sgstAmt + igstAmt).toFixed(2));
+    const cgstRateVal = toNum(cgstRate, 0);
+    const sgstRateVal = toNum(sgstRate, 0);
+    const igstRateVal = toNum(igstRate, 0);
+    const cgstAmt     = toNum((total * cgstRateVal / 100).toFixed(2), 0);
+    const sgstAmt     = toNum((total * sgstRateVal / 100).toFixed(2), 0);
+    const igstAmt     = toNum((total * igstRateVal / 100).toFixed(2), 0);
+    const grandTotalVal = toNum((total + cgstAmt + sgstAmt + igstAmt).toFixed(2), 0);
 
     // Delete old items and recreate
     await prisma.challanItem.deleteMany({ where: { challanId: id } });
@@ -220,9 +223,9 @@ exports.update = async (req, res) => {
       where: { id },
       data: {
         ...(challanDate      && { challanDate:     new Date(challanDate) }),
-        ...(jobCardId        !== undefined && { jobCardId:      jobCardId ? parseInt(jobCardId) : null }),
-        ...(fromPartyId      && { fromPartyId:     parseInt(fromPartyId) }),
-        ...(toPartyId        && { toPartyId:       parseInt(toPartyId) }),
+        ...(jobCardId        !== undefined && { jobCardId:      jobCardId ? toInt(jobCardId) : null }),
+        ...(fromPartyId      && { fromPartyId:     toInt(fromPartyId) }),
+        ...(toPartyId        && { toPartyId:       toInt(toPartyId) }),
         ...(transportMode    !== undefined && { transportMode }),
         ...(vehicleNo        !== undefined && { vehicleNo }),
         ...(deliveryPerson   !== undefined && { deliveryPerson }),
@@ -241,19 +244,19 @@ exports.update = async (req, res) => {
         grandTotal:      grandTotalVal,
         items: {
           create: parsedItems.map(it => ({
-            itemId:      it.itemId    ? parseInt(it.itemId) : null,
+            itemId:      it.itemId    ? toInt(it.itemId) : null,
             description: it.description || null,
             drawingNo:   it.drawingNo   || null,
             material:    it.material    || null,
             hrc:         it.hrc         || null,
             woNo:        it.woNo        || null,
             hsnCode:     it.hsnCode     || null,
-            quantity:    parseFloat(it.quantity),
-            qtyOut:      it.qtyOut      ? parseFloat(it.qtyOut) : null,
+            quantity:    toNum(it.quantity, 0),
+            qtyOut:      it.qtyOut      ? toNum(it.qtyOut, null) : null,
             uom:         it.uom         || 'KGS',
-            weight:      it.weight      ? parseFloat(it.weight) : null,
-            rate:        parseFloat(it.rate),
-            amount:      parseFloat(it.amount),
+            weight:      it.weight      ? toNum(it.weight, null) : null,
+            rate:        toNum(it.rate, 0),
+            amount:      toNum(it.amount, 0),
           })),
         },
       },
@@ -270,7 +273,7 @@ exports.update = async (req, res) => {
 // ── Update Challan status ─────────────────────────────────────
 exports.updateStatus = async (req, res) => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = toInt(req.params.id);
     const { error, value } = jobworkStatusBody.validate(req.body, { stripUnknown: true });
     if (error) {
       return res.status(400).json({ success: false, message: error.details[0].message });
@@ -281,12 +284,12 @@ exports.updateStatus = async (req, res) => {
       where: { id },
       data: {
         status,
-        ...(receivedDate    && { receivedDate:    new Date(receivedDate) }),
+        ...(toDateOrNull(receivedDate) && { receivedDate: toDateOrNull(receivedDate) }),
         ...(natureOfProcess && { natureOfProcess }),
-        ...(qtyReturned     && { qtyReturned:     parseInt(qtyReturned) }),
-        ...(reworkQty       && { reworkQty:       parseInt(reworkQty) }),
-        ...(scrapQtyKg      && { scrapQtyKg:      parseFloat(scrapQtyKg) }),
-        ...(scrapDetails    && { scrapDetails }),
+        ...(qtyReturned !== undefined && qtyReturned !== null && qtyReturned !== '' && { qtyReturned: toInt(qtyReturned) }),
+        ...(reworkQty !== undefined && reworkQty !== null && reworkQty !== '' && { reworkQty: toInt(reworkQty) }),
+        ...(scrapQtyKg !== undefined && scrapQtyKg !== null && scrapQtyKg !== '' && { scrapQtyKg: toNum(scrapQtyKg) }),
+        ...(scrapDetails && { scrapDetails }),
       },
     });
     res.json({ success: true, data: challan, message: 'Status updated.' });
@@ -317,8 +320,8 @@ exports.register = async (req, res) => {
           },
         },
         orderBy: { challanDate: 'desc' },
-        skip: (parseInt(page, 10) - 1) * parseInt(limit, 10),
-        take: parseInt(limit, 10),
+        skip: (toInt(page, 1) - 1) * toInt(limit, 10),
+        take: toInt(limit, 10),
       }),
     ]);
 
@@ -329,12 +332,12 @@ exports.register = async (req, res) => {
         for (const line of inv.items || []) {
           if (!line.sourceChallanItemId) continue;
           const prev = dispatchedQtyByItem.get(line.sourceChallanItemId) || 0;
-          dispatchedQtyByItem.set(line.sourceChallanItemId, prev + parseFloat(line.quantity || 0));
+          dispatchedQtyByItem.set(line.sourceChallanItemId, prev + toNum(line.quantity, 0));
         }
       }
 
       ch.items.forEach((it, idx) => {
-        const qty = parseFloat(it.quantity || 0);
+        const qty = toNum(it.quantity, 0);
         const dispatchQty = dispatchedQtyByItem.get(it.id) || 0;
         const balQty = Math.max(0, qty - dispatchQty);
         const deliveryPct = qty > 0 ? (dispatchQty / qty) * 100 : 0;
@@ -349,16 +352,16 @@ exports.register = async (req, res) => {
           challanDate: ch.challanDate,
           materialInDate: ch.receivedDate || ch.challanDate,
           qty,
-          weight: parseFloat(it.weight || 0),
+          weight: toNum(it.weight, 0),
           jobcardNo: ch.jobCard?.jobCardNo || '-',
           jobcardDate: ch.jobCard?.createdAt || null,
           invoiceNos: (ch.taxInvoices || []).map((x) => x.invoiceNo).join(', '),
           dispatchQty,
           dispatchDate: ch.dispatchDate || null,
           balQty,
-          velocity: parseFloat(velocity.toFixed(2)),
-          delPerfPct: parseFloat(perfPct.toFixed(2)),
-          deliveryPct: parseFloat(deliveryPct.toFixed(2)),
+          velocity: toNum(velocity.toFixed(2), 0),
+          delPerfPct: toNum(perfPct.toFixed(2), 0),
+          deliveryPct: toNum(deliveryPct.toFixed(2), 0),
           challanId: ch.id,
           challanItemId: it.id,
           itemDescription: it.description || '',
@@ -372,8 +375,8 @@ exports.register = async (req, res) => {
       meta: {
         totalChallans: total,
         rowCount: rows.length,
-        page: parseInt(page, 10),
-        limit: parseInt(limit, 10),
+        page: toInt(page, 1),
+        limit: toInt(limit, 10),
       },
     });
   } catch (err) {

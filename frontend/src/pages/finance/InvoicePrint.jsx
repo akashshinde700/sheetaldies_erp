@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
 
 function n(v) {
-  const x = typeof v === 'number' ? v : parseFloat(v);
+  const x = typeof v === 'number' ? v : Number(v);
   return Number.isFinite(x) ? x : 0;
 }
 

@@ -7,8 +7,12 @@ const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
 const router = express.Router();
+const auth = require('../middleware/auth');
+const { requireRole } = require('../middleware/role');
 
 const DEMO_DATA_DIR = path.join(__dirname, '../../uploads/demo_data');
+
+router.use(auth, requireRole('ADMIN'));
 
 // ─────────────────────────────────────────────────────────────────────────
 // GET /api/demo/images/catalog - Image Metadata Catalog

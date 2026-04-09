@@ -30,7 +30,7 @@ export default function CertDetail() {
   }, [id]);
 
   if (loading) return (
-    <div className="max-w-3xl space-y-4 animate-pulse">
+    <div className="page-stack w-full space-y-4 animate-pulse">
       <div className="h-8 bg-slate-200 rounded w-64" />
       <div className="h-40 bg-slate-100 rounded-xl" />
       <div className="h-32 bg-slate-100 rounded-xl" />
@@ -52,7 +52,7 @@ export default function CertDetail() {
   const images = [cert.image1, cert.image2, cert.image3, cert.image4, cert.image5].filter(Boolean);
 
   return (
-    <div className="max-w-3xl space-y-4 animate-slide-up">
+    <div className="page-stack w-full space-y-4 animate-slide-up">
 
       {/* Header */}
       <div className="flex items-center gap-3 flex-wrap">

@@ -1,12 +1,8 @@
 const prisma = require('../utils/prisma');
-
-const toInt = (v) => {
-  const n = typeof v === 'number' ? v : parseInt(v || 0, 10);
-  return Number.isFinite(n) ? n : null;
-};
+const { toInt, toNum } = require('../utils/normalize');
 
 const toDec = (v) => {
-  const n = typeof v === 'number' ? v : parseFloat(v);
+  const n = toNum(v, NaN);
   return Number.isFinite(n) ? n : null;
 };
 
@@ -94,15 +90,15 @@ exports.createSlot = async (req, res) => {
     if (!sameDay(st, planDate)) return res.status(400).json({ success: false, message: 'startTime must be on plan date.' });
     if (et <= st) return res.status(400).json({ success: false, message: 'endTime must be after startTime.' });
 
-    const ok = await validateNoOverlap({ planDayId: day.id, machineId: parseInt(machineId), startTime: st, endTime: et });
+    const ok = await validateNoOverlap({ planDayId: day.id, machineId: toInt(machineId), startTime: st, endTime: et });
     if (ok !== true) return res.status(400).json({ success: false, message: ok });
 
     const slot = await prisma.furnacePlanSlot.create({
       data: {
         planDayId: day.id,
-        machineId: parseInt(machineId),
-        jobCardId: jobCardId ? parseInt(jobCardId) : null,
-        processTypeId: processTypeId ? parseInt(processTypeId) : null,
+        machineId: toInt(machineId),
+        jobCardId: jobCardId ? toInt(jobCardId) : null,
+        processTypeId: processTypeId ? toInt(processTypeId) : null,
         stage: stage || 'HARDENING',
         startTime: st,
         endTime: et,
@@ -128,7 +124,8 @@ exports.createSlot = async (req, res) => {
 
 exports.updateSlot = async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = toInt(req.params.id);
+    if (Number.isNaN(id)) return res.status(400).json({ success: false, message: 'Invalid ID.' });
     const existing = await prisma.furnacePlanSlot.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ success: false, message: 'Slot not found.' });
 
@@ -141,16 +138,16 @@ exports.updateSlot = async (req, res) => {
     const et = endTime ? new Date(endTime) : existing.endTime;
     if (et <= st) return res.status(400).json({ success: false, message: 'endTime must be after startTime.' });
 
-    const mId = machineId ? parseInt(machineId) : existing.machineId;
+    const mId = machineId ? toInt(machineId) : existing.machineId;
     const ok = await validateNoOverlap({ planDayId: existing.planDayId, machineId: mId, startTime: st, endTime: et, excludeSlotId: id });
     if (ok !== true) return res.status(400).json({ success: false, message: ok });
 
     const slot = await prisma.furnacePlanSlot.update({
       where: { id },
       data: {
-        ...(machineId !== undefined && { machineId: parseInt(machineId) }),
-        ...(jobCardId !== undefined && { jobCardId: jobCardId ? parseInt(jobCardId) : null }),
-        ...(processTypeId !== undefined && { processTypeId: processTypeId ? parseInt(processTypeId) : null }),
+        ...(machineId !== undefined && { machineId: toInt(machineId) }),
+        ...(jobCardId !== undefined && { jobCardId: jobCardId ? toInt(jobCardId) : null }),
+        ...(processTypeId !== undefined && { processTypeId: processTypeId ? toInt(processTypeId) : null }),
         ...(stage !== undefined && { stage }),
         ...(startTime !== undefined && { startTime: st }),
         ...(endTime !== undefined && { endTime: et }),
@@ -176,7 +173,8 @@ exports.updateSlot = async (req, res) => {
 
 exports.deleteSlot = async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = toInt(req.params.id);
+    if (Number.isNaN(id)) return res.status(400).json({ success: false, message: 'Invalid ID.' });
     await prisma.furnacePlanSlot.delete({ where: { id } });
     res.json({ success: true, message: 'Slot deleted.' });
   } catch (err) {
