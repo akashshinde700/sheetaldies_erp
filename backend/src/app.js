@@ -63,11 +63,11 @@ const generalLimiter = rateLimit({
   },
 });
 
-// Strict limiter for sensitive operations: 20 requests per hour (production), higher in dev
+// Strict limiter for high-value operations: 500 requests per hour (production)
 const strictLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: process.env.NODE_ENV === 'production' ? 20 : 500,  // 500 per hour in development
-  message: { success: false, code: 'RATE_LIMIT_STRICT', message: 'Too many requests. Please try again in an hour.' },
+  max: process.env.NODE_ENV === 'production' ? 500 : 5000, 
+  message: { success: false, code: 'RATE_LIMIT_STRICT', message: 'Rate limit exceeded for high-value operations. Please try again later.' },
   standardHeaders: true,
 });
 
@@ -94,9 +94,10 @@ app.use('/api/', generalLimiter);
 app.use(auditLog);
 
 // ── Routes ────────────────────────────────────────────────────
-app.use('/api/auth',      require('./routes/auth.routes'));
-// Apply OTP limiter specifically to OTP endpoint
+// Apply OTP limiter specifically to OTP endpoint BEFORE auth routes
 app.post('/api/auth/request-otp', otpLimiter);
+
+app.use('/api/auth',      require('./routes/auth.routes'));
 app.use('/api/parties',   strictLimiter, require('./routes/party.routes'));
 app.use('/api/items',     strictLimiter, require('./routes/items.routes'));
 app.use('/api/machines',  require('./routes/machines.routes'));

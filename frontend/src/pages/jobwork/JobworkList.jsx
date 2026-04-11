@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { exportToExcel } from '../../utils/export';
+import { formatCurrency, formatDate } from '../../utils/formatters';
 import ListSearchInput from '../../components/ListSearchInput';
 
 const STATUS_OPTS = ['DRAFT', 'SENT', 'RECEIVED', 'COMPLETED', 'CANCELLED'];
@@ -106,7 +107,7 @@ export default function JobworkList() {
 
       const rows = allChallans.map(ch => ({
         'Challan No': ch.challanNo,
-        'Challan Date': ch.challanDate ? new Date(ch.challanDate).toLocaleDateString('en-IN') : '',
+        'Challan Date': formatDate(ch.challanDate),
         'From Party': ch.fromParty?.name || '',
         'To Party': ch.toParty?.name || '',
         'Job Card': ch.jobCard?.jobCardNo || ch.jobCard || '',
@@ -245,7 +246,7 @@ export default function JobworkList() {
                   <td className="td sticky left-0 z-[1] bg-white group-hover:bg-slate-50/90 shadow-[4px_0_12px_-8px_rgba(15,23,42,0.12)]">
                     <span className="text-xs font-bold text-indigo-600 font-mono">{ch.challanNo}</span>
                   </td>
-                  <td className="td text-slate-500">{new Date(ch.challanDate).toLocaleDateString('en-IN')}</td>
+                  <td className="td text-slate-500">{formatDate(ch.challanDate)}</td>
                   <td className="td text-slate-500 truncate max-w-[120px]">{ch.fromParty?.name || '—'}</td>
                   <td className="td font-medium text-slate-700 truncate max-w-[140px]">{ch.toParty?.name}</td>
                   <td className="td">
@@ -262,7 +263,7 @@ export default function JobworkList() {
                       {ch.items?.length || 0}
                     </span>
                   </td>
-                  <td className="td font-bold text-slate-800">₹ {Number(ch.totalValue || 0).toLocaleString('en-IN')}</td>
+                  <td className="td font-bold text-slate-800">{formatCurrency(ch.totalValue)}</td>
                   <td className="td min-w-[9.5rem]">
                     <label className="sr-only">Status for {ch.challanNo}</label>
                     <select

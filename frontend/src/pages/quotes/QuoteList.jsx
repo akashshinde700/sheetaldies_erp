@@ -4,6 +4,7 @@ import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import { Pagination } from '../../components/Pagination';
 import ListSearchInput from '../../components/ListSearchInput';
+import { formatCurrency, formatDate } from '../../utils/formatters';
 
 const STATUS_COLORS = {
   DRAFT: 'bg-gray-100 text-gray-800',
@@ -200,13 +201,13 @@ export default function QuoteList() {
                       </td>
                       <td className="px-4 py-3 text-slate-900">{quote.vendor?.name}</td>
                       <td className="px-4 py-3 text-slate-600">
-                        {new Date(quote.quoteDate).toLocaleDateString()}
+                        {formatDate(quote.quoteDate)}
                       </td>
                       <td className="px-4 py-3 text-slate-600">
-                        {quote.validUntil ? new Date(quote.validUntil).toLocaleDateString() : '-'}
+                        {formatDate(quote.validUntil)}
                       </td>
                       <td className="px-4 py-3 text-slate-900 font-medium">
-                        ₹{quote.totalAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        ₹{formatCurrency(quote.totalAmount)}
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${STATUS_COLORS[quote.status] || 'bg-gray-100 text-gray-800'}`}>

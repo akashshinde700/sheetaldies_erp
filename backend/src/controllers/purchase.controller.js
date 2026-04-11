@@ -46,7 +46,7 @@ const isUniqueViolation = (err) =>
   err && err.code === 'P2002';
 
 // ── List Purchase Orders ──────────────────────────────────────
-exports.list = async (req, res) => {
+exports.list = async (req, res, next) => {
   try {
     const { status = '', search = '', page = 1, limit = 20, fromDate, toDate } = req.query;
     const skip = (toInt(page, 1) - 1) * toInt(limit, 20);
@@ -120,13 +120,12 @@ exports.list = async (req, res) => {
 
     res.json({ success: true, data: orders, total, page: exportAll ? 1 : toInt(page, 1), limit: finalLimit });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to fetch purchase orders.' });
+    next(err);
   }
 };
 
 // ── Get Single PO ─────────────────────────────────────────────
-exports.getOne = async (req, res) => {
+exports.getOne = async (req, res, next) => {
   try {
     const id = toInt(req.params.id);
 
@@ -139,13 +138,12 @@ exports.getOne = async (req, res) => {
 
     res.json({ success: true, data: order });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Server error.' });
+    next(err);
   }
 };
 
 // ── Create PO ─────────────────────────────────────────────────
-exports.create = async (req, res) => {
+exports.create = async (req, res, next) => {
   try {
     const { vendorId, items, expectedDelivery, poDate, remarks } = req.body;
     const vendorIdInt = toInt(vendorId);
@@ -214,8 +212,7 @@ exports.create = async (req, res) => {
 
     res.status(201).json({ success: true, data: po, message: 'Purchase order created.' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to create PO.' });
+    next(err);
   }
 };
 

@@ -4,6 +4,7 @@ import api from '../../utils/api';
 import { exportToCsv, exportToExcel } from '../../utils/export';
 import toast from 'react-hot-toast';
 import ListSearchInput from '../../components/ListSearchInput';
+import { formatDate } from '../../utils/formatters';
 
 const escapeHtml = (value) =>
   String(value ?? '')
@@ -162,7 +163,7 @@ export default function InventoryView() {
 
   const exportMovementRows = useMemo(() => (
     movements.map((m) => ({
-      DateTime: new Date(m.createdAt).toLocaleString(),
+      DateTime: formatDate(m.createdAt, true),
       ItemCode: m.item?.partNo || `Item ${m.itemId}`,
       ItemDescription: m.item?.description || '',
       Source: m.source === 'GRN' ? 'GRN' : 'MANUAL',
@@ -197,7 +198,7 @@ export default function InventoryView() {
     }
     const rowsHtml = movements.map((m) => (
       `<tr>
-        <td>${escapeHtml(new Date(m.createdAt).toLocaleString())}</td>
+        <td>${escapeHtml(formatDate(m.createdAt, true))}</td>
         <td>${escapeHtml(m.item?.partNo || `Item ${m.itemId}`)}</td>
         <td>${escapeHtml(m.source === 'GRN' ? 'GRN' : 'MANUAL')}</td>
         <td style="text-align:right;">${escapeHtml(`${m.quantityChange >= 0 ? '+' : ''}${m.quantityChange}`)}</td>
@@ -222,7 +223,7 @@ export default function InventoryView() {
         </head>
         <body>
           <h1>Inventory Movement History</h1>
-          <p>Generated on ${new Date().toLocaleString()}</p>
+          <p>Generated on ${formatDate(new Date(), true)}</p>
           <table>
             <thead>
               <tr>
@@ -405,7 +406,7 @@ export default function InventoryView() {
                           </span>
                         </td>
                         <td className="td text-slate-500 text-xs">
-                          {item.lastRestockDate ? new Date(item.lastRestockDate).toLocaleDateString() : '—'}
+                          {formatDate(item.lastRestockDate)}
                         </td>
                       </tr>
                     );
@@ -518,7 +519,7 @@ export default function InventoryView() {
                 <tbody className="divide-y divide-slate-100">
                   {movements.map((m) => (
                     <tr key={m.id} className="tr">
-                      <td className="td text-xs text-slate-500">{new Date(m.createdAt).toLocaleString()}</td>
+                      <td className="td text-xs text-slate-500">{formatDate(m.createdAt, true)}</td>
                       <td className="td">
                         <div className="font-semibold text-slate-800">{m.item?.partNo || `Item ${m.itemId}`}</div>
                         <div className="text-xs text-slate-500">{m.item?.description || '—'}</div>

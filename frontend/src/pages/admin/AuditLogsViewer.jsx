@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import { formatDate } from '../../utils/formatters';
 
 export default function AuditLogsViewer() {
   const [logs, setLogs] = useState([]);
@@ -179,7 +180,7 @@ export default function AuditLogsViewer() {
                 <tbody className="divide-y divide-slate-100">
                   {logs.map((log, idx) => (
                     <tr key={idx} className="tr">
-                      <td className="td text-xs text-slate-600 whitespace-nowrap">{new Date(log.createdAt).toLocaleString()}</td>
+                      <td className="td text-xs text-slate-600 whitespace-nowrap">{formatDate(log.createdAt, true)}</td>
                       <td className="td font-medium text-slate-800">{log.user?.name || 'System'}</td>
                       <td className="td">
                         <span className={`badge font-semibold ${actionColors[log.action] || 'bg-slate-100 text-slate-700'}`}>{log.action}</span>
@@ -224,7 +225,7 @@ export default function AuditLogsViewer() {
                 <div className="space-y-2">
                   {(dashboard.last7Days || []).map((row, idx) => (
                     <div key={idx} className="flex justify-between items-center gap-2 p-2.5 rounded-lg bg-slate-50/80 border border-slate-100">
-                      <span className="text-sm text-slate-700">{new Date(row.date).toLocaleDateString()}</span>
+                      <span className="text-sm text-slate-700">{formatDate(row.date)}</span>
                       <span className="badge bg-violet-100 text-violet-900 tabular-nums">{row.count}</span>
                     </div>
                   ))}
@@ -272,7 +273,7 @@ export default function AuditLogsViewer() {
               <button type="button" onClick={() => setViewLog(null)} className="btn-ghost">Close</button>
             </div>
             <div className="p-5 grid grid-cols-2 gap-3 text-sm">
-              <div><p className="text-slate-400 text-xs">Time</p><p className="font-semibold">{new Date(viewLog.createdAt).toLocaleString()}</p></div>
+              <div><p className="text-slate-400 text-xs">Time</p><p className="font-semibold">{formatDate(viewLog.createdAt, true)}</p></div>
               <div><p className="text-slate-400 text-xs">Action</p><p className="font-semibold">{viewLog.action || '—'}</p></div>
               <div><p className="text-slate-400 text-xs">User</p><p className="font-semibold">{viewLog.user?.name || viewLog.userId || 'System'}</p></div>
               <div><p className="text-slate-400 text-xs">Table</p><p className="font-semibold">{viewLog.tableName || '—'}</p></div>

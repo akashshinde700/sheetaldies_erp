@@ -1,12 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../utils/api';
-
-function formatDate(d) {
-  if (!d) return '—';
-  const x = new Date(d);
-  return Number.isNaN(x.getTime()) ? '—' : x.toLocaleDateString('en-IN');
-}
+import { formatDate } from '../../utils/formatters';
 
 export default function VHTRunsheetList() {
   const [rows, setRows] = useState([]);

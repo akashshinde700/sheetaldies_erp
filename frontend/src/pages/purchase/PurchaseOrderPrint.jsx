@@ -1,11 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
-
-function formatCurrency(v) {
-  const x = typeof v === 'number' ? v : Number(String(v || '0').replace(/,/g, ''));
-  return (Number.isFinite(x) ? x : 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+import { formatCurrency, formatDate } from '../../utils/formatters';
 
 export default function PurchaseOrderPrint() {
   const { id } = useParams();
@@ -79,7 +75,7 @@ export default function PurchaseOrderPrint() {
               </div>
               <div className="space-y-1 text-xs font-black">
                 <p className="flex justify-end gap-4 text-slate-400">PO NO: <span className="text-slate-900 font-mono text-base">{po.poNumber}</span></p>
-                <p className="flex justify-end gap-4 text-slate-400">DATE: <span className="text-slate-900 font-mono">{new Date(po.poDate).toLocaleDateString('en-IN')}</span></p>
+                <p className="flex justify-end gap-4 text-slate-400">DATE: <span className="text-slate-900 font-mono">{formatDate(po.poDate)}</span></p>
               </div>
             </div>
           </div>
@@ -104,7 +100,7 @@ export default function PurchaseOrderPrint() {
               <div>
                 <p className="text-[9px] font-black text-slate-400 uppercase">EXPECTED DELIVERY BY</p>
                 <p className="text-lg font-black text-rose-600 font-mono italic">
-                  {po.expectedDelivery ? new Date(po.expectedDelivery).toLocaleDateString('en-IN') : 'URGENT'}
+                  {po.expectedDelivery ? formatDate(po.expectedDelivery) : 'URGENT'}
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -201,7 +197,7 @@ export default function PurchaseOrderPrint() {
         {/* Sub-footer */}
         <div className="p-4 bg-slate-900 flex justify-between items-center px-8">
           <p className="text-[9px] font-black text-white/40 uppercase tracking-widest">Computer Generated Purchase Order · ID: {po.id}</p>
-          <p className="text-[9px] font-black text-white/40 uppercase tracking-widest tabular-nums">TRANS: {new Date(po.createdAt).toLocaleString()}</p>
+          <p className="text-[9px] font-black text-white/40 uppercase tracking-widest tabular-nums">TRANS: {formatDate(po.createdAt, true)}</p>
         </div>
       </div>
       

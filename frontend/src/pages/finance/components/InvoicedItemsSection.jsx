@@ -1,6 +1,7 @@
 import React from 'react';
 import SearchSelect from '../../../components/SearchSelect';
 import { toNum } from '../../../utils/normalize';
+import { formatCurrency } from '../../../utils/formatters';
 
 export default function InvoicedItemsSection({ 
   lineItems, setLineItems, processes, updateLine, challanInfo, EMPTY_LINE, remainingByChallanItem 
@@ -54,7 +55,7 @@ export default function InvoicedItemsSection({
                 placeholder="0.000"
                 className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white text-right focus:outline-none focus:ring-1 focus:ring-indigo-300 w-full" />
               <p className="text-xs font-bold text-indigo-700 text-right whitespace-nowrap">
-                {it.amount ? `₹ ${toNum(it.amount, 0).toLocaleString('en-IN')}` : '—'}
+                {it.amount ? formatCurrency(toNum(it.amount, 0)) : '—'}
               </p>
               <div className="flex justify-center">
                 {lineItems.length > 1 && (
@@ -109,7 +110,7 @@ export default function InvoicedItemsSection({
                 </div>
               </div>
               <div className="flex justify-end">
-                <p className="text-xs font-bold text-indigo-700">{it.amount ? `₹ ${toNum(it.amount, 0).toLocaleString('en-IN')}` : '—'}</p>
+                <p className="text-xs font-bold text-indigo-700">{it.amount ? formatCurrency(toNum(it.amount, 0)) : '—'}</p>
               </div>
             </div>
 

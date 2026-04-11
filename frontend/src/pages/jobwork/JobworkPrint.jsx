@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
+import { formatDate, formatCurrency } from '../../utils/formatters';
 
 export default function JobworkPrint() {
   const { id } = useParams();
@@ -75,8 +76,9 @@ export default function JobworkPrint() {
               </div>
               <div className="text-xs space-y-1 font-bold">
                 <div className="flex justify-end gap-3 text-slate-500">Challan No: <span className="text-slate-900 font-mono">{challan.challanNo}</span></div>
-                <div className="flex justify-end gap-3 text-slate-500">Date: <span className="text-slate-900 font-mono">{new Date(challan.challanDate).toLocaleDateString('en-IN')}</span></div>
-                <div className="flex justify-end gap-3 text-slate-500">P.O. Ref: <span className="text-slate-900 font-mono uppercase">{challan.poRef || '—'}</span></div>
+                <div className="flex justify-end gap-3 text-slate-500">Date: <span className="text-slate-900 font-mono">{formatDate(challan.challanDate)}</span></div>
+                <div className="flex justify-end gap-3 text-slate-500 font-bold uppercase">Linked J.C.: <span className="text-indigo-700 font-mono">{challan.jobCard?.jobCardNo || '—'}</span></div>
+                <div className="flex justify-end gap-3 text-slate-500">Inv/Ch Ref: <span className="text-slate-900 font-mono uppercase">{challan.invoiceChNo || '—'}</span></div>
               </div>
             </div>
           </div>
@@ -107,11 +109,11 @@ export default function JobworkPrint() {
               </div>
               <div>
                 <p className="text-[9px] font-black text-slate-400 uppercase">Due Date</p>
-                <p className="text-[11px] font-bold text-slate-900 uppercase">{challan.dueDate ? new Date(challan.dueDate).toLocaleDateString('en-IN') : '—'}</p>
+                <p className="text-[11px] font-bold text-slate-900 uppercase">{formatDate(challan.dueDate)}</p>
               </div>
               <div>
-                <p className="text-[9px] font-black text-slate-400 uppercase">Through</p>
-                <p className="text-[11px] font-bold text-slate-900 uppercase">{challan.dispatchedThrough || 'SELF'}</p>
+                <p className="text-[9px] font-black text-slate-400 uppercase">Received By / Person</p>
+                <p className="text-[11px] font-bold text-slate-900 uppercase">{challan.deliveryPerson || '—'}</p>
               </div>
             </div>
           </div>
@@ -134,7 +136,7 @@ export default function JobworkPrint() {
                 <tr key={it.id} className="text-[11px] border-b border-slate-200">
                   <td className="p-3 text-center font-bold text-slate-400 border-r border-slate-200">{idx + 1}</td>
                   <td className="p-3 border-r border-slate-200 font-bold">
-                    <div className="text-slate-900 uppercase">{it.description}</div>
+                    <div className="text-slate-900 uppercase">{it.description || it.item?.description || '—'}</div>
                     <div className="text-[9px] text-slate-400 font-black flex gap-3 mt-0.5 uppercase">
                       <span>MAT: {it.material || '—'}</span>
                       <span>HRC: {it.hrc || '—'}</span>
@@ -166,16 +168,48 @@ export default function JobworkPrint() {
                   {challan.items?.reduce((s, it) => s + (it.quantity || 0), 0)}
                 </td>
                 <td className="p-3 text-right font-mono text-sm border-r border-slate-200 text-indigo-900">
-                  {challan.items?.reduce((s, it) => s + (it.weight || 0), 0).toFixed(3)}
+                  {challan.items?.reduce((s, it) => s + (Number(it.weight) || 0), 0).toFixed(3)}
                 </td>
                 <td className="p-3 text-center text-[10px] text-slate-400">NET</td>
               </tr>
+              {challan.totalValue > 0 && (
+                <>
+                  <tr className="text-[11px] font-bold">
+                    <td colSpan={5} className="p-2 text-right border-r border-slate-100 uppercase text-slate-500">Subtotal (Before Tax)</td>
+                    <td className="p-2 text-right font-mono">{formatCurrency(challan.totalValue)}</td>
+                  </tr>
+                  {(challan.cgstAmount > 0 || challan.sgstAmount > 0) && (
+                    <tr className="text-[11px] font-bold">
+                      <td colSpan={5} className="p-2 text-right border-r border-slate-100 uppercase text-slate-500">GST (CGST+SGST)</td>
+                      <td className="p-2 text-right font-mono">{formatCurrency((challan.cgstAmount || 0) + (challan.sgstAmount || 0))}</td>
+                    </tr>
+                  )}
+                  {challan.igstAmount > 0 && (
+                    <tr className="text-[11px] font-bold">
+                      <td colSpan={5} className="p-2 text-right border-r border-slate-100 uppercase text-slate-500">IGST</td>
+                      <td className="p-2 text-right font-mono">{formatCurrency(challan.igstAmount)}</td>
+                    </tr>
+                  )}
+                  <tr className="text-[11px] font-black bg-indigo-50/30">
+                    <td colSpan={5} className="p-3 text-right border-r border-slate-100 uppercase tracking-widest text-indigo-900">Grand Total</td>
+                    <td className="p-3 text-right font-mono text-sm text-indigo-900 border-t border-indigo-200">{formatCurrency(challan.grandTotal || challan.totalValue)}</td>
+                  </tr>
+                </>
+              )}
             </tfoot>
           </table>
         </div>
 
         <div className="grid grid-cols-2 border-t-2 border-slate-900 border-b border-slate-900">
-          <div className="p-6 border-r border-slate-900 space-y-6">
+          <div className="p-6 border-r border-slate-900 space-y-4">
+            {challan.processingNotes && (
+              <div className="space-y-1 mb-4">
+                <h4 className="text-[9px] font-black text-indigo-700 uppercase tracking-widest">PROCESSING NOTES / INSTRUCTIONS</h4>
+                <div className="text-[10px] text-slate-700 font-bold bg-slate-50 p-2 border border-slate-200 rounded leading-relaxed italic">
+                  {challan.processingNotes}
+                </div>
+              </div>
+            )}
             <div className="space-y-1">
               <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest">TERMS & CONDITIONS</h4>
               <ul className="text-[9px] text-slate-500 font-bold space-y-1 list-disc pl-3">
@@ -184,14 +218,12 @@ export default function JobworkPrint() {
                 <li>Return material within dynamic specified duration.</li>
               </ul>
             </div>
-            <div className="pt-4 h-24 flex items-end">
-              <div className="border-b border-slate-300 w-full text-[10px] font-bold text-slate-400 uppercase pb-1">RECEIVER'S SIGNATURE & SEAL</div>
-            </div>
           </div>
           <div className="p-6 flex flex-col justify-between">
             <div className="text-right">
               <p className="text-[9px] font-black text-slate-400 uppercase">FOR OFFICE USE ONLY</p>
               <p className="text-[10px] font-bold text-slate-800 uppercase mt-2">Prepared by: Sheetal Dies Ops Team</p>
+              {challan.createdBy?.name && <p className="text-[9px] text-slate-500 mt-1 uppercase">Issued by: {challan.createdBy.name}</p>}
             </div>
             <div className="text-right pt-6">
               <p className="text-xs font-black text-slate-900 uppercase">FOR {challan.fromParty?.name}</p>
@@ -203,7 +235,7 @@ export default function JobworkPrint() {
 
         <div className="p-4 bg-slate-50 flex justify-between items-center">
           <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Computer Generated Challan · SHEETAL DIES ERP · V2.0</p>
-          <p className="text-[8px] font-black text-slate-400 uppercase tabular-nums">Printed on: {new Date().toLocaleString('en-IN')}</p>
+          <p className="text-[8px] font-black text-slate-400 uppercase tabular-nums">Printed on: {formatDate(new Date(), true)}</p>
         </div>
       </div>
     </div>

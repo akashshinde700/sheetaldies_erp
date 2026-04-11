@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import { formatDate } from '../../utils/formatters';
 import ListSearchInput from '../../components/ListSearchInput';
 
 export default function DispatchChallanList() {
@@ -134,7 +135,7 @@ export default function DispatchChallanList() {
                     </td>
                     <td className="td text-slate-600">{challan.itemCount || 0} items</td>
                     <td className="td text-slate-600">
-                      {challan.challanDate ? new Date(challan.challanDate).toLocaleDateString('en-IN') : '—'}
+                      {formatDate(challan.challanDate)}
                     </td>
                     <td className="td">
                       <span className={`badge ${getStatusColor(challan.status)}`}>{challan.status}</span>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatCurrency } from '../../../utils/formatters';
 
 export default function InvoiceTaxTotalsSection({ 
   form, setForm, subtotal, cgst, sgst, igst, tcsAmt, grandTotal 
@@ -9,7 +10,7 @@ export default function InvoiceTaxTotalsSection({
         <div className="w-full max-w-sm 3xl:max-w-md space-y-2 text-sm">
           <div className="flex justify-between">
             <span className="text-slate-500">Subtotal</span>
-            <span className="font-semibold text-slate-700">₹ {subtotal.toLocaleString('en-IN', { minimumFractionDigits:2 })}</span>
+            <span className="font-semibold text-slate-700">{formatCurrency(subtotal)}</span>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-slate-500">Transport / Freight</span>
@@ -29,7 +30,7 @@ export default function InvoiceTaxTotalsSection({
                 <input type="number" min="0" step="0.01" value={form[key]}
                   onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
                   className="w-14 border border-slate-200 rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-300" />
-                <span className="text-slate-500 w-28 text-right">₹ {amt.toLocaleString('en-IN', { minimumFractionDigits:2 })}</span>
+                <span className="text-slate-500 w-28 text-right">{formatCurrency(amt)}</span>
               </div>
             </div>
           ))}
@@ -41,7 +42,7 @@ export default function InvoiceTaxTotalsSection({
           </div>
           <div className="flex justify-between font-extrabold text-base border-t border-slate-200 pt-2.5">
             <span className="text-slate-800">Grand Total</span>
-            <span className="text-indigo-700">₹ {grandTotal.toLocaleString('en-IN', { minimumFractionDigits:2 })}</span>
+            <span className="text-indigo-700">{formatCurrency(grandTotal)}</span>
           </div>
         </div>
       </div>

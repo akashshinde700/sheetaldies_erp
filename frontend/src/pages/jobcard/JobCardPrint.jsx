@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
+import { formatDate } from '../../utils/formatters';
 
 export default function JobCardPrint() {
   const { id } = useParams();
@@ -78,8 +79,8 @@ export default function JobCardPrint() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">PART NO</p>
-                <p className="text-sm font-black text-indigo-700 font-mono italic">{jc.part?.partNo || '—'}</p>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">PART NO / DIE NO</p>
+              <p className="text-sm font-black text-indigo-700 font-mono italic">{jc.dieNo || jc.part?.partNo || '—'}</p>
               </div>
               <div>
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">DRAWING NO</p>
@@ -91,11 +92,11 @@ export default function JobCardPrint() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">JOB DATE</p>
-                <p className="text-sm font-black text-slate-800 font-mono">{new Date(jc.createdAt).toLocaleDateString('en-IN')}</p>
+                <p className="text-sm font-black text-slate-800 font-mono">{formatDate(jc.createdAt)}</p>
               </div>
               <div>
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">TARGET DATE</p>
-                <p className="text-sm font-black text-rose-600 font-mono">{jc.dueDate ? new Date(jc.dueDate).toLocaleDateString('en-IN') : '—'}</p>
+                <p className="text-sm font-black text-rose-600 font-mono">{formatDate(jc.dueDate)}</p>
               </div>
             </div>
             <div>
@@ -111,11 +112,11 @@ export default function JobCardPrint() {
           <div className="grid grid-cols-4 gap-6 text-center">
             <div className="border-r border-slate-100 last:border-0 pr-4 last:pr-0">
               <p className="text-[9px] font-black text-slate-400 uppercase">DIE MATERIAL</p>
-              <p className="text-sm font-black text-slate-900 uppercase">D2</p>
+              <p className="text-sm font-black text-slate-900 uppercase">{jc.dieMaterial || jc.part?.material || '—'}</p>
             </div>
             <div className="border-r border-slate-100 last:border-0 px-4 last:pr-0">
               <p className="text-[9px] font-black text-slate-400 uppercase">HARDNESS REQ.</p>
-              <p className="text-sm font-black text-slate-900">{jc.hardnessMin}-{jc.hardnessMax} HRC</p>
+              <p className="text-sm font-black text-slate-900">{jc.hrcRange || (jc.hardnessMin ? `${jc.hardnessMin}-${jc.hardnessMax} HRC` : '—')}</p>
             </div>
             <div className="border-r border-slate-100 last:border-0 px-4 last:pr-0">
               <p className="text-[9px] font-black text-slate-400 uppercase">QTY (PCS)</p>
@@ -142,17 +143,20 @@ export default function JobCardPrint() {
               </tr>
             </thead>
             <tbody>
-              {[
-                'Incoming Inspection',
-                'Vacuum Hardening',
-                'Tempering - Cycle 1',
-                'Tempering - Cycle 2',
-                'Final Inspection',
-                'Quality Certification',
-              ].map((op, idx) => (
-                <tr key={op} className="border-b border-slate-50">
+              {(jc.inspection?.heatProcesses?.length > 0 
+                ? jc.inspection.heatProcesses.map(hp => hp.processType?.name || hp.equipment || 'Process')
+                : [
+                    'Incoming Inspection',
+                    'Vacuum Hardening',
+                    'Tempering - Cycle 1',
+                    'Tempering - Cycle 2',
+                    'Final Inspection',
+                    'Quality Certification',
+                  ]
+              ).map((op, idx) => (
+                <tr key={`${op}-${idx}`} className="border-b border-slate-50">
                   <td className="p-4 text-center text-slate-300 font-mono">{idx + 1}</td>
-                  <td className="p-4 text-slate-900 uppercase">{op}</td>
+                  <td className="p-4 text-slate-900 uppercase font-black">{op}</td>
                   <td className="p-4 border-l border-slate-50"></td>
                   <td className="p-4 border-l border-slate-50 border-r"></td>
                   <td className="p-4"></td>
@@ -171,6 +175,25 @@ export default function JobCardPrint() {
             </tbody>
           </table>
         </div>
+
+        {/* Visual Documentation (New Section) */}
+        {(jc.image1 || jc.image2 || jc.image3 || jc.image4 || jc.image5) && (
+          <div className="p-5 border-b-2 border-slate-900 page-break-before-auto">
+            <h3 className="text-[11px] font-black text-slate-900 bg-slate-100 px-3 py-1.5 inline-block rounded mb-4 tracking-widest border border-slate-200 uppercase">Visual Documentation / Part Orientation</h3>
+            <div className="grid grid-cols-3 gap-2">
+              {[jc.image1, jc.image2, jc.image3, jc.image4, jc.image5].filter(Boolean).map((img, idx) => (
+                <div key={idx} className="aspect-video border-2 border-slate-100 rounded-lg overflow-hidden flex items-center justify-center bg-slate-50">
+                  <img 
+                    src={img.startsWith('http') ? img : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${img}`} 
+                    alt={`Part Reference ${idx + 1}`}
+                    className="max-w-full max-h-full object-contain"
+                  />
+                </div>
+              ))}
+            </div>
+            <p className="text-[8px] text-slate-400 mt-2 italic font-bold">Note: Photos provided for identification and critical orientation reference only.</p>
+          </div>
+        )}
 
         {/* Footer Area */}
         <div className="grid grid-cols-2 bg-slate-50 border-t-2 border-slate-900">
@@ -202,7 +225,7 @@ export default function JobCardPrint() {
 
         <div className="p-3 bg-slate-900 flex justify-between items-center px-6">
           <p className="text-[9px] font-black text-white/50 uppercase tracking-widest">Job Card · Reference ID: {jc.id}</p>
-          <p className="text-[9px] font-black text-white/50 uppercase tracking-widest">SHEETAL DIES ERP · {new Date().toLocaleDateString()}</p>
+          <p className="text-[9px] font-black text-white/50 uppercase tracking-widest">SHEETAL DIES ERP · {formatDate(new Date())}</p>
         </div>
       </div>
       

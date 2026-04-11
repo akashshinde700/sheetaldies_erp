@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import { formatDate } from '../../utils/formatters';
 
 export default function ManufacturingReports() {
   const [utilization, setUtilization] = useState([]);
@@ -518,7 +519,7 @@ export default function ManufacturingReports() {
               </div>
 
               <p className="text-[11px] text-slate-500 mt-3">
-                Legend: A Loading/Unloading · B Cycle Preparation · C Waiting Material · D Preventive · E Breakdown · F No Power · g No Material
+                Legend: A Loading/Unloading · B Cycle Preparation · C Waiting Material · D Preventive · E Breakdown · F No Power · G No Material
               </p>
             </div>
           )}
@@ -601,7 +602,7 @@ export default function ManufacturingReports() {
               <tbody>
                 {idleTime.shifts.map((shift, idx) => (
                   <tr key={idx} className="border-b hover:bg-slate-50/90">
-                    <td className="px-4 py-2">{new Date(shift.shiftDate).toLocaleDateString()}</td>
+                    <td className="px-4 py-2">{formatDate(shift.shiftDate)}</td>
                     <td className="px-4 py-2">{shift.machine}</td>
                     <td className="px-4 py-2">Shift {shift.shiftNumber}</td>
                     <td className="px-4 py-2 text-sm text-slate-600">{shift.reason}</td>
@@ -632,7 +633,7 @@ export default function ManufacturingReports() {
                   {shifts.slice(0, 10).map((shift, idx) => (
                     <tr key={idx} className="border-b hover:bg-slate-50/90">
                       <td className="px-4 py-2">
-                        {shift.plan?.planDate ? new Date(shift.plan.planDate).toLocaleDateString() : '—'}
+                        {formatDate(shift.plan?.planDate)}
                       </td>
                       <td className="px-4 py-2 text-center">Shift {shift.shiftNumber}</td>
                       <td className="px-4 py-2">{shift.machineryAssigned}</td>

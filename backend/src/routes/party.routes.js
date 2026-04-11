@@ -120,12 +120,12 @@ router.post('/', auth, requireRole('MANAGER'), async (req, res) => {
   } catch (err) {
     if (err.code === 'P2002') {
       if (isGstinUniqueViolation(err))
-        return res.status(400).json({ success: false, message: 'This GSTIN is already registered for another party.' });
+        return res.status(400).json({ success: false, code: 'DUPLICATE_GSTIN', message: 'This GSTIN is already registered for another party.' });
       if (isPanUniqueViolation(err))
-        return res.status(400).json({ success: false, message: 'This PAN is already registered for another party.' });
-      return res.status(400).json({ success: false, message: 'Party Code already exists.' });
+        return res.status(400).json({ success: false, code: 'DUPLICATE_PAN', message: 'This PAN is already registered for another party.' });
+      return res.status(400).json({ success: false, code: 'DUPLICATE_CODE', message: 'Party Code already exists.' });
     }
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ success: false, code: 'ERR_INTERNAL', message: err.message });
   }
 });
 
@@ -139,12 +139,12 @@ router.put('/:id', auth, requireRole('MANAGER'), async (req, res) => {
   } catch (err) {
     if (err.code === 'P2002') {
       if (isGstinUniqueViolation(err))
-        return res.status(400).json({ success: false, message: 'This GSTIN is already registered for another party.' });
+        return res.status(400).json({ success: false, code: 'DUPLICATE_GSTIN', message: 'This GSTIN is already registered for another party.' });
       if (isPanUniqueViolation(err))
-        return res.status(400).json({ success: false, message: 'This PAN is already registered for another party.' });
-      return res.status(400).json({ success: false, message: 'Party Code already exists.' });
+        return res.status(400).json({ success: false, code: 'DUPLICATE_PAN', message: 'This PAN is already registered for another party.' });
+      return res.status(400).json({ success: false, code: 'DUPLICATE_CODE', message: 'Party Code already exists.' });
     }
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ success: false, code: 'ERR_INTERNAL', message: err.message });
   }
 });
 

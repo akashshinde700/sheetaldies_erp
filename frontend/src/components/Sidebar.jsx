@@ -7,12 +7,11 @@ const NAV_MAIN = [
   { label: 'Job Work',     icon: 'engineering',  to: '/jobwork' },
   { label: 'Inward / Outward', icon: 'import_export', to: '/jobwork/register' },
   { label: 'Certificates', icon: 'verified',     to: '/quality/certificates' },
-  { label: 'Invoices',     icon: 'receipt_long', to: '/invoices' },
-  /* One entry: highlights on /analytics and /analytics/advanced (prefix match) */
-  { label: 'Analytics',    icon: 'analytics',    to: '/analytics' },
 ];
 
 const NAV_OPERATIONS = [
+  { label: 'Invoices',     icon: 'receipt_long', to: '/invoices' },
+  { label: 'Analytics',    icon: 'analytics',    to: '/analytics' },
   { label: 'Pricing & rules', icon: 'payments', to: '/admin/pricing' },
   { label: 'Purchase Orders', icon: 'shopping_cart', to: '/purchase' },
   { label: 'Goods Receipt (GRN)', icon: 'inbox', to: '/purchase/grn' },

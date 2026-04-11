@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
+import { formatDate } from '../../utils/formatters';
 
 function asArrayJson(v) {
   if (!v) return [];
@@ -168,7 +169,7 @@ export default function CertPrint() {
               <div><span className="text-slate-500">Job Card No:</span> <span className="font-mono">{cert.jobCard?.jobCardNo || '—'}</span></div>
               <div><span className="text-slate-500">Your PO No:</span> <span className="font-mono">{cert.yourPoNo || '—'}</span></div>
               <div><span className="text-slate-500">Your DC No:</span> <span className="font-mono">{cert.yourRefNo || '—'}</span></div>
-              <div><span className="text-slate-500">Issue Date:</span> <span className="font-mono">{new Date(cert.issueDate).toLocaleDateString('en-IN')}</span></div>
+              <div><span className="text-slate-500">Issue Date:</span> <span className="font-mono">{formatDate(cert.issueDate)}</span></div>
               <div><span className="text-slate-500">Issue By:</span> <span className="font-mono">{cert.checkedBy || cert.createdBy?.name || '—'}</span></div>
             </div>
           </div>

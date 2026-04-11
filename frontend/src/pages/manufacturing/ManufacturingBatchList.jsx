@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import ListSearchInput from '../../components/ListSearchInput';
+import { formatDate } from '../../utils/formatters';
 
 export default function ManufacturingBatchList() {
   const [batches, setBatches] = useState([]);
@@ -151,7 +152,7 @@ export default function ManufacturingBatchList() {
                 <tr key={batch.id} className="tr">
                   <td className="td font-semibold text-slate-800">{batch.batchNumber}</td>
                   <td className="td text-center tabular-nums">{batch.jobCards?.length || 0}</td>
-                  <td className="td text-slate-600">{new Date(batch.batchDate).toLocaleDateString()}</td>
+                  <td className="td text-slate-600">{formatDate(batch.batchDate)}</td>
                   <td className="td"><span className="badge bg-sky-100 text-sky-900">{batch.status}</span></td>
                   <td className="td text-center">
                     <button type="button" className="p-2 rounded-lg text-sky-800 hover:bg-sky-50 inline-flex" aria-label="Details"><span className="material-symbols-outlined text-[16px]">description</span></button>

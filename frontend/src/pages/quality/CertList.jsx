@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { exportToExcel } from '../../utils/export';
+import { formatDate } from '../../utils/formatters';
 import ListSearchInput from '../../components/ListSearchInput';
 
 const STATUS_STYLE = {
@@ -95,7 +96,7 @@ export default function CertList() {
 
       const rows = allCerts.map(c => ({
         'Certificate No': c.certNo,
-        'Issue Date': c.issueDate ? new Date(c.issueDate).toLocaleDateString('en-IN') : '',
+        'Issue Date': formatDate(c.issueDate),
         'Job Card': c.jobCard?.jobCardNo || c.jobCard || '',
         'Customer': c.customer?.name || '',
         'Hardness': c.hardnessMin && c.hardnessMax ? `${c.hardnessMin}-${c.hardnessMax} ${c.hardnessUnit || ''}` : '',
@@ -242,7 +243,7 @@ export default function CertList() {
                     ) : <span className="text-slate-300 text-xs">—</span>}
                   </td>
                   <td className="td text-slate-600">{c.packedQty ?? '—'}</td>
-                  <td className="td text-slate-500">{new Date(c.issueDate).toLocaleDateString('en-IN')}</td>
+                  <td className="td text-slate-500">{formatDate(c.issueDate)}</td>
                   <td className="td">
                     <span className={`badge ${STATUS_STYLE[c.status] || STATUS_STYLE.DRAFT}`}>
                       {c.status}
