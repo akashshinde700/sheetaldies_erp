@@ -282,12 +282,19 @@ export default function JobCardList() {
                     </p>
                   </td>
                   <td className="td">
-                    <div className="flex gap-2">
+                    <div className="flex items-center gap-2">
                       <Link to={`/jobcards/${card.id}`}
                         className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">Edit</Link>
                       <span className="text-slate-200">·</span>
                       <Link to={`/jobcards/${card.id}/inspection`}
                         className="text-xs font-semibold text-violet-600 hover:text-violet-700 hover:underline">Inspect</Link>
+                      <span className="text-slate-200">·</span>
+                      <Link to={`/jobcards/${card.id}/print`}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-all"
+                        title="Print Job Card"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">print</span>
+                      </Link>
                     </div>
                   </td>
                 </tr>
