@@ -5,15 +5,19 @@ import { useState, useCallback } from 'react';
  * Provides form state management with validation
  * Handles: form data, errors, touched fields, submission
  */
-export const useFormValidation = (initialValues, onSubmit, validate) => {
-  const [values, setValues] = useState(initialValues);
-  const [errors, setErrors] = useState({});
-  const [touched, setTouched] = useState({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState(null);
+export const useFormValidation = <T extends Record<string, any>>(
+  initialValues: T, 
+  onSubmit: (values: T) => void | Promise<void>, 
+  validate?: (name: string, value: any) => string | null
+) => {
+  const [values, setValues] = useState<T>(initialValues);
+  const [errors, setErrors] = useState<Record<string, string | null>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Single field change handler
-  const handleChange = useCallback((e) => {
+  const handleChange = useCallback((e: any) => {
     const { name, value, type, checked } = e.target;
     const newValue = type === 'checkbox' ? checked : value;
 
@@ -27,7 +31,7 @@ export const useFormValidation = (initialValues, onSubmit, validate) => {
   }, [touched, validate]);
 
   // Blur handler - marks field as touched and validates
-  const handleBlur = useCallback((e) => {
+  const handleBlur = useCallback((e: any) => {
     const { name, value } = e.target;
 
     setTouched(t => ({ ...t, [name]: true }));
@@ -39,7 +43,7 @@ export const useFormValidation = (initialValues, onSubmit, validate) => {
   }, [validate]);
 
   // Form submission handler
-  const handleSubmit = useCallback(async (e) => {
+  const handleSubmit = useCallback(async (e?: any) => {
     if (e && e.preventDefault) {
       e.preventDefault();
     }
@@ -74,7 +78,7 @@ export const useFormValidation = (initialValues, onSubmit, validate) => {
     // Validation passed, call onSubmit callback
     try {
       await onSubmit(values);
-    } catch (err) {
+    } catch (err: any) {
       setSubmitError(err.message || 'Failed to submit form');
     } finally {
       setIsSubmitting(false);
@@ -90,17 +94,17 @@ export const useFormValidation = (initialValues, onSubmit, validate) => {
   }, [initialValues]);
 
   // Set field value programmatically
-  const setFieldValue = useCallback((name, value) => {
+  const setFieldValue = useCallback((name: string, value: any) => {
     setValues(v => ({ ...v, [name]: value }));
   }, []);
 
   // Set field error programmatically
-  const setFieldError = useCallback((name, error) => {
+  const setFieldError = useCallback((name: string, error: string | null) => {
     setErrors(err => ({ ...err, [name]: error }));
   }, []);
 
   // Set field touched programmatically
-  const setFieldTouched = useCallback((name, isTouched) => {
+  const setFieldTouched = useCallback((name: string, isTouched: boolean) => {
     setTouched(t => ({ ...t, [name]: isTouched }));
   }, []);
 
@@ -130,7 +134,7 @@ export const validators = {
   /**
    * Validate GSTIN (15-character format)
    */
-  validateGSTIN: (gstin) => {
+  validateGSTIN: (gstin: string) => {
     if (!gstin) return 'GSTIN is required';
     const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
     return gstinRegex.test(gstin) ? null : 'Invalid GSTIN format (should be 15 characters)';
@@ -139,7 +143,7 @@ export const validators = {
   /**
    * Validate PAN (10-character format)
    */
-  validatePAN: (pan) => {
+  validatePAN: (pan: string) => {
     if (!pan) return null; // Optional field
     const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
     return panRegex.test(pan) ? null : 'Invalid PAN format';
@@ -148,7 +152,7 @@ export const validators = {
   /**
    * Validate email
    */
-  validateEmail: (email) => {
+  validateEmail: (email: string) => {
     if (!email) return 'Email is required';
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email) ? null : 'Invalid email format';
@@ -157,7 +161,7 @@ export const validators = {
   /**
    * Validate phone number (10 digits)
    */
-  validatePhone: (phone) => {
+  validatePhone: (phone: string) => {
     if (!phone) return 'Phone number is required';
     const phoneRegex = /^[0-9]{10}$/;
     const cleaned = phone.replace(/\D/g, '');
@@ -167,7 +171,7 @@ export const validators = {
   /**
    * Validate required string
    */
-  validateRequired: (value, fieldName = 'This field') => {
+  validateRequired: (value: any, fieldName: string = 'This field') => {
     if (!value || (typeof value === 'string' && value.trim() === '')) {
       return `${fieldName} is required`;
     }
@@ -177,7 +181,7 @@ export const validators = {
   /**
    * Validate min length
    */
-  validateMinLength: (value, minLen, fieldName = 'Field') => {
+  validateMinLength: (value: any, minLen: number, fieldName: string = 'Field') => {
     if (value && String(value).length < minLen) {
       return `${fieldName} must be at least ${minLen} characters`;
     }
@@ -187,7 +191,7 @@ export const validators = {
   /**
    * Validate max length
    */
-  validateMaxLength: (value, maxLen, fieldName = 'Field') => {
+  validateMaxLength: (value: any, maxLen: number, fieldName: string = 'Field') => {
     if (value && String(value).length > maxLen) {
       return `${fieldName} must be at most ${maxLen} characters`;
     }
@@ -197,7 +201,7 @@ export const validators = {
   /**
    * Validate number is within range
    */
-  validateNumberRange: (value, min, max, fieldName = 'Value') => {
+  validateNumberRange: (value: any, min: number, max: number, fieldName: string = 'Value') => {
     if (!value && value !== 0) return `${fieldName} is required`;
     const num = parseFloat(value);
     if (isNaN(num)) return `${fieldName} must be a number`;
@@ -209,7 +213,7 @@ export const validators = {
   /**
    * Validate positive number
    */
-  validatePositive: (value, fieldName = 'Value') => {
+  validatePositive: (value: any, fieldName: string = 'Value') => {
     if (!value && value !== 0) return `${fieldName} is required`;
     const num = parseFloat(value);
     if (isNaN(num)) return `${fieldName} must be a number`;
@@ -228,7 +232,7 @@ export const useApiState = () => {
   const [data, setData] = useState(null);
   const [success, setSuccess] = useState(false);
 
-  const execute = async (apiCall) => {
+  const execute = async (apiCall: () => Promise<any>) => {
     setLoading(true);
     setError(null);
     setSuccess(false);
