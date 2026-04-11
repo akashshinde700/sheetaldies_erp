@@ -3,7 +3,13 @@
  * Handles: JWT refresh, error handling, request/response transformation, file uploads
  */
 
-import axios from 'axios';
+import axios, { AxiosInstance, AxiosResponse, AxiosError, InternalAxiosRequestConfig } from 'axios';
+
+export interface ApiInstance extends AxiosInstance {
+  upload: (url: string, formData: FormData | any, onProgress?: ((percent: number) => void) | null) => Promise<AxiosResponse>;
+  download: (url: string, filename: string) => Promise<void>;
+  batch: <T>(requests: Promise<T>[]) => Promise<T[]>;
+}
 
 const API_BASE_URL = '/api';
 
@@ -128,7 +134,7 @@ api.interceptors.response.use(
  * const onProgress = (percent) => console.log(`${percent}% uploaded`);
  * await api.upload('/upload', formData, onProgress);
  */
-api.upload = (url, formData, onProgress = null) => {
+api.upload = (url: string, formData: FormData | any, onProgress: ((percent: number) => void) | null = null) => {
   return api.post(url, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
     onUploadProgress: (progressEvent) => {
@@ -147,7 +153,7 @@ api.upload = (url, formData, onProgress = null) => {
  * @example
  * await api.download('/invoices/123/pdf', 'invoice-123.pdf');
  */
-api.download = async (url, filename) => {
+api.download = async (url: string, filename: string) => {
   try {
     const response = await api.get(url, { responseType: 'blob' });
     const blob = response.data;
@@ -171,13 +177,13 @@ api.download = async (url, filename) => {
  *   api.get('/parties')
  * ]);
  */
-api.batch = (requests) => Promise.all(requests);
+api.batch = <T>(requests: Promise<T>[]) => Promise.all(requests);
 
 /**
  * Error Handler Utility
  * Provides user-friendly error messages
  */
-export const handleError = (error) => {
+export const handleError = (error: any) => {
   const code = error.code || error.status;
   const message = error.message || 'An error occurred';
 
@@ -207,4 +213,4 @@ export const getSuccessMessage = (response, defaultMsg = 'Success') => {
   return response?.data?.message || defaultMsg;
 };
 
-export default api;
+export default api as ApiInstance;
