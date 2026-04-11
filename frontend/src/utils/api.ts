@@ -11,6 +11,15 @@ export interface ApiInstance extends AxiosInstance {
   batch: <T>(requests: Promise<T>[]) => Promise<T[]>;
 }
 
+// Interface for normalized error structure
+export interface EnhancedError extends Error {
+  code?: string;
+  status?: number;
+  data?: any;
+  response?: AxiosResponse;
+  originalError?: AxiosError;
+}
+
 const API_BASE_URL = '/api';
 
 const api = axios.create({
@@ -20,7 +29,7 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
   withCredentials: true,
-});
+}) as ApiInstance;
 
 /**
  * Request Interceptor
@@ -117,7 +126,7 @@ api.interceptors.response.use(
     }
 
     // Transform error for consistency
-    const customError = new Error(errorMessage);
+    const customError = new Error(errorMessage) as EnhancedError;
     customError.code = errorCode;
     customError.status = response?.status;
     customError.data = response?.data;
