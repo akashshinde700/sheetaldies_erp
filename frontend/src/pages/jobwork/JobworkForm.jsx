@@ -2,10 +2,14 @@ import { useEffect, useState } from 'react';
 import { useNavigate, Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
-import SearchSelect from '../../components/SearchSelect';
 import { toInt, toNum } from '../../utils/normalize';
+import { useParties, useItems, useMasterJobCards } from '../../hooks/useMasterData';
 
-// ✅ FIXED: Moved F component OUTSIDE to prevent remounting on every keystroke
+// Subcomponents
+import ChallanDetailsSection from './components/ChallanDetailsSection';
+import LineItemsSection from './components/LineItemsSection';
+import TaxTotalsSection from './components/TaxTotalsSection';
+
 const F = ({ label, children, className = '' }) => (
   <div className={className}>
     <label className="form-label">{label}</label>
@@ -17,9 +21,14 @@ export default function JobworkForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
-  const [parties,  setParties]  = useState([]);
-  const [items,    setItems]    = useState([]);
-  const [jobCards, setJobCards] = useState([]);
+
+  // Use global cached hooks
+  const { data: parties = [] } = useParties();
+  const { data: items = [] } = useItems();
+  // We'll fetch jobcards locally or use a custom hook. 
+  // Let's assume we use a hook for jobcards as well.
+  const { data: jobCards = [] } = useMasterJobCards ? useMasterJobCards() : { data: [] };
+
   const [loading,  setLoading]  = useState(false);
   const [initLoading, setInitLoading] = useState(true);
 
@@ -66,18 +75,10 @@ export default function JobworkForm() {
     let mounted = true;
     const load = async () => {
       try {
-        const [partiesRes, itemsRes, jobcardsRes] = await Promise.all([
-          api.get('/parties'),
-          api.get('/items'),
-          api.get('/jobcards?limit=100'),
-        ]);
-        if (!mounted) return;
-        const list = partiesRes.data.data || [];
-        setParties(list);
-        setItems(itemsRes.data.data || []);
-        setJobCards(jobcardsRes.data.data || []);
-        const own = list.find((p) => p.partyType === 'BOTH') || list[0];
-        if (own && !isEdit) setForm((p) => ({ ...p, fromPartyId: String(own.id) }));
+        if (!isEdit) {
+          const own = parties.find((p) => p.partyType === 'BOTH') || parties[0];
+          if (own) setForm((p) => ({ ...p, fromPartyId: String(own.id) }));
+        }
 
         if (isEdit) {
           const challanRes = await api.get(`/jobwork/${id}`);
@@ -137,7 +138,7 @@ export default function JobworkForm() {
     };
     load();
     return () => { mounted = false; };
-  }, [id, isEdit]);
+  }, [id, isEdit, parties]);
 
   const updateLineItem = (i, field, val) => {
     setLineItems(prev => {
@@ -278,107 +279,18 @@ export default function JobworkForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Challan Header */}
-        <div className="card p-5 space-y-4">
-          <p className="section-title border-b border-slate-100 pb-2">Challan Details</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            <F label="Challan Date *">
-              <input type="date" value={form.challanDate}
-                onChange={e => setForm(p => ({ ...p, challanDate: e.target.value, dispatchDate: e.target.value, dueDate: addDays(e.target.value, 4) }))}
-                required className="form-input" />
-            </F>
-            <div>
-              {isEdit ? (
-                <>
-                  <label className="form-label mb-1">Challan No</label>
-                  <input type="text" value={challanNoInput || '-'} disabled className="form-input opacity-60 cursor-not-allowed" />
-                </>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="form-label mb-0">Challan No</label>
-                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={manualChallanNo}
-                        onChange={e => { setManualChallanNo(e.target.checked); if (!e.target.checked) setChallanNoInput(''); }}
-                        className="w-3.5 h-3.5 accent-indigo-600"
-                      />
-                      <span className="text-[11px] text-slate-500">Manual</span>
-                    </label>
-                  </div>
-                  {manualChallanNo ? (
-                    <input
-                      type="text"
-                      value={challanNoInput}
-                      onChange={e => setChallanNoInput(e.target.value)}
-                      placeholder="e.g. SDT/JW/25-26/0050"
-                      required
-                      className="form-input"
-                    />
-                  ) : (
-                    <input type="text" value="Auto-generated" disabled className="form-input opacity-50 cursor-not-allowed" />
-                  )}
-                </>
-              )}
-            </div>
-            <F label="Link Job Card">
-              <SearchSelect
-                value={form.jobCardId}
-                onChange={v => setForm(p => ({ ...p, jobCardId: v }))}
-                options={jobCards
-                  .filter((jc) => ['CREATED', 'IN_PROGRESS'].includes(jc.status) || String(jc.id) === String(form.jobCardId))
-                  .map(jc => ({ value: jc.id, label: `${jc.jobCardNo} — ${jc.part?.partNo || ''}` }))}
-                placeholder="— Optional —"
-              />
-            </F>
-            <F label="Transport Mode">
-              <select value={form.transportMode} onChange={e => setForm(p => ({ ...p, transportMode: e.target.value }))} className="form-input">
-                {['Hand Delivery', 'Courier', 'Own Vehicle', 'Transporter'].map(m => <option key={m}>{m}</option>)}
-              </select>
-            </F>
-            <F label="Invoice Ch. No">
-              <input value={form.invoiceChNo} onChange={e => setForm(p => ({ ...p, invoiceChNo: e.target.value }))} className="form-input" placeholder="Reference invoice no" />
-            </F>
-            <F label="Invoice Ch. Date">
-              <input type="date" value={form.invoiceChDate} onChange={e => setForm(p => ({ ...p, invoiceChDate: e.target.value }))} className="form-input" />
-            </F>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            <F label="From Party (Sender) *">
-              <SearchSelect
-                value={form.fromPartyId}
-                onChange={v => setForm(p => ({ ...p, fromPartyId: v }))}
-                options={parties.map(p => ({ value: p.id, label: p.name }))}
-                placeholder="— Select Sender —"
-                required
-              />
-            </F>
-            <F label="To Party (Processor) *">
-              <SearchSelect
-                value={form.toPartyId}
-                onChange={v => setForm(p => ({ ...p, toPartyId: v }))}
-                options={parties.filter(p => p.partyType === 'VENDOR' || p.partyType === 'BOTH').map(p => ({ value: p.id, label: p.name }))}
-                placeholder="— Select Processor —"
-                required
-              />
-            </F>
-            <F label="Vehicle No">
-              <input value={form.vehicleNo} onChange={e => setForm(p => ({ ...p, vehicleNo: e.target.value }))} className="form-input" placeholder="MH12 AB 1234" />
-            </F>
-            <F label="Delivery Person">
-              <input value={form.deliveryPerson} onChange={e => setForm(p => ({ ...p, deliveryPerson: e.target.value }))} className="form-input" placeholder="Name of person delivering" />
-            </F>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            <F label="Dispatch Date">
-              <input type="date" value={form.dispatchDate} onChange={e => setForm(p => ({ ...p, dispatchDate: e.target.value }))} className="form-input" />
-            </F>
-            <F label="Due Date (Return by)">
-              <input type="date" value={form.dueDate} onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))} className="form-input" />
-            </F>
-          </div>
-        </div>
+        <ChallanDetailsSection 
+          isEdit={isEdit} 
+          form={form} 
+          setForm={setForm} 
+          jobCards={jobCards} 
+          parties={parties} 
+          manualChallanNo={manualChallanNo} 
+          setManualChallanNo={setManualChallanNo} 
+          challanNoInput={challanNoInput} 
+          setChallanNoInput={setChallanNoInput} 
+          addDays={addDays} 
+        />
 
         {/* Processing Notes */}
         <div className="card p-5">
@@ -418,100 +330,23 @@ export default function JobworkForm() {
           <option value="M2 Tool" />
         </datalist>
 
-        {/* Line Items */}
-        <div className="card p-5 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <p className="section-title">Line Items</p>
-            <button type="button" onClick={() => setLineItems(prev => [...prev, { ...EMPTY_ROW }])}
-              className="btn-secondary text-xs px-3 py-1.5">
-              <span className="material-symbols-outlined text-sm">add</span> Add Row
-            </button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-100">
-                  <th className="th">Item</th>
-                  <th className="th">Description</th>
-                  <th className="th">Drawing No</th>
-                  <th className="th">Material</th>
-                  <th className="th">HRC</th>
-                  <th className="th">HSN</th>
-                  <th className="th">Qty</th>
-                  <th className="th">Qty Out</th>
-                  <th className="th">UOM</th>
-                  <th className="th">Weight</th>
-                  <th className="th">Rate</th>
-                  <th className="th">Amount</th>
-                  <th className="th"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {lineItems.map((row, i) => (
-                  <tr key={i}>
-                    <td className="td">
-                      <select value={row.itemId} onChange={e => updateLineItem(i, 'itemId', e.target.value)}
-                        className="form-input text-xs py-1 w-28">
-                        <option value="">—</option>
-                        {items.map(it => <option key={it.id} value={it.id}>{it.partNo}</option>)}
-                      </select>
-                    </td>
-                    <td className="td"><input list="challan-desc-suggestions" value={row.description} onChange={e => updateLineItem(i, 'description', e.target.value)} className="form-input text-xs py-1 w-36" /></td>
-                    <td className="td"><input value={row.drawingNo} onChange={e => updateLineItem(i, 'drawingNo', e.target.value)} className="form-input text-xs py-1 w-20" /></td>
-                    <td className="td"><input value={row.material} onChange={e => updateLineItem(i, 'material', e.target.value)} className="form-input text-xs py-1 w-16" /></td>
-                    <td className="td"><input value={row.hrc} onChange={e => updateLineItem(i, 'hrc', e.target.value)} className="form-input text-xs py-1 w-14" /></td>
-                    <td className="td"><input value={row.hsnCode} onChange={e => updateLineItem(i, 'hsnCode', e.target.value)} className="form-input text-xs py-1 w-20" /></td>
-                    <td className="td"><input type="number" min="0" value={row.quantity} onChange={e => updateLineItem(i, 'quantity', e.target.value)} className="form-input text-xs py-1 w-16 tabular-nums" /></td>
-                    <td className="td"><input type="number" min="0" value={row.qtyOut} onChange={e => updateLineItem(i, 'qtyOut', e.target.value)} className="form-input text-xs py-1 w-16 tabular-nums" /></td>
-                    <td className="td">
-                      <select value={row.uom} onChange={e => updateLineItem(i, 'uom', e.target.value)} className="form-input text-xs py-1 w-16">
-                        <option>KGS</option><option>NOS</option><option>PCS</option><option>SET</option>
-                      </select>
-                    </td>
-                    <td className="td"><input type="number" step="0.001" value={row.weight} onChange={e => updateLineItem(i, 'weight', e.target.value)} className="form-input text-xs py-1 w-18 tabular-nums" /></td>
-                    <td className="td"><input type="number" step="0.01" value={row.rate} onChange={e => updateLineItem(i, 'rate', e.target.value)} className="form-input text-xs py-1 w-18 tabular-nums" /></td>
-                    <td className="td font-semibold tabular-nums text-right">{toNum(row.amount, 0).toFixed(2)}</td>
-                    <td className="td">
-                      {lineItems.length > 1 && (
-                        <button type="button" onClick={() => setLineItems(prev => prev.filter((_, idx) => idx !== i))}
-                          className="text-rose-400 hover:text-rose-600 transition-colors">
-                          <span className="material-symbols-outlined text-sm">delete</span>
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <LineItemsSection 
+          lineItems={lineItems} 
+          setLineItems={setLineItems} 
+          items={items} 
+          updateLineItem={updateLineItem} 
+          EMPTY_ROW={EMPTY_ROW} 
+        />
 
-        {/* Tax & Totals */}
-        <div className="card p-5 space-y-4">
-          <p className="section-title border-b border-slate-100 pb-2">Tax &amp; Totals</p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <F label="Handling Charges">
-              <input type="number" step="0.01" value={form.handlingCharges} onChange={e => setForm(p => ({ ...p, handlingCharges: e.target.value }))} className="form-input" />
-            </F>
-            <F label="CGST %">
-              <input type="number" step="0.01" value={form.cgstRate} onChange={e => setForm(p => ({ ...p, cgstRate: e.target.value }))} className="form-input" />
-            </F>
-            <F label="SGST %">
-              <input type="number" step="0.01" value={form.sgstRate} onChange={e => setForm(p => ({ ...p, sgstRate: e.target.value }))} className="form-input" />
-            </F>
-            <F label="IGST %">
-              <input type="number" step="0.01" value={form.igstRate} onChange={e => setForm(p => ({ ...p, igstRate: e.target.value }))} className="form-input" />
-            </F>
-          </div>
-          <div className="bg-slate-50 rounded-xl p-4 space-y-1 text-sm">
-            <div className="flex justify-between"><span className="text-slate-500">Subtotal</span><span className="font-semibold tabular-nums">₹{subtotal.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">Handling</span><span className="tabular-nums">₹{toNum(form.handlingCharges, 0).toFixed(2)}</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">CGST ({form.cgstRate}%)</span><span className="tabular-nums">₹{cgstAmt.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">SGST ({form.sgstRate}%)</span><span className="tabular-nums">₹{sgstAmt.toFixed(2)}</span></div>
-            {toNum(form.igstRate, 0) > 0 && <div className="flex justify-between"><span className="text-slate-500">IGST ({form.igstRate}%)</span><span className="tabular-nums">₹{igstAmt.toFixed(2)}</span></div>}
-            <div className="flex justify-between border-t border-slate-200 pt-1 mt-1"><span className="font-bold text-slate-800">Grand Total</span><span className="font-extrabold text-slate-900 tabular-nums">₹{grandTotal.toFixed(2)}</span></div>
-          </div>
-        </div>
+        <TaxTotalsSection 
+          form={form} 
+          setForm={setForm} 
+          subtotal={subtotal} 
+          cgstAmt={cgstAmt} 
+          sgstAmt={sgstAmt} 
+          igstAmt={igstAmt} 
+          grandTotal={grandTotal} 
+        />
 
         {/* Actions */}
         <div className="flex gap-3 pt-1">
