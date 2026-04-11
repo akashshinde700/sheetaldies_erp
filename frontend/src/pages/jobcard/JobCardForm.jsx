@@ -4,6 +4,14 @@ import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import SearchSelect from '../../components/SearchSelect';
 
+// ✅ FIXED: Moved F component OUTSIDE to prevent remounting on every keystroke
+const F = ({ label, children, className = '' }) => (
+  <div className={className}>
+    <label className="form-label">{label}</label>
+    {children}
+  </div>
+);
+
 function ImageSlot({ index, onChange }) {
   const inputRef = useRef();
   const [preview, setPreview] = useState(null);
@@ -308,13 +316,6 @@ export default function JobCardForm() {
       setLoading(false);
     }
   };
-
-  const F = ({ label, children, className = '' }) => (
-    <div className={className}>
-      <label className="form-label">{label}</label>
-      {children}
-    </div>
-  );
 
   const STATUS_OPTS = ['CREATED', 'IN_PROGRESS', 'SENT_FOR_JOBWORK', 'INSPECTION', 'COMPLETED', 'ON_HOLD'];
   const STATUS_COLOR = {

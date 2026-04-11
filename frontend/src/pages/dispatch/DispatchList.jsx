@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import ListSearchInput from '../../components/ListSearchInput';
 
 export default function DispatchChallanList() {
   const [challans, setChallans] = useState([]);
@@ -11,13 +12,16 @@ export default function DispatchChallanList() {
 
   useEffect(() => {
     fetchChallans();
-  }, [filters]);
+  }, [filters, searchTerm]);
 
   const fetchChallans = async () => {
     try {
       setLoading(true);
       const response = await api.get('/dispatch-challans', {
-        params: filters.status !== 'all' ? { status: filters.status } : {}
+        params: {
+          ...(filters.status !== 'all' ? { status: filters.status } : {}),
+          ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}),
+        }
       });
       setChallans(response.data.data || []);
     } catch (error) {
@@ -40,17 +44,12 @@ export default function DispatchChallanList() {
     }
   };
 
-  const filteredChallans = challans.filter(challan =>
-    challan.challanNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    challan.customerName?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   const getStatusColor = (status) => {
     const colors = {
       DRAFT: 'bg-slate-100 text-slate-800',
-      READY: 'bg-sky-100 text-sky-900',
-      DISPATCHED: 'bg-emerald-100 text-emerald-900',
-      DELIVERED: 'bg-violet-100 text-violet-900',
+      SENT: 'bg-sky-100 text-sky-900',
+      RECEIVED: 'bg-emerald-100 text-emerald-900',
+      COMPLETED: 'bg-violet-100 text-violet-900',
       CANCELLED: 'bg-rose-100 text-rose-800',
     };
     return colors[status] || 'bg-slate-100 text-slate-800';
@@ -60,46 +59,58 @@ export default function DispatchChallanList() {
     <div className="page-stack w-full space-y-6 animate-slide-up">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="page-title">Dispatch challans</h1>
+          <h1 className="page-title">Dispatch Challans</h1>
           <p className="page-subtitle">Outward delivery documents</p>
         </div>
         <Link to="/dispatch/new" className="btn-primary shrink-0 inline-flex items-center justify-center gap-2">
-          <span className="material-symbols-outlined text-[20px]">add</span> New challan
+          <span className="material-symbols-outlined text-[18px]">add</span> New Challan
         </Link>
       </div>
 
-      <div className="card p-4 flex flex-wrap gap-3 items-center">
-        <label className="sr-only" htmlFor="dispatch-status-filter">Status</label>
-        <select
-          id="dispatch-status-filter"
-          value={filters.status}
-          onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-          className="form-input w-auto min-w-[12rem]"
-        >
-          <option value="all">All status</option>
-          <option value="DRAFT">Draft</option>
-          <option value="READY">Ready</option>
-          <option value="DISPATCHED">Dispatched</option>
-          <option value="DELIVERED">Delivered</option>
-          <option value="CANCELLED">Cancelled</option>
-        </select>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto] items-end">
+          <div className="flex gap-2 items-center">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Search</label>
+            <ListSearchInput
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Challan no or customer..."
+            />
+          </div>
+          <div className="flex gap-2 items-center">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider" htmlFor="dispatch-status-filter">Status</label>
+            <select
+              id="dispatch-status-filter"
+              value={filters.status}
+              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              className="form-input text-xs w-auto min-w-[180px]"
+            >
+              <option value="all">All</option>
+              <option value="DRAFT">Draft</option>
+              <option value="SENT">Sent</option>
+              <option value="RECEIVED">Received</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="CANCELLED">Cancelled</option>
+            </select>
+          </div>
+          {(searchTerm || filters.status !== 'all') ? (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm('');
+                setFilters({ status: 'all' });
+              }}
+              className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-500 transition-colors font-medium"
+            >
+              <span className="material-symbols-outlined text-sm">close</span> Clear
+            </button>
+          ) : <div />}
       </div>
 
       <div className="card overflow-hidden">
-        <div className="p-4 border-b border-slate-200/80 flex items-center gap-2 bg-slate-50/50">
-          <span className="material-symbols-outlined text-[20px] text-slate-400 shrink-0">search</span>
-          <input
-            type="text"
-            placeholder="Challan no or customer…"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="flex-1 form-input border-0 bg-transparent shadow-none focus:ring-0"
-          />
-        </div>
 
         {loading ? (
           <div className="text-center py-12 text-slate-500 text-sm">Loading…</div>
-        ) : filteredChallans.length === 0 ? (
+        ) : challans.length === 0 ? (
           <div className="text-center py-12 text-slate-500 text-sm">No challans found</div>
         ) : (
           <div className="overflow-x-auto">
@@ -107,7 +118,7 @@ export default function DispatchChallanList() {
               <thead>
                 <tr className="border-b border-slate-200/80">
                   <th className="th text-left">Challan</th>
-                  <th className="th text-left">Customer</th>
+                  <th className="th text-left">From / To</th>
                   <th className="th text-left">Items</th>
                   <th className="th text-left">Dispatch</th>
                   <th className="th text-left">Status</th>
@@ -115,13 +126,15 @@ export default function DispatchChallanList() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredChallans.map((challan) => (
+                {challans.map((challan) => (
                   <tr key={challan.id} className="tr">
                     <td className="td font-semibold text-slate-800">{challan.challanNo}</td>
-                    <td className="td">{challan.customerName || '—'}</td>
+                    <td className="td">
+                      {(challan.fromParty?.name || '—')} {'->'} {(challan.toParty?.name || '—')}
+                    </td>
                     <td className="td text-slate-600">{challan.itemCount || 0} items</td>
                     <td className="td text-slate-600">
-                      {challan.dispatchDate ? new Date(challan.dispatchDate).toLocaleDateString('en-IN') : '—'}
+                      {challan.challanDate ? new Date(challan.challanDate).toLocaleDateString('en-IN') : '—'}
                     </td>
                     <td className="td">
                       <span className={`badge ${getStatusColor(challan.status)}`}>{challan.status}</span>

@@ -1,5 +1,8 @@
 const prisma = require('../utils/prisma');
+const { transaction } = require('../utils/transaction');
 const { toInt, toNum } = require('../utils/normalize');
+const { formatErrorResponse, getStatusCode, formatListResponse, parsePagination } = require('../utils/validation');
+const { parseJsonIfString } = require('../utils/json');
 
 function toDateOnly(input) {
   const x = input instanceof Date ? input : new Date(input);
@@ -98,8 +101,8 @@ function buildRunsheetHeaderPayload(body, opts = {}) {
 // ── List Manufacturing Batches ────────────────────────────────
 exports.listBatches = async (req, res) => {
   try {
-    const { status = '', search = '', page = 1, limit = 20 } = req.query;
-    const skip = (toInt(page, 1) - 1) * toInt(limit, 20);
+    const { status = '', search = '' } = req.query;
+    const { page, limit, skip } = parsePagination(req);
 
     const where = {};
     if (status) where.status = status;
@@ -115,15 +118,15 @@ exports.listBatches = async (req, res) => {
         },
         orderBy: { createdAt: 'desc' },
         skip,
-        take: toInt(limit, 20),
+        take: limit,
       }),
       prisma.manufacturingBatch.count({ where }),
     ]);
 
-    res.json({ success: true, data: batches, total, page: toInt(page, 1), limit: toInt(limit, 20) });
+    res.json(formatListResponse(batches, total, page, limit));
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to fetch batches.' });
+    res.status(getStatusCode('ERR_INTERNAL')).json(formatErrorResponse('ERR_INTERNAL', 'Failed to fetch batches.'));
   }
 };
 
@@ -172,7 +175,15 @@ exports.createBatch = async (req, res) => {
 exports.createRunsheet = async (req, res) => {
   try {
     const body = req.body;
-    const parsedItems = typeof body.items === 'string' ? JSON.parse(body.items) : body.items;
+    let parsedItems;
+    try {
+      parsedItems = parseJsonIfString(body.items, { fieldName: 'items', defaultValue: [] }) || [];
+    } catch (e) {
+      if (e.code === 'INVALID_JSON') {
+        return res.status(400).json({ success: false, code: e.code, message: e.message });
+      }
+      throw e;
+    }
 
     const lines = [];
     for (const row of parsedItems) {
@@ -215,10 +226,9 @@ exports.createRunsheet = async (req, res) => {
 // ── List VHT Run Sheets ───────────────────────────────────────
 exports.listRunsheets = async (req, res) => {
   try {
-    const { page = 1, limit = 20, furnaceId, status, from, to } = req.query;
-    const p = Math.max(1, toInt(page, 1) || 1);
-    const l = Math.min(100, Math.max(1, toInt(limit, 20) || 20));
-    const skip = (p - 1) * l;
+    const { furnaceId, status, from, to } = req.query;
+    const { page, limit, skip } = parsePagination(req);
+    
     const where = {};
     if (furnaceId) where.furnaceId = toInt(furnaceId);
     if (status) where.status = status;
@@ -238,21 +248,15 @@ exports.listRunsheets = async (req, res) => {
         },
         orderBy: [{ runDate: 'desc' }, { id: 'desc' }],
         skip,
-        take: l,
+        take: limit,
       }),
       prisma.vHTRunsheet.count({ where }),
     ]);
 
-    res.json({
-      success: true,
-      data: rows,
-      total,
-      page: p,
-      limit: l,
-    });
+    res.json(formatListResponse(rows, total, page, limit));
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to list run sheets.' });
+    res.status(getStatusCode('ERR_INTERNAL')).json(formatErrorResponse('ERR_INTERNAL', 'Failed to list run sheets.'));
   }
 };
 
@@ -284,7 +288,15 @@ exports.updateRunsheet = async (req, res) => {
     const id = toInt(req.params.id);
     if (Number.isNaN(id)) return res.status(400).json({ success: false, message: 'Invalid ID.' });
     const body = req.body;
-    const parsedItems = typeof body.items === 'string' ? JSON.parse(body.items) : body.items;
+    let parsedItems;
+    try {
+      parsedItems = parseJsonIfString(body.items, { fieldName: 'items', defaultValue: [] }) || [];
+    } catch (e) {
+      if (e.code === 'INVALID_JSON') {
+        return res.status(400).json({ success: false, code: e.code, message: e.message });
+      }
+      throw e;
+    }
 
     const existing = await prisma.vHTRunsheet.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ success: false, message: 'Run sheet not found.' });
@@ -481,7 +493,13 @@ exports.upsertPlantLossMonth = async (req, res) => {
       return res.status(400).json({ success: false, message: 'year and month (1-12) are required.' });
     }
 
-    const parsedEntries = typeof entries === 'string' ? JSON.parse(entries) : (entries || []);
+    let parsedEntries;
+    try {
+      parsedEntries = parseJsonIfString(entries, { fieldName: 'entries', defaultValue: [] }) || [];
+    } catch (e) {
+      if (e.code === 'INVALID_JSON') return res.status(400).json({ success: false, code: e.code, message: e.message });
+      throw e;
+    }
 
     const saved = await prisma.$transaction(async (tx) => {
       const monthRow = await tx.plantLossMonth.upsert({
@@ -618,7 +636,13 @@ exports.upsertDailyIdleSheet = async (req, res) => {
     if (!mid || !y || !m || m < 1 || m > 12) {
       return res.status(400).json({ success: false, message: 'machineId, year, month are required.' });
     }
-    const parsedDays = typeof days === 'string' ? JSON.parse(days) : (days || []);
+    let parsedDays;
+    try {
+      parsedDays = parseJsonIfString(days, { fieldName: 'days', defaultValue: [] }) || [];
+    } catch (e) {
+      if (e.code === 'INVALID_JSON') return res.status(400).json({ success: false, code: e.code, message: e.message });
+      throw e;
+    }
 
     const dim = daysInMonth(y, m);
     const normalized = parsedDays
@@ -803,7 +827,13 @@ exports.upsertFurnaceUtilizationDay = async (req, res) => {
       return res.status(400).json({ success: false, message: 'machineId and date are required.' });
     }
     const d = new Date(date);
-    const s = typeof shifts === 'string' ? JSON.parse(shifts) : (shifts || {});
+    let s;
+    try {
+      s = parseJsonIfString(shifts, { fieldName: 'shifts', defaultValue: {} }) || {};
+    } catch (e) {
+      if (e.code === 'INVALID_JSON') return res.status(400).json({ success: false, code: e.code, message: e.message });
+      throw e;
+    }
     const g = (x) => {
       const n = typeof x === 'number' ? x : toInt(x || 0, 0);
       return Number.isFinite(n) ? Math.max(0, n) : 0;

@@ -4,6 +4,7 @@ const https  = require('https');
 const { sendEmail, sendSms, sendWhatsApp } = require('../utils/notifications');
 const { exportInvoices } = require('../utils/export');
 const { toInt, toNum, asArray } = require('../utils/normalize');
+const { parsePagination, formatListResponse, formatErrorResponse, getStatusCode } = require('../utils/validation');
 
 const generateInvoiceNo = async (db = prisma) => {
   const y      = new Date().getFullYear().toString().slice(-2);
@@ -129,13 +130,53 @@ const numToWords = (n) => {
 // ── List Invoices ─────────────────────────────────────────────
 exports.list = async (req, res) => {
   try {
-    const { paymentStatus, challanId, page = 1, limit = 20 } = req.query;
+    const { paymentStatus, challanId, fromDate, toDate, search } = req.query;
+    const { page, limit, skip } = parsePagination(req);
+    const exportAll = String(req.query.exportAll) === 'true';
+
+    // DEBUG: Log export request details
+    console.log('[INVOICE EXPORT DEBUG]', {
+      exportAll,
+      page,
+      limit,
+      skip,
+      paymentStatus,
+      challanId,
+      fromDate,
+      toDate,
+      timestamp: new Date().toISOString(),
+    });
+    
     const where = {};
     if (paymentStatus) where.paymentStatus = paymentStatus;
     if (challanId)     where.challanId     = toInt(challanId);
+    const searchText = String(search || '').trim();
+    if (searchText) {
+      where.OR = [
+        { invoiceNo: { contains: searchText, mode: 'insensitive' } },
+        { challanRef: { contains: searchText, mode: 'insensitive' } },
+        { poRef: { contains: searchText, mode: 'insensitive' } },
+        { jobCardRef: { contains: searchText, mode: 'insensitive' } },
+        { toParty: { is: { name: { contains: searchText, mode: 'insensitive' } } } },
+      ];
+    }
 
-    const [total, invoices] = await Promise.all([
-      prisma.taxInvoice.count({ where }),
+    if (fromDate || toDate) {
+      where.invoiceDate = {};
+      if (fromDate) {
+        const from = new Date(fromDate);
+        if (!Number.isNaN(from.getTime())) where.invoiceDate.gte = from;
+      }
+      if (toDate) {
+        const to = new Date(toDate);
+        if (!Number.isNaN(to.getTime())) {
+          to.setDate(to.getDate() + 1);
+          where.invoiceDate.lt = to;
+        }
+      }
+    }
+
+    const [invoices, total] = await Promise.all([
       prisma.taxInvoice.findMany({
         where,
         include: {
@@ -145,13 +186,23 @@ exports.list = async (req, res) => {
           createdBy: { select: { name: true } },
         },
         orderBy: { createdAt: 'desc' },
-        skip:  (toInt(page, 1) - 1) * toInt(limit, 20),
-        take:  toInt(limit, 20),
+        ...(exportAll ? { skip: 0, take: 100000 } : { skip, take: limit }),
       }),
+      prisma.taxInvoice.count({ where }),
     ]);
-    res.json({ success: true, data: invoices, meta: { total } });
+
+    // DEBUG: Log results
+    console.log('[INVOICE RESULTS]', {
+      invoicesReturned: invoices.length,
+      totalInDB: total,
+      exportAll,
+      responseLimit: exportAll ? invoices.length : limit,
+      timestamp: new Date().toISOString(),
+    });
+    
+    res.json(formatListResponse(invoices, total, exportAll ? 1 : page, exportAll ? invoices.length : limit));
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error.' });
+    res.status(getStatusCode('ERR_INTERNAL')).json(formatErrorResponse('ERR_INTERNAL', 'Server error.'));
   }
 };
 

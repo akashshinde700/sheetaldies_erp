@@ -631,7 +631,9 @@ export default function ManufacturingReports() {
                 <tbody>
                   {shifts.slice(0, 10).map((shift, idx) => (
                     <tr key={idx} className="border-b hover:bg-slate-50/90">
-                      <td className="px-4 py-2">{new Date(shift.productionPlan?.planDate).toLocaleDateString()}</td>
+                      <td className="px-4 py-2">
+                        {shift.plan?.planDate ? new Date(shift.plan.planDate).toLocaleDateString() : '—'}
+                      </td>
                       <td className="px-4 py-2 text-center">Shift {shift.shiftNumber}</td>
                       <td className="px-4 py-2">{shift.machineryAssigned}</td>
                       <td className="px-4 py-2 text-center">{shift.plannedOutput}</td>

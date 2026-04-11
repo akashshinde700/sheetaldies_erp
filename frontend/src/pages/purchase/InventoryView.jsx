@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import api from '../../utils/api';
 import { exportToCsv, exportToExcel } from '../../utils/export';
 import toast from 'react-hot-toast';
+import ListSearchInput from '../../components/ListSearchInput';
 
 const escapeHtml = (value) =>
   String(value ?? '')
@@ -355,15 +356,26 @@ export default function InventoryView() {
           </button>
         </div>
 
-        <div className="p-4 border-b border-slate-200/80 flex items-center gap-2 bg-slate-50/50">
-          <span className="material-symbols-outlined text-[20px] text-slate-400 shrink-0">search</span>
-          <input
-            type="text"
-            placeholder="Search items…"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="flex-1 form-input border-0 bg-transparent shadow-none focus:ring-0"
-          />
+        <div className="p-4 border-b border-slate-200/80 bg-slate-50/50">
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-end">
+            <div className="flex items-center gap-2">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Search</label>
+              <ListSearchInput
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search items..."
+              />
+            </div>
+            {searchTerm ? (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-500 transition-colors font-medium"
+              >
+                <span className="material-symbols-outlined text-sm">close</span> Clear
+              </button>
+            ) : <div />}
+          </div>
         </div>
 
         {activeTab !== 'history' ? (

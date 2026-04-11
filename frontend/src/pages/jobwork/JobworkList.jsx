@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { exportToExcel } from '../../utils/export';
+import ListSearchInput from '../../components/ListSearchInput';
 
 const STATUS_OPTS = ['DRAFT', 'SENT', 'RECEIVED', 'COMPLETED', 'CANCELLED'];
 const PAGE_LIMIT = 10;
@@ -38,20 +39,32 @@ export default function JobworkList() {
   const [challans, setChallans] = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState(null);
+  const [search,   setSearch]   = useState('');
   const [status,   setStatus]   = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate,   setToDate]   = useState('');
   const [page,     setPage]     = useState(1);
   const [total,    setTotal]    = useState(0);
   const [statusSavingId, setStatusSavingId] = useState(null);
 
   const fetchData = useCallback(() => {
     setLoading(true); setError(null);
-    api.get('/jobwork', { params: { status, page, limit: PAGE_LIMIT } })
-      .then(r => { setChallans(r.data.data || []); setTotal(r.data.meta?.total || 0); })
+    api.get('/jobwork', {
+      params: {
+        search: search.trim() || undefined,
+        status: status || undefined,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+        page,
+        limit: PAGE_LIMIT,
+      },
+    })
+      .then(r => { setChallans(r.data.data || []); setTotal(r.data.pagination?.total || 0); })
       .catch(() => setError('Failed to load challans.'))
       .finally(() => setLoading(false));
-  }, [status, page]);
+  }, [search, status, fromDate, toDate, page]);
 
-  useEffect(() => { setPage(1); }, [status]);
+  useEffect(() => { setPage(1); }, [search, status, fromDate, toDate]);
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const updateChallanStatus = async (ch, nextStatus) => {
@@ -68,20 +81,49 @@ export default function JobworkList() {
     }
   };
 
-  const exportChallans = () => {
-    if (!challans.length) { toast.error('No challans to export.'); return; }
-    const rows = challans.map(ch => ({
-      'Challan No': ch.challanNo,
-      'Challan Date': ch.challanDate ? new Date(ch.challanDate).toLocaleDateString('en-IN') : '',
-      'From Party': ch.fromParty?.name || '',
-      'To Party': ch.toParty?.name || '',
-      'Job Card': ch.jobCard?.jobCardNo || ch.jobCard || '',
-      'Item Count': ch.items?.length || 0,
-      'Total Value': ch.totalValue,
-      'Status': ch.status,
-    }));
-    exportToExcel(rows, `Jobwork-Challans`);
-    toast.success('Jobwork challans exported to Excel.');
+  const exportChallans = async () => {
+    try {
+      const baseParams = {
+        search: search.trim() || undefined,
+        status: status || undefined,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+      };
+      const exportLimit = 100;
+      const allChallans = [];
+      let exportPage = 1;
+      let totalPages = 1;
+
+      do {
+        const response = await api.get('/jobwork', {
+          params: { ...baseParams, page: exportPage, limit: exportLimit },
+        });
+        const pageRows = response.data.data || [];
+        allChallans.push(...pageRows);
+        totalPages = response.data.pagination?.pages || 1;
+        exportPage += 1;
+      } while (exportPage <= totalPages);
+
+      const rows = allChallans.map(ch => ({
+        'Challan No': ch.challanNo,
+        'Challan Date': ch.challanDate ? new Date(ch.challanDate).toLocaleDateString('en-IN') : '',
+        'From Party': ch.fromParty?.name || '',
+        'To Party': ch.toParty?.name || '',
+        'Job Card': ch.jobCard?.jobCardNo || ch.jobCard || '',
+        'Item Count': ch.items?.length || 0,
+        'Total Value': ch.totalValue,
+        'Status': ch.status,
+      }));
+      if (!rows.length) {
+        toast.error('No challans to export.');
+        return;
+      }
+      exportToExcel(rows, `Jobwork-Challans`);
+      toast.success('Jobwork challans exported to Excel.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to export challans.');
+    }
   };
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_LIMIT));
@@ -90,19 +132,14 @@ export default function JobworkList() {
     <div className="space-y-5 animate-slide-up">
 
       {/* Header: title block + action row (stacks on narrow screens) */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0 flex-1">
+      <div className="flex items-center justify-between">
+        <div>
           <h2 className="text-xl font-extrabold text-slate-800 font-headline">Jobwork Challans</h2>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-400 mt-0.5">
             {total > 0 ? `${total} total` : 'Heat treatment job work'} · Rule 45(1) CGST
           </p>
         </div>
-        <div className="flex flex-wrap items-stretch sm:items-center gap-2 lg:shrink-0 lg:pt-0.5">
-          <Link to="/jobwork/register" className="btn-outline whitespace-nowrap">
-            <span className="material-symbols-outlined text-[18px] shrink-0" aria-hidden>table_view</span>
-            <span className="hidden sm:inline">Inward / Outward</span>
-            <span className="sm:hidden">I/O Register</span>
-          </Link>
+        <div className="flex items-center gap-2">
           <button type="button" onClick={exportChallans} className="btn-outline whitespace-nowrap">
             <span className="material-symbols-outlined text-[18px] shrink-0" aria-hidden>file_download</span>
             Export Excel
@@ -114,19 +151,54 @@ export default function JobworkList() {
         </div>
       </div>
 
-      {/* Status filter chips */}
-      <div className="flex gap-2 flex-wrap items-center">
-        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider w-full sm:w-auto sm:mr-1">Status</span>
-        {['', ...STATUS_OPTS].map(f => (
-          <button key={f || 'all'} type="button" onClick={() => setStatus(f)}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all duration-150 ${
-              status === f
-                ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-200'
-                : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
-            }`}>
-            {f || 'All'}
-          </button>
-        ))}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto_auto_auto] items-end">
+          <ListSearchInput
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search challan, party, job card..."
+          />
+          <div className="flex gap-2 items-center">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">From</label>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="form-input text-xs"
+            />
+          </div>
+          <div className="flex gap-2 items-center">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">To</label>
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              className="form-input text-xs"
+            />
+          </div>
+          <div className="flex gap-2 items-center">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="form-input text-xs w-auto min-w-[180px]"
+            >
+              <option value="">All</option>
+              {STATUS_OPTS.map((s) => (
+                <option key={s} value={s}>
+                  {s.replace(/_/g, ' ')}
+                </option>
+              ))}
+            </select>
+          </div>
+          {(search || status || fromDate || toDate) && (
+            <button
+              type="button"
+              onClick={() => { setSearch(''); setStatus(''); setFromDate(''); setToDate(''); }}
+              className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-500 transition-colors font-medium"
+            >
+              <span className="material-symbols-outlined text-sm">close</span> Clear
+            </button>
+          )}
       </div>
 
       {/* Error */}

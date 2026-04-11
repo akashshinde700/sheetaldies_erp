@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../utils/api';
 import { exportToExcel } from '../../utils/export';
+import ListSearchInput from '../../components/ListSearchInput';
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN') : '—');
 
@@ -18,6 +19,8 @@ export default function InwardOutwardRegister() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [viewMode, setViewMode] = useState('table');
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
@@ -30,19 +33,40 @@ export default function InwardOutwardRegister() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) =>
-      r.companyName?.toLowerCase().includes(q) ||
-      r.challanNo?.toLowerCase().includes(q) ||
-      r.material?.toLowerCase().includes(q) ||
-      r.jobcardNo?.toLowerCase().includes(q) ||
-      r.invoiceNos?.toLowerCase().includes(q)
-    );
-  }, [rows, search]);
+    const hasDateFilter = fromDate || toDate;
+    const fromTs = fromDate ? new Date(fromDate).getTime() : null;
+    const toTs = toDate ? new Date(toDate).getTime() : null;
+
+    return rows.filter((r) => {
+      const matchesSearch = !q || (
+        r.companyName?.toLowerCase().includes(q) ||
+        r.challanNo?.toLowerCase().includes(q) ||
+        r.material?.toLowerCase().includes(q) ||
+        r.jobcardNo?.toLowerCase().includes(q) ||
+        r.invoiceNos?.toLowerCase().includes(q)
+      );
+      if (!matchesSearch) return false;
+
+      if (!hasDateFilter) return true;
+
+      const rowDate = r.challanDate ? new Date(r.challanDate) : null;
+      if (!rowDate || Number.isNaN(rowDate.getTime())) return false;
+
+      const rowTs = new Date(
+        rowDate.getFullYear(),
+        rowDate.getMonth(),
+        rowDate.getDate(),
+      ).getTime();
+
+      if (fromTs != null && rowTs < fromTs) return false;
+      if (toTs != null && rowTs > toTs) return false;
+      return true;
+    });
+  }, [rows, search, fromDate, toDate]);
 
   useEffect(() => {
     setPage(1);
-  }, [search, viewMode]);
+  }, [search, fromDate, toDate, viewMode]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pagedRows = useMemo(() => {
@@ -82,14 +106,14 @@ export default function InwardOutwardRegister() {
 
   return (
     <div className="space-y-5 animate-slide-up">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0 flex-1">
+      <div className="flex items-center justify-between">
+        <div>
           <h2 className="text-xl font-extrabold text-slate-800 font-headline">Inward / Outward Register</h2>
-          <p className="text-xs text-slate-500 mt-1.5 max-w-3xl leading-relaxed">
+          <p className="text-xs text-slate-400 mt-0.5 max-w-3xl leading-relaxed">
             Company → Challan → Material in → Process → Invoice → Dispatch → Balance & performance
           </p>
         </div>
-        <div className="flex flex-wrap items-stretch sm:items-center gap-2 lg:shrink-0 lg:pt-0.5">
+        <div className="flex items-center gap-2">
           <Link to="/jobwork/new" className="btn-primary whitespace-nowrap">
             <span className="material-symbols-outlined text-[18px] shrink-0" aria-hidden>add</span>
             Add Challan
@@ -98,8 +122,8 @@ export default function InwardOutwardRegister() {
             <button
               type="button"
               onClick={() => setViewMode('table')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded ${
-                viewMode === 'table' ? 'bg-sky-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+              className={`px-3 py-1.5 text-xs font-semibold rounded transition-colors ${
+                viewMode === 'table' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'
               }`}
             >
               Table
@@ -107,8 +131,8 @@ export default function InwardOutwardRegister() {
             <button
               type="button"
               onClick={() => setViewMode('card')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded ${
-                viewMode === 'card' ? 'bg-sky-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+              className={`px-3 py-1.5 text-xs font-semibold rounded transition-colors ${
+                viewMode === 'card' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'
               }`}
             >
               Card
@@ -118,20 +142,42 @@ export default function InwardOutwardRegister() {
             <span className="material-symbols-outlined text-[18px] shrink-0" aria-hidden>file_download</span>
             Export Excel
           </button>
-          <Link to="/jobwork" className="btn-ghost whitespace-nowrap">
-            <span className="material-symbols-outlined text-[18px] shrink-0" aria-hidden>arrow_back</span>
-            Back to job work
-          </Link>
         </div>
       </div>
 
-      <div className="card p-4">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by company, challan, material, jobcard, invoice..."
-          className="form-input"
-        />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto_auto] items-end">
+          <ListSearchInput
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by company, challan, material, jobcard, invoice..."
+          />
+          <div className="flex gap-2 items-center">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">From</label>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="form-input text-xs"
+            />
+          </div>
+          <div className="flex gap-2 items-center">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">To</label>
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              className="form-input text-xs"
+            />
+          </div>
+          {(search || fromDate || toDate) ? (
+            <button
+              type="button"
+              onClick={() => { setSearch(''); setFromDate(''); setToDate(''); }}
+              className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-500 transition-colors font-medium"
+            >
+              <span className="material-symbols-outlined text-sm">close</span> Clear
+            </button>
+          ) : <div />}
       </div>
 
       <div className="card overflow-hidden">

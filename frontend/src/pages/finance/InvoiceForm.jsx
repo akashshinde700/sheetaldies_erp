@@ -7,6 +7,14 @@ import { toInt, toNum } from '../../utils/normalize';
 
 const EMPTY_LINE = { description:'', material:'', hrc:'', woNo:'', hsnSac:'998898', quantity:'', unit:'KGS', weight:'', rate:'', amount:'', processTypeId:'', sourceChallanItemId:'' };
 
+// ✅ FIXED: Moved F component OUTSIDE to prevent remounting on every keystroke
+const F = ({ label, children, className = '' }) => (
+  <div className={className}>
+    <label className="form-label">{label}</label>
+    {children}
+  </div>
+);
+
 export default function InvoiceForm() {
   const navigate    = useNavigate();
   const [parties,   setParties]   = useState([]);
@@ -212,13 +220,6 @@ export default function InvoiceForm() {
   };
 
   const remainingByChallanItem = new Map((billingStatus?.lineStatus || []).map(x => [String(x.challanItemId), x]));
-
-  const F = ({ label, children, className = '' }) => (
-    <div className={className}>
-      <label className="form-label">{label}</label>
-      {children}
-    </div>
-  );
 
   const PAY_BADGE = { PENDING:'bg-orange-100 text-orange-700', PARTIAL:'bg-sky-100 text-sky-700', PAID:'bg-emerald-100 text-emerald-700' };
 

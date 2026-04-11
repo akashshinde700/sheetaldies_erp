@@ -1,5 +1,7 @@
 const prisma = require('../utils/prisma');
+const { transaction } = require('../utils/transaction');
 const { toInt, toNum } = require('../utils/normalize');
+const { formatErrorResponse, getStatusCode, formatListResponse, parsePagination } = require('../utils/validation');
 
 function normalizeItems(rawItems) {
   if (!Array.isArray(rawItems) || rawItems.length === 0) return [];
@@ -46,28 +48,77 @@ const isUniqueViolation = (err) =>
 // ── List Purchase Orders ──────────────────────────────────────
 exports.list = async (req, res) => {
   try {
-    const { status = '', search = '', page = 1, limit = 20 } = req.query;
+    const { status = '', search = '', page = 1, limit = 20, fromDate, toDate } = req.query;
     const skip = (toInt(page, 1) - 1) * toInt(limit, 20);
+    const exportAll = String(req.query.exportAll) === 'true';
+
+    // ✅ FIXED: Cap export limit to prevent DOS attacks
+    // exportAll still works but limited to MAX_EXPORT_LIMIT records
+    const MAX_EXPORT_LIMIT = 5000;
+    const finalLimit = exportAll ? Math.min(MAX_EXPORT_LIMIT, 5000) : toInt(limit, 20);
+    const finalSkip = exportAll ? 0 : skip;
+
+    // DEBUG: Log export request details
+    console.log('[PURCHASE EXPORT DEBUG]', {
+      exportAll,
+      page,
+      limit,
+      skip,
+      status,
+      search,
+      fromDate,
+      toDate,
+      timestamp: new Date().toISOString(),
+    });
 
     const where = {};
     if (status) where.status = status;
-    if (search) where.OR = [
-      { poNumber: { contains: search } },
-      { vendor: { name: { contains: search } } },
+    const searchText = String(search || '').trim();
+    if (searchText) where.OR = [
+      { poNumber: { contains: searchText, mode: 'insensitive' } },
+      { vendor: { is: { name: { contains: searchText, mode: 'insensitive' } } } },
     ];
+
+    // Date filtering
+    if (fromDate || toDate) {
+      where.poDate = {};
+      if (fromDate) {
+        const from = new Date(fromDate);
+        if (!Number.isNaN(from.getTime())) {
+          where.poDate.gte = from;
+        }
+      }
+      if (toDate) {
+        const to = new Date(toDate);
+        if (!Number.isNaN(to.getTime())) {
+          // Add one day to include the end date
+          to.setDate(to.getDate() + 1);
+          where.poDate.lt = to;
+        }
+      }
+    }
 
     const [orders, total] = await Promise.all([
       prisma.purchaseOrder.findMany({
         where,
         include: { vendor: true, items: { include: { item: true } } },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: toInt(limit, 20),
+        orderBy: { poDate: 'desc' },
+        skip: finalSkip,
+        take: finalLimit,
       }),
       prisma.purchaseOrder.count({ where }),
     ]);
 
-    res.json({ success: true, data: orders, total, page: toInt(page, 1), limit: toInt(limit, 20) });
+    // DEBUG: Log results
+    console.log('[PURCHASE RESULTS]', {
+      ordersReturned: orders.length,
+      totalInDB: total,
+      exportAll,
+      responseLimit: finalLimit,
+      timestamp: new Date().toISOString(),
+    });
+
+    res.json({ success: true, data: orders, total, page: exportAll ? 1 : toInt(page, 1), limit: finalLimit });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Failed to fetch purchase orders.' });

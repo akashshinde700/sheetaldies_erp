@@ -177,10 +177,138 @@ const exportCertificates = async (certificates, format = 'xlsx') => {
   }
 };
 
+// Generate Quote PDF
+const generateQuotePDF = async (quote) => {
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      const filename = `quote_${quote.quoteNumber}_${Date.now()}.pdf`;
+      const filepath = path.join(__dirname, '../../uploads', filename);
+      const stream = fs.createWriteStream(filepath);
+
+      doc.pipe(stream);
+
+      // Company Header
+      doc.fontSize(20).font('Helvetica-Bold').text('SHEETAL DIES & TOOLS PVT. LTD.', { align: 'center' });
+      doc.fontSize(12).text('D9 Sai Industrial Premises, Plot No. 40, PCNTDA, Bhosari', { align: 'center' });
+      doc.fontSize(10).text('Pune - 411026, Maharashtra, India', { align: 'center' });
+      doc.text('GSTIN: 27AABCS1234F1Z5 | PAN: AABCS1234F', { align: 'center' });
+      doc.moveDown(1);
+
+      // Quote Title
+      doc.fontSize(16).font('Helvetica-Bold').text('SUPPLIER QUOTATION', { align: 'center' });
+      doc.moveDown(0.5);
+
+      // Quote Details
+      doc.fontSize(10).font('Helvetica');
+      const leftX = 50;
+      const rightX = 300;
+      let y = doc.y;
+
+      doc.text(`Quote No: ${quote.quoteNumber}`, leftX, y);
+      doc.text(`Date: ${new Date(quote.quoteDate).toLocaleDateString('en-IN')}`, rightX, y);
+      y += 15;
+
+      doc.text(`Vendor: ${quote.vendor?.name || 'N/A'}`, leftX, y);
+      doc.text(`Valid Until: ${quote.validUntil ? new Date(quote.validUntil).toLocaleDateString('en-IN') : 'N/A'}`, rightX, y);
+      y += 15;
+
+      doc.text(`Status: ${quote.status}`, leftX, y);
+      y += 15;
+
+      if (quote.description) {
+        doc.text(`Description: ${quote.description}`, leftX, y);
+        y += 15;
+      }
+
+      doc.moveDown(1);
+
+      // Items Table
+      const tableTop = y + 10;
+      const colWidths = [30, 200, 80, 80, 80]; // S.No, Description, Qty, Unit Price, Amount
+      const headers = ['S.No', 'Description', 'Qty', 'Unit Price', 'Amount'];
+
+      // Draw table header
+      doc.fillColor('#f0f0f0').rect(leftX, tableTop, 470, 20).fill();
+      doc.fillColor('#000').fontSize(9).font('Helvetica-Bold');
+      let x = leftX;
+      headers.forEach((header, i) => {
+        doc.text(header, x + 5, tableTop + 5, { width: colWidths[i] - 10 });
+        x += colWidths[i];
+      });
+
+      // Draw table rows
+      let currentY = tableTop + 20;
+      doc.fontSize(8).font('Helvetica');
+      quote.items.forEach((item, index) => {
+        if (currentY > doc.page.height - 100) {
+          doc.addPage();
+          currentY = 50;
+        }
+
+        doc.rect(leftX, currentY, 470, 15).stroke();
+        x = leftX;
+        const values = [
+          (index + 1).toString(),
+          item.description || '',
+          item.quantity?.toString() || '',
+          item.unitPrice?.toString() || '',
+          item.amount?.toString() || ''
+        ];
+
+        values.forEach((value, i) => {
+          doc.text(value, x + 5, currentY + 3, { width: colWidths[i] - 10 });
+          x += colWidths[i];
+        });
+
+        currentY += 15;
+      });
+
+      // Totals
+      currentY += 10;
+      doc.font('Helvetica-Bold');
+      doc.text(`Subtotal: ₹${quote.subtotal?.toFixed(2) || '0.00'}`, rightX, currentY);
+      currentY += 15;
+      if (quote.taxAmount) {
+        doc.text(`Tax (${quote.taxRate}%): ₹${quote.taxAmount?.toFixed(2) || '0.00'}`, rightX, currentY);
+        currentY += 15;
+      }
+      doc.text(`Total: ₹${quote.totalAmount?.toFixed(2) || '0.00'}`, rightX, currentY);
+      currentY += 20;
+
+      // Additional details
+      if (quote.paymentTerms) {
+        doc.font('Helvetica').text(`Payment Terms: ${quote.paymentTerms}`, leftX, currentY);
+        currentY += 15;
+      }
+      if (quote.deliveryDays) {
+        doc.text(`Delivery Days: ${quote.deliveryDays}`, leftX, currentY);
+        currentY += 15;
+      }
+      if (quote.notes) {
+        doc.text(`Notes: ${quote.notes}`, leftX, currentY);
+      }
+
+      doc.end();
+
+      stream.on('finish', () => {
+        resolve(filepath);
+      });
+
+      stream.on('error', (err) => {
+        reject(err);
+      });
+    } catch (error) {
+      reject(error);
+    }
+  });
+};
+
 module.exports = {
   generatePDF,
   generateXLSX,
   exportJobCards,
   exportInvoices,
-  exportCertificates
+  exportCertificates,
+  generateQuotePDF
 };

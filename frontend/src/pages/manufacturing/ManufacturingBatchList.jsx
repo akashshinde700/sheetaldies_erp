@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import ListSearchInput from '../../components/ListSearchInput';
 
 export default function ManufacturingBatchList() {
   const [batches, setBatches] = useState([]);
@@ -16,13 +17,17 @@ export default function ManufacturingBatchList() {
 
   useEffect(() => {
     fetchBatches();
+  }, [searchTerm]);
+
+  useEffect(() => {
     fetchJobcards();
   }, []);
 
   const fetchBatches = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/manufacturing/batches?search=' + searchTerm);
+      const trimmed = searchTerm.trim();
+      const response = await api.get('/manufacturing/batches?search=' + encodeURIComponent(trimmed));
       setBatches(response.data.data || []);
     } catch (error) {
       console.error(error);
@@ -110,11 +115,26 @@ export default function ManufacturingBatchList() {
         </div>
       )}
 
-      <div className="card overflow-hidden">
-        <div className="p-4 border-b border-slate-200/80 flex items-center gap-2 bg-slate-50/50">
-          <span className="material-symbols-outlined text-[20px] text-slate-400 shrink-0">search</span>
-          <input type="text" placeholder="Search batches…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onKeyUp={fetchBatches} className="flex-1 form-input border-0 bg-transparent shadow-none focus:ring-0" />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] items-end">
+        <div className="flex items-center gap-2">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Search</label>
+          <ListSearchInput
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search batches..."
+          />
         </div>
+        {searchTerm ? (
+          <button
+            type="button"
+            onClick={() => setSearchTerm('')}
+            className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-500 transition-colors font-medium"
+          >
+            <span className="material-symbols-outlined text-sm">close</span> Clear
+          </button>
+        ) : <div />}
+      </div>
+      <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead>

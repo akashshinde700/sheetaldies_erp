@@ -1,25 +1,210 @@
+/**
+ * API Client with Enhanced Interceptors
+ * Handles: JWT refresh, error handling, request/response transformation, file uploads
+ */
+
 import axios from 'axios';
 
-const api = axios.create({ baseURL: '/api', timeout: 15000 });
+const API_BASE_URL = '/api';
 
-// Attach JWT from localStorage
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('erp_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 15000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  withCredentials: true,
 });
 
-// Handle 401 → redirect to login
-api.interceptors.response.use(
-  (res) => res,
-  (err) => {
-    if (err.response?.status === 401) {
-      localStorage.removeItem('erp_token');
-      localStorage.removeItem('erp_user');
-      window.location.href = '/login';
+/**
+ * Request Interceptor
+ * - Use httpOnly auth cookies instead of localStorage tokens
+ * - Transform request data
+ * - Add request ID for tracking
+ */
+api.interceptors.request.use(
+  (config) => {
+    // Cookies-based auth is used for security, so Authorization header is not required.
+    // Add request ID for tracing
+    config.headers['X-Request-ID'] = `${Date.now()}-${Math.random()
+      .toString(36)
+      .substr(2, 9)}`;
+
+    // Log request (development only)
+    if (import.meta.env.DEV) {
+      console.log(`📤 ${config.method.toUpperCase()} ${config.url}`);
     }
-    return Promise.reject(err);
+
+    return config;
+  },
+  (error) => {
+    console.error('Request interceptor error:', error);
+    return Promise.reject(error);
   }
 );
+
+/**
+ * Response Interceptor
+ * - Handle JWT refresh on 401
+ * - Format error responses
+ * - Transform response data
+ */
+api.interceptors.response.use(
+  (response) => {
+    // Log response (development only)
+    if (import.meta.env.DEV) {
+      console.log(`✅ ${response.status} ${response.config.url}`);
+    }
+    return response;
+  },
+  async (error) => {
+    const originalRequest = error.config;
+    const response = error.response;
+
+      // Handle 401 Unauthorized - Try refresh token
+    const reqUrl = originalRequest.url?.toString() || '';
+    const isAuthRoute = reqUrl.includes('/auth/');
+    const isRefreshAttempt = reqUrl.includes('/auth/refresh-token');
+    const isAuthMe = reqUrl.includes('/auth/me');
+
+    // Never attempt refresh-token for auth endpoints themselves (login/logout/me/etc).
+    if (error.response?.status === 401 && !originalRequest._retry && !isRefreshAttempt && !isAuthRoute && !isAuthMe) {
+      originalRequest._retry = true;
+
+      try {
+        const response = await axios.post(
+          `${API_BASE_URL}/auth/refresh-token`,
+          {},
+          { withCredentials: true }
+        );
+
+        const { accessToken } = response.data.data || response.data;
+        if (accessToken) {
+          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+        }
+
+        return api(originalRequest);
+      } catch (refreshError) {
+        console.error('Token refresh failed:', refreshError);
+        sessionStorage.removeItem('erp_user');
+        // Don't hard-redirect here; it can cause reload loops and rate-limit blowups.
+        // Let the app routing (PrivateRoute/AuthProvider) handle navigation.
+        return Promise.reject(refreshError);
+      }
+    }
+
+    // Handle 401 without retry
+    if (error.response?.status === 401) {
+      sessionStorage.removeItem('erp_user');
+      // Don't hard-redirect; allow callers to decide.
+    }
+
+    // Handle other errors
+    const errorMessage = response?.data?.message || error.message || 'An error occurred';
+    const errorCode = response?.data?.code || 'UNKNOWN_ERROR';
+
+    // Log error (development only)
+    if (import.meta.env.DEV) {
+      console.error(`❌ ${error.response?.status || 'ERR'} ${error.config?.url}`);
+      console.error(`   Error: ${errorMessage}`);
+      console.error(`   Code: ${errorCode}`);
+    }
+
+    // Transform error for consistency
+    const customError = new Error(errorMessage);
+    customError.code = errorCode;
+    customError.status = response?.status;
+    customError.data = response?.data;
+    customError.response = response;
+    customError.originalError = error;
+
+    return Promise.reject(customError);
+  }
+);
+
+/**
+ * File upload with progress tracking
+ * @example
+ * const onProgress = (percent) => console.log(`${percent}% uploaded`);
+ * await api.upload('/upload', formData, onProgress);
+ */
+api.upload = (url, formData, onProgress = null) => {
+  return api.post(url, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: (progressEvent) => {
+      if (onProgress && progressEvent.total) {
+        const percentCompleted = Math.round(
+          (progressEvent.loaded * 100) / progressEvent.total
+        );
+        onProgress(percentCompleted);
+      }
+    },
+  });
+};
+
+/**
+ * Download file
+ * @example
+ * await api.download('/invoices/123/pdf', 'invoice-123.pdf');
+ */
+api.download = async (url, filename) => {
+  try {
+    const response = await api.get(url, { responseType: 'blob' });
+    const blob = response.data;
+    const urlBlob = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = urlBlob;
+    link.download = filename;
+    link.click();
+    window.URL.revokeObjectURL(urlBlob);
+  } catch (error) {
+    console.error('Download failed:', error);
+    throw error;
+  }
+};
+
+/**
+ * Batch requests
+ * @example
+ * const results = await api.batch([
+ *   api.get('/jobcards'),
+ *   api.get('/parties')
+ * ]);
+ */
+api.batch = (requests) => Promise.all(requests);
+
+/**
+ * Error Handler Utility
+ * Provides user-friendly error messages
+ */
+export const handleError = (error) => {
+  const code = error.code || error.status;
+  const message = error.message || 'An error occurred';
+
+  const errorMap = {
+    DUPLICATE_GSTIN: 'A party with this GSTIN already exists',
+    DUPLICATE_PAN: 'A party with this PAN already exists',
+    INVALID_GSTIN: 'Invalid GSTIN format',
+    INVALID_PAN: 'Invalid PAN format',
+    UNAUTHORIZED: 'You are not authorized to perform this action',
+    FORBIDDEN: 'Access denied',
+    NOT_FOUND: 'Resource not found',
+    VALIDATION_ERROR: 'Please check your input and try again',
+    RATE_LIMIT_EXCEEDED: 'Too many requests. Please try again later',
+    FILE_TOO_LARGE: 'File size exceeds maximum limit',
+    INVALID_FILE_TYPE: 'File type is not supported',
+    SERVER_ERROR: 'Server error. Please try again later',
+    NETWORK_ERROR: 'Network error. Please check your connection',
+  };
+
+  return errorMap[code] || message;
+};
+
+/**
+ * Success message extractor
+ */
+export const getSuccessMessage = (response, defaultMsg = 'Success') => {
+  return response?.data?.message || defaultMsg;
+};
 
 export default api;

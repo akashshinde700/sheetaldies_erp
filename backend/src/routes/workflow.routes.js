@@ -3,12 +3,13 @@ const ctrl = require('../controllers/workflow.controller');
 const auth = require('../middleware/auth');
 const { requireRole } = require('../middleware/role');
 const validate = require('../middleware/validate');
-const schema = require('../validators/workflow.validator');
+const schema = require('../validation/workflow.validator');
 
 // Template APIs
 router.get('/templates', auth, ctrl.listTemplates);
 router.post('/templates', auth, requireRole('ADMIN'), validate(schema.createTemplate), ctrl.createTemplate);
 router.get('/templates/:id', auth, validate(schema.idParam, 'params'), ctrl.getTemplate);
+router.delete('/templates/:id', auth, requireRole('ADMIN'), validate(schema.idParam, 'params'), ctrl.deleteTemplate);
 router.post('/templates/seed/vht-standard', auth, requireRole('ADMIN'), ctrl.seedHeatTreatmentTemplate);
 
 // Job Workflow APIs

@@ -1,4 +1,4 @@
-name: CI
+name: CI/CD Pipeline
 
 on:
   push:
@@ -6,33 +6,120 @@ on:
   pull_request:
     branches: [main, master]
 
+env:
+  NODE_VERSION: '20'
+
 jobs:
+  # ── Backend Lint & Test ──────────────────────────────────────
   backend-test:
+    name: Backend Tests
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: testroot
+          MYSQL_DATABASE: sheetal_dies_erp_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      DATABASE_URL: mysql://root:testroot@localhost:3306/sheetal_dies_erp_test
+      JWT_SECRET: ci-test-secret-not-for-production-use-only
+      JWT_REFRESH_SECRET: ci-test-refresh-secret-not-for-production-use-only
+      NODE_ENV: test
+      PORT: 5000
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: backend/package-lock.json
-      - run: npm ci
-      - run: npm test
 
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Push schema to test DB
+        run: npx prisma db push --skip-generate
+
+      - name: Run smoke tests
+        run: npm test
+
+      - name: Run E2E workflow test
+        run: npm run test:e2e:workflow || true
+
+  # ── Frontend Lint & Build ────────────────────────────────────
   frontend-build:
+    name: Frontend Build
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: frontend
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
-      - run: npm run build
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Check bundle size
+        run: |
+          echo "=== Bundle Size Report ==="
+          du -sh dist/
+          echo "=== Asset Files ==="
+          find dist/assets -type f | head -20
+          echo "=== Total Assets ==="
+          find dist/assets -type f | wc -l
+
+  # ── Security Audit ──────────────────────────────────────────
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Backend dependency audit
+        working-directory: backend
+        run: npm audit --production --audit-level=high || true
+
+      - name: Frontend dependency audit
+        working-directory: frontend
+        run: npm audit --production --audit-level=high || true
+
+      - name: Check for .env files in repo
+        run: |
+          if find . -name ".env" -not -path "*/node_modules/*" -not -name ".env.example" | grep -q .; then
+            echo "⚠️  WARNING: .env files found in repository!"
+            find . -name ".env" -not -path "*/node_modules/*" -not -name ".env.example"
+            exit 1
+          else
+            echo "✅ No .env files found in repository"
+          fi

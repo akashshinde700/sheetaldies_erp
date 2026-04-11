@@ -4,28 +4,37 @@ const auth   = require('../middleware/auth');
 const { requireRole } = require('../middleware/role');
 const ctrl = require('../controllers/party.controller');
 const { toInt } = require('../utils/normalize');
+const { parsePagination, formatListResponse, formatErrorResponse, getStatusCode } = require('../utils/validation');
 
 router.get('/', auth, async (req, res) => {
   try {
     const { type } = req.query;
+    const { page, limit, skip } = parsePagination(req);
+    
     const where = type ? { partyType: { in: [type, 'BOTH'] } } : {};
     // Keep list payload minimal so UI remains stable even if some optional DB columns drift.
-    const parties = await prisma.party.findMany({
-      where,
-      orderBy: { name: 'asc' },
-      select: {
-        id: true,
-        name: true,
-        address: true,
-        phone: true,
-        email: true,
-        partyType: true,
-      },
-    });
-    res.json({ success: true, data: parties });
+    const [parties, total] = await Promise.all([
+      prisma.party.findMany({
+        where,
+        orderBy: { name: 'asc' },
+        select: {
+          id: true,
+          name: true,
+          address: true,
+          phone: true,
+          email: true,
+          partyType: true,
+        },
+        skip,
+        take: limit,
+      }),
+      prisma.party.count({ where }),
+    ]);
+    
+    res.json(formatListResponse(parties, total, page, limit));
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to fetch parties.' });
+    res.status(getStatusCode('ERR_INTERNAL')).json(formatErrorResponse('ERR_INTERNAL', 'Failed to fetch parties.'));
   }
 });
 

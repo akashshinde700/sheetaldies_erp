@@ -1,6 +1,8 @@
 const prisma = require('../utils/prisma');
 const { jobworkStatusBody } = require('../validation/schemas');
 const { toInt, toNum, asArray, toDateOrNull } = require('../utils/normalize');
+const { formatErrorResponse, getStatusCode, formatListResponse, parsePagination } = require('../utils/validation');
+const { parseJsonIfString } = require('../utils/json');
 
 const generateChallanNo = async () => {
   const y  = new Date().getFullYear().toString().slice(-2);   // "26"
@@ -35,9 +37,35 @@ const generateChallanNo = async () => {
 // ── List Challans ─────────────────────────────────────────────
 exports.list = async (req, res) => {
   try {
-    const { status, page = 1, limit = 20, seedDemo } = req.query;
+    const { status, seedDemo, fromDate, toDate, search } = req.query;
+    const { page, limit, skip } = parsePagination(req);
+    const exportAll = String(req.query.exportAll) === 'true';
+
+    // DEBUG: Log export request details
+    console.log('[JOBWORK EXPORT DEBUG]', {
+      exportAll,
+      page,
+      limit,
+      skip,
+      status,
+      fromDate,
+      toDate,
+      timestamp: new Date().toISOString(),
+    });
+    
     const and = [];
     if (status) and.push({ status });
+    const searchText = String(search || '').trim();
+    if (searchText) {
+      and.push({
+        OR: [
+          { challanNo: { contains: searchText, mode: 'insensitive' } },
+          { fromParty: { is: { name: { contains: searchText, mode: 'insensitive' } } } },
+          { toParty: { is: { name: { contains: searchText, mode: 'insensitive' } } } },
+          { jobCard: { is: { jobCardNo: { contains: searchText, mode: 'insensitive' } } } },
+        ],
+      });
+    }
     // Hide seeded demo challans by default; allow explicit override via query.
     const demoMode = seedDemo === 'only' ? 'only' : (seedDemo === 'all' ? 'all' : 'hide');
     if (demoMode === 'only') {
@@ -50,9 +78,25 @@ exports.list = async (req, res) => {
         ],
       });
     }
+
+    if (fromDate || toDate) {
+      const challanDate = {};
+      if (fromDate) {
+        const from = new Date(fromDate);
+        if (!Number.isNaN(from.getTime())) challanDate.gte = from;
+      }
+      if (toDate) {
+        const to = new Date(toDate);
+        if (!Number.isNaN(to.getTime())) {
+          to.setDate(to.getDate() + 1);
+          challanDate.lt = to;
+        }
+      }
+      if (Object.keys(challanDate).length) and.push({ challanDate });
+    }
+
     const where = and.length ? { AND: and } : {};
-    const [total, challans] = await Promise.all([
-      prisma.jobworkChallan.count({ where }),
+    const [challans, total] = await Promise.all([
       prisma.jobworkChallan.findMany({
         where,
         include: {
@@ -63,13 +107,23 @@ exports.list = async (req, res) => {
           createdBy: { select: { name: true } },
         },
         orderBy: { createdAt: 'desc' },
-        skip:  (toInt(page, 1) - 1) * toInt(limit, 20),
-        take:  toInt(limit, 20),
+        ...(exportAll ? { skip: 0, take: 100000 } : { skip, take: limit }),
       }),
+      prisma.jobworkChallan.count({ where }),
     ]);
-    res.json({ success: true, data: challans, meta: { total } });
+
+    // DEBUG: Log results
+    console.log('[JOBWORK RESULTS]', {
+      challansReturned: challans.length,
+      totalInDB: total,
+      exportAll,
+      responseLimit: exportAll ? challans.length : limit,
+      timestamp: new Date().toISOString(),
+    });
+
+    res.json(formatListResponse(challans, total, exportAll ? 1 : page, exportAll ? challans.length : limit));
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error.' });
+    res.status(getStatusCode('ERR_INTERNAL')).json(formatErrorResponse('ERR_INTERNAL', 'Server error.'));
   }
 };
 
@@ -204,7 +258,15 @@ exports.update = async (req, res) => {
       cgstRate, sgstRate, igstRate,
     } = req.body;
 
-    const parsedItems = typeof items === 'string' ? JSON.parse(items) : (items || []);
+    let parsedItems;
+    try {
+      parsedItems = parseJsonIfString(items, { fieldName: 'items', defaultValue: [] }) || [];
+    } catch (e) {
+      if (e.code === 'INVALID_JSON') {
+        return res.status(400).json({ success: false, code: e.code, message: e.message });
+      }
+      throw e;
+    }
     const subtotal    = parsedItems.reduce((s, it) => s + toNum(it.amount, 0), 0);
     const handling    = toNum(handlingCharges, 0);
     const total       = subtotal + handling;

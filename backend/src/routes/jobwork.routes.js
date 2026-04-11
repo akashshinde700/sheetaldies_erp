@@ -3,7 +3,7 @@ const ctrl   = require('../controllers/jobwork.controller');
 const auth   = require('../middleware/auth');
 const { requireRole } = require('../middleware/role');
 const validate = require('../middleware/validate');
-const commercialVal = require('../validators/commercial.validator');
+const commercialVal = require('../validation/commercial.validator');
 
 router.get   ('/',               auth, ctrl.list);
 router.get   ('/register',       auth, ctrl.register);

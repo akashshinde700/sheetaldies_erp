@@ -1,10 +1,13 @@
 const prisma = require('../utils/prisma');
 const { toInt } = require('../utils/normalize');
+const { formatErrorResponse, getStatusCode, formatListResponse, parsePagination } = require('../utils/validation');
+const { softDelete } = require('../utils/softDelete');
 
 // Get all machines with search
 exports.list = async (req, res) => {
   try {
     const { search = '' } = req.query;
+    const { page, limit, skip } = parsePagination(req);
 
     const where = search
       ? {
@@ -14,18 +17,24 @@ exports.list = async (req, res) => {
             { type: { contains: search } },
             { make: { contains: search } },
           ],
+          isActive: true,
         }
-      : {};
+      : { isActive: true };
 
-    const machines = await prisma.machine.findMany({
-      where,
-      orderBy: { name: 'asc' },
-    });
+    const [data, total] = await Promise.all([
+      prisma.machine.findMany({
+        where,
+        orderBy: { name: 'asc' },
+        skip,
+        take: limit,
+      }),
+      prisma.machine.count({ where }),
+    ]);
 
-    res.json({ success: true, data: machines });
+    res.json(formatListResponse(data, total, page, limit));
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to fetch machines.' });
+    res.status(getStatusCode('ERR_INTERNAL')).json(formatErrorResponse('ERR_INTERNAL', 'Failed to fetch machines.'));
   }
 };
 
@@ -37,7 +46,7 @@ exports.getOne = async (req, res) => {
 
     const machine = await prisma.machine.findUnique({ where: { id } });
 
-    if (!machine) return res.status(404).json({ success: false, message: 'Machine not found.' });
+    if (!machine || !machine.isActive) return res.status(404).json({ success: false, message: 'Machine not found.' });
 
     res.json({ success: true, data: machine });
   } catch (err) {
@@ -108,7 +117,7 @@ exports.delete = async (req, res) => {
     const id = toInt(req.params.id);
     if (Number.isNaN(id)) return res.status(400).json({ success: false, message: 'Invalid ID.' });
 
-    await prisma.machine.delete({ where: { id } });
+    await softDelete(prisma.machine, id);
 
     res.json({ success: true, message: 'Machine deleted successfully.' });
   } catch (err) {

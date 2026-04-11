@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "nodemon src/app.js",
     "start": "node src/app.js",
+    "start:prod": "npx pm2 start ../ecosystem.config.json --env production",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
@@ -19,9 +20,12 @@
     "db:advance-workflow": "node scripts/seed-advance-workflow.js",
     "db:seed-jobcards": "node scripts/seed-jobcards-from-parties.js",
     "db:ensure-admin": "node scripts/ensure-admin-user.js",
-    "db:seed": "node src/utils/seed.js",
+    "db:reset-admin": "node scripts/reset-admin-password.js",
+    "db:seed": "node scripts/seed-parties.js && node scripts/seed-machines.js",
     "test:e2e:workflow": "node scripts/e2e-workflow-flow-test.js",
-    "test": "node --test test/smoke.test.js"
+    "test": "node --test test/smoke.test.js",
+    "test:api": "node --test test/api.test.js",
+    "test:all": "node --test test/"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
@@ -38,6 +42,8 @@
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^6.9.11",
     "pdfkit": "^0.18.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
     "uuid": "^9.0.1",
     "xlsx": "^0.18.5"
   },

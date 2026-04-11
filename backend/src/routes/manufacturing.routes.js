@@ -3,7 +3,7 @@ const ctrl = require('../controllers/manufacturing.controller');
 const auth = require('../middleware/auth');
 const { requireRole } = require('../middleware/role');
 const validate = require('../middleware/validate');
-const runsheetVal = require('../validators/runsheet.validation');
+const runsheetVal = require('../validation/runsheet.validation');
 
 router.use(auth);
 

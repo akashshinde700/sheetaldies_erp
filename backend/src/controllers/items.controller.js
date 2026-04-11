@@ -1,10 +1,13 @@
 const prisma = require('../utils/prisma');
 const { toInt, toNum } = require('../utils/normalize');
+const { formatErrorResponse, getStatusCode, formatListResponse, parsePagination } = require('../utils/validation');
+const { softDelete } = require('../utils/softDelete');
 
 // Get all items with search
 exports.list = async (req, res) => {
   try {
     const { search = '' } = req.query;
+    const { page, limit, skip } = parsePagination(req);
 
     const where = search
       ? {
@@ -14,18 +17,24 @@ exports.list = async (req, res) => {
             { hsnCode: { contains: search } },
             { drawingNo: { contains: search } },
           ],
+          isActive: true,
         }
-      : {};
+      : { isActive: true };
 
-    const items = await prisma.item.findMany({
-      where,
-      orderBy: { partNo: 'asc' },
-    });
+    const [data, total] = await Promise.all([
+      prisma.item.findMany({
+        where,
+        orderBy: { partNo: 'asc' },
+        skip,
+        take: limit,
+      }),
+      prisma.item.count({ where }),
+    ]);
 
-    res.json({ success: true, data: items });
+    res.json(formatListResponse(data, total, page, limit));
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to fetch items.' });
+    res.status(getStatusCode('ERR_INTERNAL')).json(formatErrorResponse('ERR_INTERNAL', 'Failed to fetch items.'));
   }
 };
 
@@ -37,7 +46,7 @@ exports.getOne = async (req, res) => {
 
     const item = await prisma.item.findUnique({ where: { id } });
 
-    if (!item) return res.status(404).json({ success: false, message: 'Item not found.' });
+    if (!item || !item.isActive) return res.status(404).json({ success: false, message: 'Item not found.' });
 
     res.json({ success: true, data: item });
   } catch (err) {
@@ -115,7 +124,7 @@ exports.delete = async (req, res) => {
     const id = toInt(req.params.id);
     if (Number.isNaN(id)) return res.status(400).json({ success: false, message: 'Invalid ID.' });
 
-    await prisma.item.delete({ where: { id } });
+    await softDelete(prisma.item, id);
 
     res.json({ success: true, message: 'Item deleted successfully.' });
   } catch (err) {

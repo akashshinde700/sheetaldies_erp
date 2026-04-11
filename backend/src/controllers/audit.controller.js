@@ -1,5 +1,6 @@
 const prisma = require('../utils/prisma');
 const { toInt } = require('../utils/normalize');
+const { formatErrorResponse, getStatusCode, formatListResponse, parsePagination } = require('../utils/validation');
 
 const SENSITIVE_KEYS = new Set([
   'password',
@@ -71,8 +72,8 @@ const auditLog = async (req, res, next) => {
 // ── List Audit Logs ───────────────────────────────────────────
 exports.list = async (req, res) => {
   try {
-    const { userId = '', tableName = '', action = '', page = 1, limit = 50 } = req.query;
-    const skip = (toInt(page, 1) - 1) * toInt(limit, 50);
+    const { userId = '', tableName = '', action = '' } = req.query;
+    const { page, limit, skip } = parsePagination(req);
 
     const where = {};
     if (userId) where.userId = toInt(userId);
@@ -85,15 +86,15 @@ exports.list = async (req, res) => {
         include: { user: { select: { name: true, email: true } } },
         orderBy: { createdAt: 'desc' },
         skip,
-        take: toInt(limit, 50),
+        take: limit,
       }),
       prisma.auditLog.count({ where }),
     ]);
 
-    res.json({ success: true, data: logs, total, page: toInt(page, 1), limit: toInt(limit, 50) });
+    res.json(formatListResponse(logs, total, page, limit));
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to fetch audit logs.' });
+    res.status(getStatusCode('ERR_INTERNAL')).json(formatErrorResponse('ERR_INTERNAL', 'Failed to fetch audit logs.'));
   }
 };
 

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { exportToExcel } from '../../utils/export';
+import ListSearchInput from '../../components/ListSearchInput';
 
 const STATUS_STYLE = {
   DRAFT:    'bg-slate-100 text-slate-600',
@@ -43,32 +44,76 @@ export default function CertList() {
   const [certs,   setCerts]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
+  const [search,  setSearch]  = useState('');
   const [page,    setPage]    = useState(1);
   const [total,   setTotal]   = useState(0);
+  const [status,  setStatus]  = useState('all');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
 
   const fetchData = useCallback(() => {
     setLoading(true); setError(null);
-    api.get('/quality/certificates', { params: { page, limit: PAGE_LIMIT } })
-      .then(r => { setCerts(r.data.data || []); setTotal(r.data.meta?.total || 0); })
+    api.get('/quality/certificates', {
+      params: {
+        page,
+        limit: PAGE_LIMIT,
+        ...(search.trim() ? { search: search.trim() } : {}),
+        ...(status !== 'all' ? { status } : {}),
+        ...(fromDate ? { fromDate } : {}),
+        ...(toDate ? { toDate } : {}),
+      },
+    })
+      .then(r => { setCerts(r.data.data || []); setTotal(r.data.pagination?.total || 0); })
       .catch(() => setError('Failed to load certificates.'))
       .finally(() => setLoading(false));
-  }, [page]);
+  }, [page, search, status, fromDate, toDate]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const exportCertificates = () => {
-    if (!certs.length) { toast.error('No certificates to export.'); return; }
-    const rows = certs.map(c => ({
-      'Certificate No': c.certNo,
-      'Issue Date': c.issueDate ? new Date(c.issueDate).toLocaleDateString('en-IN') : '',
-      'Job Card': c.jobCard?.jobCardNo || c.jobCard || '',
-      'Customer': c.customer?.name || '',
-      'Hardness': c.hardnessMin && c.hardnessMax ? `${c.hardnessMin}-${c.hardnessMax} ${c.hardnessUnit || ''}` : '',
-      'Packed Qty': c.packedQty ?? '',
-      'Status': c.status,
-    }));
-    exportToExcel(rows, `Quality-Certificates`);
-    toast.success('Certificates exported to Excel.');
+  const exportCertificates = async () => {
+    try {
+      const baseParams = {
+        ...(search.trim() ? { search: search.trim() } : {}),
+        ...(status !== 'all' ? { status } : {}),
+        ...(fromDate ? { fromDate } : {}),
+        ...(toDate ? { toDate } : {}),
+      };
+      const exportLimit = 100;
+      const allCerts = [];
+      let exportPage = 1;
+      let totalPages = 1;
+
+      do {
+        const response = await api.get('/quality/certificates', {
+          params: { ...baseParams, page: exportPage, limit: exportLimit },
+        });
+        const pageRows = response.data.data || [];
+        allCerts.push(...pageRows);
+        totalPages = response.data.pagination?.pages || 1;
+        exportPage += 1;
+      } while (exportPage <= totalPages);
+
+      const rows = allCerts.map(c => ({
+        'Certificate No': c.certNo,
+        'Issue Date': c.issueDate ? new Date(c.issueDate).toLocaleDateString('en-IN') : '',
+        'Job Card': c.jobCard?.jobCardNo || c.jobCard || '',
+        'Customer': c.customer?.name || '',
+        'Hardness': c.hardnessMin && c.hardnessMax ? `${c.hardnessMin}-${c.hardnessMax} ${c.hardnessUnit || ''}` : '',
+        'Packed Qty': c.packedQty ?? '',
+        'Status': c.status,
+      }));
+
+      if (!rows.length) {
+        toast.error('No certificates to export.');
+        return;
+      }
+
+      exportToExcel(rows, `Quality-Certificates`);
+      toast.success('Certificates exported to Excel.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to export certificates.');
+    }
   };
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_LIMIT));
@@ -82,7 +127,7 @@ export default function CertList() {
           <h2 className="text-xl font-extrabold text-slate-800 font-headline">Test Certificates</h2>
           <p className="text-xs text-slate-400 mt-0.5">{total > 0 ? `${total} total` : 'Quality assurance records'}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button onClick={exportCertificates} className="btn-outline">
             <span className="material-symbols-outlined text-sm">file_download</span> Export Excel
           </button>
@@ -90,6 +135,54 @@ export default function CertList() {
             <span className="material-symbols-outlined text-sm">add</span> New Certificate
           </Link>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto_auto_auto] items-end">
+          <ListSearchInput
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            placeholder="Search cert, customer, job card..."
+          />
+          <div className="flex gap-2 items-center">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">From</label>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => { setFromDate(e.target.value); setPage(1); }}
+              className="form-input text-xs"
+            />
+          </div>
+          <div className="flex gap-2 items-center">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">To</label>
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => { setToDate(e.target.value); setPage(1); }}
+              className="form-input text-xs"
+            />
+          </div>
+          <div className="flex gap-2 items-center">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</label>
+            <select
+              value={status}
+              onChange={(e) => { setStatus(e.target.value); setPage(1); }}
+              className="form-input text-xs w-auto min-w-[170px]"
+            >
+              <option value="all">All</option>
+              <option value="DRAFT">Draft</option>
+              <option value="ISSUED">Issued</option>
+              <option value="APPROVED">Approved</option>
+            </select>
+          </div>
+          {(search || fromDate || toDate || status !== 'all') ? (
+            <button
+              type="button"
+              onClick={() => { setSearch(''); setFromDate(''); setToDate(''); setStatus('all'); setPage(1); }}
+              className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-500 transition-colors font-medium"
+            >
+              <span className="material-symbols-outlined text-sm">close</span> Clear
+            </button>
+          ) : <div />}
       </div>
 
       {/* Error */}

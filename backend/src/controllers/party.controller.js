@@ -1,5 +1,6 @@
 const prisma = require('../utils/prisma');
 const { toInt, toNum } = require('../utils/normalize');
+const { formatErrorResponse, getStatusCode, formatListResponse, parsePagination } = require('../utils/validation');
 
 /** Minimal customer row from job card etc. — allowed for OPERATOR + MANAGER */
 exports.quickCreateCustomer = async (req, res) => {

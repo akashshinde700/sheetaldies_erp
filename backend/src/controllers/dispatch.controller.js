@@ -1,5 +1,8 @@
 const prisma = require('../utils/prisma');
+const { transaction } = require('../utils/transaction');
 const { toInt, toNum } = require('../utils/normalize');
+const { formatErrorResponse, getStatusCode, formatListResponse, parsePagination } = require('../utils/validation');
+const { parseJsonIfString } = require('../utils/json');
 
 const generateDispatchChallanNo = async (db = prisma) => {
   const y = new Date().getFullYear().toString().slice(-2);
@@ -54,12 +57,21 @@ const getDispatchedQtyForChallanItem = async ({ sourceChallanItemId, excludeDisp
 // ── List Dispatch Challans ────────────────────────────────────
 exports.list = async (req, res) => {
   try {
-    const { status, page = 1, limit = 20 } = req.query;
+    const { status, search } = req.query;
+    const { page, limit, skip } = parsePagination(req);
+    
     const where = {};
     if (status && status !== 'all') where.status = status;
+    const searchText = String(search || '').trim();
+    if (searchText) {
+      where.OR = [
+        { challanNo: { contains: searchText, mode: 'insensitive' } },
+        { fromParty: { is: { name: { contains: searchText, mode: 'insensitive' } } } },
+        { toParty: { is: { name: { contains: searchText, mode: 'insensitive' } } } },
+      ];
+    }
 
-    const [total, challans] = await Promise.all([
-      prisma.dispatchChallan.count({ where }),
+    const [challans, total] = await Promise.all([
       prisma.dispatchChallan.findMany({
         where,
         include: {
@@ -69,9 +81,10 @@ exports.list = async (req, res) => {
           createdBy: { select: { name: true } },
         },
         orderBy: { createdAt: 'desc' },
-        skip: (toInt(page, 1) - 1) * toInt(limit, 20),
-        take: toInt(limit, 20),
+        skip,
+        take: limit,
       }),
+      prisma.dispatchChallan.count({ where }),
     ]);
 
     const enhanced = challans.map(c => ({
@@ -79,10 +92,10 @@ exports.list = async (req, res) => {
       itemCount: c.items?.length || 0,
     }));
 
-    res.json({ success: true, data: enhanced, meta: { total } });
+    res.json(formatListResponse(enhanced, total, page, limit));
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: 'Server error.' });
+    res.status(getStatusCode('ERR_INTERNAL')).json(formatErrorResponse('ERR_INTERNAL', 'Server error.'));
   }
 };
 
@@ -132,7 +145,15 @@ exports.create = async (req, res) => {
       return res.status(400).json({ success: false, message: 'From and To party required.' });
     }
 
-    const parsedItems = typeof items === 'string' ? JSON.parse(items) : (items || []);
+    let parsedItems;
+    try {
+      parsedItems = parseJsonIfString(items, { fieldName: 'items', defaultValue: [] }) || [];
+    } catch (e) {
+      if (e.code === 'INVALID_JSON') {
+        return res.status(400).json({ success: false, code: e.code, message: e.message });
+      }
+      throw e;
+    }
 
     // Gating: certificate required when linked to jobwork challan
     const allowed = await assertDispatchAllowed({ jobworkChallanId });
@@ -217,7 +238,8 @@ exports.create = async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: 'Error creating dispatch challan.' });
+    const status = getStatusCode('ERR_INTERNAL');
+    res.status(status).json(formatErrorResponse('ERR_INTERNAL', 'Failed to create dispatch challan'));
   }
 };
 
@@ -251,7 +273,17 @@ exports.update = async (req, res) => {
       await prisma.dispatchChallanItem.deleteMany({ where: { dispatchId: id } });
     }
 
-    const parsedItems = items ? (typeof items === 'string' ? JSON.parse(items) : items) : null;
+    let parsedItems = null;
+    if (items) {
+      try {
+        parsedItems = parseJsonIfString(items, { fieldName: 'items', defaultValue: null });
+      } catch (e) {
+        if (e.code === 'INVALID_JSON') {
+          return res.status(400).json({ success: false, code: e.code, message: e.message });
+        }
+        throw e;
+      }
+    }
 
     if ((jobworkChallanId ?? existing.jobworkChallanId) && parsedItems) {
       const jwId = toInt(jobworkChallanId ?? existing.jobworkChallanId);
