@@ -3,6 +3,15 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { toNum } from '../../utils/normalize';
+import { useProcesses } from '../../hooks/useMasterData';
+
+// Subcomponents
+import CategorizationSection from './components/CategorizationSection';
+import ProcessHardnessSection from './components/ProcessHardnessSection';
+import DistortionSection from './components/DistortionSection';
+import ProcessLogSection from './components/ProcessLogSection';
+import InspectionPhotosSection from './components/InspectionPhotosSection';
+import InspectorDetailsSection from './components/InspectorDetailsSection';
 
 function ImageUploadSlot({ index, value, onChange }) {
   const inputRef  = useRef();
@@ -44,24 +53,12 @@ function ImageUploadSlot({ index, value, onChange }) {
   );
 }
 
-const CB = ({ label, checked, onChange }) => (
-  <label className="flex items-center gap-2.5 cursor-pointer group py-0.5">
-    <button type="button" onClick={() => onChange(!checked)}
-      className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all ${
-        checked ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 group-hover:border-indigo-400'
-      }`}>
-      {checked && <span className="material-symbols-outlined text-white text-[11px] leading-none">check</span>}
-    </button>
-    <span className="text-xs text-slate-700 font-medium">{label}</span>
-  </label>
-);
-
 export default function InspectionForm() {
   const { id }   = useParams();
   const navigate = useNavigate();
 
   const [jobCard,   setJobCard]   = useState(null);
-  const [processes, setProcesses] = useState([]);
+  const { data: processes = [] } = useProcesses();
   const [loading,   setLoading]   = useState(false);
   const [images,    setImages]    = useState({ 1:null, 2:null, 3:null, 4:null, 5:null });
   const [heatRows,  setHeatRows]  = useState([]);
@@ -89,7 +86,6 @@ export default function InspectionForm() {
 
   useEffect(() => {
     api.get(`/jobcards/${id}`).then(r => setJobCard(r.data.data));
-    api.get('/processes').then(r => setProcesses(r.data.data.filter(p => p.isActive)));
     api.get(`/quality/${id}/inspection`)
       .then(r => {
         const d = r.data.data;
@@ -173,25 +169,12 @@ export default function InspectionForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validate distortion measurements have at least some data
     const beforeHasData = form.distortionBefore.some(v => v !== '' && Number(v) !== 0);
     const afterHasData = form.distortionAfter.some(v => v !== '' && Number(v) !== 0);
     
     if (!beforeHasData || !afterHasData) {
       toast.error('Enter distortion measurements for at least one point before and after heat treatment.');
       return;
-    }
-
-    // Validate that all distortion values are non-negative
-    for (let i = 0; i < form.distortionBefore.length; i++) {
-      if (form.distortionBefore[i] !== '' && Number(form.distortionBefore[i]) < 0) {
-        toast.error(`Distortion Before point ${i + 1} cannot be negative.`);
-        return;
-      }
-      if (form.distortionAfter[i] !== '' && Number(form.distortionAfter[i]) < 0) {
-        toast.error(`Distortion After point ${i + 1} cannot be negative.`);
-        return;
-      }
     }
 
     setLoading(true);
@@ -248,350 +231,20 @@ export default function InspectionForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-
-        {/* Categorization | Process | Hardness */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-          {/* Categorization */}
-          <div className="card p-5">
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-2 mb-3">
-              <div className="w-6 h-6 rounded-lg bg-violet-50 flex items-center justify-center">
-                <span className="material-symbols-outlined text-violet-500 text-[14px]">fact_check</span>
-              </div>
-              <p className="section-title">Categorization</p>
-            </div>
-            <div className="space-y-1.5">
-              <CB label="Normal"              checked={form.catNormal}            onChange={v => set('catNormal', v)} />
-              <CB label="Welded"              checked={form.catWelded}            onChange={v => set('catWelded', v)} />
-              <CB label="Crack or Crack Risk" checked={form.catCrackRisk}         onChange={v => set('catCrackRisk', v)} />
-              <CB label="Distortion Risk"     checked={form.catDistortionRisk}    onChange={v => set('catDistortionRisk', v)} />
-              <CB label="Initial Finishing"   checked={form.catCriticalFinishing} onChange={v => set('catCriticalFinishing', v)} />
-              <CB label="Dent / Damage"       checked={form.catDentDamage}        onChange={v => set('catDentDamage', v)} />
-              <CB label="Rusty"               checked={form.catRusty}             onChange={v => set('catRusty', v)} />
-              <CB label="Cavity"              checked={form.catCavity}            onChange={v => set('catCavity', v)} />
-              <CB label="Others"              checked={form.catOthers}            onChange={v => set('catOthers', v)} />
-            </div>
-            {form.catOthers && (
-              <input value={form.otherDefects} onChange={e => set('otherDefects', e.target.value)}
-                className="form-input mt-2 text-xs" placeholder="Describe other defects..." />
-            )}
-          </div>
-
-          {/* Process */}
-          <div className="card p-5">
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-2 mb-3">
-              <div className="w-6 h-6 rounded-lg bg-orange-50 flex items-center justify-center">
-                <span className="material-symbols-outlined text-orange-500 text-[14px]">local_fire_department</span>
-              </div>
-              <p className="section-title">Process</p>
-            </div>
-            <div className="mb-3">
-              <label className="form-label">Primary Process</label>
-              <select value={form.processTypeId} onChange={e => set('processTypeId', e.target.value)} className="form-input">
-                <option value="">— Select —</option>
-                {processes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <CB label="Stress Relieving" checked={form.procStressRelieving} onChange={v => set('procStressRelieving', v)} />
-              <CB label="Hardening"        checked={form.procHardening}       onChange={v => set('procHardening', v)} />
-              <CB label="Tempering"        checked={form.procTempering}       onChange={v => set('procTempering', v)} />
-              <CB label="Annealing"        checked={form.procAnnealing}       onChange={v => set('procAnnealing', v)} />
-              <CB label="Brazing"          checked={form.procBrazing}         onChange={v => set('procBrazing', v)} />
-              <CB label="Plasma Nitriding" checked={form.procPlasmaNitriding} onChange={v => set('procPlasmaNitriding', v)} />
-              <CB label="Nitriding"        checked={form.procNitriding}       onChange={v => set('procNitriding', v)} />
-              <CB label="Sub Zero"         checked={form.procSubZero}         onChange={v => set('procSubZero', v)} />
-              <CB label="Soak Clean"       checked={form.procSoakClean}       onChange={v => set('procSoakClean', v)} />
-              <CB label="Slow Cool"        checked={form.procSlowCool}        onChange={v => set('procSlowCool', v)} />
-            </div>
-          </div>
-
-          {/* Inspection Methods + Hardness */}
-          <div className="card p-5 space-y-4">
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-              <div className="w-6 h-6 rounded-lg bg-emerald-50 flex items-center justify-center">
-                <span className="material-symbols-outlined text-emerald-500 text-[14px]">verified</span>
-              </div>
-              <p className="section-title">Inspection & Hardness</p>
-            </div>
-
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Visual Inspection</p>
-              <div className="space-y-1.5">
-                <CB label="Before" checked={form.visualBefore} onChange={v => set('visualBefore', v)} />
-                <CB label="After"  checked={form.visualAfter}  onChange={v => set('visualAfter', v)} />
-              </div>
-            </div>
-
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">MPI Inspection</p>
-              <div className="space-y-1.5">
-                <CB label="Before" checked={form.mpiBefore} onChange={v => set('mpiBefore', v)} />
-                <CB label="After"  checked={form.mpiAfter}  onChange={v => set('mpiAfter', v)} />
-                <CB label="NIL"    checked={form.mpiNil}    onChange={v => set('mpiNil', v)} />
-              </div>
-            </div>
-
-            <div className="bg-slate-50 rounded-xl p-3">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Required Hardness</p>
-              <div className="flex items-center gap-2">
-                <input type="number" value={form.requiredHardnessMin}
-                  onChange={e => set('requiredHardnessMin', e.target.value)}
-                  className="w-16 border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300"
-                  placeholder="Min" />
-                <span className="text-slate-400 font-bold">–</span>
-                <input type="number" value={form.requiredHardnessMax}
-                  onChange={e => set('requiredHardnessMax', e.target.value)}
-                  className="w-16 border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300"
-                  placeholder="Max" />
-                <select value={form.hardnessUnit} onChange={e => set('hardnessUnit', e.target.value)}
-                  className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300">
-                  <option>HRC</option><option>HRB</option><option>HV</option><option>HB</option>
-                </select>
-              </div>
-            </div>
-
-            <div className={`rounded-xl p-3 border ${inRange ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-100'}`}>
-              <p className={`text-[10px] font-bold uppercase tracking-widest mb-2 ${inRange ? 'text-emerald-700' : 'text-slate-500'}`}>Achieved Hardness</p>
-              <div className="flex items-center gap-2">
-                <input type="number" value={form.achievedHardness}
-                  onChange={e => set('achievedHardness', e.target.value)}
-                  className={`w-24 border rounded-lg px-2 py-2 text-lg font-extrabold text-center bg-white ${inRange ? 'border-emerald-200 text-emerald-800' : 'border-slate-200 text-slate-800'} focus:outline-none focus:ring-1 focus:ring-indigo-300`}
-                  placeholder="56" />
-                <span className={`text-sm font-bold ${inRange ? 'text-emerald-700' : 'text-slate-600'}`}>{form.hardnessUnit}</span>
-                {form.achievedHardness && form.requiredHardnessMin && form.requiredHardnessMax && (
-                  <span className={`text-xs font-extrabold px-2 py-1 rounded-full ml-auto ${inRange ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-600'}`}>
-                    {inRange ? '✓ IN RANGE' : '✗ OUT OF RANGE'}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Hardness After (4 readings)</p>
-              <div className="grid grid-cols-4 gap-2">
-                {[
-                  ['hardnessAfter1','1'],
-                  ['hardnessAfter2','2'],
-                  ['hardnessAfter3','3'],
-                  ['hardnessAfter4','4'],
-                ].map(([k, lbl]) => (
-                  <input key={k} type="number" value={form[k]}
-                    onChange={e => set(k, e.target.value)}
-                    className="border border-slate-200 rounded-lg px-2 py-2 text-sm text-center bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300"
-                    placeholder={lbl} />
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between bg-slate-50 rounded-xl p-3 border border-slate-100">
-              <span className="text-xs font-bold text-slate-600">Urgent</span>
-              <button type="button" onClick={() => set('urgent', !form.urgent)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold border transition-colors ${
-                  form.urgent ? 'bg-rose-600 border-rose-600 text-white' : 'bg-white border-slate-200 text-slate-600 hover:border-rose-300 hover:text-rose-600'
-                }`}>
-                {form.urgent ? 'YES' : 'NO'}
-              </button>
-            </div>
-
-            <div>
-              <label className="form-label">Final Status</label>
-              <select value={form.inspectionStatus} onChange={e => set('inspectionStatus', e.target.value)} className="form-input">
-                <option value="PENDING">Pending</option>
-                <option value="PASS">Pass</option>
-                <option value="FAIL">Fail</option>
-                <option value="CONDITIONAL">Conditional</option>
-              </select>
+          <CategorizationSection form={form} set={set} />
+          <ProcessHardnessSection form={form} set={set} processes={processes} inRange={inRange} />
+          <div className="space-y-4">
+            <InspectorDetailsSection form={form} set={set} />
+            <div className="card p-5 bg-gradient-to-br from-indigo-50/50 to-white border-indigo-100">
+               <p className="text-xs text-slate-500 leading-relaxed"> Ensure all distortion points are measured accurately. Achieved hardness must be within specified range for PASS status.</p>
             </div>
           </div>
         </div>
 
-        {/* Distortion Table */}
-        <div className="card p-5">
-          <div className="flex items-center gap-2 border-b border-slate-100 pb-2 mb-4">
-            <div className="w-6 h-6 rounded-lg bg-blue-50 flex items-center justify-center">
-              <span className="material-symbols-outlined text-blue-500 text-[14px]">straighten</span>
-            </div>
-            <p className="section-title">Distortion Measurements (8 Points)</p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-center text-xs">
-              <thead>
-                <tr className="bg-gradient-to-r from-slate-50 to-indigo-50/30 border-b border-slate-100">
-                  <th className="py-2.5 px-3 text-[10px] font-bold text-slate-500 uppercase text-left w-24">Measurement</th>
-                  {[1,2,3,4,5,6,7,8].map(n => (
-                    <th key={n} className="py-2.5 px-2 text-[10px] font-bold text-slate-400">Pt. {n}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50/80">
-                <tr>
-                  <td className="py-2.5 px-3 text-xs font-bold text-slate-700 text-left">Before HT</td>
-                  {form.distortionBefore.map((val, i) => (
-                    <td key={i} className="py-2 px-1">
-                      <input type="number" min="0" step="0.001" value={val}
-                        onChange={e => { const arr=[...form.distortionBefore]; arr[i]=e.target.value; set('distortionBefore', arr); }}
-                        className="w-16 border border-slate-200 rounded-lg px-1 py-1.5 text-xs text-center focus:outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200" />
-                    </td>
-                  ))}
-                </tr>
-                <tr>
-                  <td className="py-2.5 px-3 text-xs font-bold text-emerald-700 text-left">After HT</td>
-                  {form.distortionAfter.map((val, i) => (
-                    <td key={i} className="py-2 px-1">
-                      <input type="number" min="0" step="0.001" value={val}
-                        onChange={e => { const arr=[...form.distortionAfter]; arr[i]=e.target.value; set('distortionAfter', arr); }}
-                        className="w-16 border border-emerald-200 rounded-lg px-1 py-1.5 text-xs text-center bg-emerald-50 focus:outline-none focus:border-emerald-300 focus:ring-1 focus:ring-emerald-200" />
-                    </td>
-                  ))}
-                </tr>
-                <tr className="bg-slate-50/80">
-                  <td className="py-2 px-3 text-[10px] font-bold text-slate-400 uppercase text-left">Δ Diff</td>
-                  {form.distortionBefore.map((before, i) => {
-                    const diff = Number(form.distortionAfter[i] || 0) - Number(before || 0);
-                    return (
-                      <td key={i} className={`py-2 px-1 text-xs font-bold ${
-                        Math.abs(diff) > 0.05 ? 'text-rose-500' : diff !== 0 ? 'text-amber-500' : 'text-slate-300'
-                      }`}>
-                        {before || form.distortionAfter[i] ? (diff >= 0 ? '+' : '') + diff.toFixed(3) : '—'}
-                      </td>
-                    );
-                  })}
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Heat Treatment Process Log */}
-        <div className="card p-5">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-4">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg bg-rose-50 flex items-center justify-center">
-                <span className="material-symbols-outlined text-rose-500 text-[14px]">thermostat</span>
-              </div>
-              <p className="section-title">Heat Treatment Process Log</p>
-            </div>
-            <button type="button" onClick={() => setHeatRows(p => [...p, emptyHeatRow()])}
-              className="flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors">
-              <span className="material-symbols-outlined text-sm">add</span> Add Row
-            </button>
-          </div>
-          {heatRows.length === 0 ? (
-            <p className="text-xs text-slate-400 text-center py-6">No heat treatment records. Click "Add Row" to add.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="bg-gradient-to-r from-slate-50 to-indigo-50/30 border-b border-slate-100">
-                    {['Equipment','Process','Cycle','Temp/Time','Temp From°C','Temp To°C','Hold (min)','Start Time','End Time','Date','Loading By','Atmosphere','UOM','Result','Sign',''].map(h => (
-                      <th key={h} className="px-2 py-2.5 text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap text-left">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50/80">
-                  {heatRows.map((row, i) => {
-                    const upd = (field, val) => setHeatRows(prev => { const a=[...prev]; a[i]={...a[i],[field]:val}; return a; });
-                    return (
-                      <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-1 py-2"><input value={row.equipment} onChange={e=>upd('equipment',e.target.value)} className="border border-slate-200 rounded-lg px-2 py-1.5 w-24 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300" placeholder="Furnace" /></td>
-                        <td className="px-1 py-2">
-                          <select value={row.processTypeId} onChange={e=>upd('processTypeId',e.target.value)} className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-indigo-300">
-                            <option value="">—</option>
-                            {processes.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
-                          </select>
-                        </td>
-                        <td className="px-1 py-2"><input type="number" value={row.cycleNo} onChange={e=>upd('cycleNo',e.target.value)} className="border border-slate-200 rounded-lg px-2 py-1.5 w-14 text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-300" placeholder="1" /></td>
-                        <td className="px-1 py-2"><input value={row.tempTime} onChange={e=>upd('tempTime',e.target.value)} className="border border-slate-200 rounded-lg px-2 py-1.5 w-28 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300" placeholder="e.g. 1020°C / 30m" /></td>
-                        <td className="px-1 py-2"><input type="number" value={row.tempFrom} onChange={e=>upd('tempFrom',e.target.value)} className="border border-slate-200 rounded-lg px-2 py-1.5 w-20 text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-300" placeholder="800" /></td>
-                        <td className="px-1 py-2"><input type="number" value={row.tempTo} onChange={e=>upd('tempTo',e.target.value)} className="border border-slate-200 rounded-lg px-2 py-1.5 w-20 text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-300" placeholder="900" /></td>
-                        <td className="px-1 py-2"><input type="number" value={row.holdTimeMin} onChange={e=>upd('holdTimeMin',e.target.value)} className="border border-slate-200 rounded-lg px-2 py-1.5 w-16 text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-300" placeholder="60" /></td>
-                        <td className="px-1 py-2"><input type="datetime-local" value={row.startTime} onChange={e=>upd('startTime',e.target.value)} className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-36 focus:outline-none focus:ring-1 focus:ring-indigo-300" /></td>
-                        <td className="px-1 py-2"><input type="datetime-local" value={row.endTime} onChange={e=>upd('endTime',e.target.value)} className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-36 focus:outline-none focus:ring-1 focus:ring-indigo-300" /></td>
-                        <td className="px-1 py-2"><input type="date" value={row.processDate} onChange={e=>upd('processDate',e.target.value)} className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-indigo-300" /></td>
-                        <td className="px-1 py-2"><input value={row.loadingBy} onChange={e=>upd('loadingBy',e.target.value)} className="border border-slate-200 rounded-lg px-2 py-1.5 w-24 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300" placeholder="Name" /></td>
-                        <td className="px-1 py-2"><input value={row.atmosphere} onChange={e=>upd('atmosphere',e.target.value)} className="border border-slate-200 rounded-lg px-2 py-1.5 w-20 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300" placeholder="Vacuum" /></td>
-                        <td className="px-1 py-2"><input value={row.uom} onChange={e=>upd('uom',e.target.value)} className="border border-slate-200 rounded-lg px-2 py-1.5 w-16 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300" placeholder="KGS" /></td>
-                        <td className="px-1 py-2">
-                          <select value={row.result} onChange={e=>upd('result',e.target.value)} className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-20 focus:outline-none focus:ring-1 focus:ring-indigo-300">
-                            <option value="">—</option>
-                            <option value="OK">OK</option>
-                            <option value="NOT OK">NOT OK</option>
-                          </select>
-                        </td>
-                        <td className="px-1 py-2"><input value={row.signedBy} onChange={e=>upd('signedBy',e.target.value)} className="border border-slate-200 rounded-lg px-2 py-1.5 w-20 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300" placeholder="Name" /></td>
-                        <td className="px-1 py-2">
-                          <button type="button" onClick={() => setHeatRows(p=>p.filter((_,j)=>j!==i))}
-                            className="w-6 h-6 rounded-lg flex items-center justify-center text-rose-400 hover:text-rose-600 hover:bg-rose-50 transition-colors">
-                            <span className="material-symbols-outlined text-sm">delete</span>
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {/* Part Photos */}
-        <div className="card p-5">
-          <div className="flex items-center gap-2 border-b border-slate-100 pb-2 mb-4">
-            <div className="w-6 h-6 rounded-lg bg-violet-50 flex items-center justify-center">
-              <span className="material-symbols-outlined text-violet-500 text-[14px]">photo_library</span>
-            </div>
-            <p className="section-title">Part Photos</p>
-            <span className="text-[10px] text-slate-400 ml-auto">Up to 5 images · JPG/PNG/WebP · Max 5MB each</span>
-          </div>
-          <div className="grid grid-cols-5 gap-3">
-            {[1,2,3,4,5].map(i => (
-              <ImageUploadSlot key={i} index={i}
-                value={typeof images[i] === 'string' ? images[i] : null}
-                onChange={handleImageChange} />
-            ))}
-          </div>
-        </div>
-
-        {/* Inspector Details */}
-        <div className="card p-5">
-          <div className="flex items-center gap-2 border-b border-slate-100 pb-2 mb-4">
-            <div className="w-6 h-6 rounded-lg bg-indigo-50 flex items-center justify-center">
-              <span className="material-symbols-outlined text-indigo-500 text-[14px]">badge</span>
-            </div>
-            <p className="section-title">Inspector Details</p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            <div>
-              <label className="form-label">Incoming Inspection By</label>
-              <input value={form.incomingInspectionBy} onChange={e => set('incomingInspectionBy', e.target.value)} className="form-input" placeholder="Inspector name" />
-            </div>
-            <div>
-              <label className="form-label">Final Inspection By</label>
-              <input value={form.finalInspectionBy} onChange={e => set('finalInspectionBy', e.target.value)} className="form-input" placeholder="Inspector name" />
-            </div>
-            <div>
-              <label className="form-label">Inspected By</label>
-              <input value={form.inspectedBy} onChange={e => set('inspectedBy', e.target.value)} className="form-input" placeholder="Inspector name" />
-            </div>
-            <div>
-              <label className="form-label">Packed Qty</label>
-              <input type="number" value={form.packedQty} onChange={e => set('packedQty', e.target.value)} className="form-input" placeholder="0" />
-            </div>
-            <div>
-              <label className="form-label">Packed By</label>
-              <input value={form.packedBy} onChange={e => set('packedBy', e.target.value)} className="form-input" placeholder="Packer name" />
-            </div>
-            <div>
-              <label className="form-label">Inspection Date</label>
-              <input type="date" value={form.inspectionDate} onChange={e => set('inspectionDate', e.target.value)} className="form-input" />
-            </div>
-            <div className="col-span-3">
-              <label className="form-label">Remarks</label>
-              <input value={form.remarks} onChange={e => set('remarks', e.target.value)} className="form-input" placeholder="Any remarks..." />
-            </div>
-          </div>
-        </div>
+        <DistortionSection form={form} set={set} />
+        <ProcessLogSection heatRows={heatRows} setHeatRows={setHeatRows} processes={processes} emptyHeatRow={emptyHeatRow} />
+        <InspectionPhotosSection images={images} handleImageChange={handleImageChange} ImageUploadSlot={ImageUploadSlot} />
 
         {/* Actions */}
         <div className="flex gap-3 pb-4">

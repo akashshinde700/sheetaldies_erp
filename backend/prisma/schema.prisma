@@ -326,6 +326,10 @@ model JobCard {
   vhtRunsheetItems VHTRunsheetItem[]
   attachments      Attachment[]         @relation("JobCardAttachments")
 
+  @@index([status])
+  @@index([customerId])
+  @@index([partId])
+  @@index([machineId])
   @@map("job_cards")
 }
 
@@ -544,6 +548,9 @@ model IncomingInspection {
 
   heatProcesses       HeatTreatmentProcess[]
 
+  @@index([jobCardId])
+  @@index([processTypeId])
+  @@index([inspectionStatus])
   @@map("incoming_inspections")
 }
 
@@ -815,6 +822,10 @@ model JobworkChallan {
   taxInvoices      TaxInvoice[]
   attachments      Attachment[]         @relation("ChallanAttachments")
 
+  @@index([jobCardId])
+  @@index([fromPartyId])
+  @@index([toPartyId])
+  @@index([status])
   @@map("jobwork_challans")
 }
 
@@ -839,6 +850,8 @@ model ChallanItem {
   invoiceItems InvoiceItem[]
   dispatchItems DispatchChallanItem[]
 
+  @@index([challanId])
+  @@index([itemId])
   @@map("challan_items")
 }
 
@@ -973,6 +986,10 @@ model TestCertificate {
   invoiceItems      InvoiceItem[]
   attachments       Attachment[]         @relation("TestCertAttachments")
 
+  @@index([jobCardId])
+  @@index([customerId])
+  @@index([certNo])
+  @@index([status])
   @@map("test_certificates")
 }
 
@@ -1058,6 +1075,10 @@ model TaxInvoice {
 
   items           InvoiceItem[]
 
+  @@index([challanId])
+  @@index([toPartyId])
+  @@index([invoiceNo])
+  @@index([paymentStatus])
   @@map("tax_invoices")
 }
 
@@ -1082,6 +1103,9 @@ model InvoiceItem {
   processTypeId   Int?        @map("process_type_id")
   processType     ProcessType? @relation(fields: [processTypeId], references: [id])
 
+  @@index([invoiceId])
+  @@index([certId])
+  @@index([processTypeId])
   @@map("invoice_items")
 }
 
