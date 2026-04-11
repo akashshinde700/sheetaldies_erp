@@ -86,7 +86,13 @@ export default function JobworkDetail() {
           <h2 className="text-xl font-extrabold text-slate-800 font-headline font-mono">{ch.challanNo}</h2>
           <p className="text-xs text-slate-400 mt-0.5">Rule 45(1) CGST Rules, 2017 — Jobwork Challan</p>
         </div>
-        <span className={`badge ${STATUS_COLOR[ch.status] || 'bg-slate-100 text-slate-600'}`}>{ch.status}</span>
+        <div className="flex items-center gap-2">
+          <Link to={`/jobwork/${id}/print`} className="btn-outline bg-white">
+            <span className="material-symbols-outlined text-[20px]">print</span>
+            Print
+          </Link>
+          <span className={`badge ${STATUS_COLOR[ch.status] || 'bg-slate-100 text-slate-600'}`}>{ch.status}</span>
+        </div>
       </div>
 
       {/* Part 1: Challan Info */}
