@@ -20,8 +20,8 @@ import React from 'react';
  * 
  * <input onChange={(e) => debouncedSearch(e.target.value)} />
  */
-export const debounce = (func, delay = 300) => {
-  let timeoutId;
+export const debounce = <T extends (...args: any[]) => void>(func: T, delay: number = 300): (...args: Parameters<T>) => void => {
+  let timeoutId: ReturnType<typeof setTimeout>;
   
   return function debounced(...args) {
     clearTimeout(timeoutId);
@@ -45,8 +45,8 @@ export const debounce = (func, delay = 300) => {
  * 
  * window.addEventListener('scroll', throttledScroll);
  */
-export const throttle = (func, limit = 300) => {
-  let inThrottle;
+export const throttle = <T extends (...args: any[]) => void>(func: T, limit: number = 300): (...args: Parameters<T>) => void => {
+  let inThrottle: boolean;
   
   return function throttled(...args) {
     if (!inThrottle) {
@@ -72,9 +72,9 @@ export const throttle = (func, limit = 300) => {
  * 
  * <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
  */
-export const useDebouncedValue = (initialValue = '', delay = 300) => {
-  const [value, setValue] = React.useState(initialValue);
-  const [debouncedValue, setDebouncedValue] = React.useState(initialValue);
+export const useDebouncedValue = <T>(initialValue: T, delay: number = 300): [T, T, React.Dispatch<React.SetStateAction<T>>] => {
+  const [value, setValue] = React.useState<T>(initialValue);
+  const [debouncedValue, setDebouncedValue] = React.useState<T>(initialValue);
 
   React.useEffect(() => {
     const timer = setTimeout(() => {
@@ -94,7 +94,7 @@ export const useDebouncedValue = (initialValue = '', delay = 300) => {
  * <img ref={imageRef} data-src="/path/to/image.jpg" src="/placeholder.jpg" />
  */
 export const useImageLazyLoad = () => {
-  const ref = React.useRef();
+  const ref = React.useRef<HTMLImageElement | null>(null);
 
   React.useEffect(() => {
     if (!ref.current) return;
@@ -102,8 +102,8 @@ export const useImageLazyLoad = () => {
     const observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
-          const img = entry.target;
-          img.src = img.dataset.src;
+          const img = entry.target as HTMLImageElement;
+          img.src = img.dataset.src || '';
           img.classList.add('loaded');
           observer.unobserve(img);
         }
@@ -135,12 +135,12 @@ export const useImageLazyLoad = () => {
  *   {loading && <Spinner />}
  * </div>
  */
-export const useInfiniteScroll = (fetchFunction, pageSize) => {
-  const [items, setItems] = React.useState([]);
-  const [loading, setLoading] = React.useState(false);
-  const [cursor, setCursor] = React.useState(null);
-  const [hasMore, setHasMore] = React.useState(true);
-  const observerTarget = React.useRef(null);
+export const useInfiniteScroll = <T extends { id: any }>(fetchFunction: (cursor: any) => Promise<{ data: T[] }>, pageSize: number) => {
+  const [items, setItems] = React.useState<T[]>([]);
+  const [loading, setLoading] = React.useState<boolean>(false);
+  const [cursor, setCursor] = React.useState<any>(null);
+  const [hasMore, setHasMore] = React.useState<boolean>(true);
+  const observerTarget = React.useRef<HTMLDivElement | null>(null);
 
   const loadMore = React.useCallback(async () => {
     if (loading || !hasMore) return;
@@ -184,7 +184,7 @@ export const useInfiniteScroll = (fetchFunction, pageSize) => {
  * Memoized filtering helper
  * Prevents unnecessary re-renders during filtering
  */
-export const useFilteredItems = (items, filterFunction) => {
+export const useFilteredItems = <T>(items: T[], filterFunction: (item: T) => boolean): T[] => {
   return React.useMemo(() => {
     return items.filter(filterFunction);
   }, [items, filterFunction]);
@@ -197,7 +197,7 @@ export const useFilteredItems = (items, filterFunction) => {
  * @example
  * usePerformanceMonitor('InvoiceList');
  */
-export const usePerformanceMonitor = (componentName) => {
+export const usePerformanceMonitor = (componentName: string) => {
   const renderTime = React.useRef(Date.now());
 
   React.useEffect(() => {
