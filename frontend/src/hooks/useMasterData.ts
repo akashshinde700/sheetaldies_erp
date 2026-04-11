@@ -45,3 +45,13 @@ export function useProcesses(): UseQueryResult<BaseEntity[], Error> {
     },
   });
 }
+
+export function useMasterJobCards(): UseQueryResult<BaseEntity[], Error> {
+  return useQuery({
+    queryKey: ['jobcards'],
+    queryFn: async (): Promise<BaseEntity[]> => {
+      const { data } = await api.get('/jobcards?limit=200');
+      return data.data || [];
+    },
+  });
+}
