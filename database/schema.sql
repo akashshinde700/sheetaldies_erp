@@ -866,6 +866,32 @@ CALL ensure_index('attachments', 'idx_attachments_quote', 'CREATE INDEX idx_atta
 CALL ensure_index('attachments', 'idx_attachments_po', 'CREATE INDEX idx_attachments_po ON attachments(purchase_order_id)');
 CALL ensure_index('attachments', 'idx_attachments_entity', 'CREATE INDEX idx_attachments_entity ON attachments(entity_type, entity_id)');
 
+-- Performance Optimization Indexes (Prisma Parity)
+CALL ensure_index('job_cards', 'idx_job_cards_customer', 'CREATE INDEX idx_job_cards_customer ON job_cards(customer_id)');
+CALL ensure_index('job_cards', 'idx_job_cards_machine', 'CREATE INDEX idx_job_cards_machine ON job_cards(machine_id)');
+
+CALL ensure_index('incoming_inspections', 'idx_inspections_job_card', 'CREATE INDEX idx_inspections_job_card ON incoming_inspections(job_card_id)');
+CALL ensure_index('incoming_inspections', 'idx_inspections_process', 'CREATE INDEX idx_inspections_process ON incoming_inspections(process_type_id)');
+CALL ensure_index('incoming_inspections', 'idx_inspections_status', 'CREATE INDEX idx_inspections_status ON incoming_inspections(inspection_status)');
+
+CALL ensure_index('jobwork_challans', 'idx_challans_job_card', 'CREATE INDEX idx_challans_job_card ON jobwork_challans(job_card_id)');
+CALL ensure_index('jobwork_challans', 'idx_challans_from_party', 'CREATE INDEX idx_challans_from_party ON jobwork_challans(from_party_id)');
+CALL ensure_index('jobwork_challans', 'idx_challans_to_party', 'CREATE INDEX idx_challans_to_party ON jobwork_challans(to_party_id)');
+
+CALL ensure_index('challan_items', 'idx_challan_items_challan', 'CREATE INDEX idx_challan_items_challan ON challan_items(challan_id)');
+CALL ensure_index('challan_items', 'idx_challan_items_item', 'CREATE INDEX idx_challan_items_item ON challan_items(item_id)');
+
+CALL ensure_index('test_certificates', 'idx_certs_job_card', 'CREATE INDEX idx_certs_job_card ON test_certificates(job_card_id)');
+CALL ensure_index('test_certificates', 'idx_certs_customer', 'CREATE INDEX idx_certs_customer ON test_certificates(customer_id)');
+CALL ensure_index('test_certificates', 'idx_certs_status', 'CREATE INDEX idx_certs_status ON test_certificates(status)');
+
+CALL ensure_index('tax_invoices', 'idx_invoices_challan', 'CREATE INDEX idx_invoices_challan ON tax_invoices(challan_id)');
+CALL ensure_index('tax_invoices', 'idx_invoices_to_party', 'CREATE INDEX idx_invoices_to_party ON tax_invoices(to_party_id)');
+
+CALL ensure_index('invoice_items', 'idx_invoice_items_invoice', 'CREATE INDEX idx_invoice_items_invoice ON invoice_items(invoice_id)');
+CALL ensure_index('invoice_items', 'idx_invoice_items_process', 'CREATE INDEX idx_invoice_items_process ON invoice_items(process_type_id)');
+
+
 -- ============================================================
 -- ADMIN USER CREATION
 -- ============================================================
