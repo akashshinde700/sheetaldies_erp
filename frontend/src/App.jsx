@@ -26,6 +26,7 @@ const JobworkList = lazy(() => import('./pages/jobwork/JobworkList'));
 const JobworkForm = lazy(() => import('./pages/jobwork/JobworkForm'));
 const JobworkDetail = lazy(() => import('./pages/jobwork/JobworkDetail'));
 const InwardOutwardRegister = lazy(() => import('./pages/jobwork/InwardOutwardRegister'));
+const JobworkPrint = lazy(() => import('./pages/jobwork/JobworkPrint'));
 
 const CertList = lazy(() => import('./pages/quality/CertList'));
 const CertForm = lazy(() => import('./pages/quality/CertForm'));
@@ -113,6 +114,7 @@ const AppRoutes = () => (
       <Route path="jobwork/new"            element={<JobworkForm />} />
       <Route path="jobwork/:id/edit"       element={<JobworkForm />} />
       <Route path="jobwork/:id"            element={<JobworkDetail />} />
+      <Route path="jobwork/:id/print"       element={<JobworkPrint />} />
       <Route path="quality/certificates"       element={<CertList />} />
       <Route path="quality/certificates/new"  element={<CertForm />} />
       <Route path="quality/certificates/:id"  element={<CertDetail />} />

@@ -278,8 +278,16 @@ export default function JobworkList() {
                     </select>
                   </td>
                   <td className="td">
-                    <Link to={`/jobwork/${ch.id}`}
-                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">View</Link>
+                    <div className="flex items-center gap-3">
+                      <Link to={`/jobwork/${ch.id}`}
+                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">View</Link>
+                      <Link to={`/jobwork/${ch.id}/print`}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-all"
+                        title="Print Challan"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">print</span>
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}
