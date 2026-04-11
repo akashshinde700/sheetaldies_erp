@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import api from '../../utils/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { useItems, useMachines, useParties } from '../../hooks/useMasterData';
 import toast from 'react-hot-toast';
 import SearchSelect from '../../components/SearchSelect';
 
@@ -67,9 +69,10 @@ export default function JobCardForm() {
     hrcRange: '', specialRequirements: '', precautions: '',
     documentNo: 'QF-PD-01', revisionNo: '01', revisionDate: '', pageNo: '1 OF 2',
   });
-  const [parts,     setParts]     = useState([]);
-  const [machines,  setMachines]  = useState([]);
-  const [customers, setCustomers] = useState([]);
+  const queryClient = useQueryClient();
+  const { data: parts = [] } = useItems();
+  const { data: machines = [] } = useMachines();
+  const { data: customers = [] } = useParties();
   const [loading,   setLoading]   = useState(false);
   const [cardData,  setCardData]  = useState(null);
   const [images,    setImages]    = useState({});
@@ -113,31 +116,12 @@ export default function JobCardForm() {
     let cancelled = false;
     (async () => {
       try {
-        const [itemsR, machR, partiesR] = await Promise.all([
-          api.get('/items'),
-          api.get('/machines'),
-          // All party types (CUSTOMER, VENDOR, BOTH) — job card bill-to can be any party for flexibility / QA
-          api.get('/parties'),
-        ]);
-        if (cancelled) return;
-        setParts(itemsR.data.data);
-        setMachines(machR.data.data);
-        let list = partiesR.data.data || [];
-
         if (isEdit) {
           const jr = await api.get(`/jobcards/${id}`);
           if (cancelled) return;
           const d = jr.data.data;
           setCardData(d);
-          const cid = d.customerId;
-          if (cid && !list.some((p) => String(p.id) === String(cid))) {
-            try {
-              const pr = await api.get(`/parties/${cid}`);
-              if (pr.data?.data) list = [...list, pr.data.data];
-            } catch {
-              /* missing party */
-            }
-          }
+          
           setForm({
             partId:       d.partId       || '',
             dieNo:        d.dieNo        || '',
@@ -182,9 +166,6 @@ export default function JobCardForm() {
             specInstrGraph: d.specInstrGraph || false,
           });
         }
-
-        list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-        if (!cancelled) setCustomers(list);
       } catch (e) {
         console.error(e);
       }
@@ -246,7 +227,7 @@ export default function JobCardForm() {
         description: newPart.description.trim(),
       });
       const created = r.data.data;
-      setParts(prev => [...prev, created].sort((a, b) => a.partNo.localeCompare(b.partNo)));
+      queryClient.setQueryData(['items'], (old) => old ? [...old, created].sort((a, b) => a.partNo.localeCompare(b.partNo)) : [created]);
       setForm(p => ({ ...p, partId: String(created.id) }));
       setPartOpen(false); setPartQuery(''); setShowAddForm(false);
       toast.success(`Part "${created.description}" added & selected!`);
@@ -280,10 +261,7 @@ export default function JobCardForm() {
             });
             customerIdOut = String(pr.data.data.id);
             setForm((p) => ({ ...p, customerId: customerIdOut }));
-            setCustomers((prev) => {
-              if (prev.some((x) => String(x.id) === customerIdOut)) return prev;
-              return [...prev, pr.data.data].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-            });
+            queryClient.setQueryData(['parties'], (old) => old ? [...old, pr.data.data].sort((a, b) => (a.name || '').localeCompare(b.name || '')) : [pr.data.data]);
             toast.success(pr.data.reused ? 'Existing customer in master linked.' : 'Customer added to party master.');
           } catch (err) {
             toast.error(err.response?.data?.message || 'Could not add customer to parties.');
