@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import { formatDate, formatCurrency } from '../../utils/formatters';
 
 const STATUS_COLOR = {
   DRAFT:      'bg-slate-100 text-slate-600',
@@ -101,7 +102,7 @@ export default function JobworkDetail() {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-3 text-sm">
           <div>
             <span className="text-xs text-slate-400 block mb-0.5">Challan Date</span>
-            <span className="font-semibold text-slate-800">{new Date(ch.challanDate).toLocaleDateString('en-IN')}</span>
+            <span className="font-semibold text-slate-800">{formatDate(ch.challanDate)}</span>
           </div>
           <div>
             <span className="text-xs text-slate-400 block mb-0.5">From</span>
@@ -121,7 +122,7 @@ export default function JobworkDetail() {
           </div>
           <div>
             <span className="text-xs text-slate-400 block mb-0.5">Dispatch Date</span>
-            <span className="font-semibold text-slate-800">{ch.dispatchDate ? new Date(ch.dispatchDate).toLocaleDateString('en-IN') : '—'}</span>
+            <span className="font-semibold text-slate-800">{formatDate(ch.dispatchDate)}</span>
           </div>
           <div>
             <span className="text-xs text-slate-400 block mb-0.5">Delivery Person</span>
@@ -129,7 +130,7 @@ export default function JobworkDetail() {
           </div>
           <div>
             <span className="text-xs text-slate-400 block mb-0.5">Due Date (Return by)</span>
-            <span className="font-semibold text-amber-700">{ch.dueDate ? new Date(ch.dueDate).toLocaleDateString('en-IN') : '—'}</span>
+            <span className="font-semibold text-amber-700">{formatDate(ch.dueDate)}</span>
           </div>
           {ch.jobCard && (
             <div>
@@ -171,10 +172,10 @@ export default function JobworkDetail() {
                   <td className="px-2 py-2 text-slate-600">{it.woNo || '—'}</td>
                   <td className="px-2 py-2 font-mono text-slate-500">{it.hsnCode || '—'}</td>
                   <td className="px-2 py-2 text-slate-600 text-right">{it.quantity}</td>
-                  <td className="px-2 py-2 text-slate-500">{it.uom || 'KGS'}</td>
+                   <td className="px-2 py-2 text-slate-500">{it.uom || 'KGS'}</td>
                   <td className="px-2 py-2 text-slate-600 text-right">{it.weight ? Number(it.weight).toFixed(3) : '—'}</td>
-                  <td className="px-2 py-2 text-slate-600 text-right">₹ {Number(it.rate || 0).toLocaleString('en-IN')}</td>
-                  <td className="px-2 py-2 font-bold text-slate-800 text-right">₹ {Number(it.amount || 0).toLocaleString('en-IN')}</td>
+                  <td className="px-2 py-2 text-slate-600 text-right">{formatCurrency(it.rate)}</td>
+                  <td className="px-2 py-2 font-bold text-slate-800 text-right">{formatCurrency(it.amount)}</td>
                 </tr>
               ))}
             </tbody>
@@ -186,39 +187,39 @@ export default function JobworkDetail() {
           <div className="w-80 space-y-1.5 text-sm">
             <div className="flex justify-between">
               <span className="text-slate-500">Subtotal</span>
-              <span className="font-semibold text-slate-700">₹ {Number(ch.subtotal || 0).toLocaleString('en-IN')}</span>
+              <span className="font-semibold text-slate-700">{formatCurrency(ch.subtotal)}</span>
             </div>
             {Number(ch.handlingCharges || 0) > 0 && (
               <div className="flex justify-between">
                 <span className="text-slate-500">Handling</span>
-                <span className="text-slate-700">₹ {Number(ch.handlingCharges || 0).toLocaleString('en-IN')}</span>
+                <span className="text-slate-700">{formatCurrency(ch.handlingCharges)}</span>
               </div>
             )}
             <div className="flex justify-between font-bold border-t border-slate-200 pt-1.5">
               <span>Total (before tax)</span>
-              <span className="text-slate-800">₹ {Number(ch.totalValue || 0).toLocaleString('en-IN')}</span>
+              <span className="text-slate-800">{formatCurrency(ch.totalValue)}</span>
             </div>
             {Number(ch.cgstAmount || 0) > 0 && (
               <div className="flex justify-between">
                 <span className="text-slate-500">CGST @ {ch.cgstRate}%</span>
-                <span className="text-slate-700">₹ {Number(ch.cgstAmount || 0).toLocaleString('en-IN')}</span>
+                <span className="text-slate-700">{formatCurrency(ch.cgstAmount)}</span>
               </div>
             )}
             {Number(ch.sgstAmount || 0) > 0 && (
               <div className="flex justify-between">
                 <span className="text-slate-500">SGST @ {ch.sgstRate}%</span>
-                <span className="text-slate-700">₹ {Number(ch.sgstAmount || 0).toLocaleString('en-IN')}</span>
+                <span className="text-slate-700">{formatCurrency(ch.sgstAmount)}</span>
               </div>
             )}
             {Number(ch.igstAmount || 0) > 0 && (
               <div className="flex justify-between">
                 <span className="text-slate-500">IGST @ {ch.igstRate}%</span>
-                <span className="text-slate-700">₹ {Number(ch.igstAmount || 0).toLocaleString('en-IN')}</span>
+                <span className="text-slate-700">{formatCurrency(ch.igstAmount)}</span>
               </div>
             )}
             <div className="flex justify-between font-extrabold text-base border-t border-slate-200 pt-2">
               <span className="text-slate-800">Grand Total</span>
-              <span className="text-indigo-700">₹ {Number(ch.grandTotal || ch.totalValue || 0).toLocaleString('en-IN')}</span>
+              <span className="text-indigo-700">{formatCurrency(ch.grandTotal || ch.totalValue || 0)}</span>
             </div>
           </div>
         </div>
@@ -276,7 +277,7 @@ export default function JobworkDetail() {
 
       {/* Footer */}
       <p className="text-[11px] text-slate-400 text-right pb-2">
-        Created by {ch.createdBy?.name} · {new Date(ch.createdAt).toLocaleString('en-IN')}
+        Created by {ch.createdBy?.name} · {formatDate(ch.createdAt, true)}
       </p>
     </div>
   );

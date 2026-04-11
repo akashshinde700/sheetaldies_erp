@@ -1,17 +1,14 @@
 import { useMemo, useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { toInt, toNum } from '../../utils/normalize';
 import { exportToExcel } from '../../utils/export';
 import ListSearchInput from '../../components/ListSearchInput';
+import { formatCurrency, formatDate } from '../../utils/formatters';
 
-function formatCurrency2(v) {
-  const n = typeof v === 'number' ? v : toNum(String(v ?? '').replace(/,/g, ''), NaN);
-  return (Number.isFinite(n) ? n : 0).toFixed(2);
-}
-
-export default function PurchaseOrderList() {
+ export default function PurchaseOrderList() {
   const [orders, setOrders] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [items, setItems] = useState([]);
@@ -38,6 +35,19 @@ export default function PurchaseOrderList() {
     remarks: '',
     items: [{ itemId: '', quantity: '1', unitPrice: '', description: '', partNo: '', unit: 'NOS', gstRate: 0, remark: '' }],
   });
+
+  const resetForm = () => {
+    setEditingId(null);
+    setFormData({
+      vendorId: '',
+      poDate: '',
+      expectedDelivery: '',
+      remarks: '',
+      items: [{ itemId: '', quantity: '1', unitPrice: '', description: '', partNo: '', unit: 'NOS', gstRate: 0, remark: '' }],
+    });
+    setVendorSearch('');
+    setItemSearch('');
+  };
 
   useEffect(() => {
     fetchPOs();
@@ -115,11 +125,11 @@ export default function PurchaseOrderList() {
       const exportData = allOrders.map(po => ({
         'PO Number': po.poNumber,
         'Vendor': po.vendor?.name || '',
-        'PO Date': po.poDate ? new Date(po.poDate).toLocaleDateString() : '',
-        'Expected Delivery': po.expectedDelivery ? new Date(po.expectedDelivery).toLocaleDateString() : '',
-        'Total Amount': `₹${formatCurrency2(po.totalAmount)}`,
+        'PO Date': formatDate(po.poDate),
+        'Expected Delivery': formatDate(po.expectedDelivery),
+        'Total Amount': formatCurrency(po.totalAmount),
         'Status': po.status,
-        'Created At': po.createdAt ? new Date(po.createdAt).toLocaleDateString() : '',
+        'Created At': formatDate(po.createdAt),
         'Remarks': po.remarks || '',
       }));
 
@@ -423,7 +433,7 @@ export default function PurchaseOrderList() {
                         </td>
                         <td className="td max-w-[340px] truncate" title={item.description}>{item.description || '—'}</td>
                         <td className="td">{item.unit || 'NOS'}</td>
-                        <td className="td text-right tabular-nums">{formatCurrency2(item.gstRate || 0)}</td>
+                        <td className="td text-right tabular-nums">{formatCurrency(item.gstRate || 0)}</td>
                         <td className="td">
                           <input
                             type="number"
@@ -443,7 +453,7 @@ export default function PurchaseOrderList() {
                             onChange={(e) => updateLine(idx, { unitPrice: e.target.value })}
                           />
                         </td>
-                        <td className="td text-right tabular-nums font-semibold">₹{formatCurrency2(lineAmount(item))}</td>
+                        <td className="td text-right tabular-nums font-semibold">{formatCurrency(lineAmount(item))}</td>
                         <td className="td">
                           <input
                             type="text"
@@ -469,15 +479,15 @@ export default function PurchaseOrderList() {
               <div className="w-full max-w-sm rounded-xl border border-slate-200 p-4 bg-slate-50/60 space-y-2">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-slate-600">Final Taxable Amount</span>
-                  <span className="font-semibold text-slate-800">₹ {formatCurrency2(taxableAmount)}</span>
+                  <span className="font-semibold text-slate-800">{formatCurrency(taxableAmount)}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-slate-600">Total Qty/Wgt</span>
-                  <span className="font-semibold text-slate-800">{formatCurrency2(totalQty)}</span>
+                  <span className="font-semibold text-slate-800">{formatCurrency(totalQty)}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-slate-600">Total</span>
-                  <span className="font-bold text-indigo-700">₹ {formatCurrency2(taxableAmount)}</span>
+                  <span className="font-bold text-indigo-700">{formatCurrency(taxableAmount)}</span>
                 </div>
               </div>
             </div>
@@ -574,8 +584,8 @@ export default function PurchaseOrderList() {
                 <tr key={po.id} className="tr">
                   <td className="td font-semibold text-slate-800">{po.poNumber}</td>
                   <td className="td">{po.vendor?.name}</td>
-                  <td className="td text-right tabular-nums">₹{formatCurrency2(po.totalAmount)}</td>
-                  <td className="td">{new Date(po.expectedDelivery).toLocaleDateString()}</td>
+                  <td className="td text-right tabular-nums">{formatCurrency(po.totalAmount)}</td>
+                  <td className="td">{formatDate(po.expectedDelivery)}</td>
                   <td className="td"><span className={`badge ${po.status === 'DRAFT' ? 'bg-sky-100 text-sky-900' : 'bg-emerald-100 text-emerald-800'}`}>{po.status}</span></td>
                   <td className="td">
                     <div className="flex gap-2 justify-center">
@@ -737,8 +747,8 @@ export default function PurchaseOrderList() {
             <div className="p-4 space-y-4">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                 <div><p className="text-slate-400 text-xs">Vendor</p><p className="font-semibold">{viewPO.vendor?.name || '—'}</p></div>
-                <div><p className="text-slate-400 text-xs">PO Date</p><p className="font-semibold">{viewPO.poDate ? new Date(viewPO.poDate).toLocaleDateString() : '—'}</p></div>
-                <div><p className="text-slate-400 text-xs">Expected Delivery</p><p className="font-semibold">{viewPO.expectedDelivery ? new Date(viewPO.expectedDelivery).toLocaleDateString() : '—'}</p></div>
+                <div><p className="text-slate-400 text-xs">PO Date</p><p className="font-semibold">{formatDate(viewPO.poDate)}</p></div>
+                <div><p className="text-slate-400 text-xs">Expected Delivery</p><p className="font-semibold">{formatDate(viewPO.expectedDelivery)}</p></div>
                 <div><p className="text-slate-400 text-xs">Status</p><p className="font-semibold">{viewPO.status || '—'}</p></div>
                 <div className="md:col-span-4"><p className="text-slate-400 text-xs">Remarks</p><p className="font-semibold">{viewPO.remarks || '—'}</p></div>
               </div>
@@ -757,8 +767,8 @@ export default function PurchaseOrderList() {
                       <tr key={i}>
                         <td className="td">{line.item?.partNo || line.item?.description || `Item #${line.itemId}`}</td>
                         <td className="td text-right">{line.quantity}</td>
-                        <td className="td text-right">₹{formatCurrency2(line.unitPrice)}</td>
-                        <td className="td text-right font-semibold">₹{formatCurrency2(line.amount)}</td>
+                        <td className="td text-right">{formatCurrency(line.unitPrice)}</td>
+                        <td className="td text-right font-semibold">{formatCurrency(line.amount)}</td>
                       </tr>
                     ))}
                   </tbody>

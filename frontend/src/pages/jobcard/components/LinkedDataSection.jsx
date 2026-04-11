@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { formatDate } from '../../../utils/formatters';
 
 export default function LinkedDataSection({ isEdit, cardData, id }) {
   if (!isEdit || !cardData) return null;
@@ -70,7 +71,7 @@ export default function LinkedDataSection({ isEdit, cardData, id }) {
               <div key={ch.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100">
                 <Link to={`/jobwork/${ch.id}`} className="text-xs font-mono text-indigo-600 hover:underline">{ch.challanNo}</Link>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-slate-400">{new Date(ch.challanDate).toLocaleDateString()}</span>
+                  <span className="text-[10px] text-slate-400">{formatDate(ch.challanDate)}</span>
                 </div>
               </div>
             ))}

@@ -1,19 +1,30 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 
-function ImageSlot({ index, onChange }) {
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+function ImageSlot({ index, initialUrl, onChange }) {
   const inputRef = useRef();
   const [preview, setPreview] = useState(null);
+
+  useEffect(() => {
+    if (initialUrl) {
+      const fullUrl = initialUrl.startsWith('http') ? initialUrl : `${API_BASE}${initialUrl}`;
+      setPreview(fullUrl);
+    }
+  }, [initialUrl]);
+
   const handleFile = (e) => {
     const file = e.target.files[0];
     if (!file) return;
     setPreview(URL.createObjectURL(file));
     onChange(index, file);
   };
+
   return (
     <div className="relative">
       <button type="button" onClick={() => !preview && inputRef.current.click()}
         className={`w-full aspect-square rounded-xl border-2 border-dashed flex items-center justify-center overflow-hidden cursor-pointer transition-all ${
-          preview ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-slate-50 hover:border-indigo-300 hover:bg-indigo-50/50'
+          preview ? 'border-sky-300 bg-sky-50' : 'border-slate-200 bg-slate-50 hover:border-indigo-300 hover:bg-indigo-50/50'
         }`}>
         {preview
           ? <img src={preview} alt="" className="w-full h-full object-cover rounded-xl" />
@@ -32,7 +43,7 @@ function ImageSlot({ index, onChange }) {
   );
 }
 
-export default function CertPhotosSection({ handleImageChange }) {
+export default function CertPhotosSection({ handleImageChange, existingImages = {} }) {
   return (
     <div className="card p-5">
       <div className="flex items-center gap-2 mb-4 border-b border-slate-100 pb-2">
@@ -43,7 +54,14 @@ export default function CertPhotosSection({ handleImageChange }) {
         <span className="text-[10px] text-slate-400">up to 5 images</span>
       </div>
       <div className="grid grid-cols-5 gap-3">
-        {[1, 2, 3, 4, 5].map(i => <ImageSlot key={i} index={i} onChange={handleImageChange} />)}
+        {[1, 2, 3, 4, 5].map(i => (
+          <ImageSlot 
+            key={i} 
+            index={i} 
+            initialUrl={existingImages[`image${i}`]}
+            onChange={handleImageChange} 
+          />
+        ))}
       </div>
     </div>
   );

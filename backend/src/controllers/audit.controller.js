@@ -40,10 +40,12 @@ const auditLog = async (req, res, next) => {
       const user = req.user;
       const { method, originalUrl, body } = req;
 
-      const pathParts = originalUrl.split('/').filter(Boolean);
-      const tableName = pathParts[2] || 'unknown';
-      const action = method === 'POST' ? 'CREATE' : method === 'PUT' ? 'UPDATE' : method === 'DELETE' ? 'DELETE' : 'MODIFY';
-      const recordId = pathParts[3] ? toInt(pathParts[3], null) : null;
+      const pathParts = originalUrl.split('?')[0].split('/').filter(Boolean);
+      // For /api/parties/123 -> pathParts is ['api', 'parties', '123']
+      // Table name is usually the second part (index 1)
+      const tableName = pathParts[1] || 'unknown';
+      const action = method === 'POST' ? 'CREATE' : method === 'PUT' || method === 'PATCH' ? 'UPDATE' : method === 'DELETE' ? 'DELETE' : 'MODIFY';
+      const recordId = pathParts[2] ? toInt(pathParts[2], null) : null;
 
       setImmediate(async () => {
         try {

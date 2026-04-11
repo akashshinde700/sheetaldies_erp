@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
+import { formatCurrency, formatDate } from '../../utils/formatters';
 
 function n(v) {
   const x = typeof v === 'number' ? v : Number(v);
@@ -8,8 +9,7 @@ function n(v) {
 }
 
 function money(v) {
-  const x = n(v);
-  return x.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return formatCurrency(n(v));
 }
 
 export default function InvoicePrint() {
@@ -94,8 +94,8 @@ export default function InvoicePrint() {
             </div>
             <div className="text-xs text-right">
               <div><span className="text-slate-500">Invoice No:</span> <span className="font-mono font-bold">{inv.invoiceNo}</span></div>
-              <div><span className="text-slate-500">Date:</span> <span className="font-mono">{new Date(inv.invoiceDate).toLocaleDateString('en-IN')}</span></div>
-              {inv.dispatchDate && <div><span className="text-slate-500">Dispatch Date:</span> <span className="font-mono">{new Date(inv.dispatchDate).toLocaleDateString('en-IN')}</span></div>}
+              <div><span className="text-slate-500">Date:</span> <span className="font-mono">{formatDate(inv.invoiceDate)}</span></div>
+              {inv.dispatchDate && <div><span className="text-slate-500">Dispatch Date:</span> <span className="font-mono">{formatDate(inv.dispatchDate)}</span></div>}
               {inv.challan?.challanNo && <div><span className="text-slate-500">Delivery Note:</span> <span className="font-mono">{inv.challan.challanNo}</span></div>}
               {inv.poRef && <div><span className="text-slate-500">Reference:</span> <span className="font-mono">{inv.poRef}</span></div>}
               {inv.dispatchDocNo && <div><span className="text-slate-500">Dispatch Doc No:</span> <span className="font-mono">{inv.dispatchDocNo}</span></div>}
@@ -234,7 +234,7 @@ export default function InvoicePrint() {
 
           <div className="mt-3 text-[10px] text-slate-600 flex justify-between">
             <div>SUBJECT TO 1 JURISDICTION · This is a Computer Generated Invoice</div>
-            <div>Date & Time: {new Date(inv.createdAt).toLocaleString('en-IN')}</div>
+            <div>Date & Time: {formatDate(inv.createdAt, true)}</div>
           </div>
         </div>
       </div>

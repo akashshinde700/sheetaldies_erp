@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../utils/api';
+import { formatCurrency, formatDate } from '../utils/formatters';
 
 const CARDS_PAGE_SIZE = 10;
 
@@ -230,7 +231,7 @@ export default function Dashboard() {
           label="Pending Invoices" value={invoiceMeta.pending} loading={kpiLoading}
           badge={invoiceMeta.pending > 0 ? 'Follow up' : 'All clear'}
           badgeColor={invoiceMeta.pending > 0 ? 'bg-orange-100 text-orange-900' : 'bg-emerald-100 text-emerald-800'}
-          sub={`₹ ${invoiceMeta.pendingAmt.toLocaleString('en-IN', { maximumFractionDigits: 0 })} outstanding`}
+          sub={`${formatCurrency(invoiceMeta.pendingAmt)} outstanding`}
           icon="receipt_long"
           iconBg="bg-orange-100 text-orange-700"
           to="/invoices"
@@ -303,7 +304,7 @@ export default function Dashboard() {
                     </span>
                   </td>
                   <td className="td text-slate-500">
-                    {card.startDate ? new Date(card.startDate).toLocaleDateString('en-IN') : '—'}
+                    {formatDate(card.startDate)}
                   </td>
                   <td className="td">
                     <div className="flex gap-3">

@@ -394,7 +394,7 @@ export default function JobCardForm() {
 
         <DocControlSection form={form} setForm={setForm} />
 
-        <PhotoSection handleImageChange={handleImageChange} />
+        <PhotoSection handleImageChange={handleImageChange} existingImages={cardData} />
 
         {/* Actions */}
         <div className="flex gap-3 pt-1">

@@ -197,18 +197,17 @@ export const handleError = (error: any) => {
   const message = error.message || 'An error occurred';
 
   const errorMap = {
-    DUPLICATE_GSTIN: 'A party with this GSTIN already exists',
-    DUPLICATE_PAN: 'A party with this PAN already exists',
-    INVALID_GSTIN: 'Invalid GSTIN format',
-    INVALID_PAN: 'Invalid PAN format',
-    UNAUTHORIZED: 'You are not authorized to perform this action',
-    FORBIDDEN: 'Access denied',
-    NOT_FOUND: 'Resource not found',
-    VALIDATION_ERROR: 'Please check your input and try again',
-    RATE_LIMIT_EXCEEDED: 'Too many requests. Please try again later',
-    FILE_TOO_LARGE: 'File size exceeds maximum limit',
-    INVALID_FILE_TYPE: 'File type is not supported',
-    SERVER_ERROR: 'Server error. Please try again later',
+    DUPLICATE_GSTIN: 'This GSTIN is already registered for another party',
+    DUPLICATE_PAN: 'This PAN is already registered for another party',
+    DUPLICATE_EMAIL: 'This email is already registered',
+    DUPLICATE_INVOICE: 'An invoice with this number already exists',
+    DUPLICATE_CODE: 'This Code/Reference already exists',
+    UNAUTHORIZED: 'Session expired. Please login again',
+    FORBIDDEN: 'Access denied: You do not have the required permissions',
+    NOT_FOUND: 'The requested resource was not found',
+    VALIDATION_ERROR: 'Validation failed. Please check your input',
+    RATE_LIMIT_EXCEEDED: 'Too many requests. Please wait a while',
+    SERVER_ERROR: 'Server or Database error. Please contact admin',
     NETWORK_ERROR: 'Network error. Please check your connection',
   };
 

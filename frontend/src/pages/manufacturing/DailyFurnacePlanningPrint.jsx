@@ -76,7 +76,7 @@ export default function DailyFurnacePlanningPrint() {
                         <th className="p-2 text-left w-24">STAGE</th>
                         <th className="p-2 text-left">CUSTOMER / JOB</th>
                         <th className="p-2 text-left w-32">PROCESS</th>
-                        <th className="p-2 text-left w-220">CYCLE</th>
+                        <th className="p-2 text-left w-24">CYCLE</th>
                         <th className="p-2 text-left w-28">HOLD</th>
                       </tr>
                     </thead>

@@ -4,6 +4,7 @@ import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 import { toNum, toInt } from '../../utils/normalize';
+import { formatCurrency, formatDate } from '../../utils/formatters';
 
 export default function QuoteForm() {
   const { id } = useParams();
@@ -324,7 +325,7 @@ export default function QuoteForm() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Quantity * <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Quantity *</label>
                     <input
                       type="number"
                       step="0.01"
@@ -352,7 +353,7 @@ export default function QuoteForm() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Unit Price * <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Unit Price *</label>
                     <input
                       type="number"
                       step="0.01"
@@ -393,7 +394,7 @@ export default function QuoteForm() {
             <div className="flex justify-between items-center">
               <span className="text-lg font-semibold text-slate-900">Total Amount:</span>
               <span className="text-lg font-bold text-sky-600">
-                ₹{calculateTotal().toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                {formatCurrency(calculateTotal())}
               </span>
             </div>
           </div>

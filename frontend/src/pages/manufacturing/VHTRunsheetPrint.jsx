@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
+import { formatDate } from '../../utils/formatters';
 
 function asGraph(v) {
   if (!v) return [];
@@ -91,7 +92,7 @@ export default function VHTRunsheetPrint() {
     );
   }
 
-  const runDateStr = row.runDate ? new Date(row.runDate).toLocaleDateString('en-IN') : '—';
+  const runDateStr = formatDate(row.runDate);
 
   return (
     <div className="min-h-screen bg-white text-slate-900 print:p-0 p-6">
@@ -202,7 +203,7 @@ export default function VHTRunsheetPrint() {
         </div>
 
         <footer className="text-[9px] text-slate-600 flex justify-between border-t border-slate-300 pt-2">
-          <span>Rev. {row.docRevNo || '—'} | Effective {row.docEffectiveDate ? new Date(row.docEffectiveDate).toLocaleDateString('en-IN') : '—'}</span>
+          <span>Rev. {row.docRevNo || '—'} | Effective {formatDate(row.docEffectiveDate)}</span>
           <span>Page {row.docPageOf || '1 of 2'}</span>
         </footer>
       </div>

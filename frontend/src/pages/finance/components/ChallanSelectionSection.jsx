@@ -1,6 +1,7 @@
 import React from 'react';
 import SearchSelect from '../../../components/SearchSelect';
 import { toNum } from '../../../utils/normalize';
+import { formatCurrency, formatDate } from '../../../utils/formatters';
 
 export default function ChallanSelectionSection({ 
   form, handleChallanChange, challans, loadingChallan, 
@@ -22,7 +23,7 @@ export default function ChallanSelectionSection({
           onChange={v => handleChallanChange(v)}
           options={challans.map(c => ({
             value: c.id,
-            label: `${c.challanNo} · ${c.toParty?.name || ''} · ${new Date(c.challanDate).toLocaleDateString('en-IN')} · ₹${toNum(c.totalValue, 0).toLocaleString('en-IN')}`,
+            label: `${c.challanNo} · ${c.toParty?.name || ''} · ${formatDate(c.challanDate)} · ${formatCurrency(toNum(c.totalValue, 0))}`,
           }))}
           placeholder="— No Challan (manual entry) —"
         />
@@ -56,7 +57,7 @@ export default function ChallanSelectionSection({
             ].map(({ label, value, cls }) => (
               <div key={label}>
                 <p className="text-slate-400">{label}</p>
-                <p className={`font-bold ${cls}`}>₹ {value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+                <p className={`font-bold ${cls}`}>{formatCurrency(value)}</p>
               </div>
             ))}
           </div>
@@ -65,7 +66,7 @@ export default function ChallanSelectionSection({
               {challanHistory.map(inv => (
                 <div key={inv.id} className="flex items-center gap-3 text-[11px]">
                   <span className="font-mono text-slate-600">{inv.invoiceNo}</span>
-                  <span className="text-slate-500">₹ {toNum(inv.subtotal, 0).toLocaleString('en-IN')}</span>
+                  <span className="text-slate-500">{formatCurrency(toNum(inv.subtotal, 0))}</span>
                   <span className={`badge text-[10px] ${PAY_BADGE[inv.paymentStatus] || 'bg-slate-100 text-slate-600'}`}>{inv.paymentStatus}</span>
                   {inv.sentToTally && <span className="badge text-[10px] bg-violet-100 text-violet-700">TALLY</span>}
                 </div>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
+import { formatCurrency, formatDate } from '../../utils/formatters';
 
 const STATUS_COLORS = {
   DRAFT: 'bg-gray-100 text-gray-800',
@@ -187,7 +188,7 @@ export default function QuoteDetail() {
             )}
           </div>
           <div className="text-sm text-slate-600">
-            Created by {quote.createdBy?.name} on {new Date(quote.createdAt).toLocaleDateString()}
+            Created by {quote.createdBy?.name} on {formatDate(quote.createdAt)}
           </div>
         </div>
       </div>
@@ -205,13 +206,13 @@ export default function QuoteDetail() {
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Quote Date</label>
-            <p className="text-slate-900">{new Date(quote.quoteDate).toLocaleDateString()}</p>
+            <p className="text-slate-900">{formatDate(quote.quoteDate)}</p>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Valid Until</label>
             <p className="text-slate-900">
-              {quote.validUntil ? new Date(quote.validUntil).toLocaleDateString() : 'Not specified'}
+              {quote.validUntil ? formatDate(quote.validUntil) : 'Not specified'}
             </p>
           </div>
 
@@ -256,10 +257,10 @@ export default function QuoteDetail() {
                   <td className="px-4 py-3 text-slate-900">{item.quantity}</td>
                   <td className="px-4 py-3 text-slate-600">{item.unit}</td>
                   <td className="px-4 py-3 text-slate-900">
-                    ₹{parseFloat(item.unitPrice).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    ₹{formatCurrency(item.unitPrice)}
                   </td>
                   <td className="px-4 py-3 text-slate-900 font-medium">
-                    ₹{parseFloat(item.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    ₹{formatCurrency(item.amount)}
                   </td>
                   <td className="px-4 py-3 text-slate-600">{item.remarks || '-'}</td>
                 </tr>
@@ -269,7 +270,7 @@ export default function QuoteDetail() {
               <tr>
                 <td colSpan="5" className="px-4 py-3 text-right font-semibold text-slate-900">Total Amount:</td>
                 <td className="px-4 py-3 font-bold text-sky-600">
-                  ₹{quote.totalAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  ₹{formatCurrency(quote.totalAmount)}
                 </td>
                 <td></td>
               </tr>

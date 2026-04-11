@@ -5,24 +5,24 @@
 
 const ERROR_CODES = {
   // Client errors (4xx)
-  INVALID_INPUT: { code: 'ERR_INVALID_INPUT', status: 400 },
-  VALIDATION_ERROR: { code: 'ERR_VALIDATION', status: 422 },
-  UNAUTHORIZED: { code: 'ERR_UNAUTHORIZED', status: 401 },
-  FORBIDDEN: { code: 'ERR_FORBIDDEN', status: 403 },
-  NOT_FOUND: { code: 'ERR_NOT_FOUND', status: 404 },
-  CONFLICT: { code: 'ERR_CONFLICT', status: 409 },
-  DUPLICATE: { code: 'ERR_DUPLICATE', status: 409 },
-  DUPLICATE_GSTIN: { code: 'ERR_DUPLICATE_GSTIN', status: 409 },
-  DUPLICATE_PAN: { code: 'ERR_DUPLICATE_PAN', status: 409 },
-  DUPLICATE_EMAIL: { code: 'ERR_DUPLICATE_EMAIL', status: 409 },
-  DUPLICATE_INVOICE: { code: 'ERR_DUPLICATE_INVOICE', status: 409 },
-  RATING_LIMITED: { code: 'ERR_RATE_LIMITED', status: 429 },
+  INVALID_INPUT: { code: 'INVALID_INPUT', status: 400 },
+  VALIDATION_ERROR: { code: 'VALIDATION_ERROR', status: 422 },
+  UNAUTHORIZED: { code: 'UNAUTHORIZED', status: 401 },
+  FORBIDDEN: { code: 'FORBIDDEN', status: 403 },
+  NOT_FOUND: { code: 'NOT_FOUND', status: 404 },
+  CONFLICT: { code: 'CONFLICT', status: 409 },
+  DUPLICATE: { code: 'DUPLICATE', status: 409 },
+  DUPLICATE_GSTIN: { code: 'DUPLICATE_GSTIN', status: 409 },
+  DUPLICATE_PAN: { code: 'DUPLICATE_PAN', status: 409 },
+  DUPLICATE_EMAIL: { code: 'DUPLICATE_EMAIL', status: 409 },
+  DUPLICATE_INVOICE: { code: 'DUPLICATE_INVOICE', status: 409 },
+  RATING_LIMITED: { code: 'RATE_LIMIT_EXCEEDED', status: 429 },
   
   // Server errors (5xx)
-  DATABASE_ERROR: { code: 'ERR_DATABASE', status: 500 },
-  INTERNAL_ERROR: { code: 'ERR_INTERNAL', status: 500 },
-  EXTERNAL_API_ERROR: { code: 'ERR_EXTERNAL_API', status: 502 },
-  SERVICE_UNAVAILABLE: { code: 'ERR_SERVICE_UNAVAILABLE', status: 503 },
+  DATABASE_ERROR: { code: 'SERVER_ERROR', status: 500 },
+  INTERNAL_ERROR: { code: 'SERVER_ERROR', status: 500 },
+  EXTERNAL_API_ERROR: { code: 'EXTERNAL_API_ERROR', status: 502 },
+  SERVICE_UNAVAILABLE: { code: 'SERVICE_UNAVAILABLE', status: 503 },
 };
 
 /**

@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { toNum } from '../../utils/normalize';
+import { formatCurrency, formatDate } from '../../utils/formatters';
 
 function formatCurrency2(v) {
-  const n = typeof v === 'number' ? v : Number(String(v ?? '').replace(/,/g, ''));
-  return (Number.isFinite(n) ? n : 0).toFixed(2);
+  return formatCurrency(v);
 }
+
 
 export default function GoodsReceiptForm() {
   const [pos, setPos] = useState([]);
@@ -139,7 +140,7 @@ export default function GoodsReceiptForm() {
             <div className="rounded-xl border border-sky-200/80 bg-sky-50/60 p-4">
               <p className="font-bold text-slate-900">{selectedPO.poNumber}</p>
               <p className="text-sm text-slate-600">{selectedPO.vendor?.name}</p>
-              <p className="text-sm text-slate-500">Expected: {new Date(selectedPO.expectedDelivery).toLocaleDateString()}</p>
+              <p className="text-sm text-slate-500">Expected: {formatDate(selectedPO.expectedDelivery)}</p>
             </div>
 
             <div className="overflow-x-auto rounded-xl border border-slate-200/80">

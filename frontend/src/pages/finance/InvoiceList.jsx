@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { exportToExcel } from '../../utils/export';
+import { formatCurrency, formatDate } from '../../utils/formatters';
 import ListSearchInput from '../../components/ListSearchInput';
 
 const PAY_STYLE = {
@@ -104,7 +105,7 @@ export default function InvoiceList() {
 
       const rows = allInvoices.map(inv => ({
         'Invoice No': inv.invoiceNo,
-        'Invoice Date': inv.invoiceDate ? new Date(inv.invoiceDate).toLocaleDateString('en-IN') : '',
+        'Invoice Date': formatDate(inv.invoiceDate),
         'Customer': inv.toParty?.name || inv.toPartyName || '',
         'Challan': inv.challan?.challanNo || inv.challanRef || '',
         'Subtotal': inv.subtotal,
@@ -237,17 +238,17 @@ export default function InvoiceList() {
                     </Link>
                   </td>
                   <td className="td text-slate-500 whitespace-nowrap">
-                    {new Date(inv.invoiceDate).toLocaleDateString('en-IN')}
+                    {formatDate(inv.invoiceDate)}
                   </td>
                   <td className="td font-medium text-slate-700 truncate max-w-[150px]">{inv.toParty?.name}</td>
                   <td className="td text-slate-500 font-mono text-[11px]">
                     {inv.challan?.challanNo || inv.challanRef || '—'}
                   </td>
-                  <td className="td text-slate-600">₹ {Number(inv.subtotal || 0).toLocaleString('en-IN')}</td>
+                  <td className="td text-slate-600">{formatCurrency(inv.subtotal)}</td>
                   <td className="td text-slate-500">
-                    ₹ {(Number(inv.cgstAmount || 0)+Number(inv.sgstAmount || 0)+Number(inv.igstAmount || 0)).toLocaleString('en-IN')}
+                    {formatCurrency(Number(inv.cgstAmount || 0) + Number(inv.sgstAmount || 0) + Number(inv.igstAmount || 0))}
                   </td>
-                  <td className="td font-bold text-slate-800">₹ {Number(inv.totalAmount || 0).toLocaleString('en-IN')}</td>
+                  <td className="td font-bold text-slate-800">{formatCurrency(inv.totalAmount)}</td>
                   <td className="td">
                     <span className={`badge ${PAY_STYLE[inv.paymentStatus] || 'bg-slate-100 text-slate-600'}`}>
                       {inv.paymentStatus}
@@ -263,6 +264,11 @@ export default function InvoiceList() {
                   </td>
                   <td className="td">
                     <div className="flex gap-2 items-center">
+                      <Link to={`/invoices/${inv.id}/print`}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-all"
+                        title="Print Invoice">
+                        <span className="material-symbols-outlined text-[18px]">print</span>
+                      </Link>
                       <Link to={`/invoices/${inv.id}`}
                         className="text-xs font-semibold text-indigo-600 hover:underline">View</Link>
                       {inv.paymentStatus !== 'PAID' && !inv.sentToTally && (

@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import api from '../../utils/api';
 import { exportToExcel } from '../../utils/export';
 import ListSearchInput from '../../components/ListSearchInput';
+import { formatDate } from '../../utils/formatters';
 
 const PAGE_LIMIT = 10;
 const STATUS_OPTS = ['CREATED', 'IN_PROGRESS', 'SENT_FOR_JOBWORK', 'INSPECTION', 'COMPLETED', 'ON_HOLD'];
@@ -132,7 +133,7 @@ export default function JobCardList() {
         Status: card.status || '',
         'Operator': card.operatorName || '',
         Customer: card.customer?.name || '',
-        'Created Date': card.createdAt ? new Date(card.createdAt).toLocaleDateString('en-IN') : '',
+        'Created Date': formatDate(card.createdAt),
       }));
 
       if (!sheetRows.length) {

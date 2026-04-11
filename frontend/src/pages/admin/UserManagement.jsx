@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
+import { formatDate } from '../../utils/formatters';
 
 const ROLES = ['ADMIN', 'MANAGER', 'OPERATOR', 'VIEWER'];
 
@@ -242,9 +243,7 @@ export default function UserManagement() {
 
                   {/* Last Login */}
                   <td className="td text-xs text-slate-400">
-                    {u.lastLogin
-                      ? new Date(u.lastLogin).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })
-                      : 'Never'}
+                    {u.lastLogin ? formatDate(u.lastLogin, true) : 'Never'}
                   </td>
 
                   {/* Actions */}
@@ -309,8 +308,8 @@ export default function UserManagement() {
               <div><p className="text-slate-400 text-xs">Email</p><p className="font-semibold">{viewUser.email || '—'}</p></div>
               <div><p className="text-slate-400 text-xs">Role</p><p className="font-semibold">{viewUser.role || '—'}</p></div>
               <div><p className="text-slate-400 text-xs">Status</p><p className="font-semibold">{viewUser.isActive ? 'Active' : 'Inactive'}</p></div>
-              <div><p className="text-slate-400 text-xs">Last Login</p><p className="font-semibold">{viewUser.lastLogin ? new Date(viewUser.lastLogin).toLocaleString() : 'Never'}</p></div>
-              <div><p className="text-slate-400 text-xs">Created</p><p className="font-semibold">{viewUser.createdAt ? new Date(viewUser.createdAt).toLocaleString() : '—'}</p></div>
+              <div><p className="text-slate-400 text-xs">Last Login</p><p className="font-semibold">{formatDate(viewUser.lastLogin, true)}</p></div>
+              <div><p className="text-slate-400 text-xs">Created</p><p className="font-semibold">{formatDate(viewUser.createdAt, true)}</p></div>
             </div>
           </div>
         </div>

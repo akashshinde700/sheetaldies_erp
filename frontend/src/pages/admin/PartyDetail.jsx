@@ -2,11 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import { formatDate, formatCurrency } from '../../utils/formatters';
 
-const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN') : '—');
 const PAGE_SIZE = 10;
-const fmtMoney = (n) =>
-  new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(Number(n || 0));
 
 const TYPE_BADGE = {
   CUSTOMER: 'bg-indigo-100 text-indigo-700',
@@ -115,7 +113,7 @@ export default function PartyDetail() {
           ['Job cards', summary.jobCards],
           ['Tax invoices (as buyer)', summary.invoices],
           ['Certificates', summary.certificates],
-          ['Total billed (₹)', fmtMoney(summary.billedTotal)],
+          ['Total billed', formatCurrency(summary.billedTotal)],
         ].map(([label, val]) => (
           <div key={label} className="card p-4">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
@@ -146,7 +144,7 @@ export default function PartyDetail() {
                 <tr className="border-b border-slate-100 text-xs text-slate-500">
                   <th className="py-2 pr-3">Process / line</th>
                   <th className="py-2 pr-3">Lines</th>
-                  <th className="py-2">Amount (₹)</th>
+                  <th className="py-2">Amount</th>
                 </tr>
               </thead>
               <tbody>
@@ -154,7 +152,7 @@ export default function PartyDetail() {
                   <tr key={row.name} className="border-b border-slate-50">
                     <td className="py-2 pr-3 font-medium text-slate-800">{row.name}</td>
                     <td className="py-2 pr-3">{row.count}</td>
-                    <td className="py-2">{fmtMoney(row.amount)}</td>
+                    <td className="py-2">{formatCurrency(row.amount)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -189,7 +187,7 @@ export default function PartyDetail() {
                   <td className="td text-xs">{jc.operationMode || '—'}</td>
                   <td className="td text-xs">{jc.status?.replace(/_/g, ' ')}</td>
                   <td className="td">{jc.quantity}</td>
-                  <td className="td text-xs">{fmtDate(jc.receivedDate)}</td>
+                  <td className="td text-xs">{formatDate(jc.receivedDate)}</td>
                 </tr>
               ))}
             </tbody>
@@ -218,8 +216,8 @@ export default function PartyDetail() {
                   <td className="td">
                     <Link className="font-semibold text-indigo-600 hover:underline" to={`/invoices/${inv.id}`}>{inv.invoiceNo}</Link>
                   </td>
-                  <td className="td text-xs">{fmtDate(inv.invoiceDate)}</td>
-                  <td className="td">₹{fmtMoney(inv.grandTotal)}</td>
+                  <td className="td text-xs">{formatDate(inv.invoiceDate)}</td>
+                  <td className="td">{formatCurrency(inv.grandTotal)}</td>
                   <td className="td text-xs">{inv.paymentStatus}</td>
                 </tr>
               ))}
@@ -252,7 +250,7 @@ export default function PartyDetail() {
                     </Link>
                   </td>
                   <td className="td text-xs">{c.jobCard?.jobCardNo || '—'}</td>
-                  <td className="td text-xs">{fmtDate(c.issueDate)}</td>
+                  <td className="td text-xs">{formatDate(c.issueDate)}</td>
                   <td className="td text-xs">{c.status}</td>
                 </tr>
               ))}
@@ -299,7 +297,7 @@ export default function PartyDetail() {
                 {pagedDispatchTo.map((d) => (
                   <li key={d.id}>
                     <Link className="text-indigo-600 hover:underline" to={`/dispatch/${d.id}`}>{d.challanNo}</Link>
-                    <span className="text-slate-400 text-xs"> {fmtDate(d.challanDate)}</span>
+                    <span className="text-slate-400 text-xs"> {formatDate(d.challanDate)}</span>
                   </li>
                 ))}
               </ul>

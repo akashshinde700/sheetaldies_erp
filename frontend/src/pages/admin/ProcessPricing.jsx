@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import ListSearchInput from '../../components/ListSearchInput';
+import { formatCurrency } from '../../utils/formatters';
 
 const BLANK = { code:'', name:'', description:'', hsnSacCode:'998898', pricePerKg:'', pricePerPc:'', minCharge:'', gstRate:'18', isActive: true };
 
@@ -267,9 +268,9 @@ export default function ProcessPricing() {
                         {proc.description && <p className="text-[10px] text-slate-400 truncate max-w-[160px] mt-0.5">{proc.description}</p>}
                       </td>
                       <td className="td text-xs text-slate-500 font-mono">{proc.hsnSacCode || '—'}</td>
-                      <td className="td text-xs font-bold text-slate-800">{proc.pricePerKg ? `₹ ${Number(proc.pricePerKg).toLocaleString('en-IN')}` : '—'}</td>
-                      <td className="td text-xs text-slate-600">{proc.pricePerPc ? `₹ ${Number(proc.pricePerPc).toLocaleString('en-IN')}` : '—'}</td>
-                      <td className="td text-xs text-slate-500">{proc.minCharge ? `₹ ${Number(proc.minCharge).toLocaleString('en-IN')}` : '—'}</td>
+                      <td className="td text-xs font-bold text-slate-800">{proc.pricePerKg ? formatCurrency(proc.pricePerKg) : '—'}</td>
+                      <td className="td text-xs text-slate-600">{proc.pricePerPc ? formatCurrency(proc.pricePerPc) : '—'}</td>
+                      <td className="td text-xs text-slate-500">{proc.minCharge ? formatCurrency(proc.minCharge) : '—'}</td>
                       <td className="td">
                         <span className="badge bg-indigo-50 text-indigo-700">{proc.gstRate}%</span>
                       </td>

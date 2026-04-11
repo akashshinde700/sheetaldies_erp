@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../../utils/api';
+import { formatDate } from '../../utils/formatters';
 
 const STATUS_COLOR = {
   DRAFT:    'bg-slate-100 text-slate-600',
@@ -63,7 +64,7 @@ export default function CertDetail() {
         <div className="flex-1">
           <h2 className="text-xl font-extrabold text-slate-800 font-headline font-mono">{cert.certNo}</h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Test Certificate — {new Date(cert.issueDate).toLocaleDateString('en-IN')}
+            Test Certificate — {formatDate(cert.issueDate)}
           </p>
         </div>
         <Link to={`/quality/certificates/${id}/print`} className="btn-outline">
@@ -103,7 +104,7 @@ export default function CertDetail() {
           {cert.heatNo             && <div><span className="text-xs text-slate-400 block mb-0.5">Heat No</span><span className="font-semibold font-mono">{cert.heatNo}</span></div>}
           {cert.dispatchMode       && <div><span className="text-xs text-slate-400 block mb-0.5">Dispatch Mode</span><span className="font-semibold">{cert.dispatchMode}</span></div>}
           {cert.dispatchChallanNo  && <div><span className="text-xs text-slate-400 block mb-0.5">Dispatch Challan No</span><span className="font-semibold font-mono">{cert.dispatchChallanNo}</span></div>}
-          {cert.dispatchChallanDate && <div><span className="text-xs text-slate-400 block mb-0.5">Dispatch Challan Date</span><span className="font-semibold">{new Date(cert.dispatchChallanDate).toLocaleDateString('en-IN')}</span></div>}
+          {cert.dispatchChallanDate && <div><span className="text-xs text-slate-400 block mb-0.5">Dispatch Challan Date</span><span className="font-semibold">{formatDate(cert.dispatchChallanDate)}</span></div>}
           {cert.dispatchedThrough  && <div><span className="text-xs text-slate-400 block mb-0.5">Dispatched Through</span><span className="font-semibold">{cert.dispatchedThrough}</span></div>}
         </div>
       </div>
@@ -255,7 +256,7 @@ export default function CertDetail() {
       )}
 
       <p className="text-[11px] text-slate-400 text-right pb-2">
-        Created by {cert.createdBy?.name} · {new Date(cert.createdAt).toLocaleString('en-IN')}
+        Created by {cert.createdBy?.name} · {formatDate(cert.createdAt, true)}
       </p>
     </div>
   );
