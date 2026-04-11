@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 
-export function exportToExcel(rows, filename = 'export') {
+export function exportToExcel(rows: any[], filename: string = 'export'): void {
   if (!rows || !rows.length) {
     throw new Error('No data to export');
   }
@@ -12,7 +12,7 @@ export function exportToExcel(rows, filename = 'export') {
   XLSX.writeFile(workbook, `${filename}.xlsx`);
 }
 
-export function exportToCsv(rows, filename = 'export') {
+export function exportToCsv(rows: Record<string, any>[], filename: string = 'export'): void {
   if (!rows || !rows.length) {
     throw new Error('No data to export');
   }
