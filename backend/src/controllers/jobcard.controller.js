@@ -1,6 +1,8 @@
 const prisma = require('../utils/prisma');
+const { transaction } = require('../utils/transaction');
 const { jobCardStatusBody, JOB_CARD_STATUSES } = require('../validation/schemas');
 const { toInt, toNum } = require('../utils/normalize');
+const { formatErrorResponse, getStatusCode, formatListResponse, parsePagination } = require('../utils/validation');
 
 // ── Job Card Status Transitions ───────────────────────────────
 // Valid transitions:
@@ -27,23 +29,42 @@ const validateStatusTransition = async (currentStatus, newStatus, jobCardId) => 
     return `Invalid transition from ${currentStatus} to ${newStatus}`;
   }
 
-  // If transitioning to INSPECTION, must have inspection record
+  // ✅ FIXED: Enhanced FK validation for inspection references
+  // If transitioning to INSPECTION, must have inspection record for THIS job card
   if (newStatus === 'INSPECTION') {
     const inspection = await prisma.incomingInspection.findFirst({
-      where: { jobCardId: toInt(jobCardId) },
+      where: { 
+        jobCardId: toInt(jobCardId),
+        inspectionStatus: { not: 'PENDING' }, // Don't allow transition if no inspection done
+      },
     });
     if (!inspection) {
-      return 'Inspection record not found. Cannot transition to INSPECTION state.';
+      return 'Inspection record not found or not yet conducted. Cannot transition to INSPECTION state.';
+    }
+    // Validate inspection data integrity (FK check)
+    const jobCard = await prisma.jobCard.findUnique({ where: { id: toInt(jobCardId) } });
+    if (!jobCard) return 'Job card not found.';
+    if (inspection.jobCardId !== jobCard.id) {
+      return 'Inspection record does not match job card.';
     }
   }
 
-  // If transitioning to COMPLETED, must have passed inspection
+  // ✅ FIXED: Enhanced validation for COMPLETED state
+  // If transitioning to COMPLETED, must have passed inspection WITH valid data
   if (newStatus === 'COMPLETED') {
     const inspection = await prisma.incomingInspection.findFirst({
       where: { jobCardId: toInt(jobCardId) },
     });
-    if (!inspection || (inspection.inspectionStatus !== 'PASS' && inspection.inspectionStatus !== 'CONDITIONAL')) {
+    if (!inspection) {
+      return 'Inspection record not found. Cannot complete job card.';
+    }
+    if (inspection.inspectionStatus !== 'PASS' && inspection.inspectionStatus !== 'CONDITIONAL') {
       return 'Inspection must be PASS or CONDITIONAL before completing job card.';
+    }
+    // Validate FK: ensure inspection belongs to this job card
+    const jobCard = await prisma.jobCard.findUnique({ where: { id: toInt(jobCardId) } });
+    if (!jobCard || inspection.jobCardId !== jobCard.id) {
+      return 'Inspection validation failed - records mismatch.';
     }
   }
 
@@ -171,18 +192,34 @@ const generateJobCardNo = async () => {
 // ── List Job Cards ────────────────────────────────────────────
 exports.list = async (req, res) => {
   try {
-    const { status, page = 1, limit = 20, search } = req.query;
+    const { status, search, fromDate, toDate } = req.query;
+    const { page, limit, skip } = parsePagination(req);
+    
     const where = {};
     if (status) where.status = status;
-    if (search)  where.OR = [
-      { jobCardNo:   { contains: search } },
-      { part:        { partNo: { contains: search } } },
-      { part:        { description: { contains: search } } },
-      { operatorName:{ contains: search } },
+    const searchText = String(search || '').trim();
+    if (searchText)  where.OR = [
+      { jobCardNo: { contains: searchText, mode: 'insensitive' } },
+      { part: { is: { partNo: { contains: searchText, mode: 'insensitive' } } } },
+      { part: { is: { description: { contains: searchText, mode: 'insensitive' } } } },
+      { operatorName: { contains: searchText, mode: 'insensitive' } },
     ];
+    if (fromDate || toDate) {
+      where.createdAt = {};
+      if (fromDate) {
+        const from = new Date(fromDate);
+        if (!Number.isNaN(from.getTime())) where.createdAt.gte = from;
+      }
+      if (toDate) {
+        const to = new Date(toDate);
+        if (!Number.isNaN(to.getTime())) {
+          to.setDate(to.getDate() + 1);
+          where.createdAt.lt = to;
+        }
+      }
+    }
 
-    const [total, cards] = await Promise.all([
-      prisma.jobCard.count({ where }),
+    const [cards, total] = await Promise.all([
       prisma.jobCard.findMany({
         where,
         include: {
@@ -193,15 +230,16 @@ exports.list = async (req, res) => {
           inspection: { select: { inspectionStatus: true } },
         },
         orderBy: { createdAt: 'desc' },
-        skip:  (toInt(page, 1) - 1) * toInt(limit, 20),
-        take:  toInt(limit, 20),
+        skip,
+        take: limit,
       }),
+      prisma.jobCard.count({ where }),
     ]);
 
-    res.json({ success: true, data: cards, meta: { total, page: toInt(page, 1), limit: toInt(limit, 20) } });
+    res.json(formatListResponse(cards, total, page, limit));
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: 'Server error.' });
+    res.status(getStatusCode('ERR_INTERNAL')).json(formatErrorResponse('ERR_INTERNAL', 'Server error.'));
   }
 };
 
@@ -241,7 +279,7 @@ exports.create = async (req, res) => {
           dispatchByOurVehicle, dispatchByCourier, collectedByCustomer,
           hrcRange, specialRequirements, precautions, documentNo, revisionNo, revisionDate, pageNo } = req.body;
     if (!partId || !quantity)
-      return res.status(400).json({ success: false, message: 'Part and quantity are required.' });
+      return res.status(400).json({ success: false, code: 'ERR_VALIDATION', message: 'Part and quantity are required.' });
 
     const jobCardNo = await generateJobCardNo();
 
@@ -296,15 +334,18 @@ exports.create = async (req, res) => {
       }
     }
 
-    const card = await prisma.jobCard.create({
-      data: cardData,
-      include: { part: { select: { partNo: true, description: true } } },
+    // CRITICAL FIX: Wrap in transaction to ensure atomicity
+    const card = await transaction(async (tx) => {
+      return await tx.jobCard.create({
+        data: cardData,
+        include: { part: { select: { partNo: true, description: true } } },
+      });
     });
 
     res.status(201).json({ success: true, data: card, message: `Job Card ${jobCardNo} created.` });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: 'Server error.' });
+    res.status(500).json({ success: false, code: 'ERR_INTERNAL', message: 'Failed to create job card. All changes have been rolled back.' });
   }
 };
 

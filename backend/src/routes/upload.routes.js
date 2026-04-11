@@ -15,6 +15,9 @@ router.post('/single', auth, upload.single('file'), (req, res) => {
 router.delete('/', auth, (req, res) => {
   const { filepath } = req.body;
   if (!filepath) return res.status(400).json({ success: false, message: 'File path required.' });
+  if (!['ADMIN', 'MANAGER'].includes(req.user?.role)) {
+    return res.status(403).json({ success: false, message: 'Only managers and admins can delete uploaded files.' });
+  }
   const abs = path.resolve(__dirname, '../../', filepath);
   const uploadsRoot = path.resolve(__dirname, '../../uploads');
   if (!abs.startsWith(uploadsRoot)) {

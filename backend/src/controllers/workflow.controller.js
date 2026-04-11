@@ -1,5 +1,8 @@
 const prisma = require('../utils/prisma');
+const { transaction } = require('../utils/transaction');
 const { toInt } = require('../utils/normalize');
+const { formatErrorResponse, getStatusCode, formatListResponse, parsePagination } = require('../utils/validation');
+const { softDelete } = require('../utils/softDelete');
 
 const CONDITION = {
   ALWAYS: 'ALWAYS',
@@ -159,6 +162,7 @@ exports.createTemplate = async (req, res) => {
 exports.listTemplates = async (req, res) => {
   try {
     const templates = await prisma.workflowTemplate.findMany({
+      where: { isActive: true },
       include: {
         _count: {
           select: { steps: true, transitions: true, jobWorkflows: true },
@@ -188,9 +192,27 @@ exports.getTemplate = async (req, res) => {
         },
       },
     });
-    if (!template) return res.status(404).json({ success: false, message: 'Workflow template not found.' });
+    if (!template || template.isActive === false) return res.status(404).json({ success: false, message: 'Workflow template not found.' });
     return res.json({ success: true, data: template });
   } catch (err) {
+    return res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+exports.deleteTemplate = async (req, res) => {
+  try {
+    const id = toInt(req.params.id);
+    if (Number.isNaN(id)) return res.status(400).json({ success: false, message: 'Invalid template ID.' });
+
+    const existing = await prisma.workflowTemplate.findUnique({ where: { id } });
+    if (!existing || existing.isActive === false) {
+      return res.status(404).json({ success: false, message: 'Workflow template not found.' });
+    }
+
+    await softDelete(prisma.workflowTemplate, id);
+    return res.json({ success: true, message: 'Workflow template deleted successfully.' });
+  } catch (err) {
+    console.error(err);
     return res.status(500).json({ success: false, message: 'Server error.' });
   }
 };

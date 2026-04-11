@@ -1,16 +1,20 @@
 import { useEffect, useState } from 'react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import ListSearchInput from '../../components/ListSearchInput';
 
 const BLANK = { code:'', name:'', description:'', hsnSacCode:'998898', pricePerKg:'', pricePerPc:'', minCharge:'', gstRate:'18', isActive: true };
 
 export default function ProcessPricing() {
+  const PAGE_SIZE = 10;
   const [processes, setProcesses] = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [editing,   setEditing]   = useState(null);
   const [showNew,   setShowNew]   = useState(false);
   const [newForm,   setNewForm]   = useState({ ...BLANK });
   const [saving,    setSaving]    = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
 
   const fetchProcesses = () => {
     setLoading(true);
@@ -18,6 +22,7 @@ export default function ProcessPricing() {
   };
 
   useEffect(() => { fetchProcesses(); }, []);
+  useEffect(() => { setPage(1); }, [searchTerm]);
 
   const handleEdit = (proc) => setEditing({ ...proc, pricePerKg: proc.pricePerKg || '', pricePerPc: proc.pricePerPc || '', minCharge: proc.minCharge || '' });
 
@@ -55,17 +60,30 @@ export default function ProcessPricing() {
     } catch { toast.error('Error toggling.'); }
   };
 
+  const filteredProcesses = processes.filter((proc) => {
+    const q = searchTerm.toLowerCase();
+    if (!q) return true;
+    return (
+      proc.code?.toLowerCase().includes(q) ||
+      proc.name?.toLowerCase().includes(q) ||
+      proc.hsnSacCode?.toLowerCase().includes(q) ||
+      proc.description?.toLowerCase().includes(q)
+    );
+  });
+  const totalPages = Math.max(1, Math.ceil(filteredProcesses.length / PAGE_SIZE));
+  const pagedProcesses = filteredProcesses.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   return (
     <div className="page-stack w-full space-y-5 animate-slide-up">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-xl font-extrabold text-slate-800 font-headline">Process Pricing</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Manage heat treatment process rates — changes reflect in all new invoices.</p>
+          <h1 className="page-title">Process Pricing</h1>
+          <p className="page-subtitle">Manage heat treatment process rates — changes reflect in all new invoices.</p>
         </div>
-        <button onClick={() => setShowNew(true)} className="btn-primary">
-          <span className="material-symbols-outlined text-sm">add</span> New Process
+        <button onClick={() => setShowNew(true)} className="btn-primary shrink-0 inline-flex items-center justify-center gap-2">
+          <span className="material-symbols-outlined text-[18px]">add</span> New Process
         </button>
       </div>
 
@@ -146,6 +164,25 @@ export default function ProcessPricing() {
       )}
 
       {/* Processes Table */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] items-end">
+        <div className="flex items-center gap-2">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Search</label>
+          <ListSearchInput
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search code, process name, HSN..."
+          />
+        </div>
+        {searchTerm ? (
+          <button
+            type="button"
+            onClick={() => setSearchTerm('')}
+            className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-500 transition-colors font-medium"
+          >
+            <span className="material-symbols-outlined text-sm">close</span> Clear
+          </button>
+        ) : <div />}
+      </div>
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
@@ -164,7 +201,7 @@ export default function ProcessPricing() {
                     <span className="text-sm">Loading processes...</span>
                   </div>
                 </td></tr>
-              ) : processes.map(proc => (
+              ) : pagedProcesses.map(proc => (
                 <tr key={proc.id} className={`tr ${!proc.isActive ? 'opacity-50' : ''}`}>
                   {editing?.id === proc.id ? (
                     <>
@@ -260,6 +297,32 @@ export default function ProcessPricing() {
             </tbody>
           </table>
         </div>
+        {!loading && filteredProcesses.length > 0 && (
+          <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
+            <p className="text-xs text-slate-500">
+              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredProcesses.length)} of {filteredProcesses.length}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="btn-outline text-xs disabled:opacity-40"
+              >
+                Prev
+              </button>
+              <span className="text-xs font-semibold text-slate-600">{page} / {totalPages}</span>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="btn-outline text-xs disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <p className="text-[10px] text-slate-400 text-right">

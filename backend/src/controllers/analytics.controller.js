@@ -1,5 +1,6 @@
 const prisma = require('../utils/prisma');
-const { toNum } = require('../utils/normalize');
+const { toNum, toInt } = require('../utils/normalize');
+const { formatErrorResponse, getStatusCode, formatListResponse, parsePagination } = require('../utils/validation');
 
 // ── Overview KPIs ─────────────────────────────────────────────
 exports.overview = async (req, res) => {
@@ -88,7 +89,9 @@ exports.monthlyRevenue = async (req, res) => {
 
     res.json({ success: true, data: Object.values(map) });
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error.' });
+    console.error(err);
+    const status = getStatusCode('ERR_INTERNAL');
+    res.status(status).json(formatErrorResponse('ERR_INTERNAL', 'Failed to fetch revenue data'));
   }
 };
 
@@ -121,7 +124,9 @@ exports.monthlyJobs = async (req, res) => {
 
     res.json({ success: true, data: Object.values(map) });
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error.' });
+    console.error(err);
+    const status = getStatusCode('ERR_INTERNAL');
+    res.status(status).json(formatErrorResponse('ERR_INTERNAL', 'Failed to fetch job card data'));
   }
 };
 
@@ -204,7 +209,9 @@ exports.topCustomers = async (req, res) => {
       })),
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error.' });
+    console.error(err);
+    const status = getStatusCode('ERR_INTERNAL');
+    res.status(status).json(formatErrorResponse('ERR_INTERNAL', 'Failed to fetch customer data'));
   }
 };
 
@@ -233,7 +240,9 @@ exports.processDist = async (req, res) => {
       })),
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error.' });
+    console.error(err);
+    const status = getStatusCode('ERR_INTERNAL');
+    res.status(status).json(formatErrorResponse('ERR_INTERNAL', 'Failed to fetch process distribution'));
   }
 };
 
@@ -263,7 +272,9 @@ exports.qualityTrend = async (req, res) => {
 
     res.json({ success: true, data: Object.values(map) });
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error.' });
+    console.error(err);
+    const status = getStatusCode('ERR_INTERNAL');
+    res.status(status).json(formatErrorResponse('ERR_INTERNAL', 'Failed to fetch quality trend'));
   }
 };
 
@@ -293,7 +304,9 @@ exports.turnaround = async (req, res) => {
 
     res.json({ success: true, data });
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error.' });
+    console.error(err);
+    const status = getStatusCode('ERR_INTERNAL');
+    res.status(status).json(formatErrorResponse('ERR_INTERNAL', 'Failed to fetch turnaround data'));
   }
 };
 

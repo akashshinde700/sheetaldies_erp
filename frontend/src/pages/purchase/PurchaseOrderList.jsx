@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { toInt, toNum } from '../../utils/normalize';
+import { exportToExcel } from '../../utils/export';
+import ListSearchInput from '../../components/ListSearchInput';
 
 function formatCurrency2(v) {
   const n = typeof v === 'number' ? v : toNum(String(v ?? '').replace(/,/g, ''), NaN);
@@ -14,6 +16,9 @@ export default function PurchaseOrderList() {
   const [vendors, setVendors] = useState([]);
   const [items, setItems] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -45,12 +50,17 @@ export default function PurchaseOrderList() {
       fetchPOs();
     }, 250);
     return () => clearTimeout(t);
-  }, [searchTerm]);
+  }, [searchTerm, statusFilter, fromDate, toDate]);
 
   const fetchPOs = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/purchase?search=' + searchTerm);
+      const params = new URLSearchParams();
+      if (searchTerm.trim()) params.append('search', searchTerm.trim());
+      if (statusFilter) params.append('status', statusFilter);
+      if (fromDate) params.append('fromDate', fromDate);
+      if (toDate) params.append('toDate', toDate);
+      const response = await api.get(`/purchase?${params.toString()}`);
       setOrders(response.data.data || []);
     } catch (error) {
       console.error(error);
@@ -78,18 +88,51 @@ export default function PurchaseOrderList() {
     }
   };
 
-  const resetForm = () => {
-    setEditingId(null);
-    setFormData({
-      vendorId: '',
-      poDate: '',
-      expectedDelivery: '',
-      remarks: '',
-      items: [{ itemId: '', quantity: '1', unitPrice: '', description: '', partNo: '', unit: 'NOS', gstRate: 0, remark: '' }],
-    });
-    setQuickCodeSearch('');
-    setQuickQty('1');
-    setQuickCost('');
+  const handleExport = async () => {
+    try {
+      const baseParams = new URLSearchParams();
+      if (searchTerm.trim()) baseParams.append('search', searchTerm.trim());
+      if (statusFilter) baseParams.append('status', statusFilter);
+      if (fromDate) baseParams.append('fromDate', fromDate);
+      if (toDate) baseParams.append('toDate', toDate);
+
+      const exportLimit = 100;
+      let exportPage = 1;
+      let totalPages = 1;
+      const allOrders = [];
+
+      do {
+        const params = new URLSearchParams(baseParams.toString());
+        params.append('page', String(exportPage));
+        params.append('limit', String(exportLimit));
+        const response = await api.get(`/purchase?${params.toString()}`);
+        const pageRows = response.data.data || [];
+        allOrders.push(...pageRows);
+        totalPages = Math.max(1, Math.ceil((response.data.total || 0) / exportLimit));
+        exportPage += 1;
+      } while (exportPage <= totalPages);
+
+      const exportData = allOrders.map(po => ({
+        'PO Number': po.poNumber,
+        'Vendor': po.vendor?.name || '',
+        'PO Date': po.poDate ? new Date(po.poDate).toLocaleDateString() : '',
+        'Expected Delivery': po.expectedDelivery ? new Date(po.expectedDelivery).toLocaleDateString() : '',
+        'Total Amount': `₹${formatCurrency2(po.totalAmount)}`,
+        'Status': po.status,
+        'Created At': po.createdAt ? new Date(po.createdAt).toLocaleDateString() : '',
+        'Remarks': po.remarks || '',
+      }));
+
+      if (!exportData.length) {
+        toast.error('No purchase orders to export.');
+        return;
+      }
+
+      exportToExcel(exportData, `Purchase-Orders-${new Date().toISOString().slice(0, 10)}`);
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to export purchase orders.');
+    }
   };
 
   const lineAmount = (item) => {
@@ -258,7 +301,7 @@ export default function PurchaseOrderList() {
           }}
           className="btn-primary shrink-0"
         >
-          <span className="material-symbols-outlined text-[20px]">add</span> New PO
+          <span className="material-symbols-outlined text-[18px]">add</span> New PO
         </button>
       </div>
 
@@ -446,18 +489,74 @@ export default function PurchaseOrderList() {
         </div>
       )}
 
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto_auto_auto] items-end">
+            <div className="flex gap-2 items-center">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Search</label>
+              <ListSearchInput
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="PO no, vendor..."
+              />
+            </div>
+            <div className="flex gap-2 items-center">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">From</label>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="form-input text-xs"
+              />
+            </div>
+            <div className="flex gap-2 items-center">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">To</label>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="form-input text-xs"
+              />
+            </div>
+            <div className="flex gap-2 items-center">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="form-input text-xs w-auto min-w-[170px]"
+              >
+                <option value="">All</option>
+                <option value="DRAFT">Draft</option>
+                <option value="SENT">Sent</option>
+                <option value="RECEIVED">Received</option>
+                <option value="COMPLETED">Completed</option>
+                <option value="CANCELLED">Cancelled</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              {(searchTerm || statusFilter || fromDate || toDate) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setStatusFilter('');
+                    setFromDate('');
+                    setToDate('');
+                  }}
+                  className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-500 transition-colors font-medium"
+                >
+                  <span className="material-symbols-outlined text-sm">close</span> Clear
+                </button>
+              )}
+              <button
+                onClick={handleExport}
+                className="btn-outline text-xs"
+              >
+                <span className="material-symbols-outlined text-sm">file_download</span>
+                Export Excel
+              </button>
+            </div>
+      </div>
+
       <div className="card overflow-hidden">
-        <div className="p-4 border-b border-slate-200/80 flex items-center gap-2 bg-slate-50/50">
-          <span className="material-symbols-outlined text-[20px] text-slate-400 shrink-0">search</span>
-          <input
-            type="text"
-            placeholder="Search POs..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyUp={fetchPOs}
-            className="flex-1 form-input border-0 bg-transparent shadow-none focus:ring-0"
-          />
-        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead>

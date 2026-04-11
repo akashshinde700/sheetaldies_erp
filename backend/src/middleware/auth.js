@@ -1,8 +1,14 @@
 const jwt = require('jsonwebtoken');
+const { parseCookies } = require('../utils/cookies');
 
 module.exports = (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Bearer <token>
+  const bearerToken = authHeader && authHeader.split(' ')[1];
+  const cookies = parseCookies(req.headers.cookie);
+  
+  // ✅ FIXED: Prefer bearer token from Authorization header
+  // Cookie-based auth requires CSRF validation (done in origin check)
+  const token = bearerToken || cookies.accessToken;
 
   if (!token) {
     return res.status(401).json({ success: false, message: 'Access denied. No token provided.' });
@@ -11,6 +17,18 @@ module.exports = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded; // { id, email, role, name }
+    
+    // ✅ FIXED: Add CSRF protection for cookie-based auth
+    // If token came from cookie, verify origin matches allowed domains
+    if (!bearerToken && cookies.accessToken) {
+      const origin = req.headers.origin || req.headers.referer;
+      const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',');
+      
+      if (origin && !allowedOrigins.some(ao => origin.includes(ao))) {
+        return res.status(403).json({ success: false, message: 'CSRF validation failed.' });
+      }
+    }
+    
     next();
   } catch (err) {
     return res.status(401).json({ success: false, message: 'Invalid or expired token.' });

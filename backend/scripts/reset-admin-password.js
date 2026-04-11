@@ -1,12 +1,21 @@
 /**
- * Run this script once to reset all default user passwords to Admin@123
+ * Development-only helper to reset selected user passwords.
  * Usage: node reset-admin-password.js
  */
 const bcrypt = require('bcryptjs');
 const prisma  = require('./src/utils/prisma');
 
 async function main() {
-  const hash = await bcrypt.hash('Admin@123', 10);
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('reset-admin-password.js cannot be run in production');
+  }
+
+  const password = process.env.ADMIN_PASSWORD_RESET;
+  if (!password) {
+    throw new Error('Set ADMIN_PASSWORD_RESET before running reset-admin-password.js');
+  }
+
+  const hash = await bcrypt.hash(password, 10);
 
   const emails = [
     'admin@sheetaldies.com',
@@ -33,7 +42,7 @@ async function main() {
     }
   }
 
-  console.log('\nDone! Login with: admin@sheetaldies.com / Admin@123');
+  console.log('\nDone! Updated the configured admin passwords.');
   await prisma.$disconnect();
 }
 

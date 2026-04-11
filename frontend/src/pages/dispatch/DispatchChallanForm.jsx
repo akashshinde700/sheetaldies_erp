@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
+import { toNum, toInt } from '../../utils/normalize';
 
 const STATUS_OPTIONS = ['DRAFT', 'SENT', 'RECEIVED', 'COMPLETED', 'CANCELLED'];
 
@@ -125,28 +126,28 @@ export default function DispatchChallanForm() {
       toast.error('From Party and To Party are required.');
       return;
     }
-    const validItems = items.filter((it) => it.itemId || it.description?.trim());
+    const validItems = items.filter((it) => (it.itemId || it.description?.trim()) && toNum(it.quantity, 0) > 0);
     if (validItems.length === 0) {
-      toast.error('At least one item is required.');
+      toast.error('At least one item with quantity is required.');
       return;
     }
     try {
       setLoading(true);
       const payload = {
         challanDate: formData.challanDate,
-        fromPartyId: Number(formData.fromPartyId),
-        toPartyId: Number(formData.toPartyId),
-        jobworkChallanId: formData.jobworkChallanId ? Number(formData.jobworkChallanId) : null,
+        fromPartyId: toInt(formData.fromPartyId),
+        toPartyId: toInt(formData.toPartyId),
+        jobworkChallanId: formData.jobworkChallanId ? toInt(formData.jobworkChallanId) : null,
         dispatchMode: formData.dispatchMode || null,
         vehicleNo: formData.vehicleNo || null,
         remarks: formData.remarks || null,
         status: formData.status,
         items: validItems.map((it) => ({
-          itemId: it.itemId ? Number(it.itemId) : null,
-          sourceChallanItemId: it.sourceChallanItemId ? Number(it.sourceChallanItemId) : null,
+          itemId: it.itemId ? toInt(it.itemId) : null,
+          sourceChallanItemId: it.sourceChallanItemId ? toInt(it.sourceChallanItemId) : null,
           description: it.description || '',
-          quantity: Number(it.quantity) || 0,
-          weightKg: Number(it.weightKg) || 0,
+          quantity: toNum(it.quantity, 0),
+          weightKg: toNum(it.weightKg, 0),
           remarks: it.remarks || '',
         })),
       };
@@ -166,8 +167,8 @@ export default function DispatchChallanForm() {
     }
   };
 
-  const totalQty = items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
-  const totalWeight = items.reduce((sum, it) => sum + (Number(it.weightKg) || 0), 0);
+  const totalQty = items.reduce((sum, it) => sum + toNum(it.quantity, 0), 0);
+  const totalWeight = items.reduce((sum, it) => sum + toNum(it.weightKg, 0), 0);
 
   return (
     <div className="page-stack w-full space-y-6">

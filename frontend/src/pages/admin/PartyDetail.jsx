@@ -4,6 +4,7 @@ import api from '../../utils/api';
 import toast from 'react-hot-toast';
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN') : '—');
+const PAGE_SIZE = 10;
 const fmtMoney = (n) =>
   new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(Number(n || 0));
 
@@ -13,11 +14,49 @@ const TYPE_BADGE = {
   BOTH: 'bg-emerald-100 text-emerald-700',
 };
 
+const MiniPagination = ({ page, setPage, total }) => {
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (total <= PAGE_SIZE) return null;
+  return (
+    <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between">
+      <p className="text-xs text-slate-500">
+        {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
+      </p>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setPage((p) => Math.max(1, p - 1))}
+          disabled={page === 1}
+          className="btn-outline text-xs disabled:opacity-40"
+        >
+          Prev
+        </button>
+        <span className="text-xs font-semibold text-slate-600">{page} / {totalPages}</span>
+        <button
+          type="button"
+          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+          disabled={page === totalPages}
+          className="btn-outline text-xs disabled:opacity-40"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export default function PartyDetail() {
   const { partyId } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
+  const [jobCardsPage, setJobCardsPage] = useState(1);
+  const [invoicesPage, setInvoicesPage] = useState(1);
+  const [certsPage, setCertsPage] = useState(1);
+  const [jobworkFromPage, setJobworkFromPage] = useState(1);
+  const [jobworkToPage, setJobworkToPage] = useState(1);
+  const [dispatchToPage, setDispatchToPage] = useState(1);
+  const [dispatchFromPage, setDispatchFromPage] = useState(1);
 
   useEffect(() => {
     let alive = true;
@@ -47,6 +86,13 @@ export default function PartyDetail() {
   if (!data) return null;
 
   const { party, summary, jobCards, invoices, certificates, jobworkAsFromParty, jobworkAsToParty, dispatchToParty, dispatchFromParty } = data;
+  const pagedJobCards = jobCards.slice((jobCardsPage - 1) * PAGE_SIZE, jobCardsPage * PAGE_SIZE);
+  const pagedInvoices = invoices.slice((invoicesPage - 1) * PAGE_SIZE, invoicesPage * PAGE_SIZE);
+  const pagedCerts = certificates.slice((certsPage - 1) * PAGE_SIZE, certsPage * PAGE_SIZE);
+  const pagedJobworkFrom = jobworkAsFromParty.slice((jobworkFromPage - 1) * PAGE_SIZE, jobworkFromPage * PAGE_SIZE);
+  const pagedJobworkTo = jobworkAsToParty.slice((jobworkToPage - 1) * PAGE_SIZE, jobworkToPage * PAGE_SIZE);
+  const pagedDispatchTo = dispatchToParty.slice((dispatchToPage - 1) * PAGE_SIZE, dispatchToPage * PAGE_SIZE);
+  const pagedDispatchFrom = dispatchFromParty.slice((dispatchFromPage - 1) * PAGE_SIZE, dispatchFromPage * PAGE_SIZE);
 
   return (
     <div className="page-stack w-full space-y-6 animate-slide-up">
@@ -134,7 +180,7 @@ export default function PartyDetail() {
             <tbody>
               {jobCards.length === 0 ? (
                 <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">No job cards linked.</td></tr>
-              ) : jobCards.map((jc) => (
+              ) : pagedJobCards.map((jc) => (
                 <tr key={jc.id} className="tr">
                   <td className="td">
                     <Link className="font-semibold text-indigo-600 hover:underline" to={`/jobcards/${jc.id}`}>{jc.jobCardNo}</Link>
@@ -149,6 +195,7 @@ export default function PartyDetail() {
             </tbody>
           </table>
         </div>
+        <MiniPagination page={jobCardsPage} setPage={setJobCardsPage} total={jobCards.length} />
       </div>
 
       <div className="card overflow-hidden p-0">
@@ -166,7 +213,7 @@ export default function PartyDetail() {
             <tbody>
               {invoices.length === 0 ? (
                 <tr><td colSpan={4} className="px-5 py-8 text-center text-slate-400">No invoices.</td></tr>
-              ) : invoices.map((inv) => (
+              ) : pagedInvoices.map((inv) => (
                 <tr key={inv.id} className="tr">
                   <td className="td">
                     <Link className="font-semibold text-indigo-600 hover:underline" to={`/invoices/${inv.id}`}>{inv.invoiceNo}</Link>
@@ -179,6 +226,7 @@ export default function PartyDetail() {
             </tbody>
           </table>
         </div>
+        <MiniPagination page={invoicesPage} setPage={setInvoicesPage} total={invoices.length} />
       </div>
 
       <div className="card overflow-hidden p-0">
@@ -196,7 +244,7 @@ export default function PartyDetail() {
             <tbody>
               {certificates.length === 0 ? (
                 <tr><td colSpan={4} className="px-5 py-8 text-center text-slate-400">No certificates.</td></tr>
-              ) : certificates.map((c) => (
+              ) : pagedCerts.map((c) => (
                 <tr key={c.id} className="tr">
                   <td className="td">
                     <Link className="font-semibold text-indigo-600 hover:underline" to={`/quality/certificates/${c.id}`}>
@@ -211,6 +259,7 @@ export default function PartyDetail() {
             </tbody>
           </table>
         </div>
+        <MiniPagination page={certsPage} setPage={setCertsPage} total={certificates.length} />
       </div>
 
       {(jobworkAsFromParty.length + jobworkAsToParty.length + dispatchToParty.length + dispatchFromParty.length) > 0 && (
@@ -219,51 +268,55 @@ export default function PartyDetail() {
             <div className="card p-4">
               <p className="text-xs font-bold text-slate-600 mb-2">Jobwork (party = sender)</p>
               <ul className="text-sm space-y-1">
-                {jobworkAsFromParty.map((ch) => (
+                {pagedJobworkFrom.map((ch) => (
                   <li key={ch.id}>
                     <Link className="text-indigo-600 hover:underline" to={`/jobwork/${ch.id}`}>{ch.challanNo}</Link>
                     <span className="text-slate-400 text-xs"> → {ch.toParty?.name}</span>
                   </li>
                 ))}
               </ul>
+              <MiniPagination page={jobworkFromPage} setPage={setJobworkFromPage} total={jobworkAsFromParty.length} />
             </div>
           )}
           {jobworkAsToParty.length > 0 && (
             <div className="card p-4">
               <p className="text-xs font-bold text-slate-600 mb-2">Jobwork (party = receiver / processor)</p>
               <ul className="text-sm space-y-1">
-                {jobworkAsToParty.map((ch) => (
+                {pagedJobworkTo.map((ch) => (
                   <li key={ch.id}>
                     <span className="text-slate-400 text-xs">{ch.fromParty?.name} → </span>
                     <Link className="text-indigo-600 hover:underline" to={`/jobwork/${ch.id}`}>{ch.challanNo}</Link>
                   </li>
                 ))}
               </ul>
+              <MiniPagination page={jobworkToPage} setPage={setJobworkToPage} total={jobworkAsToParty.length} />
             </div>
           )}
           {dispatchToParty.length > 0 && (
             <div className="card p-4">
               <p className="text-xs font-bold text-slate-600 mb-2">Dispatch (delivered to party)</p>
               <ul className="text-sm space-y-1">
-                {dispatchToParty.map((d) => (
+                {pagedDispatchTo.map((d) => (
                   <li key={d.id}>
                     <Link className="text-indigo-600 hover:underline" to={`/dispatch/${d.id}`}>{d.challanNo}</Link>
                     <span className="text-slate-400 text-xs"> {fmtDate(d.challanDate)}</span>
                   </li>
                 ))}
               </ul>
+              <MiniPagination page={dispatchToPage} setPage={setDispatchToPage} total={dispatchToParty.length} />
             </div>
           )}
           {dispatchFromParty.length > 0 && (
             <div className="card p-4">
               <p className="text-xs font-bold text-slate-600 mb-2">Dispatch (sent from party)</p>
               <ul className="text-sm space-y-1">
-                {dispatchFromParty.map((d) => (
+                {pagedDispatchFrom.map((d) => (
                   <li key={d.id}>
                     <Link className="text-indigo-600 hover:underline" to={`/dispatch/${d.id}`}>{d.challanNo}</Link>
                   </li>
                 ))}
               </ul>
+              <MiniPagination page={dispatchFromPage} setPage={setDispatchFromPage} total={dispatchFromParty.length} />
             </div>
           )}
         </div>

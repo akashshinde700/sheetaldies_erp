@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import ListSearchInput from '../../components/ListSearchInput';
 
 const emptyForm = () => ({
   partNo: '',
@@ -13,9 +14,11 @@ const emptyForm = () => ({
 });
 
 export default function ItemList() {
+  const PAGE_SIZE = 10;
   const [items, setItems] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [page, setPage] = useState(1);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [viewItem, setViewItem] = useState(null);
@@ -26,6 +29,10 @@ export default function ItemList() {
     const t = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 300);
     return () => clearTimeout(t);
   }, [searchTerm]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
 
   const fetchItems = useCallback(async () => {
     try {
@@ -102,6 +109,9 @@ export default function ItemList() {
     }
   };
 
+  const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+  const pagedItems = items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   return (
     <div className="page-stack w-full space-y-6 animate-slide-up">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -143,11 +153,26 @@ export default function ItemList() {
         </div>
       )}
 
-      <div className="card overflow-hidden">
-        <div className="p-4 border-b border-slate-200/80 flex items-center gap-2 bg-slate-50/50">
-          <span className="material-symbols-outlined text-[20px] text-slate-400 shrink-0">search</span>
-          <input type="text" placeholder="Search items…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-1 form-input border-0 bg-transparent shadow-none focus:ring-0" />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] items-end">
+        <div className="flex items-center gap-2">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Search</label>
+          <ListSearchInput
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search part no, drawing, material, description..."
+          />
         </div>
+        {searchTerm && (
+          <button
+            type="button"
+            onClick={() => setSearchTerm('')}
+            className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-500 transition-colors font-medium"
+          >
+            <span className="material-symbols-outlined text-sm">close</span> Clear
+          </button>
+        )}
+      </div>
+      <div className="card overflow-hidden">
         {loading ? (
           <div className="text-center py-10 text-slate-500 text-sm">Loading…</div>
         ) : items.length === 0 ? (
@@ -168,7 +193,7 @@ export default function ItemList() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {items.map((item) => (
+                {pagedItems.map((item) => (
                   <tr key={item.id} className="tr group">
                     <td className="td font-semibold text-slate-800 sticky left-0 z-[1] bg-white group-hover:bg-slate-50/80 shadow-[4px_0_12px_-8px_rgba(15,23,42,0.12)]">{item.partNo}</td>
                     <td className="td font-mono text-xs text-slate-600">{item.drawingNo || '—'}</td>
@@ -188,6 +213,32 @@ export default function ItemList() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        {!loading && items.length > 0 && (
+          <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
+            <p className="text-xs text-slate-500">
+              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, items.length)} of {items.length}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="btn-outline text-xs disabled:opacity-40"
+              >
+                Prev
+              </button>
+              <span className="text-xs font-semibold text-slate-600">{page} / {totalPages}</span>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="btn-outline text-xs disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </div>

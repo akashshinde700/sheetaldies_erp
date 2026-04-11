@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
+import { exportToExcel } from '../../utils/export';
+import ListSearchInput from '../../components/ListSearchInput';
 
 const PAGE_LIMIT = 10;
 const STATUS_OPTS = ['CREATED', 'IN_PROGRESS', 'SENT_FOR_JOBWORK', 'INSPECTION', 'COMPLETED', 'ON_HOLD'];
@@ -49,19 +51,30 @@ export default function JobCardList() {
   const [error,   setError]   = useState(null);
   const [search,  setSearch]  = useState('');
   const [status,  setStatus]  = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [page,    setPage]    = useState(1);
   const [total,   setTotal]   = useState(0);
   const [statusSavingId, setStatusSavingId] = useState(null);
 
   const fetchCards = useCallback(() => {
     setLoading(true); setError(null);
-    api.get('/jobcards', { params: { search, status, page, limit: PAGE_LIMIT } })
-      .then(r => { setCards(r.data.data || []); setTotal(r.data.meta?.total || 0); })
+    api.get('/jobcards', {
+      params: {
+        search: search.trim() || undefined,
+        status,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+        page,
+        limit: PAGE_LIMIT,
+      },
+    })
+      .then(r => { setCards(r.data.data || []); setTotal(r.data.pagination?.total || 0); })
       .catch(() => setError('Failed to load job cards.'))
       .finally(() => setLoading(false));
-  }, [search, status, page]);
+  }, [search, status, fromDate, toDate, page]);
 
-  useEffect(() => { setPage(1); }, [search, status]);
+  useEffect(() => { setPage(1); }, [search, status, fromDate, toDate]);
   useEffect(() => { fetchCards(); }, [fetchCards]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_LIMIT));
@@ -85,6 +98,56 @@ export default function JobCardList() {
     }
   };
 
+  const exportJobCards = async () => {
+    try {
+      const exportLimit = 100;
+      const allRows = [];
+      let exportPage = 1;
+      let totalPages = 1;
+
+      do {
+        const response = await api.get('/jobcards', {
+          params: {
+            search: search.trim() || undefined,
+            status: status || undefined,
+            fromDate: fromDate || undefined,
+            toDate: toDate || undefined,
+            page: exportPage,
+            limit: exportLimit,
+          },
+        });
+        const pageRows = response.data.data || [];
+        allRows.push(...pageRows);
+        totalPages = response.data.pagination?.pages || 1;
+        exportPage += 1;
+      } while (exportPage <= totalPages);
+
+      const sheetRows = allRows.map((card) => ({
+        'Job Card No': card.jobCardNo || '',
+        'Part No': card.part?.partNo || '',
+        Description: card.part?.description || '',
+        'Drawing No': card.drawingNo || '',
+        Machine: card.machine?.code || card.machine?.name || '',
+        Quantity: card.quantity ?? '',
+        Status: card.status || '',
+        'Operator': card.operatorName || '',
+        Customer: card.customer?.name || '',
+        'Created Date': card.createdAt ? new Date(card.createdAt).toLocaleDateString('en-IN') : '',
+      }));
+
+      if (!sheetRows.length) {
+        toast.error('No job cards to export.');
+        return;
+      }
+
+      exportToExcel(sheetRows, `JobCards-Export`);
+      toast.success('Job cards exported to Excel.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to export job cards.');
+    }
+  };
+
   return (
     <div className="space-y-5 animate-slide-up">
 
@@ -94,28 +157,51 @@ export default function JobCardList() {
           <h2 className="text-xl font-extrabold text-slate-800 font-headline">Job Cards</h2>
           <p className="text-xs text-slate-400 mt-0.5">{total > 0 ? `${total} total records` : 'Production tracking'}</p>
         </div>
-        <Link to="/jobcards/new" className="btn-primary">
-          <span className="material-symbols-outlined text-sm">add</span> New Job Card
-        </Link>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={exportJobCards} className="btn-outline">
+            <span className="material-symbols-outlined text-sm">file_download</span> Export Excel
+          </button>
+          <Link to="/jobcards/new" className="btn-primary">
+            <span className="material-symbols-outlined text-sm">add</span> New Job Card
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3 flex-wrap items-center">
-        <div className="relative">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto_auto_auto] items-end">
+        <ListSearchInput
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search part, job card no..."
+        />
+        <div className="flex items-center gap-2">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">From</label>
           <input
-            value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Search part, job card no..."
-            className="form-input pl-9 w-full sm:w-64"
+            type="date"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            className="form-input text-xs"
           />
         </div>
-        <select value={status} onChange={e => setStatus(e.target.value)}
-          className="form-input w-auto">
-          <option value="">All Status</option>
-          {STATUS_OPTS.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
-        </select>
-        {(search || status) && (
-          <button onClick={() => { setSearch(''); setStatus(''); }}
+        <div className="flex items-center gap-2">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">To</label>
+          <input
+            type="date"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+            className="form-input text-xs"
+          />
+        </div>
+        <div className="flex gap-2 items-center">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</label>
+          <select value={status} onChange={e => setStatus(e.target.value)}
+            className="form-input text-xs w-auto min-w-[180px]">
+            <option value="">All</option>
+            {STATUS_OPTS.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+          </select>
+        </div>
+        {(search || status || fromDate || toDate) && (
+          <button onClick={() => { setSearch(''); setStatus(''); setFromDate(''); setToDate(''); }}
             className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-500 transition-colors font-medium">
             <span className="material-symbols-outlined text-sm">close</span> Clear
           </button>

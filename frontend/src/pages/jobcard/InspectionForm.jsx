@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import { toNum } from '../../utils/normalize';
 
 function ImageUploadSlot({ index, value, onChange }) {
   const inputRef  = useRef();
@@ -171,12 +172,34 @@ export default function InspectionForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate distortion measurements have at least some data
+    const beforeHasData = form.distortionBefore.some(v => v !== '' && Number(v) !== 0);
+    const afterHasData = form.distortionAfter.some(v => v !== '' && Number(v) !== 0);
+    
+    if (!beforeHasData || !afterHasData) {
+      toast.error('Enter distortion measurements for at least one point before and after heat treatment.');
+      return;
+    }
+
+    // Validate that all distortion values are non-negative
+    for (let i = 0; i < form.distortionBefore.length; i++) {
+      if (form.distortionBefore[i] !== '' && Number(form.distortionBefore[i]) < 0) {
+        toast.error(`Distortion Before point ${i + 1} cannot be negative.`);
+        return;
+      }
+      if (form.distortionAfter[i] !== '' && Number(form.distortionAfter[i]) < 0) {
+        toast.error(`Distortion After point ${i + 1} cannot be negative.`);
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => {
         if (k === 'distortionBefore' || k === 'distortionAfter') {
-          fd.append(k, JSON.stringify(v.map((val, i) => ({ pt: i + 1, val: Number(val) || 0 }))));
+          fd.append(k, JSON.stringify(v.map((val, i) => ({ pt: i + 1, val: toNum(val, 0) }))));
         } else {
           fd.append(k, v);
         }
@@ -406,7 +429,7 @@ export default function InspectionForm() {
                   <td className="py-2.5 px-3 text-xs font-bold text-slate-700 text-left">Before HT</td>
                   {form.distortionBefore.map((val, i) => (
                     <td key={i} className="py-2 px-1">
-                      <input type="number" step="0.001" value={val}
+                      <input type="number" min="0" step="0.001" value={val}
                         onChange={e => { const arr=[...form.distortionBefore]; arr[i]=e.target.value; set('distortionBefore', arr); }}
                         className="w-16 border border-slate-200 rounded-lg px-1 py-1.5 text-xs text-center focus:outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200" />
                     </td>
@@ -416,7 +439,7 @@ export default function InspectionForm() {
                   <td className="py-2.5 px-3 text-xs font-bold text-emerald-700 text-left">After HT</td>
                   {form.distortionAfter.map((val, i) => (
                     <td key={i} className="py-2 px-1">
-                      <input type="number" step="0.001" value={val}
+                      <input type="number" min="0" step="0.001" value={val}
                         onChange={e => { const arr=[...form.distortionAfter]; arr[i]=e.target.value; set('distortionAfter', arr); }}
                         className="w-16 border border-emerald-200 rounded-lg px-1 py-1.5 text-xs text-center bg-emerald-50 focus:outline-none focus:border-emerald-300 focus:ring-1 focus:ring-emerald-200" />
                     </td>

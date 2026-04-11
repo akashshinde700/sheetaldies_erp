@@ -155,12 +155,6 @@ export default function InvoiceDetail() {
           <button onClick={() => sendNotification('email')} className="btn-secondary text-xs px-2 py-1">
             <span className="material-symbols-outlined text-sm">email</span> Email
           </button>
-          <button onClick={() => sendNotification('whatsapp')} className="btn-secondary text-xs px-2 py-1">
-            <span className="material-symbols-outlined text-sm">whatsapp</span> WhatsApp
-          </button>
-          <button onClick={() => sendNotification('sms')} className="btn-secondary text-xs px-2 py-1">
-            <span className="material-symbols-outlined text-sm">sms</span> SMS
-          </button>
         </div>
       </div>
 

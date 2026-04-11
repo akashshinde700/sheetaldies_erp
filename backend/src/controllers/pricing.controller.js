@@ -1,10 +1,13 @@
 const prisma = require('../utils/prisma');
 const { toInt, toNum } = require('../utils/normalize');
+const { formatErrorResponse, getStatusCode, formatListResponse, parsePagination } = require('../utils/validation');
+const { softDelete } = require('../utils/softDelete');
 
 // Get all process types with pricing
 exports.list = async (req, res) => {
   try {
     const { search = '' } = req.query;
+    const { page, limit, skip } = parsePagination(req);
 
     const where = search
       ? {
@@ -12,19 +15,25 @@ exports.list = async (req, res) => {
             { name: { contains: search } },
             { code: { contains: search } },
           ],
+          isActive: true,
         }
-      : {};
+      : { isActive: true };
 
-    const pricing = await prisma.processType.findMany({
-      where,
-      include: { updatedBy: { select: { name: true } } },
-      orderBy: { name: 'asc' },
-    });
+    const [data, total] = await Promise.all([
+      prisma.processType.findMany({
+        where,
+        include: { updatedBy: { select: { name: true } } },
+        orderBy: { name: 'asc' },
+        skip,
+        take: limit,
+      }),
+      prisma.processType.count({ where }),
+    ]);
 
-    res.json({ success: true, data: pricing });
+    res.json(formatListResponse(data, total, page, limit));
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: 'Failed to fetch pricing.' });
+    res.status(getStatusCode('ERR_INTERNAL')).json(formatErrorResponse('ERR_INTERNAL', 'Failed to fetch pricing.'));
   }
 };
 
@@ -39,7 +48,7 @@ exports.getOne = async (req, res) => {
       include: { updatedBy: { select: { name: true } } },
     });
 
-    if (!pricing) return res.status(404).json({ success: false, message: 'Process type not found.' });
+    if (!pricing || !pricing.isActive) return res.status(404).json({ success: false, message: 'Process type not found.' });
 
     res.json({ success: true, data: pricing });
   } catch (err) {
@@ -121,7 +130,7 @@ exports.delete = async (req, res) => {
     const id = toInt(req.params.id);
     if (Number.isNaN(id)) return res.status(400).json({ success: false, message: 'Invalid ID.' });
 
-    await prisma.processType.delete({ where: { id } });
+    await softDelete(prisma.processType, id);
 
     res.json({ success: true, message: 'Process type deleted successfully.' });
   } catch (err) {

@@ -3,7 +3,7 @@ const ctrl = require('../controllers/purchase.controller');
 const auth = require('../middleware/auth');
 const { requireRole } = require('../middleware/role');
 const validate = require('../middleware/validate');
-const purchaseVal = require('../validators/purchase.validator');
+const purchaseVal = require('../validation/purchase.validator');
 
 router.use(auth);
 

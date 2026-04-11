@@ -263,6 +263,137 @@
     @apply border-b-0;
   }
 
+  /* ✅ FIXED: Form validation states */
+  .form-input.error,
+  textarea.form-input.error {
+    @apply border-rose-400 focus:ring-rose-400/30 focus:border-rose-400 bg-rose-50/50;
+  }
+
+  .form-input.success,
+  textarea.form-input.success {
+    @apply border-emerald-400 focus:ring-emerald-400/30 focus:border-emerald-400 bg-emerald-50/50;
+  }
+
+  .form-input:disabled {
+    @apply bg-slate-100 text-slate-600 cursor-not-allowed opacity-60;
+  }
+
+  /* ✅ FIXED: Required field indicator */
+  .form-label .required {
+    @apply text-rose-500 ml-0.5 font-bold;
+  }
+
+  /* ✅ FIXED: Validation message styling */
+  .form-error {
+    @apply mt-1.5 text-xs font-semibold text-rose-600 flex items-center gap-1;
+  }
+
+  .form-success {
+    @apply mt-1.5 text-xs font-semibold text-emerald-600 flex items-center gap-1;
+  }
+
+  .form-hint {
+    @apply mt-1 text-xs text-slate-500;
+  }
+
+  /* ✅ FIXED: Input focus states with smoother transitions */
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    @apply outline-none ring-2 ring-offset-2;
+  }
+
+  /* ✅ BETTER: Textarea styling */
+  textarea {
+    @apply resize-none;
+    min-height: 120px;
+  }
+
+  textarea.form-input {
+    @apply py-3;
+  }
+
+  /* ✅ BETTER: Checkbox & Radio styling */
+  input[type="checkbox"],
+  input[type="radio"] {
+    @apply min-h-[44px] sm:min-h-[20px] min-w-[44px] sm:min-w-[20px] cursor-pointer
+           accent-sky-600
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2;
+  }
+
+  /* ✅ NEW: Semantic badge colors */
+  .badge-success {
+    @apply bg-emerald-100 text-emerald-800;
+  }
+
+  .badge-error {
+    @apply bg-rose-100 text-rose-800;
+  }
+
+  .badge-warning {
+    @apply bg-amber-100 text-amber-800;
+  }
+
+  .badge-info {
+    @apply bg-sky-100 text-sky-800;
+  }
+
+  .badge-neutral {
+    @apply bg-slate-200 text-slate-800;
+  }
+
+  /* ✅ NEW: Alert/Toast styling */
+  .alert {
+    @apply rounded-lg border px-4 py-3 text-sm font-medium;
+  }
+
+  .alert-success {
+    @apply border-emerald-300 bg-emerald-50 text-emerald-800;
+  }
+
+  .alert-error {
+    @apply border-rose-300 bg-rose-50 text-rose-800;
+  }
+
+  .alert-warning {
+    @apply border-amber-300 bg-amber-50 text-amber-800;
+  }
+
+  .alert-info {
+    @apply border-sky-300 bg-sky-50 text-sky-800;
+  }
+
+  /* ✅ NEW: Status pills */
+  .status-badge {
+    @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide;
+  }
+
+  .status-active {
+    @apply bg-emerald-100 text-emerald-800;
+  }
+
+  .status-pending {
+    @apply bg-amber-100 text-amber-800;
+  }
+
+  .status-completed {
+    @apply bg-sky-100 text-sky-800;
+  }
+
+  .status-error {
+    @apply bg-rose-100 text-rose-800;
+  }
+
+  /* ✅ NEW: Loading states */
+  .btn-loading {
+    @apply opacity-70 cursor-wait pointer-events-none;
+  }
+
+  .btn.loading::after {
+    content: '';
+    @apply inline-block w-4 h-4 ml-2 border-2 border-current border-t-transparent rounded-full animate-spin;
+  }
+
   /* Standard section split inside cards */
   .card > .section-divider {
     @apply border-t border-slate-100 mt-4 pt-4;
@@ -459,5 +590,138 @@
   select.form-input {
     min-height: 44px;
   }
+}
+/* ✅ NEW: Improved shadows for depth & polished look */
+@layer utilities {
+  .shadow-card {
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.08), 0 1px 2px rgb(0 0 0 / 0.04);
+  }
+
+  .shadow-card-hover {
+    box-shadow: 0 4px 12px rgb(0 0 0 / 0.12), 0 2px 4px rgb(0 0 0 / 0.08);
+  }
+
+  .shadow-card-elevated {
+    box-shadow: 0 10px 25px rgb(0 0 0 / 0.15), 0 4px 8px rgb(0 0 0 / 0.1);
+  }
+
+  .shadow-inset {
+    box-shadow: inset 0 2px 4px rgb(0 0 0 / 0.06);
+  }
+
+  /* ✅ NEW: Smooth animations */
+  .animate-slide-up {
+    animation: slideUp 0.4s ease-out;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .animate-skeleton {
+    animation: skeleton 2s infinite;
+  }
+
+  /* Subtle pulse for empty states / loading */
+  .animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* ✅ NEW: Better skeleton loader look */
+  .skeleton {
+    @apply bg-slate-200 rounded animate-pulse;
+  }
+
+  .skeleton-text {
+    @apply h-4 bg-slate-200 rounded animate-pulse;
+  }
+
+  .skeleton-circle {
+    @apply w-10 h-10 bg-slate-200 rounded-full animate-pulse;
+  }
+
+  .skeleton-card {
+    @apply p-4 bg-white rounded-lg border border-slate-200 space-y-3;
+  }
+
+  .skeleton-card .skeleton-text {
+    @apply h-3;
+  }
+
+  .skeleton-card .skeleton-text:first-child {
+    @apply h-4;
+  }
+
+  .skeleton-card .skeleton-text:last-child {
+    @apply w-3/4;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes skeleton {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* ✅ NEW: Improved transitions for interactive elements */
+.transition-smooth {
+  transition-property: background-color, border-color, color, fill, stroke, opacity;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
+
+.transition-btn {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition-duration: 150ms;
 }
 

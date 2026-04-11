@@ -5,6 +5,14 @@ import toast from 'react-hot-toast';
 import SearchSelect from '../../components/SearchSelect';
 import { toInt, toNum } from '../../utils/normalize';
 
+// ✅ FIXED: Moved F component OUTSIDE to prevent remounting on every keystroke
+const F = ({ label, children, className = '' }) => (
+  <div className={className}>
+    <label className="form-label">{label}</label>
+    {children}
+  </div>
+);
+
 export default function JobworkForm() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -230,13 +238,6 @@ export default function JobworkForm() {
       setLoading(false);
     }
   };
-
-  const F = ({ label, children, className = '' }) => (
-    <div className={className}>
-      <label className="form-label">{label}</label>
-      {children}
-    </div>
-  );
 
   if (initLoading) {
     return (

@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import ListSearchInput from '../../components/ListSearchInput';
 
 export default function MachineList() {
+  const PAGE_SIZE = 10;
   const [machines, setMachines] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [viewMachine, setViewMachine] = useState(null);
@@ -14,6 +17,10 @@ export default function MachineList() {
   useEffect(() => {
     fetchMachines();
   }, []);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm]);
 
   const fetchMachines = async () => {
     try {
@@ -92,6 +99,8 @@ export default function MachineList() {
     machine.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     machine.type?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+  const totalPages = Math.max(1, Math.ceil(filteredMachines.length / PAGE_SIZE));
+  const pagedMachines = filteredMachines.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <div className="page-stack w-full space-y-6 animate-slide-up">
@@ -131,11 +140,26 @@ export default function MachineList() {
         </div>
       )}
 
-      <div className="card overflow-hidden">
-        <div className="p-4 border-b border-slate-200/80 flex items-center gap-2 bg-slate-50/50">
-          <span className="material-symbols-outlined text-[20px] text-slate-400 shrink-0">search</span>
-          <input type="text" placeholder="Search machines…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-1 form-input border-0 bg-transparent shadow-none focus:ring-0" />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] items-end">
+        <div className="flex items-center gap-2">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Search</label>
+          <ListSearchInput
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search code, name, type..."
+          />
         </div>
+        {searchTerm && (
+          <button
+            type="button"
+            onClick={() => setSearchTerm('')}
+            className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-500 transition-colors font-medium"
+          >
+            <span className="material-symbols-outlined text-sm">close</span> Clear
+          </button>
+        )}
+      </div>
+      <div className="card overflow-hidden">
         {loading ? (
           <div className="text-center py-10 text-slate-500 text-sm">Loading…</div>
         ) : filteredMachines.length === 0 ? (
@@ -153,7 +177,7 @@ export default function MachineList() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredMachines.map((machine) => (
+                {pagedMachines.map((machine) => (
                   <tr key={machine.id} className="tr">
                     <td className="td font-mono font-medium text-slate-800">{machine.code}</td>
                     <td className="td font-medium">{machine.name}</td>
@@ -170,6 +194,32 @@ export default function MachineList() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        {!loading && filteredMachines.length > 0 && (
+          <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
+            <p className="text-xs text-slate-500">
+              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredMachines.length)} of {filteredMachines.length}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="btn-outline text-xs disabled:opacity-40"
+              >
+                Prev
+              </button>
+              <span className="text-xs font-semibold text-slate-600">{page} / {totalPages}</span>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="btn-outline text-xs disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </div>

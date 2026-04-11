@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import { toNum } from '../../utils/normalize';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const CB = ({ label, checked, onChange }) => (
@@ -303,24 +304,49 @@ export default function CertForm() {
     e.preventDefault();
     if (!form.jobCardId) { toast.error('Job Card is required.'); return; }
     if (!form.customerId) { toast.error('Customer is required.'); return; }
-    if (!certItems.length || !certItems.some(it => it.description && Number(it.quantity) > 0)) {
-      toast.error('At least one item with description and quantity is required.'); return;
+    
+    // Validate certificate items
+    const validItems = certItems.filter(it => it.description?.trim() && toNum(it.quantity, 0) > 0);
+    if (!validItems.length) {
+      toast.error('At least one item with description and quantity is required.'); 
+      return;
     }
+
+    // Validate heat rows - must have complete data if provided
+    const validHeatRows = heatRows.filter(r => {
+      if (!r.equipment && !r.processName) return false; // Skip empty rows
+      // If partially filled, enforce complete data
+      if (r.equipment || r.processName) {
+        if (!r.startTime || !r.endTime) {
+          toast.error(`Heat process row: "${r.equipment || r.processName}" is missing start or end time.`);
+          return false;
+        }
+      }
+      return true;
+    });
+
+    // Validate distortion arrays have at least some data
+    const beforeHasData = form.distortionBefore.some((v) => v !== '' && toNum(v, 0) !== 0);
+    const afterHasData = form.distortionAfter.some((v) => v !== '' && toNum(v, 0) !== 0);
+    if (!beforeHasData || !afterHasData) {
+      toast.error('Enter distortion measurements for at least one point before and after heat treatment.');
+      return;
+    }
+
     setLoading(true);
     try {
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => {
         if (k === 'distortionBefore' || k === 'distortionAfter') {
-          fd.append(k, JSON.stringify(v.map((val, i) => ({ pt: i + 1, val: Number(val) || 0 }))));
+          fd.append(k, JSON.stringify(v.map((val, i) => ({ pt: i + 1, val: toNum(val, 0) }))));
         } else {
           fd.append(k, v);
         }
       });
-      fd.append('items', JSON.stringify(certItems));
+      fd.append('items', JSON.stringify(validItems));
       fd.append('inspectionResults', JSON.stringify(inspResults));
       const validTempRows = tempRows.filter(r => r.time !== '' && r.temp !== '');
       if (validTempRows.length) fd.append('tempCycleData', JSON.stringify(validTempRows));
-      const validHeatRows = heatRows.filter(r => r.equipment || r.processName);
       if (validHeatRows.length) fd.append('certHeatProcesses', JSON.stringify(validHeatRows));
       for (let i = 1; i <= 5; i++) { if (images[i] instanceof File) fd.append(`image${i}`, images[i]); }
       const r = await api.post('/quality/certificates', fd);
@@ -330,13 +356,6 @@ export default function CertForm() {
       toast.error(err.response?.data?.message || 'Error creating certificate.');
     } finally { setLoading(false); }
   };
-
-  const F = ({ label, children, className = '' }) => (
-    <div className={className}>
-      <label className="form-label">{label}</label>
-      {children}
-    </div>
-  );
 
   return (
     <div className="page-stack w-full animate-slide-up">

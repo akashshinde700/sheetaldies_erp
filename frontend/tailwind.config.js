@@ -37,6 +37,13 @@ export default {
           secondary: '#475569',
           muted: '#94a3b8',
         },
+        // ✅ NEW: Semantic state colors
+        state: {
+          success: '#10b981',    // Emerald
+          error: '#ef4444',      // Rose
+          warning: '#f59e0b',    // Amber
+          info: '#0ea5e9',       // Sky
+        },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],

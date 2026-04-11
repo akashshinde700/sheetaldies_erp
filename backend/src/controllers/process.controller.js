@@ -1,17 +1,24 @@
 // Admin-manageable Process Types & Pricing
 const prisma = require('../utils/prisma');
 const { toInt, toNum } = require('../utils/normalize');
+const { formatErrorResponse, getStatusCode, formatListResponse, parsePagination } = require('../utils/validation');
 
 // ── List all process types ────────────────────────────────────
 exports.list = async (req, res) => {
   try {
-    const processes = await prisma.processType.findMany({
-      orderBy: { name: 'asc' },
-      include: { updatedBy: { select: { name: true } } },
-    });
-    res.json({ success: true, data: processes });
+    const { page, limit, skip } = parsePagination(req);
+    const [data, total] = await Promise.all([
+      prisma.processType.findMany({
+        orderBy: { name: 'asc' },
+        include: { updatedBy: { select: { name: true } } },
+        skip,
+        take: limit,
+      }),
+      prisma.processType.count(),
+    ]);
+    res.json(formatListResponse(data, total, page, limit));
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error.' });
+    res.status(getStatusCode('ERR_INTERNAL')).json(formatErrorResponse('ERR_INTERNAL', 'Server error.'));
   }
 };
 

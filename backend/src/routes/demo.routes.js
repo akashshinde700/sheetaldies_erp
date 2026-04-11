@@ -142,6 +142,8 @@ router.get('/statistics', async (req, res) => {
         inspection_forms: 1,
         certificates: 4,
         tax_invoices: 1,
+        quote_pdfs: 1,
+        sample_excels: 1,
         photos: 8
       },
       business_value: {
@@ -161,6 +163,39 @@ router.get('/statistics', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to calculate statistics'
+    });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// GET /api/demo/files - Demo document files (images, PDF, XLSX)
+// ─────────────────────────────────────────────────────────────────────────
+router.get('/files', async (req, res) => {
+  try {
+    const entries = await fs.readdir(DEMO_DATA_DIR, { withFileTypes: true });
+    const files = entries
+      .filter((entry) => entry.isFile() && /\.(jpe?g|pdf|xlsx)$/i.test(entry.name))
+      .map((entry) => {
+        const extension = entry.name.split('.').pop().toLowerCase();
+        const type = extension === 'pdf' ? 'pdf' : extension === 'xlsx' ? 'excel' : 'image';
+        return {
+          filename: entry.name,
+          type,
+          extension,
+          url: `${req.protocol}://${req.get('host')}/uploads/demo_data/${encodeURIComponent(entry.name)}`,
+        };
+      });
+
+    res.json({
+      success: true,
+      count: files.length,
+      data: files,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch demo files'
     });
   }
 });
@@ -225,6 +260,18 @@ router.get('/templates', async (req, res) => {
             sgst: '₹567,000',
             grandTotal: '₹7,434,000'
           }
+        },
+        {
+          name: 'Purchase Quote PDF',
+          type: 'QUOTE_PDF',
+          file: 'Shital Vacuum Treat Pvt Ltd -  Quote.pdf',
+          fields: ['quoteNo', 'party', 'items', 'totalAmount']
+        },
+        {
+          name: 'Material Excel Sample',
+          type: 'EXCEL_SAMPLE',
+          file: '26040000- KLAUS MACHINE TOOLS AND PRECISION COMPONENTS PRIVATE LIMITED-   06 NOS (  99.5 KG )D2 DHF.xlsx',
+          fields: ['item', 'quantity', 'material', 'weight', 'rate']
         }
       ]
     };

@@ -17,6 +17,7 @@ const NAV_OPERATIONS = [
   { label: 'Purchase Orders', icon: 'shopping_cart', to: '/purchase' },
   { label: 'Goods Receipt (GRN)', icon: 'inbox', to: '/purchase/grn' },
   { label: 'Inventory', icon: 'warehouse', to: '/purchase/inventory' },
+  { label: 'Supplier Quotes', icon: 'description', to: '/quotes' },
   { label: 'Dispatch', icon: 'local_shipping', to: '/dispatch' },
   { label: 'Manufacturing Batches', icon: 'precision_manufacturing', to: '/manufacturing/batches' },
   { label: 'VHT Runsheet', icon: 'thermostat', to: '/manufacturing/runsheet' },
@@ -81,7 +82,10 @@ export default function Sidebar({ open, onClose }) {
   const { user, logout, isManager, isAdmin } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogout = () => { logout(); navigate('/login'); };
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
 
   const initials = user?.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'U';
 

@@ -3,7 +3,7 @@ const ctrl = require('../controllers/dispatch.controller');
 const auth = require('../middleware/auth');
 const { requireRole } = require('../middleware/role');
 const validate = require('../middleware/validate');
-const commercialVal = require('../validators/commercial.validator');
+const commercialVal = require('../validation/commercial.validator');
 
 // List all dispatch challans
 router.get('/', auth, ctrl.list);

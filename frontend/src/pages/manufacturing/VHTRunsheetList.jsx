@@ -49,29 +49,29 @@ export default function VHTRunsheetList() {
     (items || []).reduce((s, it) => s + (Number(it.weightKg) || 0), 0);
 
   return (
-    <div className="page-stack w-full p-6 space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="page-stack w-full space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">VHT Run Sheet</h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <h1 className="page-title">VHT Run Sheet</h1>
+          <p className="page-subtitle">
             Actual furnace execution record (batch jobs, cycle parameters, graph, signatures).
           </p>
         </div>
         <Link
           to="/manufacturing/runsheet/new"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700"
+          className="btn-primary shrink-0 inline-flex items-center justify-center gap-2"
         >
           <span className="material-symbols-outlined text-[18px]">add</span> New run sheet
         </Link>
       </div>
 
-      <div className="flex flex-wrap gap-3 items-end bg-white rounded-xl border border-slate-200/80 p-4">
-        <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">Furnace</label>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[auto_auto_auto] items-end">
+        <div className="flex items-center gap-2">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Furnace</label>
           <select
             value={furnaceId}
             onChange={(e) => { setPage(1); setFurnaceId(e.target.value); }}
-            className="border rounded-lg px-3 py-2 text-sm min-w-[160px]"
+            className="form-input text-xs min-w-[180px]"
           >
             <option value="">All</option>
             {machines.map((m) => (
@@ -79,12 +79,12 @@ export default function VHTRunsheetList() {
             ))}
           </select>
         </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
+        <div className="flex items-center gap-2">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</label>
           <select
             value={status}
             onChange={(e) => { setPage(1); setStatus(e.target.value); }}
-            className="border rounded-lg px-3 py-2 text-sm"
+            className="form-input text-xs min-w-[170px]"
           >
             <option value="">All</option>
             <option value="PLANNED">Planned</option>
@@ -93,6 +93,19 @@ export default function VHTRunsheetList() {
             <option value="CANCELLED">Cancelled</option>
           </select>
         </div>
+        {(furnaceId || status) ? (
+          <button
+            type="button"
+            onClick={() => {
+              setPage(1);
+              setFurnaceId('');
+              setStatus('');
+            }}
+            className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-500 transition-colors font-medium"
+          >
+            <span className="material-symbols-outlined text-sm">close</span> Clear
+          </button>
+        ) : <div />}
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200/80 overflow-hidden shadow-sm">

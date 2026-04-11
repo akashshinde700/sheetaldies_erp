@@ -727,6 +727,76 @@ CREATE TABLE shifts (
 );
 
 -- ============================================================
+-- 13. QUOTE & ATTACHMENTS (Prisma parity)
+-- ============================================================
+
+CREATE TABLE supplier_quotes (
+  id                 INT AUTO_INCREMENT PRIMARY KEY,
+  quote_number       VARCHAR(50) NOT NULL UNIQUE,
+  vendor_id          INT NOT NULL,
+  quote_date         DATE NOT NULL,
+  valid_until        DATE,
+  status             ENUM('DRAFT','SENT','ACCEPTED','REJECTED','EXPIRED','CONVERTED_TO_PO') NOT NULL DEFAULT 'DRAFT',
+  description        TEXT,
+  subtotal           DECIMAL(12,2) NOT NULL DEFAULT 0,
+  tax_rate           DECIMAL(5,2),
+  tax_amount         DECIMAL(12,2) NOT NULL DEFAULT 0,
+  total_amount       DECIMAL(12,2) NOT NULL DEFAULT 0,
+  notes              TEXT,
+  payment_terms      VARCHAR(300),
+  delivery_days      INT,
+  created_by         INT NOT NULL,
+  purchase_order_id  INT,
+  created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (vendor_id) REFERENCES parties(id),
+  FOREIGN KEY (created_by) REFERENCES users(id),
+  FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id) ON DELETE SET NULL
+);
+
+CREATE TABLE quote_items (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  quote_id      INT NOT NULL,
+  description   VARCHAR(300) NOT NULL,
+  specification TEXT,
+  quantity      DECIMAL(12,3) NOT NULL,
+  unit          VARCHAR(20) NOT NULL DEFAULT 'NOS',
+  unit_price    DECIMAL(12,2) NOT NULL,
+  amount        DECIMAL(12,2) NOT NULL,
+  remarks       VARCHAR(300),
+  FOREIGN KEY (quote_id) REFERENCES supplier_quotes(id) ON DELETE CASCADE
+);
+
+CREATE TABLE attachments (
+  id                 INT AUTO_INCREMENT PRIMARY KEY,
+  file_name          VARCHAR(255) NOT NULL,
+  file_size          INT NOT NULL,
+  file_path          VARCHAR(500) NOT NULL,
+  mime_type          VARCHAR(100) NOT NULL,
+  attachment_type    ENUM('PHOTO','DOCUMENT','CERTIFICATE','DRAWING','INSPECTION_REPORT','PURCHASE_QUOTE','CONTRACT','OTHER') NOT NULL DEFAULT 'OTHER',
+  description        TEXT,
+  job_card_id        INT,
+  test_cert_id       INT,
+  quote_id           INT,
+  purchase_order_id  INT,
+  jobwork_challan_id INT,
+  entity_type        VARCHAR(100),
+  entity_id          INT,
+  uploaded_by        INT NOT NULL,
+  uploaded_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  is_public          BOOLEAN NOT NULL DEFAULT FALSE,
+  is_archived        BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (job_card_id) REFERENCES job_cards(id) ON DELETE SET NULL,
+  FOREIGN KEY (test_cert_id) REFERENCES test_certificates(id) ON DELETE SET NULL,
+  FOREIGN KEY (quote_id) REFERENCES supplier_quotes(id) ON DELETE SET NULL,
+  FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id) ON DELETE SET NULL,
+  FOREIGN KEY (jobwork_challan_id) REFERENCES jobwork_challans(id) ON DELETE SET NULL,
+  FOREIGN KEY (uploaded_by) REFERENCES users(id)
+);
+
+-- ============================================================
 -- INDEXES
 -- ============================================================
 DROP PROCEDURE IF EXISTS ensure_index;
@@ -786,15 +856,21 @@ CALL ensure_index('vht_runsheets', 'idx_vht_runsheets_status', 'CREATE INDEX idx
 CALL ensure_index('vht_runsheets', 'idx_vht_runsheets_batch', 'CREATE INDEX idx_vht_runsheets_batch ON vht_runsheets(batch_id)');
 CALL ensure_index('production_plans', 'idx_production_plans_date', 'CREATE INDEX idx_production_plans_date ON production_plans(plan_date)');
 CALL ensure_index('shifts', 'idx_shifts_plan', 'CREATE INDEX idx_shifts_plan ON shifts(plan_id)');
+CALL ensure_index('supplier_quotes', 'idx_supplier_quotes_vendor', 'CREATE INDEX idx_supplier_quotes_vendor ON supplier_quotes(vendor_id)');
+CALL ensure_index('supplier_quotes', 'idx_supplier_quotes_status', 'CREATE INDEX idx_supplier_quotes_status ON supplier_quotes(status)');
+CALL ensure_index('supplier_quotes', 'idx_supplier_quotes_date', 'CREATE INDEX idx_supplier_quotes_date ON supplier_quotes(quote_date)');
+CALL ensure_index('quote_items', 'idx_quote_items_quote', 'CREATE INDEX idx_quote_items_quote ON quote_items(quote_id)');
+CALL ensure_index('attachments', 'idx_attachments_job_card', 'CREATE INDEX idx_attachments_job_card ON attachments(job_card_id)');
+CALL ensure_index('attachments', 'idx_attachments_test_cert', 'CREATE INDEX idx_attachments_test_cert ON attachments(test_cert_id)');
+CALL ensure_index('attachments', 'idx_attachments_quote', 'CREATE INDEX idx_attachments_quote ON attachments(quote_id)');
+CALL ensure_index('attachments', 'idx_attachments_po', 'CREATE INDEX idx_attachments_po ON attachments(purchase_order_id)');
+CALL ensure_index('attachments', 'idx_attachments_entity', 'CREATE INDEX idx_attachments_entity ON attachments(entity_type, entity_id)');
 
 -- ============================================================
--- DEFAULT ADMIN USER (password: Admin@123 - bcrypt hashed)
+-- ADMIN USER CREATION
 -- ============================================================
--- password for all default users: Admin@123
-INSERT IGNORE INTO users (name, email, password, role) VALUES
-('Admin',    'admin@sheetaldies.com',    '$2a$10$K3yiBl9HBAHzPBg/3IleqOGWX83LaJmGCnfga71cIHbtPDGv38Ioq', 'ADMIN'),
-('Manager',  'manager@sheetaldies.com',  '$2a$10$K3yiBl9HBAHzPBg/3IleqOGWX83LaJmGCnfga71cIHbtPDGv38Ioq', 'MANAGER'),
-('Operator', 'operator@sheetaldies.com', '$2a$10$K3yiBl9HBAHzPBg/3IleqOGWX83LaJmGCnfga71cIHbtPDGv38Ioq', 'OPERATOR');
+-- Intentionally omitted from SQL bootstrap to avoid shipping default credentials.
+-- Create users through the application or controlled admin scripts with explicit credentials.
 
 -- Default Company Party
 INSERT IGNORE INTO parties (name, address, city, state, pin_code, gstin, pan, state_code, party_type) VALUES
@@ -1166,3 +1242,89 @@ CALL ensure_fk(
   'fk_vht_runsheet_items_job_card',
   'ALTER TABLE vht_runsheet_items ADD CONSTRAINT fk_vht_runsheet_items_job_card FOREIGN KEY (job_card_id) REFERENCES job_cards(id) ON DELETE SET NULL'
 );
+
+-- ============================================================
+-- 14. COMPOUND INDEXES FOR DASHBOARD PERFORMANCE (D3 fix)
+-- ============================================================
+CALL ensure_index('job_cards', 'idx_job_cards_status_created', 'CREATE INDEX idx_job_cards_status_created ON job_cards(status, created_at)');
+CALL ensure_index('job_cards', 'idx_job_cards_customer_status', 'CREATE INDEX idx_job_cards_customer_status ON job_cards(customer_id, status)');
+CALL ensure_index('job_cards', 'idx_job_cards_machine_status', 'CREATE INDEX idx_job_cards_machine_status ON job_cards(machine_id, status)');
+CALL ensure_index('job_cards', 'idx_job_cards_due_date', 'CREATE INDEX idx_job_cards_due_date ON job_cards(due_date)');
+CALL ensure_index('jobwork_challans', 'idx_challans_from_party_status', 'CREATE INDEX idx_challans_from_party_status ON jobwork_challans(from_party_id, status)');
+CALL ensure_index('jobwork_challans', 'idx_challans_to_party_status', 'CREATE INDEX idx_challans_to_party_status ON jobwork_challans(to_party_id, status)');
+CALL ensure_index('tax_invoices', 'idx_invoices_to_party_date', 'CREATE INDEX idx_invoices_to_party_date ON tax_invoices(to_party_id, invoice_date)');
+CALL ensure_index('tax_invoices', 'idx_invoices_payment_date', 'CREATE INDEX idx_invoices_payment_date ON tax_invoices(payment_status, invoice_date)');
+CALL ensure_index('test_certificates', 'idx_certs_customer_date', 'CREATE INDEX idx_certs_customer_date ON test_certificates(customer_id, issue_date)');
+CALL ensure_index('test_certificates', 'idx_certs_status', 'CREATE INDEX idx_certs_status ON test_certificates(status)');
+CALL ensure_index('incoming_inspections', 'idx_inspections_status', 'CREATE INDEX idx_inspections_status ON incoming_inspections(inspection_status)');
+CALL ensure_index('challan_items', 'idx_challan_items_challan', 'CREATE INDEX idx_challan_items_challan ON challan_items(challan_id)');
+CALL ensure_index('challan_items', 'idx_challan_items_item', 'CREATE INDEX idx_challan_items_item ON challan_items(item_id)');
+CALL ensure_index('dispatch_challan_items', 'idx_dispatch_items_dispatch', 'CREATE INDEX idx_dispatch_items_dispatch ON dispatch_challan_items(dispatch_id)');
+CALL ensure_index('parties', 'idx_parties_type_active', 'CREATE INDEX idx_parties_type_active ON parties(party_type, is_active)');
+CALL ensure_index('items', 'idx_items_active', 'CREATE INDEX idx_items_active ON items(is_active)');
+CALL ensure_index('cert_items', 'idx_cert_items_cert', 'CREATE INDEX idx_cert_items_cert ON cert_items(cert_id)');
+CALL ensure_index('invoice_items', 'idx_invoice_items_invoice', 'CREATE INDEX idx_invoice_items_invoice ON invoice_items(invoice_id)');
+
+-- ============================================================
+-- 15. DECIMAL PRECISION FIX (D4 fix)
+-- ============================================================
+-- dispatch_challan_items.quantity was INT but should match challan_items DECIMAL(12,3)
+ALTER TABLE dispatch_challan_items
+  MODIFY COLUMN quantity DECIMAL(12,3) NOT NULL;
+
+-- ============================================================
+-- 16. PRISMA ↔ SQL SCHEMA SYNC — Missing job_card columns (D1 fix)
+-- ============================================================
+-- These fields exist in Prisma schema.prisma but were missing from bootstrap SQL.
+-- Using ADD COLUMN IF NOT EXISTS for idempotent execution.
+
+ALTER TABLE job_cards
+  ADD COLUMN IF NOT EXISTS issue_date DATE AFTER end_date,
+  ADD COLUMN IF NOT EXISTS issue_by VARCHAR(100) AFTER issue_date,
+  ADD COLUMN IF NOT EXISTS certificate_no VARCHAR(50) AFTER issue_by,
+  ADD COLUMN IF NOT EXISTS customer_name_snapshot VARCHAR(200) AFTER certificate_no,
+  ADD COLUMN IF NOT EXISTS customer_address_snapshot TEXT AFTER customer_name_snapshot,
+  ADD COLUMN IF NOT EXISTS factory_name VARCHAR(200) AFTER customer_address_snapshot,
+  ADD COLUMN IF NOT EXISTS factory_address TEXT AFTER factory_name,
+  ADD COLUMN IF NOT EXISTS contact_email VARCHAR(150) AFTER factory_address,
+  ADD COLUMN IF NOT EXISTS dispatch_by_our_vehicle BOOLEAN NOT NULL DEFAULT FALSE AFTER contact_email,
+  ADD COLUMN IF NOT EXISTS dispatch_by_courier BOOLEAN NOT NULL DEFAULT FALSE AFTER dispatch_by_our_vehicle,
+  ADD COLUMN IF NOT EXISTS collected_by_customer BOOLEAN NOT NULL DEFAULT FALSE AFTER dispatch_by_courier,
+  ADD COLUMN IF NOT EXISTS hrc_range VARCHAR(50) AFTER collected_by_customer,
+  ADD COLUMN IF NOT EXISTS special_requirements TEXT AFTER hrc_range,
+  ADD COLUMN IF NOT EXISTS precautions TEXT AFTER special_requirements,
+  ADD COLUMN IF NOT EXISTS document_no VARCHAR(50) AFTER precautions,
+  ADD COLUMN IF NOT EXISTS revision_no VARCHAR(20) AFTER document_no,
+  ADD COLUMN IF NOT EXISTS revision_date DATE AFTER revision_no,
+  ADD COLUMN IF NOT EXISTS page_no VARCHAR(20) AFTER revision_date,
+  ADD COLUMN IF NOT EXISTS spec_instr_cert BOOLEAN NOT NULL DEFAULT FALSE AFTER page_no,
+  ADD COLUMN IF NOT EXISTS spec_instr_mpi_rep BOOLEAN NOT NULL DEFAULT FALSE AFTER spec_instr_cert,
+  ADD COLUMN IF NOT EXISTS spec_instr_graph BOOLEAN NOT NULL DEFAULT FALSE AFTER spec_instr_mpi_rep;
+
+-- FurnacePlanStage enum expansion (D2 fix)
+-- Add missing enum values from Prisma schema
+ALTER TABLE furnace_plan_slots
+  MODIFY COLUMN stage ENUM('HARDENING','TEMPERING','STRESS_RELIEVING','ANNEALING','BRAZING','PLASMA_NITRIDING','NITRIDING','SUB_ZERO','OTHER') NOT NULL DEFAULT 'HARDENING';
+
+-- Soft-delete support for more entities (D6 fix)
+ALTER TABLE job_cards
+  ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT FALSE AFTER remarks;
+
+ALTER TABLE jobwork_challans
+  ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT FALSE AFTER status;
+
+ALTER TABLE tax_invoices
+  ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT FALSE AFTER payment_ref;
+
+ALTER TABLE test_certificates
+  ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT FALSE AFTER status;
+
+ALTER TABLE purchase_orders
+  ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT FALSE AFTER status;
+
+-- Indexes for soft-deleted records filtering
+CALL ensure_index('job_cards', 'idx_job_cards_deleted', 'CREATE INDEX idx_job_cards_deleted ON job_cards(is_deleted)');
+CALL ensure_index('jobwork_challans', 'idx_challans_deleted', 'CREATE INDEX idx_challans_deleted ON jobwork_challans(is_deleted)');
+CALL ensure_index('tax_invoices', 'idx_invoices_deleted', 'CREATE INDEX idx_invoices_deleted ON tax_invoices(is_deleted)');
+CALL ensure_index('test_certificates', 'idx_certs_deleted', 'CREATE INDEX idx_certs_deleted ON test_certificates(is_deleted)');
+CALL ensure_index('purchase_orders', 'idx_po_deleted', 'CREATE INDEX idx_po_deleted ON purchase_orders(is_deleted)');

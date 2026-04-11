@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { exportToExcel } from '../../utils/export';
+import ListSearchInput from '../../components/ListSearchInput';
 
 const PAY_STYLE = {
   PENDING: 'bg-orange-100 text-orange-700',
@@ -43,19 +44,31 @@ export default function InvoiceList() {
   const [invoices, setInvoices] = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState(null);
+  const [search,   setSearch]   = useState('');
   const [filter,   setFilter]   = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate,   setToDate]   = useState('');
   const [page,     setPage]     = useState(1);
   const [total,    setTotal]    = useState(0);
 
   const fetchData = useCallback(() => {
     setLoading(true); setError(null);
-    api.get('/invoices', { params: { paymentStatus: filter || undefined, page, limit: PAGE_LIMIT } })
-      .then(r => { setInvoices(r.data.data || []); setTotal(r.data.meta?.total || 0); })
+    api.get('/invoices', {
+      params: {
+        paymentStatus: filter || undefined,
+        search: search.trim() || undefined,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+        page,
+        limit: PAGE_LIMIT,
+      },
+    })
+      .then(r => { setInvoices(r.data.data || []); setTotal(r.data.pagination?.total || 0); })
       .catch(() => setError('Failed to load invoices.'))
       .finally(() => setLoading(false));
-  }, [filter, page]);
+  }, [filter, search, fromDate, toDate, page]);
 
-  useEffect(() => { setPage(1); }, [filter]);
+  useEffect(() => { setPage(1); }, [filter, search, fromDate, toDate]);
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const markPaid = async (id) => {
@@ -66,34 +79,56 @@ export default function InvoiceList() {
     } catch { toast.error('Error updating payment.'); }
   };
 
-  const exportInvoices = () => {
-    if (!invoices.length) { toast.error('No invoices to export.'); return; }
-    const rows = invoices.map(inv => ({
-      'Invoice No': inv.invoiceNo,
-      'Invoice Date': inv.invoiceDate ? new Date(inv.invoiceDate).toLocaleDateString('en-IN') : '',
-      'Customer': inv.toParty?.name || inv.toPartyName || '',
-      'Challan': inv.challan?.challanNo || inv.challanRef || '',
-      'Subtotal': inv.subtotal,
-      'CGST': inv.cgstAmount,
-      'SGST': inv.sgstAmount,
-      'IGST': inv.igstAmount,
-      'Total': inv.totalAmount,
-      'Status': inv.paymentStatus,
-      'Tally Sent': inv.sentToTally ? 'YES' : 'NO',
-    }));
-    exportToExcel(rows, `Invoice-Export`);
-    toast.success('Invoice data exported to Excel.');
+  const exportInvoices = async () => {
+    try {
+      const baseParams = {
+        paymentStatus: filter || undefined,
+        search: search.trim() || undefined,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+      };
+      const exportLimit = 100;
+      const allInvoices = [];
+      let exportPage = 1;
+      let totalPages = 1;
+
+      do {
+        const response = await api.get('/invoices', {
+          params: { ...baseParams, page: exportPage, limit: exportLimit },
+        });
+        const pageRows = response.data.data || [];
+        allInvoices.push(...pageRows);
+        totalPages = response.data.pagination?.pages || 1;
+        exportPage += 1;
+      } while (exportPage <= totalPages);
+
+      const rows = allInvoices.map(inv => ({
+        'Invoice No': inv.invoiceNo,
+        'Invoice Date': inv.invoiceDate ? new Date(inv.invoiceDate).toLocaleDateString('en-IN') : '',
+        'Customer': inv.toParty?.name || inv.toPartyName || '',
+        'Challan': inv.challan?.challanNo || inv.challanRef || '',
+        'Subtotal': inv.subtotal,
+        'CGST': inv.cgstAmount,
+        'SGST': inv.sgstAmount,
+        'IGST': inv.igstAmount,
+        'Total': inv.totalAmount,
+        'Status': inv.paymentStatus,
+        'Tally Sent': inv.sentToTally ? 'YES' : 'NO',
+      }));
+      if (!rows.length) {
+        toast.error('No invoices to export.');
+        return;
+      }
+      exportToExcel(rows, `Invoice-Export`);
+      toast.success('Invoice data exported to Excel.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to export invoices.');
+    }
   };
 
   const totalPages   = Math.max(1, Math.ceil(total / PAGE_LIMIT));
   const pendingCount = invoices.filter(i => i.paymentStatus === 'PENDING').length;
-
-  const FILTER_OPTS = [
-    { val: '',        label: 'All' },
-    { val: 'PENDING', label: 'Pending' },
-    { val: 'PARTIAL', label: 'Partial' },
-    { val: 'PAID',    label: 'Paid' },
-  ];
 
   return (
     <div className="space-y-5 animate-slide-up">
@@ -107,9 +142,8 @@ export default function InvoiceList() {
             {pendingCount > 0 && <span className="ml-2 text-orange-500 font-semibold">· {pendingCount} pending payment</span>}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={exportInvoices}
-            className="btn-outline">
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={exportInvoices} className="btn-outline">
             <span className="material-symbols-outlined text-sm">file_download</span> Export Excel
           </button>
           <Link to="/invoices/new" className="btn-primary">
@@ -118,18 +152,41 @@ export default function InvoiceList() {
         </div>
       </div>
 
-      {/* Filter chips */}
-      <div className="flex gap-2">
-        {FILTER_OPTS.map(f => (
-          <button key={f.val} onClick={() => setFilter(f.val)}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all duration-150 ${
-              filter === f.val
-                ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-200'
-                : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
-            }`}>
-            {f.label}
-          </button>
-        ))}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto_auto_auto] items-end">
+          <ListSearchInput
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search invoice, party..."
+          />
+          <div className="flex gap-2 items-center">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">From</label>
+            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="form-input text-xs" />
+          </div>
+          <div className="flex gap-2 items-center">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">To</label>
+            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="form-input text-xs" />
+          </div>
+          <div className="flex gap-2 items-center">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</label>
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="form-input text-xs w-auto min-w-[170px]"
+            >
+              <option value="">All</option>
+              <option value="PENDING">Pending</option>
+              <option value="PARTIAL">Partial</option>
+              <option value="PAID">Paid</option>
+            </select>
+          </div>
+          {(search || filter || fromDate || toDate) && (
+            <button
+              onClick={() => { setSearch(''); setFromDate(''); setToDate(''); setFilter(''); setPage(1); }}
+              className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-500 transition-colors font-medium"
+            >
+              <span className="material-symbols-outlined text-sm">close</span> Clear
+            </button>
+          )}
       </div>
 
       {/* Error */}

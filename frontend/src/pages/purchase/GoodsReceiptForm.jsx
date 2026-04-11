@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import { toNum } from '../../utils/normalize';
 
 function formatCurrency2(v) {
   const n = typeof v === 'number' ? v : Number(String(v ?? '').replace(/,/g, ''));
@@ -56,9 +57,27 @@ export default function GoodsReceiptForm() {
       return;
     }
 
-    if (poItems.some(item => item.quantityAccepted === 0 && item.quantityReceived === 0)) {
-      toast.error('Enter quantities for all items.');
-      return;
+    // Validate quantities for all items
+    for (let i = 0; i < poItems.length; i++) {
+      const item = poItems[i];
+      const received = toNum(item.quantityReceived, 0);
+      const accepted = toNum(item.quantityAccepted, 0);
+      const rejected = toNum(item.quantityRejected, 0);
+      
+      if (received === 0 && accepted === 0) {
+        toast.error(`Item ${i + 1} (${item.item?.partNo || item.item?.description}): Enter at least received or accepted quantity.`);
+        return;
+      }
+      
+      if (received < (accepted + rejected)) {
+        toast.error(`Item ${i + 1} (${item.item?.partNo || item.item?.description}): Received qty (${received}) must be ≥ Accepted (${accepted}) + Rejected (${rejected}).`);
+        return;
+      }
+
+      if (accepted < 0 || rejected < 0 || received < 0) {
+        toast.error(`Item ${i + 1}: Quantities cannot be negative.`);
+        return;
+      }
     }
 
     try {
@@ -68,9 +87,9 @@ export default function GoodsReceiptForm() {
         remarks: notes,
         items: poItems.map(item => ({
           itemId: item.itemId,
-          quantityReceived: Number(item.quantityReceived),
-          quantityAccepted: Number(item.quantityAccepted),
-          quantityRejected: Number(item.quantityRejected || 0),
+          quantityReceived: toNum(item.quantityReceived, 0),
+          quantityAccepted: toNum(item.quantityAccepted, 0),
+          quantityRejected: toNum(item.quantityRejected, 0),
           remarks: item.remarks
         }))
       };
@@ -141,13 +160,13 @@ export default function GoodsReceiptForm() {
                       <td className="td">{item.item?.partNo || item.item?.description}</td>
                       <td className="td text-center font-semibold">{item.quantity}</td>
                       <td className="td">
-                        <input type="number" value={item.quantityReceived} onChange={(e) => handleItemUpdate(idx, 'quantityReceived', e.target.value)} className="form-input py-2 text-center text-sm" placeholder="0" />
+                        <input type="number" min="0" step="0.01" value={item.quantityReceived} onChange={(e) => handleItemUpdate(idx, 'quantityReceived', e.target.value)} className="form-input py-2 text-center text-sm" placeholder="0" />
                       </td>
                       <td className="td">
-                        <input type="number" value={item.quantityAccepted} onChange={(e) => handleItemUpdate(idx, 'quantityAccepted', e.target.value)} className="form-input py-2 text-center text-sm" placeholder="0" />
+                        <input type="number" min="0" step="0.01" value={item.quantityAccepted} onChange={(e) => handleItemUpdate(idx, 'quantityAccepted', e.target.value)} className="form-input py-2 text-center text-sm" placeholder="0" />
                       </td>
                       <td className="td">
-                        <input type="number" value={item.quantityRejected} onChange={(e) => handleItemUpdate(idx, 'quantityRejected', e.target.value)} className="form-input py-2 text-center text-sm" placeholder="0" />
+                        <input type="number" min="0" step="0.01" value={item.quantityRejected} onChange={(e) => handleItemUpdate(idx, 'quantityRejected', e.target.value)} className="form-input py-2 text-center text-sm" placeholder="0" />
                       </td>
                       <td className="td">
                         <input type="text" value={item.remarks} onChange={(e) => handleItemUpdate(idx, 'remarks', e.target.value)} className="form-input py-2 text-sm" placeholder="Notes…" />

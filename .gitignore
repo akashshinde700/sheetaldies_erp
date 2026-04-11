@@ -7,7 +7,7 @@ dist/
 build/
 *.tsbuildinfo
 
-# Env & secrets
+# Env & secrets — NEVER commit .env files
 .env
 .env.*
 !.env.example
@@ -42,4 +42,18 @@ venv/
 
 # Windows accidental device file
 **/nul
+
+# Docker
+docker-compose.override.yml
+
+# PM2
+.pm2/
+ecosystem.config.local.json
+
+# Backups
+backups/
+
+# Coverage
+coverage/
+.nyc_output/
 

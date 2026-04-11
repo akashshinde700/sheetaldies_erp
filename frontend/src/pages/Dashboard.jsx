@@ -107,7 +107,7 @@ export default function Dashboard() {
         setStats(s.data.data);
         const pendingInvs = inv.data.data || [];
         const pendingAmt = pendingInvs.reduce((sum, i) => sum + Number(i.totalAmount || 0), 0);
-        setInvoiceMeta({ pending: inv.data.meta?.total || pendingInvs.length, pendingAmt });
+        setInvoiceMeta({ pending: inv.data.pagination?.total || pendingInvs.length, pendingAmt });
       } catch {
         if (!cancelled) setError('Failed to load dashboard data.');
       } finally {
@@ -125,7 +125,7 @@ export default function Dashboard() {
         const c = await api.get('/jobcards', { params: { page: cardsPage, limit: CARDS_PAGE_SIZE } });
         if (cancelled) return;
         setRecentCards(c.data.data || []);
-        setCardsTotal(c.data.meta?.total ?? 0);
+        setCardsTotal(c.data.pagination?.total ?? 0);
       } catch {
         if (!cancelled) setError('Failed to load recent job cards.');
       } finally {
@@ -146,10 +146,10 @@ export default function Dashboard() {
     ]).then(([s, c, inv]) => {
       setStats(s.data.data);
       setRecentCards(c.data.data || []);
-      setCardsTotal(c.data.meta?.total ?? 0);
+      setCardsTotal(c.data.pagination?.total ?? 0);
       const pendingInvs = inv.data.data || [];
       const pendingAmt = pendingInvs.reduce((sum, i) => sum + Number(i.totalAmount || 0), 0);
-      setInvoiceMeta({ pending: inv.data.meta?.total || pendingInvs.length, pendingAmt });
+      setInvoiceMeta({ pending: inv.data.pagination?.total || pendingInvs.length, pendingAmt });
     }).catch(() => setError('Failed to load dashboard data.'))
       .finally(() => {
         setKpiLoading(false);
@@ -338,7 +338,7 @@ export default function Dashboard() {
           { label: 'Manage Parties',  icon: 'group',         to: '/admin/parties',            color: 'text-violet-600', bg: 'bg-violet-50',  ring: 'ring-violet-100' },
         ].map(q => (
           <Link key={q.to} to={q.to}
-            className="card flex items-center gap-2 sm:gap-3 p-3 sm:p-4 min-w-0 hover:shadow-card-hover transition-all duration-200 group ring-1 ring-transparent hover:ring-1">
+            className={`card flex items-center gap-2 sm:gap-3 p-3 sm:p-4 min-w-0 border border-slate-200/90 hover:shadow-card-hover transition-all duration-200 group ring-1 ring-transparent ${q.ring} hover:ring-2`}>
             <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${q.bg} ${q.color} group-hover:scale-110 transition-transform`}>
               <span className="material-symbols-outlined text-[17px] sm:text-[18px]">{q.icon}</span>
             </div>

@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import SearchSelect from '../../components/SearchSelect';
+import ListSearchInput from '../../components/ListSearchInput';
 
 const EMPTY = {
   name:'', partyCode:'', address:'', city:'', state:'Maharashtra', pinCode:'',
@@ -41,10 +42,12 @@ const partyToFormFields = (p) => ({
 });
 
 export default function PartyList() {
+  const PAGE_SIZE = 10;
   const [parties,  setParties]  = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [filter,   setFilter]   = useState('ALL');
   const [search,   setSearch]   = useState('');
+  const [page,     setPage]     = useState(1);
   const [showForm, setShowForm] = useState(false);
   const [editId,   setEditId]   = useState(null);
   const [form,     setForm]     = useState(EMPTY);
@@ -57,6 +60,7 @@ export default function PartyList() {
   };
 
   useEffect(() => { load(); }, []);
+  useEffect(() => { setPage(1); }, [search, filter]);
 
   const filtered = parties.filter(p => {
     const matchType   = filter === 'ALL' || p.partyType === filter;
@@ -65,6 +69,8 @@ export default function PartyList() {
       || p.city?.toLowerCase().includes(search.toLowerCase());
     return matchType && matchSearch;
   });
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pagedParties = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const openNew = () => { setForm(EMPTY); setEditId(null); setShowForm(true); };
 
@@ -102,25 +108,28 @@ export default function PartyList() {
   );
 
   return (
-    <div className="space-y-5 animate-slide-up">
+    <div className="page-stack w-full space-y-6 animate-slide-up">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-xl font-extrabold text-slate-800 font-headline">Parties</h2>
-          <p className="text-xs text-slate-400 mt-0.5">{filtered.length > 0 ? `${filtered.length} of ${parties.length}` : 'Customers, Vendors & Both'}</p>
+          <h1 className="page-title">Parties</h1>
+          <p className="page-subtitle">{filtered.length > 0 ? `${filtered.length} of ${parties.length}` : 'Customers, Vendors & Both'}</p>
         </div>
-        <button onClick={openNew} className="btn-primary">
-          <span className="material-symbols-outlined text-sm">add</span> Add Party
+        <button onClick={openNew} className="btn-primary shrink-0 inline-flex items-center justify-center gap-2">
+          <span className="material-symbols-outlined text-[18px]">add</span> Add Party
         </button>
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
-          <input value={search} onChange={e => setSearch(e.target.value)}
-            className="form-input pl-9 w-full sm:w-64" placeholder="Search name, GSTIN, city..." />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto] items-end">
+        <div className="flex items-center gap-2">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Search</label>
+          <ListSearchInput
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search name, GSTIN, city..."
+          />
         </div>
         <div className="flex gap-2">
           {['ALL', 'CUSTOMER', 'VENDOR', 'BOTH'].map(t => (
@@ -134,6 +143,18 @@ export default function PartyList() {
             </button>
           ))}
         </div>
+        {(search || filter !== 'ALL') ? (
+          <button
+            type="button"
+            onClick={() => {
+              setSearch('');
+              setFilter('ALL');
+            }}
+            className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-500 transition-colors font-medium"
+          >
+            <span className="material-symbols-outlined text-sm">close</span> Clear
+          </button>
+        ) : <div />}
       </div>
 
       {/* Table */}
@@ -162,7 +183,7 @@ export default function PartyList() {
                   </div>
                   <p className="text-sm text-slate-400">No parties found.</p>
                 </td></tr>
-              ) : filtered.map(p => (
+              ) : pagedParties.map(p => (
                 <tr key={p.id} className="tr">
                   <td className="td">
                     <div className="flex items-center gap-2">
@@ -199,6 +220,32 @@ export default function PartyList() {
             </tbody>
           </table>
         </div>
+        {!loading && filtered.length > 0 && (
+          <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
+            <p className="text-xs text-slate-500">
+              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="btn-outline text-xs disabled:opacity-40"
+              >
+                Prev
+              </button>
+              <span className="text-xs font-semibold text-slate-600">{page} / {totalPages}</span>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="btn-outline text-xs disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modal: portal to body — avoids broken fixed positioning inside Layout animate-slide-up (transform) */}

@@ -15,6 +15,8 @@ const loginLimiter = rateLimit({
 router.post('/login', loginLimiter, ctrl.login);
 router.post('/request-otp',     ctrl.requestOtp);
 router.post('/verify-otp',      ctrl.verifyOtp);
+router.post('/refresh-token',   ctrl.refreshToken);
+router.post('/logout',          ctrl.logout);
 router.get ('/me',              auth, ctrl.me);
 router.put ('/change-password', auth, ctrl.changePassword);
 

@@ -2,6 +2,8 @@ const prisma = require('../utils/prisma');
 const path = require('path');
 const { findRunsheetGraphForJobCard } = require('../utils/runsheetGraph');
 const { toInt, toNum } = require('../utils/normalize');
+const { parseJsonIfString } = require('../utils/json');
+const { parsePagination, formatListResponse, formatErrorResponse, getStatusCode } = require('../utils/validation');
 
 function normalizeTempCycleArray(raw) {
   if (raw == null) return null;
@@ -91,6 +93,17 @@ exports.upsertInspection = async (req, res) => {
       inspectedBy, inspectionDate, remarks, inspectionStatus,
     } = req.body;
 
+    // Validate JSON-string fields early (multipart/form-data can send JSON as strings)
+    try {
+      parseJsonIfString(distortionBefore, { fieldName: 'distortionBefore', defaultValue: null });
+      parseJsonIfString(distortionAfter, { fieldName: 'distortionAfter', defaultValue: null });
+    } catch (e) {
+      if (e.code === 'INVALID_JSON') {
+        return res.status(400).json({ success: false, code: e.code, message: e.message });
+      }
+      throw e;
+    }
+
     const images = getImagePaths(req.files);
     const b = (v) => v === 'true' || v === true;
 
@@ -129,8 +142,8 @@ exports.upsertInspection = async (req, res) => {
       hardnessAfter2:      hardnessAfter2      ? toNum(hardnessAfter2, null)      : null,
       hardnessAfter3:      hardnessAfter3      ? toNum(hardnessAfter3, null)      : null,
       hardnessAfter4:      hardnessAfter4      ? toNum(hardnessAfter4, null)      : null,
-      distortionBefore:    distortionBefore    ? (typeof distortionBefore === 'string' ? JSON.parse(distortionBefore) : distortionBefore) : null,
-      distortionAfter:     distortionAfter     ? (typeof distortionAfter  === 'string' ? JSON.parse(distortionAfter)  : distortionAfter)  : null,
+      distortionBefore: parseJsonIfString(distortionBefore, { fieldName: 'distortionBefore', defaultValue: null }),
+      distortionAfter: parseJsonIfString(distortionAfter, { fieldName: 'distortionAfter', defaultValue: null }),
       urgent:              b(urgent),
       packedQty:            packedQty            ? toInt(packedQty)    : null,
       packedBy:             packedBy             || null,
@@ -158,7 +171,15 @@ exports.upsertInspection = async (req, res) => {
     // Upsert heat treatment process rows
     const { heatProcesses } = req.body;
     if (heatProcesses !== undefined) {
-      const rows = typeof heatProcesses === 'string' ? JSON.parse(heatProcesses) : heatProcesses;
+      let rows;
+      try {
+        rows = parseJsonIfString(heatProcesses, { fieldName: 'heatProcesses', defaultValue: [] }) || [];
+      } catch (e) {
+        if (e.code === 'INVALID_JSON') {
+          return res.status(400).json({ success: false, code: e.code, message: e.message });
+        }
+        throw e;
+      }
       // Delete old rows
       await prisma.heatTreatmentProcess.deleteMany({ where: { inspectionId: inspection.id } });
       // Create new rows
@@ -269,6 +290,27 @@ exports.createCertificate = async (req, res) => {
 
     const certNo = await generateCertNo();
 
+    let parsedTempCycleData = null;
+    let parsedDistortionBefore = null;
+    let parsedDistortionAfter = null;
+    let parsedCertHeatProcesses = null;
+    let parsedItems = null;
+    let parsedInspectionResults = null;
+
+    try {
+      parsedTempCycleData = parseJsonIfString(tempCycleData, { fieldName: 'tempCycleData', defaultValue: null });
+      parsedDistortionBefore = parseJsonIfString(distortionBefore, { fieldName: 'distortionBefore', defaultValue: null });
+      parsedDistortionAfter = parseJsonIfString(distortionAfter, { fieldName: 'distortionAfter', defaultValue: null });
+      parsedCertHeatProcesses = parseJsonIfString(certHeatProcesses, { fieldName: 'certHeatProcesses', defaultValue: null });
+      parsedItems = parseJsonIfString(items, { fieldName: 'items', defaultValue: null });
+      parsedInspectionResults = parseJsonIfString(inspectionResults, { fieldName: 'inspectionResults', defaultValue: null });
+    } catch (e) {
+      if (e.code === 'INVALID_JSON') {
+        return res.status(400).json({ success: false, code: e.code, message: e.message });
+      }
+      throw e;
+    }
+
     const cert = await prisma.testCertificate.create({
       data: {
         certNo,
@@ -307,10 +349,10 @@ exports.createCertificate = async (req, res) => {
         hardnessMin:     hardnessMin     ? toNum(hardnessMin, null) : null,
         hardnessMax:    hardnessMax      ? toNum(hardnessMax, null) : null,
         hardnessUnit:   hardnessUnit     || 'HRC',
-        tempCycleData:  tempCycleData    ? (typeof tempCycleData   === 'string' ? JSON.parse(tempCycleData)   : tempCycleData)   : null,
-        distortionBefore:distortionBefore? (typeof distortionBefore === 'string' ? JSON.parse(distortionBefore): distortionBefore): null,
-        distortionAfter: distortionAfter ? (typeof distortionAfter  === 'string' ? JSON.parse(distortionAfter) : distortionAfter) : null,
-        heatProcessData: certHeatProcesses ? (typeof certHeatProcesses === 'string' ? JSON.parse(certHeatProcesses) : certHeatProcesses) : null,
+        tempCycleData: parsedTempCycleData,
+        distortionBefore: parsedDistortionBefore,
+        distortionAfter: parsedDistortionAfter,
+        heatProcessData: parsedCertHeatProcesses,
         image1:         images.image1    || null,
         image2:         images.image2    || null,
         image3:         images.image3    || null,
@@ -327,8 +369,8 @@ exports.createCertificate = async (req, res) => {
         approvedBy:     approvedBy       || null,
         createdById:    req.user.id,
         // Nested items
-        items: items ? {
-          create: (typeof items === 'string' ? JSON.parse(items) : items).map(it => ({
+        items: parsedItems ? {
+          create: parsedItems.map(it => ({
             description:  it.description,
             quantity:     toInt(it.quantity),
             weightPerPc:  it.weightPerPc  ? toNum(it.weightPerPc, null) : null,
@@ -337,8 +379,8 @@ exports.createCertificate = async (req, res) => {
             remarks:      it.remarks      || null,
           })),
         } : undefined,
-        inspectionResults: inspectionResults ? {
-          create: (typeof inspectionResults === 'string' ? JSON.parse(inspectionResults) : inspectionResults).map(ir => ({
+        inspectionResults: parsedInspectionResults ? {
+          create: parsedInspectionResults.map(ir => ({
             inspectionType:  ir.inspectionType,
             parameter:       ir.parameter       || null,
             requiredValue:   ir.requiredValue   || null,
@@ -391,25 +433,90 @@ exports.getSuggestedTempCycleForJobCard = async (req, res) => {
 
 exports.listCertificates = async (req, res) => {
   try {
-    const { page = 1, limit = 20 } = req.query;
-    const [total, certs] = await Promise.all([
-      prisma.testCertificate.count(),
-      prisma.testCertificate.findMany({
-        include: {
-          jobCard:   { select: { jobCardNo: true } },
-          customer:  { select: { name: true } },
-          items:     true,
-          createdBy: { select: { name: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-        skip:  (toInt(page, 1) - 1) * toInt(limit, 20),
-        take:  toInt(limit, 20),
-      }),
+    const { page, limit, skip } = parsePagination(req);
+    const exportAll = String(req.query.exportAll) === 'true';
+    const where = {};
+    const status = req.query.status;
+    const fromDate = req.query.fromDate;
+    const toDate = req.query.toDate;
+    const search = req.query.search;
+
+    // DEBUG: Log export request details
+    console.log('[CERT EXPORT DEBUG]', {
+      exportAll,
+      page,
+      limit,
+      skip,
+      status,
+      fromDate,
+      toDate,
+      timestamp: new Date().toISOString(),
+    });
+
+    if (status && status !== 'all') {
+      where.status = status;
+    }
+    const searchText = String(search || '').trim();
+    if (searchText) {
+      where.OR = [
+        { certNo: { contains: searchText, mode: 'insensitive' } },
+        { customer: { is: { name: { contains: searchText, mode: 'insensitive' } } } },
+        { jobCard: { is: { jobCardNo: { contains: searchText, mode: 'insensitive' } } } },
+      ];
+    }
+
+    // Date filtering
+    if (fromDate || toDate) {
+      where.issueDate = {};
+      if (fromDate) {
+        const from = new Date(fromDate);
+        if (!Number.isNaN(from.getTime())) {
+          where.issueDate.gte = from;
+        }
+      }
+      if (toDate) {
+        const to = new Date(toDate);
+        if (!Number.isNaN(to.getTime())) {
+          // Add one day to include the end date
+          to.setDate(to.getDate() + 1);
+          where.issueDate.lt = to;
+        }
+      }
+    }
+
+    const queryConfig = {
+      where,
+      include: {
+        jobCard:   { select: { jobCardNo: true } },
+        customer:  { select: { name: true } },
+        items:     true,
+        createdBy: { select: { name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      ...(exportAll ? { skip: 0, take: 100000 } : { skip, take: limit }),
+    };
+
+    // DEBUG: Log query config
+    console.log('[CERT QUERY CONFIG]', { queryConfig });
+
+    const [certs, total] = await Promise.all([
+      prisma.testCertificate.findMany(queryConfig),
+      prisma.testCertificate.count({ where }),
     ]);
-    res.json({ success: true, data: certs, meta: { total } });
+
+    // DEBUG: Log results
+    console.log('[CERT RESULTS]', {
+      certsReturned: certs.length,
+      totalInDB: total,
+      exportAll,
+      responseLimit: exportAll ? certs.length : limit,
+      timestamp: new Date().toISOString(),
+    });
+    
+    res.json(formatListResponse(certs, total, exportAll ? 1 : page, exportAll ? certs.length : limit));
   } catch (err) {
     console.error('ListCertificates error:', err);
-    res.status(500).json({ success: false, message: 'Server error.', error: err.message });
+    res.status(getStatusCode('ERR_INTERNAL')).json(formatErrorResponse('ERR_INTERNAL', 'Server error.'));
   }
 };
 

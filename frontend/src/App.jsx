@@ -2,6 +2,7 @@ import React, { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Lazy-load route components to enable code-splitting and smaller initial bundle
 const Login = lazy(() => import('./pages/Login'));
@@ -53,10 +54,25 @@ const ManufacturingReports = lazy(() => import('./pages/manufacturing/Manufactur
 const DailyFurnacePlanning = lazy(() => import('./pages/manufacturing/DailyFurnacePlanning'));
 const DailyFurnacePlanningPrint = lazy(() => import('./pages/manufacturing/DailyFurnacePlanningPrint'));
 
+const QuoteList = lazy(() => import('./pages/quotes/QuoteList'));
+const QuoteForm = lazy(() => import('./pages/quotes/QuoteForm'));
+const QuoteDetail = lazy(() => import('./pages/quotes/QuoteDetail'));
+
 const AuditLogsViewer = lazy(() => import('./pages/admin/AuditLogsViewer'));
+const UIPolishDemo = lazy(() => import('./pages/UIPolishDemo'));
 
 const PrivateRoute = ({ children, role }) => {
-  const { user, isAdmin, isManager, isOperator } = useAuth();
+  const { user, initializing, isAdmin, isManager } = useAuth();
+  if (initializing) {
+    return (
+      <div className="flex min-h-dvh min-h-screen items-center justify-center bg-app-shell px-4 safe-pt safe-pb main-area-padding">
+        <div className="flex flex-col sm:flex-row items-center gap-3 text-slate-500">
+          <span className="material-symbols-outlined animate-spin text-2xl text-sky-600" aria-hidden>progress_activity</span>
+          <span className="text-sm font-semibold tracking-tight">Restoring session...</span>
+        </div>
+      </div>
+    );
+  }
   if (!user) return <Navigate to="/login" replace />;
   if (role === 'ADMIN'   && !isAdmin)    return <Navigate to="/" replace />;
   if (role === 'MANAGER' && !isManager)  return <Navigate to="/" replace />;
@@ -74,6 +90,8 @@ const AppRoutes = () => (
   }>
     <Routes>
       <Route path="/login" element={<Login />} />
+      {/* UI Demo only in development */}
+      {import.meta.env.DEV && <Route path="/ui-demo" element={<UIPolishDemo />} />}
       <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
         <Route index element={<Dashboard />} />
       <Route path="jobcards"               element={<JobCardList />} />
@@ -110,6 +128,10 @@ const AppRoutes = () => (
       <Route path="purchase"                  element={<PrivateRoute role="MANAGER"><PurchaseOrderList /></PrivateRoute>} />
       <Route path="purchase/grn"              element={<PrivateRoute role="MANAGER"><GoodsReceiptForm /></PrivateRoute>} />
       <Route path="purchase/inventory"        element={<PrivateRoute role="MANAGER"><InventoryView /></PrivateRoute>} />
+      <Route path="quotes"                    element={<PrivateRoute role="MANAGER"><QuoteList /></PrivateRoute>} />
+      <Route path="quotes/new"                element={<PrivateRoute role="MANAGER"><QuoteForm /></PrivateRoute>} />
+      <Route path="quotes/:id"                element={<PrivateRoute role="MANAGER"><QuoteDetail /></PrivateRoute>} />
+      <Route path="quotes/:id/edit"           element={<PrivateRoute role="MANAGER"><QuoteForm /></PrivateRoute>} />
       <Route path="manufacturing/batches"     element={<PrivateRoute role="MANAGER"><ManufacturingBatchList /></PrivateRoute>} />
       <Route path="manufacturing/runsheet"    element={<PrivateRoute role="MANAGER"><VHTRunsheetList /></PrivateRoute>} />
       <Route path="manufacturing/runsheet/new" element={<PrivateRoute role="MANAGER"><VHTRunsheetForm /></PrivateRoute>} />
@@ -126,8 +148,10 @@ const AppRoutes = () => (
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppRoutes />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

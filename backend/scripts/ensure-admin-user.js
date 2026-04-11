@@ -1,6 +1,6 @@
 /**
- * Ensures the default admin login exists (upsert by email).
- * Defaults match your setup; override with ADMIN_EMAIL / ADMIN_PASSWORD in .env for other environments.
+ * Ensures an admin login exists (upsert by email).
+ * ADMIN_EMAIL and ADMIN_PASSWORD must be set explicitly.
  *
  *   npm run db:ensure-admin
  */
@@ -11,11 +11,14 @@ const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 
-const email = (process.env.ADMIN_EMAIL || 'admin@sheetaldies.com').trim().toLowerCase();
-const password = process.env.ADMIN_PASSWORD || 'Admin@123';
+const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+const password = process.env.ADMIN_PASSWORD;
 const name = process.env.ADMIN_NAME || 'Administrator';
 
 async function main() {
+  if (!email || !password) {
+    throw new Error('ADMIN_EMAIL and ADMIN_PASSWORD must be set before running ensure-admin-user.js');
+  }
   const hash = bcrypt.hashSync(password, 10);
   const user = await prisma.user.upsert({
     where: { email },

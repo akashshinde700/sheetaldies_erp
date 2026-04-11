@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import { toNum, toInt } from '../../utils/normalize';
 
 const DEFAULT_GRAPH = [
   { tempC: 550, holdMin: 20, label: '' },
@@ -220,7 +221,7 @@ export default function VHTRunsheetForm() {
 
   const totalWeight = useMemo(
     () =>
-      form.items.reduce((s, it) => s + (Number(it.weightKg) || 0), 0),
+      form.items.reduce((s, it) => s + toNum(it.weightKg, 0), 0),
     [form.items]
   );
 
@@ -233,9 +234,9 @@ export default function VHTRunsheetForm() {
     const lines = form.items
       .filter((it) => it.jobCardId)
       .map((it) => ({
-        jobCardId: Number(it.jobCardId),
-        quantity: Number(it.quantity),
-        weightKg: it.weightKg === '' ? null : Number(it.weightKg),
+        jobCardId: toInt(it.jobCardId),
+        quantity: toNum(it.quantity, 0),
+        weightKg: it.weightKg === '' ? null : toNum(it.weightKg, 0),
         plannedSlot: it.plannedSlot || null,
         customerName: it.customerName || null,
         jobDescription: it.jobDescription || null,
@@ -247,38 +248,45 @@ export default function VHTRunsheetForm() {
       return;
     }
 
+    const validGraphPoints = (form.tempGraphPoints || [])
+      .filter((p) => p.tempC !== '' && p.tempC != null && !Number.isNaN(Number(p.tempC)))
+      .map((p) => ({
+        tempC: toNum(p.tempC, 0),
+        holdMin: toNum(p.holdMin, 0),
+        label: p.label || null,
+      }));
+    
+    if (!validGraphPoints.length) {
+      toast.error('Add at least one temperature segment for the graph.');
+      return;
+    }
+
     const payload = {
-      batchId: form.batchId ? Number(form.batchId) : null,
-      furnaceId: Number(form.furnaceId),
+      batchId: form.batchId ? toInt(form.batchId) : null,
+      furnaceId: toInt(form.furnaceId),
       runDate: form.runDate,
       cycleEndTime: form.cycleEndTime || null,
       totalTimeDisplay: form.totalTimeDisplay || null,
-      mrStart: form.mrStart === '' ? null : Number(form.mrStart),
-      mrEnd: form.mrEnd === '' ? null : Number(form.mrEnd),
-      totalMr: form.totalMr === '' ? null : Number(form.totalMr),
+      mrStart: form.mrStart === '' ? null : toNum(form.mrStart, 0),
+      mrEnd: form.mrEnd === '' ? null : toNum(form.mrEnd, 0),
+      totalMr: form.totalMr === '' ? null : toNum(form.totalMr, 0),
       loadingOperatorName: form.loadingOperatorName || null,
       docRevNo: form.docRevNo || null,
       docEffectiveDate: form.docEffectiveDate || null,
       docPageOf: form.docPageOf || null,
       tempProfile: form.tempProfile || null,
-      cycleTime: form.cycleTime ? Number(form.cycleTime) : 240,
+      cycleTime: form.cycleTime ? toNum(form.cycleTime, 240) : 240,
       hardeningType: form.hardeningType || null,
-      quenchPressureBar: form.quenchPressureBar === '' ? null : Number(form.quenchPressureBar),
-      fanRpm: form.fanRpm === '' ? null : Number(form.fanRpm),
+      quenchPressureBar: form.quenchPressureBar === '' ? null : toNum(form.quenchPressureBar, 0),
+      fanRpm: form.fanRpm === '' ? null : toNum(form.fanRpm, 0),
       fixturesPosition: form.fixturesPosition || null,
-      tempGraphPoints: (form.tempGraphPoints || [])
-        .filter((p) => p.tempC !== '' && p.tempC != null && !Number.isNaN(Number(p.tempC)))
-        .map((p) => ({
-          tempC: Number(p.tempC),
-          holdMin: Number(p.holdMin) || 0,
-          label: p.label || null,
-        })),
+      tempGraphPoints: validGraphPoints,
       operatorSign: form.operatorSign || null,
       supervisorSign: form.supervisorSign || null,
       supervisorVerifiedAt: form.supervisorVerifiedAt || null,
       verificationNote: form.verificationNote || null,
       status: form.status,
-      actualOutput: form.actualOutput === '' ? null : Number(form.actualOutput),
+      actualOutput: form.actualOutput === '' ? null : toNum(form.actualOutput, 0),
       remarks: form.remarks || null,
       items: lines,
     };
@@ -642,18 +650,24 @@ export default function VHTRunsheetForm() {
               <div key={idx} className="flex flex-wrap gap-2 items-center">
                 <input
                   type="number"
+                  min="0"
+                  step="1"
                   className="w-24 border rounded px-2 py-1.5 text-sm"
-                  placeholder="°C"
+                  placeholder="°C *"
                   value={row.tempC}
                   onChange={(e) => updateGraphRow(idx, 'tempC', e.target.value)}
+                  required
                 />
                 <span className="text-xs text-slate-500">for</span>
                 <input
                   type="number"
+                  min="0"
+                  step="1"
                   className="w-20 border rounded px-2 py-1.5 text-sm"
-                  placeholder="min"
+                  placeholder="min *"
                   value={row.holdMin}
                   onChange={(e) => updateGraphRow(idx, 'holdMin', e.target.value)}
+                  required
                 />
                 <input
                   type="text"
