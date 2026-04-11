@@ -335,9 +335,15 @@ export default function JobCardForm() {
           )}
         </div>
         {isEdit && cardData && (
-          <span className={`ml-auto badge ${STATUS_COLOR[cardData.status] || 'bg-slate-100 text-slate-600'}`}>
-            {cardData.status?.replace(/_/g, ' ')}
-          </span>
+          <div className="ml-auto flex items-center gap-2">
+            <Link to={`/jobcards/${id}/print`} className="btn-outline bg-white">
+              <span className="material-symbols-outlined text-[18px]">print</span>
+              Print
+            </Link>
+            <span className={`badge ${STATUS_COLOR[cardData.status] || 'bg-slate-100 text-slate-600'}`}>
+              {cardData.status?.replace(/_/g, ' ')}
+            </span>
+          </div>
         )}
       </div>
 

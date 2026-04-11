@@ -897,6 +897,8 @@ model DispatchChallanItem {
   weightKg    Decimal?        @map("weight_kg") @db.Decimal(10, 3)
   remarks     String?         @db.VarChar(300)
 
+  @@index([dispatchId])
+  @@index([sourceChallanItemId])
   @@map("dispatch_challan_items")
 }
 
@@ -1105,6 +1107,7 @@ model InvoiceItem {
 
   @@index([invoiceId])
   @@index([certId])
+  @@index([sourceChallanItemId])
   @@index([processTypeId])
   @@map("invoice_items")
 }

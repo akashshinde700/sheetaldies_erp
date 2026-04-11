@@ -1354,3 +1354,8 @@ CALL ensure_index('jobwork_challans', 'idx_challans_deleted', 'CREATE INDEX idx_
 CALL ensure_index('tax_invoices', 'idx_invoices_deleted', 'CREATE INDEX idx_invoices_deleted ON tax_invoices(is_deleted)');
 CALL ensure_index('test_certificates', 'idx_certs_deleted', 'CREATE INDEX idx_certs_deleted ON test_certificates(is_deleted)');
 CALL ensure_index('purchase_orders', 'idx_po_deleted', 'CREATE INDEX idx_po_deleted ON purchase_orders(is_deleted)');
+
+-- -- Performance Hardening: Register & Dispatch Mapping -------------------------
+CALL ensure_index('invoice_items',           'source_challan_item_id', 'idx_invoice_items_source_challan_item');
+CALL ensure_index('dispatch_challan_items',  'dispatch_id',           'idx_dispatch_items_dispatch_id');
+CALL ensure_index('dispatch_challan_items',  'source_challan_item_id', 'idx_dispatch_items_source_challan_item');

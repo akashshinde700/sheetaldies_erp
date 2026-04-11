@@ -20,6 +20,7 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 
 const JobCardList = lazy(() => import('./pages/jobcard/JobCardList'));
 const JobCardForm = lazy(() => import('./pages/jobcard/JobCardForm'));
+const JobCardPrint = lazy(() => import('./pages/jobcard/JobCardPrint'));
 const InspectionForm = lazy(() => import('./pages/jobcard/InspectionForm'));
 
 const JobworkList = lazy(() => import('./pages/jobwork/JobworkList'));
@@ -54,6 +55,7 @@ const DispatchList = lazy(() => import('./pages/dispatch/DispatchList'));
 const DispatchChallanForm = lazy(() => import('./pages/dispatch/DispatchChallanForm'));
 
 const PurchaseOrderList = lazy(() => import('./pages/purchase/PurchaseOrderList'));
+const PurchaseOrderPrint = lazy(() => import('./pages/purchase/PurchaseOrderPrint'));
 const GoodsReceiptForm = lazy(() => import('./pages/purchase/GoodsReceiptForm'));
 const InventoryView = lazy(() => import('./pages/purchase/InventoryView'));
 
@@ -108,6 +110,7 @@ const AppRoutes = () => (
       <Route path="jobcards"               element={<JobCardList />} />
       <Route path="jobcards/new"           element={<JobCardForm />} />
       <Route path="jobcards/:id"           element={<JobCardForm />} />
+      <Route path="jobcards/:id/print"      element={<JobCardPrint />} />
       <Route path="jobcards/:id/inspection" element={<InspectionForm />} />
       <Route path="jobwork"                element={<JobworkList />} />
       <Route path="jobwork/register"       element={<InwardOutwardRegister />} />
@@ -138,6 +141,7 @@ const AppRoutes = () => (
       <Route path="dispatch/new"              element={<DispatchChallanForm />} />
       <Route path="dispatch/:id"              element={<DispatchChallanForm />} />
       <Route path="purchase"                  element={<PrivateRoute role="MANAGER"><PurchaseOrderList /></PrivateRoute>} />
+      <Route path="purchase/:id/print"        element={<PrivateRoute role="MANAGER"><PurchaseOrderPrint /></PrivateRoute>} />
       <Route path="purchase/grn"              element={<PrivateRoute role="MANAGER"><GoodsReceiptForm /></PrivateRoute>} />
       <Route path="purchase/inventory"        element={<PrivateRoute role="MANAGER"><InventoryView /></PrivateRoute>} />
       <Route path="quotes"                    element={<PrivateRoute role="MANAGER"><QuoteList /></PrivateRoute>} />

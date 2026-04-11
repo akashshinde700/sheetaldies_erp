@@ -587,6 +587,13 @@ export default function PurchaseOrderList() {
                       >
                         <span className="material-symbols-outlined text-[18px]">visibility</span>
                       </button>
+                      <Link
+                        to={`/purchase/${po.id}/print`}
+                        className="p-2 rounded-lg text-indigo-600 hover:bg-slate-100 flex items-center justify-center transition-all"
+                        title="Print Purchase Order"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">print</span>
+                      </Link>
                       <button
                         type="button"
                         onClick={() => {
