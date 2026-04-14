@@ -412,3 +412,100 @@ exports.pendingReports = async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to fetch pending reports.' });
   }
 };
+
+// ── Pending Items (detailed list for Pending Dashboard) ──────
+exports.pendingItems = async (req, res) => {
+  try {
+    const [
+      challansNeedJobCard,
+      jobCardsNeedCert,
+      certsNeedInvoice,
+      invoicesPendingPayment,
+    ] = await Promise.all([
+
+      // 1. Challans that have NO job card yet and are still active
+      prisma.jobworkChallan.findMany({
+        where: {
+          jobCardId: null,
+          status: { in: ['DRAFT', 'SENT', 'RECEIVED'] },
+        },
+        select: {
+          id: true, challanNo: true, challanDate: true, status: true,
+          fromParty: { select: { id: true, name: true } },
+          items: { select: { description: true, material: true, quantity: true, weight: true }, take: 3 },
+        },
+        orderBy: { challanDate: 'asc' },
+        take: 100,
+      }),
+
+      // 2. Job Cards with NO test certificate
+      prisma.jobCard.findMany({
+        where: {
+          status: { in: ['CREATED', 'IN_PROGRESS', 'SENT_FOR_JOBWORK', 'INSPECTION'] },
+          testCertificates: { none: {} },
+        },
+        select: {
+          id: true, jobCardNo: true, status: true, dueDate: true, hrcRange: true,
+          dieMaterial: true, totalWeight: true,
+          customer: { select: { id: true, name: true } },
+          part: { select: { partNo: true, description: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+        take: 100,
+      }),
+
+      // 3. Approved certificates NOT yet linked to any invoice
+      prisma.testCertificate.findMany({
+        where: {
+          status: 'APPROVED',
+          jobCardId: { not: null },
+          invoiceItems: { none: {} },
+        },
+        select: {
+          id: true, certNo: true, issueDate: true, status: true,
+          customer: { select: { id: true, name: true } },
+          jobCard: { select: { id: true, jobCardNo: true, dieMaterial: true } },
+        },
+        orderBy: { issueDate: 'asc' },
+        take: 100,
+      }),
+
+      // 4. Invoices pending payment
+      prisma.taxInvoice.findMany({
+        where: { paymentStatus: 'PENDING' },
+        select: {
+          id: true, invoiceNo: true, invoiceDate: true, grandTotal: true,
+          toParty: { select: { id: true, name: true } },
+        },
+        orderBy: { invoiceDate: 'asc' },
+        take: 100,
+      }),
+    ]);
+
+    const invoiceAmountPending = invoicesPendingPayment.reduce(
+      (s, inv) => s + toNum(inv.grandTotal, 0), 0
+    );
+
+    res.json({
+      success: true,
+      data: {
+        challansNeedJobCard,
+        jobCardsNeedCert,
+        certsNeedInvoice,
+        invoicesPendingPayment,
+        summary: {
+          challansNeedJobCard: challansNeedJobCard.length,
+          jobCardsNeedCert:    jobCardsNeedCert.length,
+          certsNeedInvoice:    certsNeedInvoice.length,
+          invoicesPendingPayment: invoicesPendingPayment.length,
+          invoiceAmountPending,
+          totalPending: challansNeedJobCard.length + jobCardsNeedCert.length +
+                        certsNeedInvoice.length + invoicesPendingPayment.length,
+        },
+      },
+    });
+  } catch (err) {
+    console.error('[pendingItems]', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch pending items.' });
+  }
+};
