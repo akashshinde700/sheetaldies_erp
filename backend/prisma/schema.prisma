@@ -150,19 +150,19 @@ model Party {
   city        String?   @db.VarChar(100)
   state       String?   @db.VarChar(100)
   pinCode     String?   @map("pin_code") @db.VarChar(10)
-  gstin       String?   @unique @db.VarChar(20)
-  pan         String?   @unique @db.VarChar(20)
+  gstin       String?   @unique @db.VarChar(500)
+  pan         String?   @unique @db.VarChar(500)
   stateCode   String?   @map("state_code") @db.VarChar(5)
-  phone       String?   @db.VarChar(20)
-  email       String?   @db.VarChar(150)
+  phone       String?   @db.VarChar(500)
+  email       String?   @db.VarChar(500)
   partyType   PartyType @map("party_type") @default(CUSTOMER)
   isActive    Boolean   @default(true) @map("is_active")
   // Bank Details
-  bankAccountHolder String? @map("bank_account_holder") @db.VarChar(200)
-  bankName          String? @map("bank_name")           @db.VarChar(200)
-  accountNo         String? @map("account_no")          @db.VarChar(50)
-  ifscCode          String? @map("ifsc_code")           @db.VarChar(20)
-  swiftCode         String? @map("swift_code")          @db.VarChar(20)
+  bankAccountHolder String? @map("bank_account_holder") @db.VarChar(500)
+  bankName          String? @map("bank_name")           @db.VarChar(500)
+  accountNo         String? @map("account_no")          @db.VarChar(500)
+  ifscCode          String? @map("ifsc_code")           @db.VarChar(500)
+  swiftCode         String? @map("swift_code")          @db.VarChar(500)
   vatTin            String? @map("vat_tin")             @db.VarChar(30)
   cstNo             String? @map("cst_no")              @db.VarChar(30)
   createdAt   DateTime  @default(now()) @map("created_at")
@@ -250,6 +250,7 @@ model ProcessType {
   heatProcesses     HeatTreatmentProcess[]
   invoiceItems      InvoiceItem[]
   furnacePlanSlots  FurnacePlanSlot[]
+  challanItems      ChallanItem[]
 
   @@map("process_types")
 }
@@ -791,6 +792,10 @@ model JobworkChallan {
 
   deliveryPerson   String?       @map("delivery_person") @db.VarChar(100)
 
+  poNo             String?       @map("po_no")           @db.VarChar(100)
+  poDate           DateTime?     @map("po_date")         @db.Date
+  cillNo           String?       @map("cill_no")         @db.VarChar(100)
+
   // Part 2 - Processor fills
   receivedDate     DateTime?     @map("received_date")   @db.Date
   natureOfProcess  String?       @map("nature_of_process") @db.VarChar(200)
@@ -841,17 +846,22 @@ model ChallanItem {
   hrc         String?        @db.VarChar(30)
   woNo        String?        @map("wo_no")    @db.VarChar(50)
   hsnCode     String?        @map("hsn_code") @db.VarChar(20)
-  quantity    Decimal        @db.Decimal(12, 3)
-  qtyOut      Decimal?       @map("qty_out")  @db.Decimal(12, 3)
-  uom         String?        @default("KGS")  @db.VarChar(10)
-  weight      Decimal?       @db.Decimal(12, 3)
-  rate        Decimal        @db.Decimal(12, 2)
-  amount      Decimal        @db.Decimal(12, 2)
-  invoiceItems InvoiceItem[]
+  sacNo       String?        @map("sac_no")   @db.VarChar(20)
+  quantity      Decimal        @db.Decimal(12, 3)
+  qtyOut        Decimal?       @map("qty_out")       @db.Decimal(12, 3)
+  uom           String?        @default("KGS")       @db.VarChar(10)
+  weight        Decimal?       @db.Decimal(12, 3)
+  rate          Decimal        @db.Decimal(12, 2)
+  amount        Decimal        @db.Decimal(12, 2)
+  processTypeId Int?           @map("process_type_id")
+  processType   ProcessType?   @relation(fields: [processTypeId], references: [id])
+  processName   String?        @map("process_name")  @db.VarChar(150)
+  invoiceItems  InvoiceItem[]
   dispatchItems DispatchChallanItem[]
 
   @@index([challanId])
   @@index([itemId])
+  @@index([processTypeId])
   @@map("challan_items")
 }
 
