@@ -145,6 +145,9 @@ export default function DispatchChallanList() {
                         <Link to={`/dispatch/${challan.id}`} className="p-2 rounded-lg text-sky-800 hover:bg-sky-50" aria-label="View">
                           <span className="material-symbols-outlined text-[18px]">visibility</span>
                         </Link>
+                        <Link to={`/dispatch/${challan.id}/print`} className="p-2 rounded-lg text-indigo-700 hover:bg-indigo-50" aria-label="Print">
+                          <span className="material-symbols-outlined text-[18px]">print</span>
+                        </Link>
                         <Link to={`/dispatch/${challan.id}`} className="p-2 rounded-lg text-amber-700 hover:bg-amber-50" aria-label="Edit">
                           <span className="material-symbols-outlined text-[18px]">edit</span>
                         </Link>

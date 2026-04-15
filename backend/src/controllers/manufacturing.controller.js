@@ -226,12 +226,18 @@ exports.createRunsheet = async (req, res) => {
 // ── List VHT Run Sheets ───────────────────────────────────────
 exports.listRunsheets = async (req, res) => {
   try {
-    const { furnaceId, status, from, to } = req.query;
+    const { furnaceId, status, from, to, search } = req.query;
     const { page, limit, skip } = parsePagination(req);
     
     const where = {};
     if (furnaceId) where.furnaceId = toInt(furnaceId);
     if (status) where.status = status;
+    if (search) {
+      const searchText = String(search || '').trim();
+      if (searchText) {
+        where.runsheetNumber = { contains: searchText, mode: 'insensitive' };
+      }
+    }
     if (from || to) {
       where.runDate = {};
       if (from) where.runDate.gte = toDateOnly(from);

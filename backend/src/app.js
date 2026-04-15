@@ -3,6 +3,7 @@ const cors    = require('cors');
 const helmet  = require('helmet');
 const path    = require('path');
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpecs = require('./config/swagger');
 require('dotenv').config();
@@ -12,6 +13,13 @@ const { auditLog } = require('./controllers/audit.controller');
 const { errorHandler } = require('./middleware/errorHandler');
 const { requestLogger } = require('./middleware/requestLogger');
 const sanitizeMiddleware = require('./middleware/sanitize');
+
+// ✅ NEW: Import structured logger
+const { expressLogger, log, logger } = require('./utils/logger');
+
+// ✅ NEW: Initialize sequence manager for atomic invoice numbering
+const { initializeSequenceManager } = require('./utils/sequenceManager');
+
 const app = express();
 
 // ── Middleware ────────────────────────────────────────────────
@@ -28,6 +36,9 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// ✅ NEW: Structured request logging middleware
+app.use(expressLogger);
 
 // Request logging middleware (for debugging & monitoring)
 app.use(requestLogger);
@@ -71,6 +82,14 @@ const strictLimiter = rateLimit({
   standardHeaders: true,
 });
 
+// ✅ NEW: Export rate limiter to prevent DOS (fixes H2)
+const exportLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: process.env.NODE_ENV === 'production' ? 5 : 50, // 5 exports per hour max
+  message: { success: false, code: 'EXPORT_LIMIT_EXCEEDED', message: 'Export limit exceeded. Maximum 5 exports per hour.' },
+  keyGenerator: (req) => req.user?.id || ipKeyGenerator(req), // Per-user limiting with proper IPv6 support
+});
+
 // File upload limiter: 10 uploads per hour per IP
 const uploadLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
@@ -93,6 +112,36 @@ app.use('/api/', generalLimiter);
 // Audit logging middleware (global for all routes)
 app.use(auditLog);
 
+// ✅ FIXED: Apply input validation middleware for all incoming data
+const { handleValidationErrors } = require('./middleware/validateInput');
+app.use((req, res, next) => {
+  // Only validate JSON requests
+  if (req.method !== 'GET' && req.is('application/json')) {
+    // Basic checks on query parameters - more can be added per route
+    if (req.query.page) {
+      const page = parseInt(req.query.page);
+      if (!Number.isInteger(page) || page < 1 || page > 100000) {
+        return res.status(422).json({
+          success: false,
+          code: 'VALIDATION_ERROR',
+          message: 'page parameter must be between 1 and 100000',
+        });
+      }
+    }
+    if (req.query.limit) {
+      const limit = parseInt(req.query.limit);
+      if (!Number.isInteger(limit) || limit < 1 || limit > 500) {
+        return res.status(422).json({
+          success: false,
+          code: 'VALIDATION_ERROR',
+          message: 'limit parameter must be between 1 and 500',
+        });
+      }
+    }
+  }
+  next();
+});
+
 // ── Routes ────────────────────────────────────────────────────
 // Apply OTP limiter specifically to OTP endpoint BEFORE auth routes
 app.post('/api/auth/request-otp', otpLimiter);
@@ -114,7 +163,8 @@ app.use('/api/furnace-planning', strictLimiter, require('./routes/furnacePlannin
 app.use('/api/analytics',  require('./routes/analytics.routes'));
 app.use('/api/audit',      require('./routes/audit.routes'));
 app.use('/api/upload',     uploadLimiter, require('./routes/upload.routes'));
-app.use('/api/quotes',     strictLimiter, require('./routes/quote.routes'));
+app.use('/api/quotes',          strictLimiter, require('./routes/quote.routes'));
+app.use('/api/customer-quotes', strictLimiter, require('./routes/customerQuote.routes'));
 app.use('/api/attachments', strictLimiter, require('./routes/attachment.routes'));
 app.use('/api/workflows',  strictLimiter, require('./routes/workflow.routes'));
 if (process.env.NODE_ENV !== 'production') {

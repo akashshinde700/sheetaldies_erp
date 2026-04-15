@@ -57,6 +57,7 @@ exports.listRunsheetQuerySchema = Joi.object({
   limit: Joi.number().integer().min(1).max(100).default(20),
   furnaceId: Joi.number().integer().positive().allow(''),
   status: Joi.string().valid('PLANNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', '').allow(null),
+  search: Joi.string().allow('', null),
   from: Joi.date().allow('', null),
   to: Joi.date().allow('', null),
 });

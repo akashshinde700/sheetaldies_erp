@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
 import { formatDate } from '../../utils/formatters';
+import PrintHeader from '../../components/PrintHeader';
 
 function asGraph(v) {
   if (!v) return [];
@@ -120,10 +121,7 @@ export default function VHTRunsheetPrint() {
       </div>
 
       <div className="max-w-[210mm] mx-auto border border-slate-300 print:border-0 p-4 space-y-4 text-[11px] leading-snug">
-        <header className="text-center border-b border-slate-800 pb-2">
-          <div className="text-[10px] font-semibold tracking-wide">SHITAL VACUUM TREAT PVT. LTD.</div>
-          <div className="text-lg font-bold mt-1">VHT RUN SHEET</div>
-        </header>
+        <PrintHeader title="VHT RUN SHEET" docNo="QF-PD-03" revNo="00" showTuv={true} />
 
         <div className="grid grid-cols-2 gap-x-6 gap-y-1">
           <div><span className="font-semibold">Date:</span> {runDateStr}</div>

@@ -25,6 +25,7 @@ const InspectionForm = lazy(() => import('./pages/jobcard/InspectionForm'));
 
 const JobworkList = lazy(() => import('./pages/jobwork/JobworkList'));
 const JobworkForm = lazy(() => import('./pages/jobwork/JobworkForm'));
+const InwardEntryForm = lazy(() => import('./pages/jobwork/InwardEntryForm'));
 const JobworkDetail = lazy(() => import('./pages/jobwork/JobworkDetail'));
 const InwardOutwardRegister = lazy(() => import('./pages/jobwork/InwardOutwardRegister'));
 const JobworkPrint = lazy(() => import('./pages/jobwork/JobworkPrint'));
@@ -53,6 +54,7 @@ const PricingManagement = lazy(() => import('./pages/admin/PricingManagement'));
 
 const DispatchList = lazy(() => import('./pages/dispatch/DispatchList'));
 const DispatchChallanForm = lazy(() => import('./pages/dispatch/DispatchChallanForm'));
+const DispatchChallanPrint = lazy(() => import('./pages/dispatch/DispatchChallanPrint'));
 
 const PurchaseOrderList = lazy(() => import('./pages/purchase/PurchaseOrderList'));
 const PurchaseOrderPrint = lazy(() => import('./pages/purchase/PurchaseOrderPrint'));
@@ -71,8 +73,14 @@ const QuoteList = lazy(() => import('./pages/quotes/QuoteList'));
 const QuoteForm = lazy(() => import('./pages/quotes/QuoteForm'));
 const QuoteDetail = lazy(() => import('./pages/quotes/QuoteDetail'));
 
+const CustomerQuoteList   = lazy(() => import('./pages/quotes/CustomerQuoteList'));
+const CustomerQuoteForm   = lazy(() => import('./pages/quotes/CustomerQuoteForm'));
+const CustomerQuoteDetail = lazy(() => import('./pages/quotes/CustomerQuoteDetail'));
+const CustomerQuotePrint  = lazy(() => import('./pages/quotes/CustomerQuotePrint'));
+
 const AuditLogsViewer = lazy(() => import('./pages/admin/AuditLogsViewer'));
 const UIPolishDemo = lazy(() => import('./pages/UIPolishDemo'));
+const PendingDashboard = lazy(() => import('./pages/pending/PendingDashboard'));
 
 const PrivateRoute = ({ children, role }) => {
   const { user, initializing, isAdmin, isManager } = useAuth();
@@ -114,7 +122,9 @@ const AppRoutes = () => (
       <Route path="jobcards/:id/inspection" element={<InspectionForm />} />
       <Route path="jobwork"                element={<JobworkList />} />
       <Route path="jobwork/register"       element={<InwardOutwardRegister />} />
-      <Route path="jobwork/new"            element={<JobworkForm />} />
+      <Route path="pending"               element={<PendingDashboard />} />
+      <Route path="jobwork/inward-entry"   element={<InwardEntryForm />} />
+      <Route path="jobwork/new"            element={<Navigate to="/jobwork/inward-entry" replace />} />
       <Route path="jobwork/:id/edit"       element={<JobworkForm />} />
       <Route path="jobwork/:id"            element={<JobworkDetail />} />
       <Route path="jobwork/:id/print"       element={<JobworkPrint />} />
@@ -139,6 +149,7 @@ const AppRoutes = () => (
       <Route path="admin/audit-logs"       element={<PrivateRoute role="ADMIN"><AuditLogsViewer /></PrivateRoute>} />
       <Route path="dispatch"                  element={<DispatchList />} />
       <Route path="dispatch/new"              element={<DispatchChallanForm />} />
+      <Route path="dispatch/:id/print"        element={<DispatchChallanPrint />} />
       <Route path="dispatch/:id"              element={<DispatchChallanForm />} />
       <Route path="purchase"                  element={<PrivateRoute role="MANAGER"><PurchaseOrderList /></PrivateRoute>} />
       <Route path="purchase/:id/print"        element={<PrivateRoute role="MANAGER"><PurchaseOrderPrint /></PrivateRoute>} />
@@ -148,6 +159,11 @@ const AppRoutes = () => (
       <Route path="quotes/new"                element={<PrivateRoute role="MANAGER"><QuoteForm /></PrivateRoute>} />
       <Route path="quotes/:id"                element={<PrivateRoute role="MANAGER"><QuoteDetail /></PrivateRoute>} />
       <Route path="quotes/:id/edit"           element={<PrivateRoute role="MANAGER"><QuoteForm /></PrivateRoute>} />
+      <Route path="customer-quotes"           element={<PrivateRoute role="OPERATOR"><CustomerQuoteList /></PrivateRoute>} />
+      <Route path="customer-quotes/new"       element={<PrivateRoute role="OPERATOR"><CustomerQuoteForm /></PrivateRoute>} />
+      <Route path="customer-quotes/:id"       element={<PrivateRoute role="OPERATOR"><CustomerQuoteDetail /></PrivateRoute>} />
+      <Route path="customer-quotes/:id/edit"  element={<PrivateRoute role="OPERATOR"><CustomerQuoteForm /></PrivateRoute>} />
+      <Route path="customer-quotes/:id/print" element={<CustomerQuotePrint />} />
       <Route path="manufacturing/batches"     element={<PrivateRoute role="MANAGER"><ManufacturingBatchList /></PrivateRoute>} />
       <Route path="manufacturing/runsheet"    element={<PrivateRoute role="MANAGER"><VHTRunsheetList /></PrivateRoute>} />
       <Route path="manufacturing/runsheet/new" element={<PrivateRoute role="MANAGER"><VHTRunsheetForm /></PrivateRoute>} />

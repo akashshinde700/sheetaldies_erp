@@ -119,15 +119,15 @@ export default function InwardOutwardRegister() {
     <div className="space-y-5 animate-slide-up">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-extrabold text-slate-800 font-headline">Inward / Outward Register</h2>
+          <h2 className="text-xl font-extrabold text-slate-800 font-headline">Inward + Job Card Register</h2>
           <p className="text-xs text-slate-400 mt-0.5 max-w-3xl leading-relaxed">
-            Company → Challan → Material in → Process → Invoice → Dispatch → Balance & performance
+            Company → Challan → Material in → Job Card → Invoice → Dispatch → Balance & performance
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Link to="/jobwork/new" className="btn-primary whitespace-nowrap">
-            <span className="material-symbols-outlined text-[18px] shrink-0">add</span>
-            Add Challan
+          <Link to="/jobwork/inward-entry" className="btn-primary whitespace-nowrap">
+            <span className="material-symbols-outlined text-[18px] shrink-0">input</span>
+            New Inward + Job Card
           </Link>
           <button type="button" onClick={exportRows} className="btn-outline whitespace-nowrap">
             <span className="material-symbols-outlined text-[18px] shrink-0">file_download</span>

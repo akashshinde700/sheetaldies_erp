@@ -12,10 +12,10 @@ const ERROR_CODES = {
   NOT_FOUND: { code: 'NOT_FOUND', status: 404 },
   CONFLICT: { code: 'CONFLICT', status: 409 },
   DUPLICATE: { code: 'DUPLICATE', status: 409 },
-  DUPLICATE_GSTIN: { code: 'DUPLICATE_GSTIN', status: 409 },
-  DUPLICATE_PAN: { code: 'DUPLICATE_PAN', status: 409 },
-  DUPLICATE_EMAIL: { code: 'DUPLICATE_EMAIL', status: 409 },
-  DUPLICATE_INVOICE: { code: 'DUPLICATE_INVOICE', status: 409 },
+  DUPLICATE_GSTIN: { code: 'ERR_DUPLICATE_GSTIN', status: 409 },
+  DUPLICATE_PAN: { code: 'ERR_DUPLICATE_PAN', status: 409 },
+  DUPLICATE_EMAIL: { code: 'ERR_DUPLICATE_EMAIL', status: 409 },
+  DUPLICATE_INVOICE: { code: 'ERR_DUPLICATE_INVOICE', status: 409 },
   RATING_LIMITED: { code: 'RATE_LIMIT_EXCEEDED', status: 429 },
   
   // Server errors (5xx)

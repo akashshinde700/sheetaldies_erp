@@ -3,235 +3,528 @@ import { Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
 import { formatDate } from '../../utils/formatters';
 
+// ── SVT constants ─────────────────────────────────────────────
+const SVT = {
+  name:    'SHITAL VACUUM TREAT PVT LTD.',
+  addr1:   'Plot No.84/1, Sector No.10',
+  addr2:   'PCNTDA, Bhosari,',
+  addr3:   'Pune',
+  email:   'info@shitalgroup.com',
+};
+
+function CB({ checked }) {
+  return (
+    <span className="inline-flex items-center justify-center w-[11px] h-[11px] border border-black text-[8px] leading-none mr-0.5 flex-shrink-0">
+      {checked ? '✓' : ''}
+    </span>
+  );
+}
+
+const getImageUrl = (src) => {
+  if (!src) return null;
+  return src.startsWith('http') ? src : `${import.meta.env.VITE_API_URL}${src}`;
+};
+
+function SvtLogo({ size = 46 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 56 56" fill="none">
+      <circle cx="28" cy="28" r="27" fill="#0f172a" stroke="#0f172a" strokeWidth="2" />
+      <text x="28" y="35" textAnchor="middle" fill="white" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="16" letterSpacing="1">SVT</text>
+    </svg>
+  );
+}
+
+function TuvLogo({ size = 40 }) {
+  return (
+    <svg width={size * 1.4} height={size} viewBox="0 0 72 52" fill="none">
+      <rect x="1" y="1" width="70" height="50" rx="4" fill="white" stroke="#1e3a8a" strokeWidth="2" />
+      <text x="36" y="20" textAnchor="middle" fill="#1e3a8a" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="14" letterSpacing="1">TÜV</text>
+      <text x="36" y="33" textAnchor="middle" fill="#1e3a8a" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="9" letterSpacing="1">AUSTRIA</text>
+      <text x="36" y="44" textAnchor="middle" fill="#64748b" fontFamily="Arial,sans-serif" fontSize="7">CERTIFIED</text>
+    </svg>
+  );
+}
+
+// Fixed HT process rows (matching Excel rows 50-54)
+const HT_ROWS = ['SR-', 'HARDENING', '1 ST TEMP', '2 ND TEMP', '3 RD TEMP'];
+
 export default function JobCardPrint() {
   const { id } = useParams();
   const [jc, setJc] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError]   = useState(null);
 
   useEffect(() => {
     api.get(`/jobcards/${id}`)
-      .then(r => setJc(r.data.data))
+      .then((r) => setJc(r.data.data))
       .catch(() => setError('Job Card not found.'))
       .finally(() => setLoading(false));
   }, [id]);
 
-  if (loading) return <div className="p-10 text-slate-400">Loading Job Card details...</div>;
+  if (loading) return <div className="p-10 text-slate-400">Loading…</div>;
   if (error || !jc) return (
     <div className="p-10 space-y-2 text-center">
       <p className="text-rose-500 font-bold">{error || 'Job Card not found.'}</p>
-      <Link to="/jobcards" className="btn-ghost">← Back to List</Link>
+      <Link to="/jobcards" className="btn-ghost">← Back</Link>
     </div>
   );
 
+  const insp = jc.inspection || {};
+  const customer = jc.customer;
+  const custName = jc.customerNameSnapshot || customer?.name || '—';
+  const custAddr = jc.customerAddressSnapshot || customer?.address || '—';
+
+  // Challan items (all challan items flattened)
+  const challan = jc.challans?.[0];
+  const dcNo    = challan?.challanNo || '—';
+  const challanItems = jc.challans?.flatMap(ch => ch.items || []) || [];
+
+  // Fallback: single item from part
+  const items = challanItems.length > 0
+    ? challanItems
+    : jc.part ? [{ partName: jc.part.description, qty: jc.quantity, weight: jc.totalWeight }] : [];
+
+  const totalQty = items.reduce((s, it) => s + (Number(it.qty ?? it.quantity) || 0), 0);
+  const totalWt  = items.reduce((s, it) => s + (Number(it.weight ?? it.totalWeight) || 0), 0);
+
+  const material = jc.dieMaterial || challanItems[0]?.material || '—';
+  const htSpec   = jc.hrcRange?.replace(/\d.*/, '').trim() || jc.operationMode || 'HARDEN AND TEMPER';
+  const hrc      = jc.hrcRange || '—';
+
+  const distBefore = Array.isArray(insp.distortionBefore)
+    ? insp.distortionBefore.map(v => (typeof v === 'object' ? v.val : v))
+    : [];
+  const distAfter = Array.isArray(insp.distortionAfter)
+    ? insp.distortionAfter.map(v => (typeof v === 'object' ? v.val : v))
+    : [];
+
+  const ITEMS_8 = [0,1,2,3,4,5,6,7];
+
+  const imageUrls = [jc.image1, jc.image2].map(getImageUrl);
+
+  // Category name of the item group (e.g. "THREADROLL") — from partName or part description
+  const categoryName = challanItems[0]?.partName?.toUpperCase() || jc.part?.description?.toUpperCase() || '';
+
+  const td = (extra = '') => ({ style: { border: '1px solid black', padding: '3px 5px' }, className: extra });
+  const th = (extra = '') => ({ style: { border: '1px solid black', padding: '3px 5px', fontWeight: 'bold', background: '#f8f8f8' }, className: extra });
+
   return (
-    <div className="bg-slate-50 min-h-screen py-10 print:bg-white print:py-0">
+    <div className="bg-slate-100 py-4 print:bg-white print:py-0" style={{ fontFamily: 'Arial, sans-serif' }}>
       <style>{`
         @media print {
           .no-print { display: none !important; }
-          .page { 
-            box-shadow: none !important; 
-            margin: 0 !important; 
-            border: none !important; 
-            width: 100% !important;
-            max-width: 100% !important;
-          }
-          body { background: white !important; }
-          @page { margin: 1cm; size: A4; }
+          .page { box-shadow: none !important; margin: 0 !important; }
+          body { background: white !important; -webkit-print-color-adjust: exact; }
+          @page { margin: 8mm; size: A4 portrait; }
         }
       `}</style>
 
-      {/* Toolbar */}
-      <div className="no-print max-w-[800px] mx-auto mb-6 flex items-center justify-between px-4">
-        <Link to={`/jobcards`} className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition-colors font-bold">
-          <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-          Back to List
-        </Link>
-        <button 
-          onClick={() => window.print()}
-          className="btn-primary shadow-indigo-200/50"
-        >
-          <span className="material-symbols-outlined text-[20px]">print</span>
-          Print Job Card
-        </button>
+      {/* Action bar */}
+      <div className="no-print max-w-[900px] mx-auto mb-3 flex items-center gap-2 px-2">
+        <Link to={`/jobcards/${id}`} className="btn-ghost text-sm">← Back</Link>
+        <button className="btn-primary ml-auto text-sm" onClick={() => window.print()}>Print / Save PDF</button>
       </div>
 
-      <div className="page max-w-[800px] mx-auto bg-white shadow-2xl border-2 border-slate-900 print:shadow-none">
-        {/* Company Header */}
-        <div className="p-6 border-b-2 border-slate-900 flex justify-between items-center bg-slate-50">
-          <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tighter uppercase italic">SHEETAL DIES & TOOLS</h1>
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Production Tracking Card · Internal Copy</p>
-          </div>
-          <div className="text-right">
-            <div className="bg-slate-900 text-white px-6 py-2 rounded-lg text-xl font-black font-mono shadow-md">
-              {jc.jobCardNo}
-            </div>
-          </div>
+      {/* ══════════════════════════════════════════════════════
+          PAGE 1 — JOB CARD
+      ══════════════════════════════════════════════════════ */}
+      <div className="page max-w-[900px] mx-auto bg-white shadow-lg text-[10px]" style={{ border: '1px solid black' }}>
+
+        {/* ── HEADER ── */}
+        <table className="w-full" style={{ borderCollapse: 'collapse', borderBottom: '2px solid black' }}>
+          <tbody>
+            <tr>
+              {/* Factory */}
+              <td style={{ width: '35%', borderRight: '1px solid black', padding: '6px 8px', verticalAlign: 'top' }}>
+                <div className="flex items-start gap-2">
+                  <SvtLogo size={44} />
+                  <div>
+                    <div style={{ fontSize: 9, color: '#555', fontWeight: 'bold' }}>Factory:</div>
+                    <div style={{ fontWeight: 'bold', fontSize: 11 }}>{SVT.name}</div>
+                    <div style={{ fontSize: 9 }}>{SVT.addr1}</div>
+                    <div style={{ fontSize: 9 }}>{SVT.addr2} {SVT.addr3}</div>
+                    <div style={{ fontSize: 9 }}>{SVT.email}</div>
+                  </div>
+                </div>
+              </td>
+              {/* Title + Reg Office + TUV */}
+              <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div style={{ fontSize: 9, color: '#555', fontWeight: 'bold' }}>Registered Office:</div>
+                    <div style={{ fontWeight: 'bold', fontSize: 11 }}>{SVT.name}</div>
+                    <div style={{ fontSize: 9 }}>{SVT.addr1}</div>
+                    <div style={{ fontSize: 9 }}>{SVT.addr2} {SVT.addr3}</div>
+                    <div style={{ fontSize: 9 }}>{SVT.email}</div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 ml-4">
+                    <TuvLogo size={38} />
+                    <table style={{ fontSize: 8, borderCollapse: 'collapse', border: '1px solid black', marginTop: 4 }}>
+                      <tbody>
+                        <tr><td style={{ border: '1px solid black', padding: '1px 5px', fontWeight: 'bold' }}>DOC NO</td><td style={{ border: '1px solid black', padding: '1px 5px' }}>QF-PD-01</td></tr>
+                        <tr><td style={{ border: '1px solid black', padding: '1px 5px', fontWeight: 'bold' }}>REVISION NO</td><td style={{ border: '1px solid black', padding: '1px 5px' }}>01</td></tr>
+                        <tr><td style={{ border: '1px solid black', padding: '1px 5px', fontWeight: 'bold' }}>REV. DATE</td><td style={{ border: '1px solid black', padding: '1px 5px' }}>—</td></tr>
+                        <tr><td style={{ border: '1px solid black', padding: '1px 5px', fontWeight: 'bold' }}>PAGE NO</td><td style={{ border: '1px solid black', padding: '1px 5px' }}>1 Of 2</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div style={{ textAlign: 'center', fontWeight: 900, fontSize: 16, letterSpacing: '0.15em', marginTop: 4 }}>JOB CARD</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* ── CP NUMBER ── */}
+        <div style={{ borderBottom: '1px solid black', padding: '3px 8px', fontSize: 9, fontWeight: 'bold' }}>
+          CP NO — SVT/047/2022-23
         </div>
 
-        {/* Primary Info */}
-        <div className="grid grid-cols-2 border-b-2 border-slate-900">
-          <div className="p-5 border-r border-slate-900 space-y-4">
-            <div>
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">CUSTOMER NAME</p>
-              <p className="text-lg font-black text-slate-900 uppercase leading-none">{jc.party?.name || jc.customerName || '—'}</p>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">PART NO / DIE NO</p>
-              <p className="text-sm font-black text-indigo-700 font-mono italic">{jc.dieNo || jc.part?.partNo || '—'}</p>
-              </div>
-              <div>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">DRAWING NO</p>
-                <p className="text-sm font-black text-slate-700 font-mono">{jc.part?.drawingNo || '—'}</p>
-              </div>
-            </div>
-          </div>
-          <div className="p-5 flex flex-col justify-center space-y-4 bg-slate-50/30">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">JOB DATE</p>
-                <p className="text-sm font-black text-slate-800 font-mono">{formatDate(jc.createdAt)}</p>
-              </div>
-              <div>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">TARGET DATE</p>
-                <p className="text-sm font-black text-rose-600 font-mono">{formatDate(jc.dueDate)}</p>
-              </div>
-            </div>
-            <div>
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">MACHINE ALLOCATED</p>
-              <p className="text-sm font-black text-slate-800 uppercase">{jc.machine?.name || jc.machineCode || '—'}</p>
-            </div>
-          </div>
+        {/* ── CUSTOMER + JOB DETAILS ── */}
+        <table className="w-full" style={{ borderCollapse: 'collapse', borderBottom: '1px solid black' }}>
+          <tbody>
+            <tr>
+              <td style={{ width: '55%', borderRight: '1px solid black', padding: '6px 8px', verticalAlign: 'top' }}>
+                <div style={{ fontWeight: 'bold', marginBottom: 2 }}>Customer's:</div>
+                <div style={{ fontWeight: 'bold', fontSize: 11 }}>{custName}</div>
+                <div style={{ fontSize: 9, whiteSpace: 'pre-wrap', lineHeight: 1.4, marginTop: 2 }}>{custAddr}</div>
+              </td>
+              <td style={{ padding: '6px 8px', verticalAlign: 'top', fontSize: 9.5 }}>
+                <table className="w-full">
+                  <tbody>
+                    <tr><td style={{ paddingRight: 8, paddingBottom: 2, color: '#555', whiteSpace: 'nowrap' }}>Certificate No.</td><td style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>: {jc.certificateNo || '—'}</td></tr>
+                    <tr><td style={{ paddingRight: 8, paddingBottom: 2, color: '#555' }}>Job Card No.</td><td style={{ fontFamily: 'monospace' }}>: {jc.jobCardNo || '—'}</td></tr>
+                    <tr><td style={{ paddingRight: 8, paddingBottom: 2, color: '#555' }}>Your PO No.</td><td style={{ fontFamily: 'monospace' }}>: {jc.yourNo || '—'}</td></tr>
+                    <tr><td style={{ paddingRight: 8, paddingBottom: 2, color: '#555' }}>Your DC No.</td><td style={{ fontFamily: 'monospace' }}>: {dcNo}</td></tr>
+                    <tr><td style={{ paddingRight: 8, paddingBottom: 2, color: '#555' }}>Issue Date</td><td style={{ fontFamily: 'monospace' }}>: {formatDate(jc.issueDate) || '—'}</td></tr>
+                    <tr><td style={{ paddingRight: 8, color: '#555' }}>Issue By</td><td style={{ fontFamily: 'monospace' }}>: {jc.issueBy || jc.createdBy?.name || '—'}</td></tr>
+                  </tbody>
+                </table>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* ── DISPATCH MODE ── */}
+        <table className="w-full" style={{ borderCollapse: 'collapse', borderBottom: '1px solid black' }}>
+          <tbody>
+            <tr>
+              <td style={{ padding: '4px 8px', borderRight: '1px solid black' }}>
+                <span style={{ fontWeight: 'bold', marginRight: 8 }}>DISPATCH MODE:-</span>
+                <span className="mr-4"><CB checked={jc.dispatchByOurVehicle} /> BY OUR VEHICLE</span>
+                <span className="mr-4"><CB checked={jc.dispatchByCourier} /> BY COURIER</span>
+                <span><CB checked={jc.collectedByCustomer} /> COLLECTED BY CUSTOMER</span>
+              </td>
+              <td style={{ padding: '4px 8px', width: 200, verticalAlign: 'top' }}>
+                <div style={{ fontWeight: 'bold', marginBottom: 2 }}>Special Instruction</div>
+                <div><CB checked={jc.specInstrCert} /> CERTIFICATE</div>
+                <div><CB checked={jc.specInstrMPIRep} /> MPI REPORT</div>
+                <div><CB checked={jc.specInstrGraph} /> PROCESS GRAPH</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* ── MATERIAL / HT SPEC / HRC ── */}
+        <table className="w-full" style={{ borderCollapse: 'collapse', borderBottom: '1px solid black' }}>
+          <tbody>
+            <tr>
+              <td style={{ border: '1px solid black', padding: '4px 8px', width: 70, fontWeight: 'bold', fontSize: 11 }}>{material}</td>
+              <td style={{ border: '1px solid black', padding: '4px 8px' }}>
+                <span style={{ color: '#555', marginRight: 6 }}>Heat Treatment Specification</span>
+                <span style={{ fontWeight: 'bold' }}>{htSpec}</span>
+              </td>
+              <td style={{ border: '1px solid black', padding: '4px 8px', width: 130, fontWeight: 900, fontSize: 12, textAlign: 'center' }}>{hrc}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* ── ITEMS TABLE ── */}
+        <table className="w-full" style={{ borderCollapse: 'collapse', borderBottom: '1px solid black' }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid black' }}>
+              <th {...th('text-left')} style={{ ...th().style, width: 40 }}>Item</th>
+              <th {...th('text-left')}>Description</th>
+              <th {...th('text-center')} style={{ ...th().style, width: 100 }}>Quantity (Pcs)</th>
+              <th {...th('text-center')} style={{ ...th().style, width: 100 }}>Weight (Kg)</th>
+              <th {...th('text-center')} style={{ ...th().style, width: 100 }}>Remarks</th>
+            </tr>
+          </thead>
+          <tbody>
+            {/* Category sub-heading row */}
+            {categoryName && (
+              <tr>
+                <td colSpan={5} style={{ border: '1px solid black', padding: '2px 6px', fontWeight: 'bold', fontSize: 9, background: '#f9f9f9' }}>
+                  {categoryName}
+                </td>
+              </tr>
+            )}
+            {items.map((it, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid #ddd' }}>
+                <td {...td('text-center')}>{i + 1}</td>
+                <td {...td()}>{it.partName || it.description || '—'}</td>
+                <td {...td('text-center font-mono')}>{it.qty ?? it.quantity ?? '—'}</td>
+                <td {...td('text-center font-mono')}>{it.weight != null ? Number(it.weight).toFixed(2) : (it.totalWeight != null ? Number(it.totalWeight).toFixed(2) : '—')}</td>
+                <td {...td('text-center')}>{it.remarks || ''}</td>
+              </tr>
+            ))}
+            {/* Empty filler rows */}
+            {Array.from({ length: Math.max(0, 4 - items.length) }).map((_, i) => (
+              <tr key={`e${i}`} style={{ height: 20 }}>
+                <td style={{ border: '1px solid black' }}></td>
+                <td style={{ border: '1px solid black' }}></td>
+                <td style={{ border: '1px solid black' }}></td>
+                <td style={{ border: '1px solid black' }}></td>
+                <td style={{ border: '1px solid black' }}></td>
+              </tr>
+            ))}
+            {/* Total */}
+            <tr style={{ borderTop: '1px solid black' }}>
+              <td colSpan={2} style={{ border: '1px solid black', padding: '3px 6px', fontWeight: 'bold', textAlign: 'right' }}>Total</td>
+              <td style={{ border: '1px solid black', padding: '3px 6px', fontWeight: 'bold', textAlign: 'center', fontFamily: 'monospace' }}>{totalQty || '—'}</td>
+              <td style={{ border: '1px solid black', padding: '3px 6px', fontWeight: 'bold', textAlign: 'center', fontFamily: 'monospace' }}>{totalWt ? totalWt.toFixed(2) : '—'}</td>
+              <td style={{ border: '1px solid black' }}></td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* ── SPECIAL REQUIREMENTS + DELIVERY DATE ── */}
+        <table className="w-full" style={{ borderCollapse: 'collapse', borderBottom: '1px solid black' }}>
+          <tbody>
+            <tr>
+              <td style={{ width: '50%', borderRight: '1px solid black', padding: '4px 8px', minHeight: 30 }}>
+                <span style={{ fontWeight: 'bold' }}>Special Requirements: </span>
+                {jc.specialRequirements || ''}
+              </td>
+              <td style={{ padding: '4px 8px' }}>
+                <span style={{ fontWeight: 'bold' }}>Delivery Date: </span>
+                {formatDate(jc.dueDate) || '—'}
+              </td>
+            </tr>
+            <tr>
+              <td colSpan={2} style={{ borderTop: '1px solid black', padding: '4px 8px', minHeight: 24 }}>
+                <span style={{ fontWeight: 'bold' }}>Precautions During Production &amp; Final Inspection: </span>
+                {jc.precautions || ''}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* ── PAGE 1 FOOTER ── */}
+        <div style={{ padding: '3px 8px', fontSize: 8, color: '#555' }}>
+          QF-PD-01 &nbsp;&nbsp; Effective Date: 01-04-2019 &nbsp;&nbsp; Revision: 01 &nbsp;&nbsp; Revision Date: 00 &nbsp;&nbsp; Page 1 of 2
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════
+          PAGE 2 — INCOMING INSPECTION + HT PROCESS + DISTORTION
+      ══════════════════════════════════════════════════════ */}
+      <div className="page max-w-[900px] mx-auto bg-white shadow-lg text-[10px] mt-4 print:mt-0" style={{ border: '1px solid black', pageBreakBefore: 'always' }}>
+
+        {/* ── INCOMING INSPECTION HEADER ── */}
+        <div style={{ borderBottom: '1px solid black', padding: '4px 8px', fontWeight: 'bold', fontSize: 11 }}>
+          INCOMING INSPECTION
         </div>
 
-        {/* Technical Specification */}
-        <div className="p-5 border-b-2 border-slate-900">
-          <h3 className="text-[11px] font-black text-slate-900 bg-slate-100 px-3 py-1.5 inline-block rounded mb-4 tracking-widest border border-slate-200">TECHNICAL SPECIFICATIONS</h3>
-          <div className="grid grid-cols-4 gap-6 text-center">
-            <div className="border-r border-slate-100 last:border-0 pr-4 last:pr-0">
-              <p className="text-[9px] font-black text-slate-400 uppercase">DIE MATERIAL</p>
-              <p className="text-sm font-black text-slate-900 uppercase">{jc.dieMaterial || jc.part?.material || '—'}</p>
-            </div>
-            <div className="border-r border-slate-100 last:border-0 px-4 last:pr-0">
-              <p className="text-[9px] font-black text-slate-400 uppercase">HARDNESS REQ.</p>
-              <p className="text-sm font-black text-slate-900">{jc.hrcRange || (jc.hardnessMin ? `${jc.hardnessMin}-${jc.hardnessMax} HRC` : '—')}</p>
-            </div>
-            <div className="border-r border-slate-100 last:border-0 px-4 last:pr-0">
-              <p className="text-[9px] font-black text-slate-400 uppercase">QTY (PCS)</p>
-              <p className="text-sm font-black text-slate-900">{jc.quantity || 0}</p>
-            </div>
-            <div className="px-4 last:pr-0">
-              <p className="text-[9px] font-black text-slate-400 uppercase">TOTAL WEIGHT</p>
-              <p className="text-sm font-black text-slate-900">{jc.totalWeight || 0.00} KGS</p>
-            </div>
-          </div>
-        </div>
+        {/* ── CATEGORIZATION | PROCESS | INSPECTION RIGHT PANEL ── */}
+        <table className="w-full" style={{ borderCollapse: 'collapse', borderBottom: '1px solid black' }}>
+          <thead>
+            <tr>
+              <th style={{ border: '1px solid black', padding: '3px 6px', width: '22%', textAlign: 'left', fontSize: 9 }}>Categorization</th>
+              <th style={{ border: '1px solid black', padding: '3px 6px', width: '22%', textAlign: 'left', fontSize: 9 }}>Process</th>
+              <th style={{ border: '1px solid black', padding: '3px 6px', textAlign: 'left', fontSize: 9 }} colSpan={2}>INCOMING INSPECTION BY:</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              {/* Categorization */}
+              <td style={{ border: '1px solid black', padding: '4px 6px', verticalAlign: 'top' }}>
+                <div><CB checked={insp.catNormal} /> NORMAL</div>
+                <div><CB checked={insp.catWelded ?? false} /> WELDED</div>
+                <div><CB checked={insp.catCrackRisk} /> CRACK OR CRACK RISK</div>
+                <div><CB checked={insp.catDistortionRisk} /> DISTORTION RISK</div>
+                <div><CB checked={insp.catCriticalFinishing} /> CRITICAL FINISHING</div>
+                <div><CB checked={insp.catDentDamage} /> DENT / DAMAGE</div>
+                <div><CB checked={insp.catRusty ?? false} /> RUSTY</div>
+                <div><CB checked={insp.catOthers} /> OTHERS</div>
+              </td>
+              {/* Process */}
+              <td style={{ border: '1px solid black', padding: '4px 6px', verticalAlign: 'top' }}>
+                <div><CB checked={insp.procStressRelieving} /> STRESS RELIVING</div>
+                <div><CB checked={insp.procHardening} /> HARDENING</div>
+                <div><CB checked={insp.procTempering} /> TEMPERING</div>
+                <div><CB checked={insp.procAnnealing} /> ANNEALING</div>
+                <div><CB checked={insp.procBrazing} /> BRAZING</div>
+                <div><CB checked={insp.procPlasmaNitriding} /> PLASMA NITRIDING</div>
+                <div><CB checked={insp.procSubZero} /> SUB ZERO</div>
+                <div><CB checked={insp.procSoakClean} /> SOAK CLEAN</div>
+              </td>
+              {/* Visual / MPI / Hardness */}
+              <td style={{ border: '1px solid black', padding: '4px 6px', verticalAlign: 'top', width: '28%' }}>
+                <div style={{ fontWeight: 'bold', fontSize: 9, marginBottom: 2 }}>VISUAL INSPECTION</div>
+                <div><CB checked={insp.visualBefore} /> BEFORE</div>
+                <div><CB checked={insp.visualAfter ?? true} /> AFTER</div>
+                <div style={{ marginTop: 6, fontWeight: 'bold', fontSize: 9, marginBottom: 2 }}>MPI INSPECTION</div>
+                <div><CB checked={insp.mpiBefore} /> BEFORE</div>
+                <div><CB checked={insp.mpiAfter} /> AFTER</div>
+                <div><CB checked={insp.mpiNil ?? !insp.mpiAfter} /> NIL</div>
+              </td>
+              {/* Require + Achieved hardness */}
+              <td style={{ padding: '4px 6px', verticalAlign: 'top', width: '28%' }}>
+                <div style={{ border: '1px solid black', marginBottom: 4 }}>
+                  <div style={{ borderBottom: '1px solid black', padding: '2px 4px', fontWeight: 'bold', fontSize: 9 }}>REQUIRE HARDNESS</div>
+                  <div style={{ padding: '4px', fontWeight: 900, fontSize: 12 }}>
+                    {insp.requiredHardnessMin && insp.requiredHardnessMax
+                      ? `${insp.requiredHardnessMin}-${insp.requiredHardnessMax} ${insp.hardnessUnit || 'HRC'}`
+                      : (jc.hrcRange || '—')}
+                  </div>
+                </div>
+                <div style={{ border: '1px solid black' }}>
+                  <div style={{ borderBottom: '1px solid black', padding: '2px 4px', fontWeight: 'bold', fontSize: 9 }}>ACHIVED HARDNESS</div>
+                  <div style={{ padding: '4px', fontWeight: 900, fontSize: 12 }}>
+                    {insp.achievedHardness ? `${insp.achievedHardness} ${insp.hardnessUnit || 'HRC'}` : '—'}
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
 
-        {/* Process Path */}
-        <div className="p-5 min-h-[300px]">
-          <h3 className="text-[11px] font-black text-slate-900 bg-slate-100 px-3 py-1.5 inline-block rounded mb-4 tracking-widest border border-slate-200 uppercase">Process Workflow & Checkpoints</h3>
-          <table className="w-full text-xs font-bold divide-y divide-slate-100">
+        {/* ── HEAT TREATMENT PROCESS TABLE ── */}
+        <div style={{ borderBottom: '1px solid black' }}>
+          <div style={{ padding: '3px 8px', fontWeight: 'bold', display: 'flex', gap: 20, borderBottom: '1px solid black' }}>
+            <span>HEAT TREATMENT PROCESS</span>
+            <span style={{ fontWeight: 'normal' }}>CYCLE NO: <span style={{ fontFamily: 'monospace' }}>{jc.heatNo || '—'}</span></span>
+          </div>
+          <table className="w-full" style={{ borderCollapse: 'collapse' }}>
             <thead>
-              <tr className="bg-slate-50 text-slate-400 uppercase text-[9px] tracking-widest">
-                <th className="p-3 text-left w-12 text-center">SR</th>
-                <th className="p-3 text-left">PROCESS / OPERATION</th>
-                <th className="p-3 text-center w-32">ESTIMATED (HRS)</th>
-                <th className="p-3 text-center w-32">ACTUAL TIME</th>
-                <th className="p-3 text-center w-32">OPERATOR SIGN</th>
+              <tr style={{ fontSize: 8 }}>
+                {['EQIPMENT','PROCESS','TEMP/TIME','START TIME','END TIME','DATE','LOADING BY','RESULT','SIGN'].map(h => (
+                  <th key={h} style={{ border: '1px solid black', padding: '2px 3px', fontWeight: 'bold' }}>{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {(jc.inspection?.heatProcesses?.length > 0 
-                ? jc.inspection.heatProcesses.map(hp => hp.processType?.name || hp.equipment || 'Process')
-                : [
-                    'Incoming Inspection',
-                    'Vacuum Hardening',
-                    'Tempering - Cycle 1',
-                    'Tempering - Cycle 2',
-                    'Final Inspection',
-                    'Quality Certification',
-                  ]
-              ).map((op, idx) => (
-                <tr key={`${op}-${idx}`} className="border-b border-slate-50">
-                  <td className="p-4 text-center text-slate-300 font-mono">{idx + 1}</td>
-                  <td className="p-4 text-slate-900 uppercase font-black">{op}</td>
-                  <td className="p-4 border-l border-slate-50"></td>
-                  <td className="p-4 border-l border-slate-50 border-r"></td>
-                  <td className="p-4"></td>
-                </tr>
-              ))}
-              {/* Extra rows for manual processes */}
-              {Array.from({ length: 4 }).map((_, i) => (
-                <tr key={`extra-${i}`} className="border-b border-slate-50 h-10">
-                  <td className="border-r border-slate-50"></td>
-                  <td className="border-r border-slate-50"></td>
-                  <td className="border-r border-slate-50"></td>
-                  <td className="border-r border-slate-50"></td>
-                  <td></td>
-                </tr>
-              ))}
+              {HT_ROWS.map((row, i) => {
+                const hp = insp.heatProcesses?.[i] || {};
+                return (
+                  <tr key={i} style={{ height: 20 }}>
+                    <td style={{ border: '1px solid black', padding: '2px 3px', fontSize: 8 }}>{hp.equipment || ''}</td>
+                    <td style={{ border: '1px solid black', padding: '2px 3px', fontSize: 8, fontWeight: 'bold' }}>{row}</td>
+                    <td style={{ border: '1px solid black', padding: '2px 3px', fontSize: 8 }}>{hp.tempTime || ''}</td>
+                    <td style={{ border: '1px solid black', padding: '2px 3px', fontSize: 8 }}>{hp.startTime ? new Date(hp.startTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}</td>
+                    <td style={{ border: '1px solid black', padding: '2px 3px', fontSize: 8 }}>{hp.endTime ? new Date(hp.endTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}</td>
+                    <td style={{ border: '1px solid black', padding: '2px 3px', fontSize: 8 }}>{hp.processDate ? formatDate(hp.processDate) : ''}</td>
+                    <td style={{ border: '1px solid black', padding: '2px 3px', fontSize: 8 }}>{hp.loadingBy || ''}</td>
+                    <td style={{ border: '1px solid black', padding: '2px 3px', fontSize: 8 }}>{hp.result || ''}</td>
+                    <td style={{ border: '1px solid black', padding: '2px 3px', fontSize: 8 }}></td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
 
-        {/* Visual Documentation (New Section) */}
-        {(jc.image1 || jc.image2 || jc.image3 || jc.image4 || jc.image5) && (
-          <div className="p-5 border-b-2 border-slate-900 page-break-before-auto">
-            <h3 className="text-[11px] font-black text-slate-900 bg-slate-100 px-3 py-1.5 inline-block rounded mb-4 tracking-widest border border-slate-200 uppercase">Visual Documentation / Part Orientation</h3>
-            <div className="grid grid-cols-3 gap-2">
-              {[jc.image1, jc.image2, jc.image3, jc.image4, jc.image5].filter(Boolean).map((img, idx) => (
-                <div key={idx} className="aspect-video border-2 border-slate-100 rounded-lg overflow-hidden flex items-center justify-center bg-slate-50">
-                  <img 
-                    src={img.startsWith('http') ? img : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${img}`} 
-                    alt={`Part Reference ${idx + 1}`}
-                    className="max-w-full max-h-full object-contain"
-                  />
+        {/* ── DISTORTION + HARDNESS + PACKED ── */}
+        <table className="w-full" style={{ borderCollapse: 'collapse', borderBottom: '1px solid black' }}>
+          <tbody>
+            <tr>
+              {/* Distortion table */}
+              <td style={{ verticalAlign: 'top', padding: '4px 6px', borderRight: '1px solid black' }}>
+                <table style={{ borderCollapse: 'collapse', fontSize: 8 }}>
+                  <thead>
+                    <tr>
+                      <th colSpan={9} style={{ border: '1px solid black', padding: '2px 4px', fontWeight: 'bold' }}>DISTORTION</th>
+                    </tr>
+                    <tr>
+                      <th style={{ border: '1px solid black', padding: '2px 4px', fontWeight: 'bold' }}>ITEM</th>
+                      {ITEMS_8.map(i => (
+                        <th key={i} style={{ border: '1px solid black', padding: '2px 6px', textAlign: 'center' }}>{i + 1}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ border: '1px solid black', padding: '2px 4px', fontWeight: 'bold' }}>BEFORE</td>
+                      {ITEMS_8.map(i => (
+                        <td key={i} style={{ border: '1px solid black', padding: '2px 4px', textAlign: 'center' }}>
+                          {distBefore[i] ?? (i === 0 ? 'NA' : '')}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td style={{ border: '1px solid black', padding: '2px 4px', fontWeight: 'bold' }}>AFTER:</td>
+                      {ITEMS_8.map(i => (
+                        <td key={i} style={{ border: '1px solid black', padding: '2px 4px', textAlign: 'center' }}>
+                          {distAfter[i] ?? (i === 0 ? 'NA' : '')}
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </td>
+              {/* HARDNESS AFTER + PACKED */}
+              <td style={{ verticalAlign: 'top', padding: '4px 6px', width: 200 }}>
+                <table style={{ borderCollapse: 'collapse', fontSize: 8, width: '100%' }}>
+                  <tbody>
+                    <tr><td colSpan={2} style={{ border: '1px solid black', padding: '2px 4px', fontWeight: 'bold' }}>HARDNESS AFTER</td></tr>
+                    {[1,2,3,4].map(n => (
+                      <tr key={n}>
+                        <td style={{ border: '1px solid black', padding: '2px 4px', width: 20, fontWeight: 'bold' }}>{n}</td>
+                        <td style={{ border: '1px solid black', padding: '2px 4px', fontFamily: 'monospace' }}>
+                          {insp[`hardnessAfter${n}`] || ''}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div style={{ border: '1px solid black', marginTop: 4 }}>
+                  <div style={{ borderBottom: '1px solid black', padding: '2px 4px', fontWeight: 'bold', fontSize: 8 }}>PACKED QUANTITY</div>
+                  <div style={{ padding: '3px 4px', fontFamily: 'monospace', fontSize: 8 }}>{insp.packedQty || ''}</div>
                 </div>
+                <div style={{ border: '1px solid black', marginTop: 4 }}>
+                  <div style={{ borderBottom: '1px solid black', padding: '2px 4px', fontWeight: 'bold', fontSize: 8 }}>PACKED BY</div>
+                  <div style={{ padding: '3px 4px', fontSize: 8 }}>{insp.packedBy || ''}</div>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* ── JOB IMAGES ── */}
+        <div style={{ borderBottom: '1px solid black' }}>
+          <div style={{ borderBottom: '1px solid black', padding: '3px 8px', fontWeight: 'bold' }}>JOB IMAGE</div>
+          <div style={{ display: 'flex', gap: 8, padding: 8 }}>
+            {[0, 1].map(n => (
+              <div key={n} style={{ border: '1px solid black', width: 140, height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {imageUrls[n]
+                  ? <img src={imageUrls[n]} alt={`Job ${n+1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <span style={{ fontSize: 9, color: '#aaa' }}>{n + 1}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── SIGNATURE ROW ── */}
+        <table className="w-full" style={{ borderCollapse: 'collapse', borderBottom: '1px solid black' }}>
+          <tbody>
+            <tr>
+              {['INCOMING INSPECTION BY', 'FINAL INSPECTION BY', 'APPROVED BY:'].map(label => (
+                <td key={label} style={{ border: '1px solid black', padding: '4px 6px', width: '33%' }}>
+                  <div style={{ fontWeight: 'bold', fontSize: 8, marginBottom: 18 }}>{label}</div>
+                </td>
               ))}
-            </div>
-            <p className="text-[8px] text-slate-400 mt-2 italic font-bold">Note: Photos provided for identification and critical orientation reference only.</p>
-          </div>
-        )}
+            </tr>
+          </tbody>
+        </table>
 
-        {/* Footer Area */}
-        <div className="grid grid-cols-2 bg-slate-50 border-t-2 border-slate-900">
-          <div className="p-6 border-r border-slate-900 space-y-4">
-            <div className="space-y-1">
-              <p className="text-[9px] font-black text-slate-400 uppercase mb-2">SPECIAL LOADING INSTRUCTIONS</p>
-              <div className="h-20 border-2 border-dashed border-slate-200 rounded-lg p-3 text-[10px] text-slate-400 italic">
-                {jc.specialInstructions || 'No special loading instructions provided for this job card.'}
-              </div>
-            </div>
-          </div>
-          <div className="p-6 flex flex-col justify-between">
-            <div className="text-right">
-              <p className="text-[9px] font-black text-slate-400 uppercase">APPROVED BY</p>
-              <p className="text-xs font-black text-slate-900 uppercase mt-1">Management / QA Dept</p>
-            </div>
-            <div className="text-right flex justify-end gap-10 items-end">
-              <div className="text-center">
-                <div className="h-10 w-24 border-b border-slate-400 mx-auto" />
-                <p className="text-[8px] font-black text-slate-400 uppercase mt-1">SHOP SUPERVISOR</p>
-              </div>
-              <div className="text-center">
-                <div className="h-10 w-24 border-b border-slate-400 mx-auto" />
-                <p className="text-[8px] font-black text-slate-400 uppercase mt-1">FINAL QC</p>
-              </div>
-            </div>
-          </div>
+        {/* ── PAGE 2 FOOTER ── */}
+        <div style={{ padding: '3px 8px', fontSize: 8, color: '#555' }}>
+          QF-PD-01 &nbsp;&nbsp; Effective Date: 01/04/2019 &nbsp;&nbsp; Revision: 00 &nbsp;&nbsp; Revision Date: 00 &nbsp;&nbsp; Page 2 of 2
         </div>
-
-        <div className="p-3 bg-slate-900 flex justify-between items-center px-6">
-          <p className="text-[9px] font-black text-white/50 uppercase tracking-widest">Job Card · Reference ID: {jc.id}</p>
-          <p className="text-[9px] font-black text-white/50 uppercase tracking-widest">SHEETAL DIES ERP · {formatDate(new Date())}</p>
+        <div style={{ borderTop: '1px solid #ddd', padding: '3px 8px', fontSize: 8, color: '#555' }}>
+          <strong>Color Code for Job Card —</strong> WHITE: Regular &nbsp; RED: Rework &nbsp; BLUE: New Development &nbsp; YELLOW: Stress Relieving &amp; Other Process.
         </div>
-      </div>
-      
-      {/* Visual Indicator for paper cut */}
-      <div className="no-print max-w-[800px] mx-auto mt-4 text-center">
-        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest italic">A4 Vertical (Portrait) Layout Optimized</p>
       </div>
     </div>
   );

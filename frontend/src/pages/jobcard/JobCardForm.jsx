@@ -29,8 +29,8 @@ export default function JobCardForm() {
     issueDate: '', issueBy: '',
     specInstrCert: false, specInstrMPIRep: false, specInstrGraph: false,
     certificateNo: '', customerNameSnapshot: '', customerAddressSnapshot: '',
-    factoryName: 'SHITAL VACUUM TREAT PVT LTD.', factoryAddress: 'Plot No.84/1, Sector No.10, PCNTDA, Bhosari, Pune',
-    contactEmail: 'info@shitalgroup.com',
+    factoryName: 'SHEETAL DIES & TOOLS PVT. LTD.', factoryAddress: 'OM Sai Industrial Premises Co.Op.Soc., Plot No. 84/2, Sector No. 10, PCNTDA, Bhosari, Pune – 411026',
+    contactEmail: 'info@sheetaldies.in',
     dispatchByOurVehicle: false, dispatchByCourier: false, collectedByCustomer: false,
     hrcRange: '', specialRequirements: '', precautions: '',
     documentNo: 'QF-PD-01', revisionNo: '01', revisionDate: '', pageNo: '1 OF 2',
@@ -49,6 +49,8 @@ export default function JobCardForm() {
   const [showAddForm,  setShowAddForm]  = useState(false);
   const [newPart,      setNewPart]      = useState({ partNo: '', description: '' });
   const [savingPart,   setSavingPart]   = useState(false);
+  const [challanNoLookup, setChallanNoLookup] = useState('');
+  const [creatingFromChallan, setCreatingFromChallan] = useState(false);
   const partWrapRef = useRef(null);
   const partInputRef = useRef(null);
 
@@ -200,29 +202,70 @@ export default function JobCardForm() {
     }
   };
 
-  const handleImageChange = (i, file) => setImages(p => ({ ...p, [i]: file }));
+    const handleCreateFromChallan = async (e) => {
+      e.preventDefault();
+      const challanNo = challanNoLookup.trim();
+      if (!challanNo) {
+        toast.error('Enter challan number to create job card.');
+        return;
+      }
+      setCreatingFromChallan(true);
+      try {
+        const r = await api.post('/jobwork/jobcard-from-challan', { challanNo });
+        const jobCard = r.data.data.jobCard;
+        toast.success(`Job card ${jobCard.jobCardNo} created from challan ${r.data.data.challan.challanNo}.`);
+        navigate(`/jobcards/${jobCard.id}`);
+      } catch (err) {
+        toast.error(err.response?.data?.message || 'Could not create job card from challan.');
+      } finally {
+        setCreatingFromChallan(false);
+      }
+    };
+
+  const fillFromChallan = async () => {
+    const challanNo = challanNoLookup.trim();
+    if (!challanNo) {
+      toast.error('Enter challan number to fill the form.');
+      return;
+    }
+    setCreatingFromChallan(true);
+    try {
+      const r = await api.get(`/jobwork/challan/${challanNo}`);
+      const challan = r.data.data;
+      // Pre-fill form with challan data
+      setForm((prev) => ({
+        ...prev,
+        customerId: challan.fromPartyId ? String(challan.fromPartyId) : prev.customerId,
+        customerNameSnapshot: challan.fromParty?.name || prev.customerNameSnapshot,
+        customerAddressSnapshot: buildPartyAddress(challan.fromParty) || prev.customerAddressSnapshot,
+        receivedDate: challan.challanDate ? challan.challanDate.split('T')[0] : prev.receivedDate,
+        quantity: challan.items?.length ? String(challan.items.reduce((sum, it) => sum + (it.quantity || 0), 0)) : prev.quantity,
+        totalWeight: challan.items?.length ? String(challan.items.reduce((sum, it) => sum + (it.weightKg || 0), 0)) : prev.totalWeight,
+        // Add more mappings as needed
+      }));
+      toast.success(`Form filled from challan ${challan.challanNo}.`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not fetch challan.');
+    } finally {
+      setCreatingFromChallan(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.partId || !form.quantity) {
-      toast.error('Part and quantity are required.');
-      return;
-    }
     setLoading(true);
+    let customerIdOut = form.customerId ? Number(form.customerId) : null;
     try {
-      let customerIdOut = form.customerId?.trim() || '';
-      if (!customerIdOut) {
-        const cname = form.customerNameSnapshot?.trim();
-        const caddr = form.customerAddressSnapshot?.trim();
-        if (cname && caddr) {
+      if (!customerIdOut && form.customerNameSnapshot?.trim()) {
+        const existing = customers.find(c => c.name.toLowerCase() === form.customerNameSnapshot.trim().toLowerCase());
+        if (!existing) {
           try {
-            const pr = await api.post('/parties/quick', {
-              name: cname,
-              address: caddr,
-              email: form.contactEmail?.trim() || undefined,
+            const pr = await api.post('/parties', {
+              name: form.customerNameSnapshot.trim(),
+              partyType: 'CUSTOMER',
+              address: form.customerAddressSnapshot || '',
             });
-            customerIdOut = String(pr.data.data.id);
-            setForm((p) => ({ ...p, customerId: customerIdOut }));
+            customerIdOut = pr.data.data.id;
             queryClient.setQueryData(['parties'], (old) => old ? [...old, pr.data.data].sort((a, b) => (a.name || '').localeCompare(b.name || '')) : [pr.data.data]);
             toast.success(pr.data.reused ? 'Existing customer in master linked.' : 'Customer added to party master.');
           } catch (err) {
@@ -300,6 +343,10 @@ export default function JobCardForm() {
     toast.success('Job card values loaded from DB-backed sample.');
   };
 
+  const handleImageChange = (index, file) => {
+    setImages(prev => ({ ...prev, [index]: file }));
+  };
+
   const STATUS_TRANSITIONS = {
     CREATED: 'IN_PROGRESS',
     IN_PROGRESS: 'SENT_FOR_JOBWORK',
@@ -346,6 +393,44 @@ export default function JobCardForm() {
           </div>
         )}
       </div>
+
+      {!isEdit && (
+        <div className="card p-5 mb-5">
+          <div className="grid gap-4 sm:grid-cols-[1.5fr_1fr] items-end">
+            <div>
+              <label className="form-label">Inward Challan No</label>
+              <input
+                type="text"
+                value={challanNoLookup}
+                onChange={(e) => setChallanNoLookup(e.target.value)}
+                placeholder="Enter challan number"
+                className="form-input"
+              />
+            </div>
+            <div className="flex flex-col gap-2 sm:items-end">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={fillFromChallan}
+                  disabled={creatingFromChallan}
+                  className="btn-outline"
+                >
+                  {creatingFromChallan ? 'Loading...' : 'Fill Form'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateFromChallan}
+                  disabled={creatingFromChallan}
+                  className="btn-primary"
+                >
+                  {creatingFromChallan ? 'Creating...' : 'Create Job Card'}
+                </button>
+              </div>
+              <p className="text-xs text-slate-500">Fill form with challan details or create linked job card automatically.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <CustomerSection 

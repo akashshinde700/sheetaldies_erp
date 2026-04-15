@@ -257,8 +257,17 @@ exports.getOne = async (req, res) => {
           include: { processType: true, heatProcesses: true },
         },
         challans: {
-          include: { toParty: { select: { name: true } } },
-          orderBy:  { createdAt: 'desc' },
+          include: {
+            toParty: { select: { name: true } },
+            fromParty: { select: { name: true } },
+            items: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+        parentJobCard: { select: { id: true, jobCardNo: true, quantity: true } },
+        childJobCards: {
+          select: { id: true, jobCardNo: true, quantity: true, status: true, remarks: true, hrcRange: true },
+          orderBy: { createdAt: 'asc' },
         },
       },
     });
@@ -471,6 +480,90 @@ exports.patchStatus = async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ── Split Job Card ────────────────────────────────────────────
+// POST /jobcards/:id/split
+// Body: { splits: [{ quantity, remarks?, operatorName?, machineId?, hrcRange?, specialRequirements? }, ...] }
+exports.split = async (req, res) => {
+  try {
+    const parentId = toInt(req.params.id);
+    const { splits } = req.body;
+
+    if (!Array.isArray(splits) || splits.length < 2) {
+      return res.status(400).json({ success: false, message: 'Provide at least 2 split parts.' });
+    }
+
+    const parent = await prisma.jobCard.findUnique({
+      where: { id: parentId },
+      include: { part: true, machine: true, customer: true },
+    });
+    if (!parent) return res.status(404).json({ success: false, message: 'Parent job card not found.' });
+
+    const totalSplitQty = splits.reduce((sum, s) => sum + toInt(s.quantity || 0), 0);
+    if (totalSplitQty > parent.quantity) {
+      return res.status(400).json({
+        success: false,
+        message: `Total split quantity (${totalSplitQty}) exceeds parent quantity (${parent.quantity}).`,
+      });
+    }
+
+    const children = await transaction(async (tx) => {
+      const created = [];
+      for (const s of splits) {
+        const qty = toInt(s.quantity);
+        if (!qty || qty < 1) continue;
+        const jobCardNo = await generateJobCardNo();
+        const child = await tx.jobCard.create({
+          data: {
+            jobCardNo,
+            parentJobCardId: parentId,
+            partId:      parent.partId,
+            customerId:  parent.customerId,
+            dieNo:       parent.dieNo,
+            yourNo:      parent.yourNo,
+            heatNo:      parent.heatNo,
+            dieMaterial: parent.dieMaterial,
+            drawingNo:   parent.drawingNo,
+            machineId:   s.machineId ? toInt(s.machineId) : parent.machineId,
+            operatorName: s.operatorName || parent.operatorName || null,
+            quantity:    qty,
+            totalWeight: parent.totalWeight ? toNum(Number(parent.totalWeight) * qty / parent.quantity, null) : null,
+            startDate:   parent.startDate,
+            dueDate:     parent.dueDate,
+            hrcRange:    s.hrcRange || parent.hrcRange || null,
+            specialRequirements: s.specialRequirements || parent.specialRequirements || null,
+            precautions: parent.precautions,
+            customerNameSnapshot: parent.customerNameSnapshot,
+            customerAddressSnapshot: parent.customerAddressSnapshot,
+            factoryName: parent.factoryName,
+            factoryAddress: parent.factoryAddress,
+            contactEmail: parent.contactEmail,
+            dispatchByOurVehicle: parent.dispatchByOurVehicle,
+            dispatchByCourier: parent.dispatchByCourier,
+            collectedByCustomer: parent.collectedByCustomer,
+            documentNo: parent.documentNo,
+            revisionNo: parent.revisionNo,
+            remarks: s.remarks || null,
+            status: 'CREATED',
+            createdById: req.user.id,
+          },
+          include: { part: { select: { partNo: true, description: true } } },
+        });
+        created.push(child);
+      }
+      return created;
+    });
+
+    res.status(201).json({
+      success: true,
+      data: children,
+      message: `Split into ${children.length} job cards: ${children.map(c => c.jobCardNo).join(', ')}`,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to split job card.' });
   }
 };
 

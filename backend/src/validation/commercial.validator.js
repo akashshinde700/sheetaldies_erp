@@ -95,6 +95,10 @@ const jobworkItemSchema = Joi.object({
   hrc: Joi.string().allow('', null),
   woNo: Joi.string().allow('', null),
   hsnCode: Joi.string().allow('', null),
+  sacNo: Joi.string().allow('', null),
+  processTypeId: Joi.number().integer().positive().allow(null, ''),
+  processName: Joi.string().allow('', null),
+  partName: Joi.string().allow('', null),
   quantity: Joi.number().positive().required(),
   qtyOut: Joi.number().min(0).allow(null),
   uom: Joi.string().allow('', null),
@@ -105,9 +109,13 @@ const jobworkItemSchema = Joi.object({
 
 exports.createJobworkSchema = Joi.object({
   challanDate: Joi.date().allow('', null),
-  jobCardId: Joi.number().integer().positive().allow(null, ''),
   fromPartyId: Joi.number().integer().positive().required(),
   toPartyId: Joi.number().integer().positive().required(),
+  manualChallanNo: Joi.string().allow('', null),
+  receivedDate: Joi.date().allow('', null),
+  jobCardId: Joi.number().integer().positive().allow(null, ''),
+  jobCardNo: Joi.string().allow('', null),
+  jobCardDate: Joi.date().allow('', null),
   invoiceChNo: Joi.string().allow('', null),
   invoiceChDate: Joi.date().allow('', null),
   transportMode: Joi.string().allow('', null),
@@ -120,7 +128,6 @@ exports.createJobworkSchema = Joi.object({
   cgstRate: Joi.number().min(0).allow(null),
   sgstRate: Joi.number().min(0).allow(null),
   igstRate: Joi.number().min(0).allow(null),
-  manualChallanNo: Joi.string().allow('', null),
   items: Joi.array().items(jobworkItemSchema).min(1).required(),
 });
 

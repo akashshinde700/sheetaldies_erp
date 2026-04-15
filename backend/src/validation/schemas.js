@@ -172,6 +172,7 @@ exports.jobworkStatusBody = Joi.object({
   reworkQty: Joi.number().integer().optional().allow(null),
   scrapQtyKg: Joi.number().optional().allow(null),
   scrapDetails: Joi.string().allow('', null).optional(),
+  processorSign: Joi.string().allow('', null).optional(),
 });
 
 // Export all schemas

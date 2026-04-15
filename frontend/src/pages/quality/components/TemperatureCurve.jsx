@@ -88,39 +88,39 @@ export default function TemperatureCurve({ tempRows, setTempRows, form, loadTemp
           </div>
           <ResponsiveContainer width="100%" height={280}>
             <LineChart data={tempRows.map((r, i) => ({
-              ...r,
               index: i + 1,
-              time: r.time || 'T' + (i + 1),
+              time: r.time !== '' ? Number(r.time) : i,
               temp: Number(r.temp) || 0,
             }))}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis 
-                dataKey="time" 
-                stroke="#64748b" 
+              <XAxis
+                dataKey="time"
+                stroke="#64748b"
                 tick={{ fontSize: 11 }}
-                label={{ value: 'Time (Minutes) →', position: 'right', offset: 10, fontSize: 11, fill: '#64748b' }}
+                label={{ value: 'Time (Minutes) →', position: 'insideBottomRight', offset: -5, fontSize: 11, fill: '#64748b' }}
               />
-              <YAxis 
-                stroke="#64748b" 
+              <YAxis
+                stroke="#64748b"
                 tick={{ fontSize: 11 }}
-                label={{ value: 'Temperature (°C)', angle: -90, position: 'insideLeft', fontSize: 11, fill: '#64748b' }}
-                domain={[0, 'dataMax + 100']}
+                label={{ value: 'Temp (°C)', angle: -90, position: 'insideLeft', fontSize: 11, fill: '#64748b' }}
+                domain={[0, 1300]}
+                ticks={[0, 200, 400, 600, 800, 1000, 1200]}
               />
-              <Tooltip 
+              <Tooltip
                 contentStyle={{ backgroundColor: '#f8fafc', border: '2px solid #fb923c', borderRadius: '6px', fontSize: '12px' }}
                 formatter={(value) => [`${value}°C`, 'Temperature']}
                 labelFormatter={(label) => `Time: ${label} min`}
                 labelStyle={{ color: '#0f172a' }}
               />
-              <Legend wrapperStyle={{ fontSize: '11px' }} />
-              <Line 
-                type="monotone" 
-                dataKey="temp" 
-                stroke="#f97316" 
+              <Line
+                type="stepAfter"
+                dataKey="temp"
+                stroke="#111"
                 strokeWidth={2}
-                dot={{ fill: '#f97316', r: 4 }}
-                activeDot={{ r: 6 }}
+                dot={{ fill: '#111', r: 4 }}
+                activeDot={{ r: 6, fill: '#f97316' }}
                 name="Temperature"
+                isAnimationActive={false}
               />
             </LineChart>
           </ResponsiveContainer>

@@ -1,5 +1,4 @@
 import React from 'react';
-import { toNum } from '../../../utils/normalize';
 
 export default function LineItemsSection({ lineItems, setLineItems, items, updateLineItem, EMPTY_ROW }) {
   return (
@@ -25,8 +24,6 @@ export default function LineItemsSection({ lineItems, setLineItems, items, updat
               <th className="th">Qty Out</th>
               <th className="th">UOM</th>
               <th className="th">Weight</th>
-              <th className="th">Rate</th>
-              <th className="th">Amount</th>
               <th className="th"></th>
             </tr>
           </thead>
@@ -53,8 +50,6 @@ export default function LineItemsSection({ lineItems, setLineItems, items, updat
                   </select>
                 </td>
                 <td className="td"><input type="number" step="0.001" value={row.weight} onChange={e => updateLineItem(i, 'weight', e.target.value)} className="form-input text-xs py-1 w-18 tabular-nums" /></td>
-                <td className="td"><input type="number" step="0.01" value={row.rate} onChange={e => updateLineItem(i, 'rate', e.target.value)} className="form-input text-xs py-1 w-18 tabular-nums" /></td>
-                <td className="td font-semibold tabular-nums text-right">{toNum(row.amount, 0).toFixed(2)}</td>
                 <td className="td">
                   {lineItems.length > 1 && (
                     <button type="button" onClick={() => setLineItems(prev => prev.filter((_, idx) => idx !== i))}

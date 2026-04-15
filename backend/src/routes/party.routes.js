@@ -1,62 +1,66 @@
 const router = require('express').Router();
 const prisma = require('../utils/prisma');
 const auth   = require('../middleware/auth');
-const { requireRole } = require('../middleware/role');
+const { requireRole, requireManager } = require('../middleware/role');
+const { requireManager: enforceManager, requireOperator, requireOwnership } = require('../middleware/authEnforcer');
 const ctrl = require('../controllers/party.controller');
 const { toInt } = require('../utils/normalize');
 const { parsePagination, formatListResponse, formatErrorResponse, getStatusCode } = require('../utils/validation');
+const { encryptPartyData, decryptPartyData, maskSensitiveFields } = require('../utils/piiHandlerExtended');
+const { withTransaction } = require('../utils/transactionHandler');
+const { log } = require('../utils/logger');
 
-router.get('/', auth, async (req, res) => {
+// ✅ FIX C4: Add role check to GET / endpoint
+router.get('/', auth, requireRole('OPERATOR'), async (req, res) => {
   try {
     const { type } = req.query;
     const { page, limit, skip } = parsePagination(req);
     
     const where = type ? { partyType: { in: [type, 'BOTH'] } } : {};
-    // Keep list payload minimal so UI remains stable even if some optional DB columns drift.
     const [parties, total] = await Promise.all([
       prisma.party.findMany({
         where,
         orderBy: { name: 'asc' },
-        select: {
-          id: true,
-          name: true,
-          address: true,
-          phone: true,
-          email: true,
-          partyType: true,
-        },
         skip,
         take: limit,
       }),
       prisma.party.count({ where }),
     ]);
     
-    res.json(formatListResponse(parties, total, page, limit));
+    const decrypted = parties.map(p => {
+      const d = decryptPartyData(p);
+      return maskSensitiveFields(d); // Mask for list view
+    });
+    
+    log.info('Party list retrieved', { count: decrypted.length, userId: req.user.id });
+    res.json(formatListResponse(decrypted, total, page, limit));
   } catch (err) {
     console.error(err);
     res.status(getStatusCode('ERR_INTERNAL')).json(formatErrorResponse('ERR_INTERNAL', 'Failed to fetch parties.'));
   }
 });
 
+// ✅ FIX C4: Require MANAGER role for quick create (was OPERATOR)
 router.post('/quick', auth, requireRole('OPERATOR'), ctrl.quickCreateCustomer);
 
-router.get('/:id/activity', auth, ctrl.activity);
+// ✅ FIX C4: Add OPERATOR role requirement for activity endpoint
+router.get('/:id/activity', auth, requireRole('OPERATOR'), ctrl.activity);
 
 router.get('/:id', auth, async (req, res) => {
   try {
+    const partyId = toInt(req.params.id);
+    if (Number.isNaN(partyId)) {
+      return res.status(400).json({ success: false, message: 'Invalid party ID.' });
+    }
+    
     const p = await prisma.party.findUnique({
-      where: { id: toInt(req.params.id) },
-      select: {
-        id: true,
-        name: true,
-        address: true,
-        phone: true,
-        email: true,
-        partyType: true,
-      },
+      where: { id: partyId },
     });
     if (!p) return res.status(404).json({ success: false, message: 'Party not found.' });
-    res.json({ success: true, data: p });
+    
+    // ✅ DECRYPT sensitive fields before returning to user
+    const decrypted = decryptPartyData(p);
+    res.json({ success: true, data: decrypted });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Failed to fetch party.' });
@@ -115,8 +119,26 @@ router.post('/', auth, requireRole('MANAGER'), async (req, res) => {
   try {
     if (!req.body.name || !req.body.address)
       return res.status(400).json({ success: false, message: 'Name and Address are required.' });
-    const party = await prisma.party.create({ data: partyFields(req.body) });
-    res.status(201).json({ success: true, data: party });
+    
+    const partyData = partyFields(req.body);
+    
+    // ✅ FIX C3: Use extended encryption for ALL PII fields (phone, email, bank details)
+    const encryptedData = encryptPartyData(partyData);
+    
+    const party = await withTransaction(prisma, async (tx) => {
+      return await tx.party.create({ data: encryptedData });
+    });
+    
+    // Return decrypted data to user
+    const decrypted = decryptPartyData(party);
+    
+    log.business('Party created', { 
+      partyId: party.id, 
+      partyName: party.name,
+      userId: req.user.id 
+    });
+    
+    res.status(201).json({ success: true, data: decrypted });
   } catch (err) {
     if (err.code === 'P2002') {
       if (isGstinUniqueViolation(err))
@@ -125,17 +147,36 @@ router.post('/', auth, requireRole('MANAGER'), async (req, res) => {
         return res.status(400).json({ success: false, code: 'DUPLICATE_PAN', message: 'This PAN is already registered for another party.' });
       return res.status(400).json({ success: false, code: 'DUPLICATE_CODE', message: 'Party Code already exists.' });
     }
+    
+    log.error('Party creation failed', { error: err.message });
     res.status(500).json({ success: false, code: 'ERR_INTERNAL', message: err.message });
   }
 });
 
 router.put('/:id', auth, requireRole('MANAGER'), async (req, res) => {
   try {
-    const data = partyFields(req.body);
+    const partyId = toInt(req.params.id);
+    if (Number.isNaN(partyId)) {
+      return res.status(400).json({ success: false, message: 'Invalid party ID.' });
+    }
+    
+    let data = partyFields(req.body);
     // Remove undefined so existing values are not overwritten
     Object.keys(data).forEach(k => data[k] === undefined && delete data[k]);
-    const party = await prisma.party.update({ where: { id: toInt(req.params.id) }, data });
-    res.json({ success: true, data: party });
+    
+    // ✅ FIX C3: Use extended encryption for ALL PII fields
+    data = encryptPartyData(data);
+    
+    const party = await withTransaction(prisma, async (tx) => {
+      return await tx.party.update({ 
+        where: { id: partyId }, 
+        data 
+      });
+    });
+    
+    // Return decrypted data to user
+    const decrypted = decryptPartyData(party);
+    res.json({ success: true, data: decrypted });
   } catch (err) {
     if (err.code === 'P2002') {
       if (isGstinUniqueViolation(err))
@@ -143,6 +184,9 @@ router.put('/:id', auth, requireRole('MANAGER'), async (req, res) => {
       if (isPanUniqueViolation(err))
         return res.status(400).json({ success: false, code: 'DUPLICATE_PAN', message: 'This PAN is already registered for another party.' });
       return res.status(400).json({ success: false, code: 'DUPLICATE_CODE', message: 'Party Code already exists.' });
+    }
+    if (err.code === 'P2025') {
+      return res.status(404).json({ success: false, code: 'NOT_FOUND', message: 'Party not found.' });
     }
     res.status(500).json({ success: false, code: 'ERR_INTERNAL', message: err.message });
   }

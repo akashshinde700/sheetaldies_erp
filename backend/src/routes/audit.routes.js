@@ -4,7 +4,8 @@ const auth = require('../middleware/auth');
 const { requireRole } = require('../middleware/role');
 
 router.use(auth);
-router.use(requireRole('ADMIN', 'MANAGER')); // Only admins can view audit logs
+// ✅ FIXED: Only ADMIN can view sensitive audit logs (compliance requirement)
+router.use(requireRole('ADMIN'));
 
 router.get('/', ctrl.list);
 router.get('/dashboard', ctrl.getDashboard);

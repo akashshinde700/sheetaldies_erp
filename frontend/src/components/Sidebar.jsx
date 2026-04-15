@@ -1,12 +1,28 @@
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
+import api from '../utils/api';
+
+function usePendingCount() {
+  const { data } = useQuery({
+    queryKey: ['pending-items'],
+    queryFn: async () => {
+      const r = await api.get('/analytics/pending-items');
+      return r.data.data;
+    },
+    staleTime: 60 * 1000,
+    refetchInterval: 2 * 60 * 1000,
+  });
+  return data?.summary?.totalPending ?? 0;
+}
 
 const NAV_MAIN = [
   { label: 'Dashboard',    icon: 'dashboard',    to: '/',                       end: true },
+  { label: 'Inwards',      icon: 'import_export', to: '/jobwork/register' },
   { label: 'Job Cards',    icon: 'description',  to: '/jobcards' },
-  { label: 'Job Work',     icon: 'engineering',  to: '/jobwork' },
-  { label: 'Inward / Outward', icon: 'import_export', to: '/jobwork/register' },
+  { label: 'VHT Runsheet', icon: 'thermostat',   to: '/manufacturing/runsheet' },
   { label: 'Certificates', icon: 'verified',     to: '/quality/certificates' },
+  { label: 'Pending List', icon: 'pending_actions', to: '/pending', badge: true },
 ];
 
 const NAV_OPERATIONS = [
@@ -16,10 +32,10 @@ const NAV_OPERATIONS = [
   { label: 'Purchase Orders', icon: 'shopping_cart', to: '/purchase' },
   { label: 'Goods Receipt (GRN)', icon: 'inbox', to: '/purchase/grn' },
   { label: 'Inventory', icon: 'warehouse', to: '/purchase/inventory' },
+  { label: 'Customer Quotes', icon: 'request_quote', to: '/customer-quotes' },
   { label: 'Supplier Quotes', icon: 'description', to: '/quotes' },
   { label: 'Dispatch', icon: 'local_shipping', to: '/dispatch' },
   { label: 'Manufacturing Batches', icon: 'precision_manufacturing', to: '/manufacturing/batches' },
-  { label: 'VHT Runsheet', icon: 'thermostat', to: '/manufacturing/runsheet' },
   { label: 'Daily Planning', icon: 'event_note', to: '/manufacturing/planning' },
   { label: 'Mfg Reports', icon: 'assessment', to: '/manufacturing/reports' },
 ];
@@ -32,9 +48,8 @@ const NAV_ADMIN = [
   { label: 'Audit Logs',      icon: 'history',      to: '/admin/audit-logs' },
 ];
 
-const NavItem = ({ item, onNavigate }) => {
+const NavItem = ({ item, onNavigate, pendingCount = 0 }) => {
   const { pathname } = useLocation();
-  /* Job Work matches /jobwork/*; keep register page from highlighting both items */
   const resolvedActive = (routerActive) => {
     if (item.to === '/jobwork' && pathname.startsWith('/jobwork/register')) return false;
     return routerActive;
@@ -65,6 +80,11 @@ const NavItem = ({ item, onNavigate }) => {
           {item.icon}
         </span>
         <span className="truncate flex-1 text-left">{item.label}</span>
+        {item.badge && pendingCount > 0 && (
+          <span className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+            {pendingCount > 99 ? '99+' : pendingCount}
+          </span>
+        )}
       </>
     )}
   </NavLink>
@@ -79,7 +99,8 @@ const SectionLabel = ({ label }) => (
 
 export default function Sidebar({ open, onClose }) {
   const { user, logout, isManager, isAdmin } = useAuth();
-  const navigate = useNavigate();
+  const navigate     = useNavigate();
+  const pendingCount = usePendingCount();
 
   const handleLogout = async () => {
     await logout();
@@ -125,7 +146,7 @@ export default function Sidebar({ open, onClose }) {
 
         <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-2 sm:px-3 overscroll-contain [scrollbar-width:thin]">
           <SectionLabel label="Main" />
-          {NAV_MAIN.map(item => <NavItem key={item.to} item={item} onNavigate={onClose} />)}
+          {NAV_MAIN.map(item => <NavItem key={item.to} item={item} onNavigate={onClose} pendingCount={pendingCount} />)}
 
           {isManager && (
             <>

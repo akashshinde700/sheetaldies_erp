@@ -9,6 +9,7 @@ router.get   ('/',      auth, ctrl.list);
 router.get   ('/:id',   auth, ctrl.getOne);
 router.post  ('/',      auth, requireRole('OPERATOR'), uploadFiveImages('jobcards'), ctrl.create);
 router.patch ('/:id/status', auth, requireRole('OPERATOR'), ctrl.patchStatus);
+router.post  ('/:id/split',  auth, requireRole('OPERATOR'), ctrl.split);
 router.put   ('/:id',   auth, requireRole('OPERATOR'), uploadFiveImages('jobcards'), ctrl.update);
 
 module.exports = router;

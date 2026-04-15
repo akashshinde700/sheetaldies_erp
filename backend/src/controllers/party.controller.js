@@ -1,6 +1,7 @@
 const prisma = require('../utils/prisma');
 const { toInt, toNum } = require('../utils/normalize');
 const { formatErrorResponse, getStatusCode, formatListResponse, parsePagination } = require('../utils/validation');
+const { encryptPartyData, decryptPartyData } = require('../utils/piiHandlerExtended');
 
 /** Minimal customer row from job card etc. — allowed for OPERATOR + MANAGER */
 exports.quickCreateCustomer = async (req, res) => {
@@ -8,14 +9,19 @@ exports.quickCreateCustomer = async (req, res) => {
     const name = (req.body.name || '').trim();
     const address = (req.body.address || '').trim();
     const email = (req.body.email || '').trim() || null;
+    const partyType = String(req.body.partyType || 'CUSTOMER').toUpperCase();
     if (!name || !address) {
       return res.status(400).json({ success: false, message: 'Name and address are required.' });
+    }
+
+    if (!['CUSTOMER', 'VENDOR', 'BOTH'].includes(partyType)) {
+      return res.status(400).json({ success: false, message: 'Invalid party type.' });
     }
 
     const existing = await prisma.party.findFirst({
       where: {
         name,
-        partyType: { in: ['CUSTOMER', 'BOTH'] },
+        partyType: { in: partyType === 'CUSTOMER' ? ['CUSTOMER', 'BOTH'] : partyType === 'VENDOR' ? ['VENDOR', 'BOTH'] : ['BOTH'] },
       },
     });
     if (existing) {
@@ -23,14 +29,14 @@ exports.quickCreateCustomer = async (req, res) => {
     }
 
     const party = await prisma.party.create({
-      data: {
+      data: encryptPartyData({
         name,
         address,
         email,
-        partyType: 'CUSTOMER',
-      },
+        partyType,
+      }),
     });
-    res.status(201).json({ success: true, data: party, reused: false });
+    res.status(201).json({ success: true, data: decryptPartyData(party), reused: false });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: err.message || 'Failed to create party.' });
