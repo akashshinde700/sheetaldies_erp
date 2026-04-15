@@ -220,9 +220,9 @@ export default function JobworkForm() {
       toast.error('Challan number is required when manual  ticked.');
       return;
     }
-    const validItems = lineItems.filter(it => it.description?.trim() || (toNum(it.quantity, 0) > 0 && toNum(it.rate, 0) > 0));
+    const validItems = lineItems.filter(it => it.description?.trim() || toNum(it.quantity, 0) > 0);
     if (!validItems.length) {
-      toast.error('At least one line item with quantity and rate is required.');
+      toast.error('At least one line item with quantity is required.');
       return;
     }
     setLoading(true);

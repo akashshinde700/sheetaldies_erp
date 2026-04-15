@@ -5,6 +5,7 @@ import api from '../../utils/api';
 import { exportToExcel } from '../../utils/export';
 import ListSearchInput from '../../components/ListSearchInput';
 import { formatDate } from '../../utils/formatters';
+import SplitJobCardModal from './SplitJobCardModal';
 
 const PAGE_LIMIT = 10;
 const STATUS_OPTS = ['CREATED', 'IN_PROGRESS', 'SENT_FOR_JOBWORK', 'INSPECTION', 'COMPLETED', 'ON_HOLD'];
@@ -57,6 +58,7 @@ export default function JobCardList() {
   const [page,    setPage]    = useState(1);
   const [total,   setTotal]   = useState(0);
   const [statusSavingId, setStatusSavingId] = useState(null);
+  const [splitCard, setSplitCard] = useState(null);
 
   const fetchCards = useCallback(() => {
     setLoading(true); setError(null);
@@ -290,6 +292,14 @@ export default function JobCardList() {
                       <Link to={`/jobcards/${card.id}/inspection`}
                         className="text-xs font-semibold text-violet-600 hover:text-violet-700 hover:underline">Inspect</Link>
                       <span className="text-slate-200">·</span>
+                      <button
+                        type="button"
+                        onClick={() => setSplitCard(card)}
+                        title="Split Job Card"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition-all"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">call_split</span>
+                      </button>
                       <Link to={`/jobcards/${card.id}/print`}
                         className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-all"
                         title="Print Job Card"
@@ -307,6 +317,14 @@ export default function JobCardList() {
           <Pagination page={page} totalPages={totalPages} total={total} limit={PAGE_LIMIT} setPage={setPage} />
         )}
       </div>
+
+      {splitCard && (
+        <SplitJobCardModal
+          card={splitCard}
+          onClose={() => setSplitCard(null)}
+          onSuccess={() => { setSplitCard(null); fetchCards(); }}
+        />
+      )}
     </div>
   );
 }

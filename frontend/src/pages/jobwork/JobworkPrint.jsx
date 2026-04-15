@@ -2,12 +2,15 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
 import { formatDate, formatCurrency } from '../../utils/formatters';
+import PrintHeader from '../../components/PrintHeader';
 
 export default function JobworkPrint() {
   const { id } = useParams();
   const [challan, setChallan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const fmt = (v) => (v === null || v === undefined || v === '' ? '—' : v);
 
   useEffect(() => {
     api.get(`/jobwork/${id}`)
@@ -24,30 +27,41 @@ export default function JobworkPrint() {
     </div>
   );
 
+  const items = challan.items || [];
+  const totalQty    = items.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
+  const totalWeight = items.reduce((s, it) => s + (Number(it.weight)   || 0), 0);
+  const totalAmount = items.reduce((s, it) => s + (Number(it.amount)   || 0), 0);
+  const cgst = Number(challan.cgstAmount)  || 0;
+  const sgst = Number(challan.sgstAmount)  || 0;
+  const igst = Number(challan.igstAmount)  || 0;
+  const freight = Number(challan.freightAmount) || 0;
+  const subtotal = challan.totalValue ? Number(challan.totalValue) : totalAmount;
+  const grandTotal = Number(challan.grandTotal) || (subtotal + cgst + sgst + igst + freight);
+
   return (
     <div className="bg-slate-50 min-h-screen py-10 print:bg-white print:py-0">
       <style>{`
         @media print {
           .no-print { display: none !important; }
-          .page { 
-            box-shadow: none !important; 
-            margin: 0 !important; 
-            border: none !important; 
+          .page {
+            box-shadow: none !important;
+            margin: 0 !important;
+            border: none !important;
             width: 100% !important;
             max-width: 100% !important;
           }
           body { background: white !important; }
-          @page { margin: 1cm; }
+          @page { margin: 1cm; size: A4; }
         }
       `}</style>
 
       {/* Toolbar */}
-      <div className="no-print max-w-[850px] mx-auto mb-6 flex items-center justify-between px-4">
+      <div className="no-print max-w-[900px] mx-auto mb-6 flex items-center justify-between px-4">
         <Link to={`/jobwork/${id}`} className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition-colors font-bold">
           <span className="material-symbols-outlined text-[20px]">arrow_back</span>
           Back to Detail
         </Link>
-        <button 
+        <button
           onClick={() => window.print()}
           className="btn-primary shadow-indigo-200/50"
         >
@@ -56,102 +70,131 @@ export default function JobworkPrint() {
         </button>
       </div>
 
-      <div className="page max-w-[850px] mx-auto bg-white shadow-2xl border border-slate-200 print:shadow-none print:border-slate-300">
-        <div className="p-8 border-b-2 border-slate-900">
-          <div className="flex justify-between items-start">
-            <div className="space-y-1">
-              <h1 className="text-2xl font-black text-slate-900 tracking-tighter uppercase">{challan.fromParty?.name}</h1>
-              <p className="text-[11px] text-slate-600 max-w-[300px] leading-tight font-medium uppercase">{challan.fromParty?.address}</p>
-              {challan.fromParty?.gstin && (
-                <div className="pt-2">
-                  <span className="bg-slate-100 px-2 py-0.5 rounded text-[10px] font-bold text-slate-600 border border-slate-200">
-                    GSTIN: <span className="font-mono text-slate-900 ml-1">{challan.fromParty.gstin}</span>
-                  </span>
-                </div>
-              )}
-            </div>
-            <div className="text-right">
-              <div className="bg-slate-900 text-white px-4 py-1 inline-block text-lg font-black tracking-widest uppercase mb-4">
-                JOB WORK CHALLAN
-              </div>
-              <div className="text-xs space-y-1 font-bold">
-                <div className="flex justify-end gap-3 text-slate-500">Challan No: <span className="text-slate-900 font-mono">{challan.challanNo}</span></div>
-                <div className="flex justify-end gap-3 text-slate-500">Date: <span className="text-slate-900 font-mono">{formatDate(challan.challanDate)}</span></div>
-                <div className="flex justify-end gap-3 text-slate-500 font-bold uppercase">Linked J.C.: <span className="text-indigo-700 font-mono">{challan.jobCard?.jobCardNo || '—'}</span></div>
-                <div className="flex justify-end gap-3 text-slate-500">Inv/Ch Ref: <span className="text-slate-900 font-mono uppercase">{challan.invoiceChNo || '—'}</span></div>
-              </div>
-            </div>
+      <div className="page max-w-[900px] mx-auto bg-white shadow-2xl border border-slate-200 print:shadow-none print:border-slate-300">
+
+        {/* ── HEADER ── */}
+        <PrintHeader title="JOB WORK CHALLAN" showTuv={false} />
+
+        {/* ── CHALLAN REFERENCE ROW ── */}
+        <div className="border-b border-slate-900 px-4 py-2 grid grid-cols-4 gap-x-4 gap-y-1 text-[10px]">
+          <div>
+            <span className="font-black text-slate-500 uppercase">Challan No:</span>{' '}
+            <span className="font-mono font-black text-slate-900">{challan.challanNo}</span>
+          </div>
+          <div>
+            <span className="font-black text-slate-500 uppercase">Date:</span>{' '}
+            <span className="font-mono font-black text-slate-900">{formatDate(challan.challanDate)}</span>
+          </div>
+          <div>
+            <span className="font-black text-slate-500 uppercase">Cill No.:</span>{' '}
+            <span className="font-mono font-black text-slate-900">{fmt(challan.cillNo)}</span>
+          </div>
+          <div>
+            <span className="font-black text-slate-500 uppercase">Job Card:</span>{' '}
+            <span className="font-mono font-black text-indigo-800">{fmt(challan.jobCard?.jobCardNo)}</span>
+          </div>
+          <div>
+            <span className="font-black text-slate-500 uppercase">PO No.:</span>{' '}
+            <span className="font-mono font-black text-slate-900">{fmt(challan.poNo)}</span>
+          </div>
+          <div>
+            <span className="font-black text-slate-500 uppercase">PO Date:</span>{' '}
+            <span className="font-mono font-black text-slate-900">{challan.poDate ? formatDate(challan.poDate) : '—'}</span>
+          </div>
+          <div>
+            <span className="font-black text-slate-500 uppercase">Vehicle No.:</span>{' '}
+            <span className="font-mono font-black text-slate-900">{fmt(challan.vehicleNo)}</span>
+          </div>
+          <div>
+            <span className="font-black text-slate-500 uppercase">Vendor Code:</span>{' '}
+            <span className="font-mono font-black text-slate-900">{fmt(challan.toParty?.code)}</span>
           </div>
         </div>
 
+        {/* ── PARTY SECTION ── */}
         <div className="grid grid-cols-2 border-b border-slate-900">
-          <div className="p-6 border-r border-slate-900">
-            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">CONSIGNEE (TO PARTY)</h3>
-            <div className="space-y-1">
-              <p className="text-sm font-black text-indigo-900 uppercase">{challan.toParty?.name}</p>
-              <p className="text-[11px] text-slate-600 min-h-[40px] leading-tight font-medium uppercase">{challan.toParty?.address}</p>
-              <div className="pt-2 space-y-1">
-                {challan.toParty?.gstin && <p className="text-[10px] font-bold text-slate-700 uppercase">GSTIN: <span className="font-mono text-slate-900 ml-1">{challan.toParty.gstin}</span></p>}
-                {challan.toParty?.stateName && <p className="text-[10px] font-bold text-slate-700 uppercase">STATE: <span className="text-slate-900 ml-1">{challan.toParty.stateName} ({challan.toParty.stateCode})</span></p>}
-              </div>
-            </div>
+          {/* Left: Customer (material owner) */}
+          <div className="p-4 border-r border-slate-900">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">CUSTOMER / MATERIAL OWNER</p>
+            <p className="text-sm font-black text-slate-900 uppercase">{challan.fromParty?.name || '—'}</p>
+            <p className="text-[10px] text-slate-600 leading-tight mt-1 uppercase">{challan.fromParty?.address || ''}</p>
+            {challan.fromParty?.gstin && (
+              <p className="text-[10px] font-bold text-slate-700 mt-1 uppercase">
+                GSTIN: <span className="font-mono text-slate-900">{challan.fromParty.gstin}</span>
+              </p>
+            )}
           </div>
-          <div className="p-6 bg-slate-50/50">
-            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">TRANSPORT & DISPATCH</h3>
-            <div className="grid grid-cols-2 gap-y-3 gap-x-4">
-              <div>
-                <p className="text-[9px] font-black text-slate-400 uppercase">Dispatch Mode</p>
-                <p className="text-[11px] font-bold text-slate-900 uppercase">{challan.dispatchMode || 'BY ROAD'}</p>
-              </div>
-              <div>
-                <p className="text-[9px] font-black text-slate-400 uppercase">Vehicle No</p>
-                <p className="text-[11px] font-bold text-slate-900 uppercase font-mono">{challan.vehicleNo || '—'}</p>
-              </div>
-              <div>
-                <p className="text-[9px] font-black text-slate-400 uppercase">Due Date</p>
-                <p className="text-[11px] font-bold text-slate-900 uppercase">{formatDate(challan.dueDate)}</p>
-              </div>
-              <div>
-                <p className="text-[9px] font-black text-slate-400 uppercase">Received By / Person</p>
-                <p className="text-[11px] font-bold text-slate-900 uppercase">{challan.deliveryPerson || '—'}</p>
-              </div>
-            </div>
+          {/* Right: Job Worker / Processor */}
+          <div className="p-4">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">NAME & ADDRESS OF JOB WORKER</p>
+            <p className="text-sm font-black text-slate-900 uppercase">{challan.toParty?.name || '—'}</p>
+            <p className="text-[10px] text-slate-600 leading-tight mt-1 uppercase">{challan.toParty?.address || ''}</p>
+            {challan.toParty?.gstin && (
+              <p className="text-[10px] font-bold text-slate-700 mt-1 uppercase">
+                GSTIN: <span className="font-mono text-slate-900">{challan.toParty.gstin}</span>
+              </p>
+            )}
+            {challan.toParty?.stateName && (
+              <p className="text-[10px] font-bold text-slate-700 uppercase">
+                STATE: <span className="text-slate-900">{challan.toParty.stateName} ({challan.toParty.stateCode})</span>
+              </p>
+            )}
           </div>
         </div>
 
-        <div className="min-h-[400px]">
-          <table className="w-full text-xs">
+        {/* ── ITEMS TABLE ── */}
+        <div className="min-h-[300px]">
+          <table className="w-full text-[10px]">
             <thead>
-              <tr className="bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest">
-                <th className="p-3 text-left w-12 border-r border-slate-700">SR</th>
-                <th className="p-3 text-left border-r border-slate-700">DESCRIPTION OF GOODS</th>
-                <th className="p-3 text-center w-24 border-r border-slate-700">HSN/SAC</th>
-                <th className="p-3 text-right w-24 border-r border-slate-700">QTY</th>
-                <th className="p-3 text-right w-24 border-r border-slate-700">WEIGHT</th>
-                <th className="p-3 text-center w-20">UOM</th>
+              <tr className="bg-slate-900 text-white font-black uppercase tracking-wider">
+                <th className="p-2 text-center w-8 border-r border-slate-700">SR</th>
+                <th className="p-2 text-left border-r border-slate-700" style={{minWidth:'120px'}}>DESCRIPTION</th>
+                <th className="p-2 text-center w-20 border-r border-slate-700">MATERIAL</th>
+                <th className="p-2 text-center w-14 border-r border-slate-700">HRC</th>
+                <th className="p-2 text-center w-20 border-r border-slate-700">WO NO</th>
+                <th className="p-2 text-center w-20 border-r border-slate-700">SAC NO</th>
+                <th className="p-2 text-center w-14 border-r border-slate-700">QTY</th>
+                <th className="p-2 text-center w-12 border-r border-slate-700">UOM</th>
+                <th className="p-2 text-right w-20 border-r border-slate-700">WT (KG)</th>
+                <th className="p-2 text-left w-24 border-r border-slate-700">PROCESS</th>
+                <th className="p-2 text-right w-20 border-r border-slate-700">RATE</th>
+                <th className="p-2 text-right w-24">AMOUNT</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {(challan.items || []).map((it, idx) => (
-                <tr key={it.id} className="text-[11px] border-b border-slate-200">
-                  <td className="p-3 text-center font-bold text-slate-400 border-r border-slate-200">{idx + 1}</td>
-                  <td className="p-3 border-r border-slate-200 font-bold">
-                    <div className="text-slate-900 uppercase">{it.description || it.item?.description || '—'}</div>
-                    <div className="text-[9px] text-slate-400 font-black flex gap-3 mt-0.5 uppercase">
-                      <span>MAT: {it.material || '—'}</span>
-                      <span>HRC: {it.hrc || '—'}</span>
-                      <span>WO: {it.woNo || '—'}</span>
-                    </div>
+              {items.map((it, idx) => (
+                <tr key={it.id} className="border-b border-slate-200">
+                  <td className="p-2 text-center font-bold text-slate-400 border-r border-slate-200">{idx + 1}</td>
+                  <td className="p-2 border-r border-slate-200 font-bold text-slate-900 uppercase">
+                    {it.description || it.item?.description || '—'}
                   </td>
-                  <td className="p-3 text-center font-mono text-slate-600 border-r border-slate-200">{it.hsnCode || '—'}</td>
-                  <td className="p-3 text-right font-mono font-black text-slate-900 border-r border-slate-200">{it.quantity || 0}</td>
-                  <td className="p-3 text-right font-mono font-black text-slate-900 border-r border-slate-200">{(it.weight || 0).toFixed(3)}</td>
-                  <td className="p-3 text-center font-bold text-slate-600 uppercase">{it.uom || 'KGS'}</td>
+                  <td className="p-2 text-center border-r border-slate-200 text-slate-700 uppercase">{it.material || '—'}</td>
+                  <td className="p-2 text-center border-r border-slate-200 text-slate-700">{it.hrc || '—'}</td>
+                  <td className="p-2 text-center border-r border-slate-200 font-mono text-slate-700">{it.woNo || '—'}</td>
+                  <td className="p-2 text-center border-r border-slate-200 font-mono text-slate-600">{it.hsnCode || '—'}</td>
+                  <td className="p-2 text-center font-mono font-black border-r border-slate-200">{it.quantity || 0}</td>
+                  <td className="p-2 text-center font-bold border-r border-slate-200 uppercase">{it.uom || 'NOS'}</td>
+                  <td className="p-2 text-right font-mono font-black border-r border-slate-200">{(Number(it.weight) || 0).toFixed(3)}</td>
+                  <td className="p-2 border-r border-slate-200 uppercase text-slate-800 font-bold">
+                    {it.processType?.name || it.processName || '—'}
+                  </td>
+                  <td className="p-2 text-right font-mono border-r border-slate-200 text-slate-700">
+                    {it.rate ? Number(it.rate).toFixed(2) : '—'}
+                  </td>
+                  <td className="p-2 text-right font-mono font-black text-slate-900">
+                    {it.amount ? formatCurrency(it.amount) : '—'}
+                  </td>
                 </tr>
               ))}
-              {/* Fill remaining space */}
-              {Array.from({ length: Math.max(0, 10 - (challan.items?.length || 0)) }).map((_, i) => (
-                <tr key={`empty-${i}`} className="h-8 border-b border-slate-50">
+              {/* Empty filler rows */}
+              {Array.from({ length: Math.max(0, 8 - items.length) }).map((_, i) => (
+                <tr key={`empty-${i}`} className="h-7 border-b border-slate-50">
+                  <td className="border-r border-slate-200" />
+                  <td className="border-r border-slate-200" />
+                  <td className="border-r border-slate-200" />
+                  <td className="border-r border-slate-200" />
+                  <td className="border-r border-slate-200" />
+                  <td className="border-r border-slate-200" />
                   <td className="border-r border-slate-200" />
                   <td className="border-r border-slate-200" />
                   <td className="border-r border-slate-200" />
@@ -162,81 +205,133 @@ export default function JobworkPrint() {
               ))}
             </tbody>
             <tfoot>
-              <tr className="bg-slate-50 font-black border-t-2 border-slate-900 uppercase">
-                <td colSpan={3} className="p-3 text-right text-[10px] border-r border-slate-200">TOTAL</td>
-                <td className="p-3 text-right font-mono text-sm border-r border-slate-200 text-indigo-900">
-                  {challan.items?.reduce((s, it) => s + (it.quantity || 0), 0)}
-                </td>
-                <td className="p-3 text-right font-mono text-sm border-r border-slate-200 text-indigo-900">
-                  {challan.items?.reduce((s, it) => s + (Number(it.weight) || 0), 0).toFixed(3)}
-                </td>
-                <td className="p-3 text-center text-[10px] text-slate-400">NET</td>
+              <tr className="bg-slate-50 font-black border-t-2 border-slate-900 text-[10px] uppercase">
+                <td colSpan={6} className="p-2 text-right border-r border-slate-200 text-slate-500">TOTAL</td>
+                <td className="p-2 text-center font-mono border-r border-slate-200 text-indigo-900">{totalQty}</td>
+                <td className="border-r border-slate-200" />
+                <td className="p-2 text-right font-mono border-r border-slate-200 text-indigo-900">{totalWeight.toFixed(3)}</td>
+                <td className="border-r border-slate-200" />
+                <td className="border-r border-slate-200" />
+                <td className="p-2 text-right font-mono text-indigo-900">{formatCurrency(subtotal)}</td>
               </tr>
-              {challan.totalValue > 0 && (
-                <>
-                  <tr className="text-[11px] font-bold">
-                    <td colSpan={5} className="p-2 text-right border-r border-slate-100 uppercase text-slate-500">Subtotal (Before Tax)</td>
-                    <td className="p-2 text-right font-mono">{formatCurrency(challan.totalValue)}</td>
-                  </tr>
-                  {(challan.cgstAmount > 0 || challan.sgstAmount > 0) && (
-                    <tr className="text-[11px] font-bold">
-                      <td colSpan={5} className="p-2 text-right border-r border-slate-100 uppercase text-slate-500">GST (CGST+SGST)</td>
-                      <td className="p-2 text-right font-mono">{formatCurrency((challan.cgstAmount || 0) + (challan.sgstAmount || 0))}</td>
-                    </tr>
-                  )}
-                  {challan.igstAmount > 0 && (
-                    <tr className="text-[11px] font-bold">
-                      <td colSpan={5} className="p-2 text-right border-r border-slate-100 uppercase text-slate-500">IGST</td>
-                      <td className="p-2 text-right font-mono">{formatCurrency(challan.igstAmount)}</td>
-                    </tr>
-                  )}
-                  <tr className="text-[11px] font-black bg-indigo-50/30">
-                    <td colSpan={5} className="p-3 text-right border-r border-slate-100 uppercase tracking-widest text-indigo-900">Grand Total</td>
-                    <td className="p-3 text-right font-mono text-sm text-indigo-900 border-t border-indigo-200">{formatCurrency(challan.grandTotal || challan.totalValue)}</td>
-                  </tr>
-                </>
+
+              {/* Tax & totals */}
+              {freight > 0 && (
+                <tr className="text-[10px] font-bold border-t border-slate-200">
+                  <td colSpan={11} className="p-2 text-right border-r border-slate-200 text-slate-500 uppercase">Transport / Freight</td>
+                  <td className="p-2 text-right font-mono">{formatCurrency(freight)}</td>
+                </tr>
               )}
+              {cgst > 0 && (
+                <tr className="text-[10px] font-bold border-t border-slate-100">
+                  <td colSpan={11} className="p-2 text-right border-r border-slate-200 text-slate-500 uppercase">CGST @ 9%</td>
+                  <td className="p-2 text-right font-mono">{formatCurrency(cgst)}</td>
+                </tr>
+              )}
+              {sgst > 0 && (
+                <tr className="text-[10px] font-bold border-t border-slate-100">
+                  <td colSpan={11} className="p-2 text-right border-r border-slate-200 text-slate-500 uppercase">SGST @ 9%</td>
+                  <td className="p-2 text-right font-mono">{formatCurrency(sgst)}</td>
+                </tr>
+              )}
+              {igst > 0 && (
+                <tr className="text-[10px] font-bold border-t border-slate-100">
+                  <td colSpan={11} className="p-2 text-right border-r border-slate-200 text-slate-500 uppercase">IGST @ 18%</td>
+                  <td className="p-2 text-right font-mono">{formatCurrency(igst)}</td>
+                </tr>
+              )}
+              <tr className="text-[11px] font-black bg-slate-100 border-t-2 border-slate-900">
+                <td colSpan={11} className="p-3 text-right border-r border-slate-200 uppercase tracking-widest text-slate-900">GRAND TOTAL</td>
+                <td className="p-3 text-right font-mono text-sm text-indigo-900">{formatCurrency(grandTotal)}</td>
+              </tr>
             </tfoot>
           </table>
         </div>
 
-        <div className="grid grid-cols-2 border-t-2 border-slate-900 border-b border-slate-900">
-          <div className="p-6 border-r border-slate-900 space-y-4">
+        {/* ── PART II + NOTES + SIGNATURES ── */}
+        <div className="grid grid-cols-2 border-t-2 border-slate-900">
+          {/* Left: Part II (Processor fill-in) + notes */}
+          <div className="p-4 border-r border-slate-900 space-y-4">
+            <div>
+              <h4 className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2 border-b border-slate-200 pb-1">
+                PART II — TO BE FILLED BY JOB WORKER
+              </h4>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[10px]">
+                <div>
+                  <p className="text-[9px] font-black text-slate-400 uppercase">Entry No.</p>
+                  <p className="font-bold text-slate-900 border-b border-slate-300 min-h-[18px]">{fmt(challan.entryNo)}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-slate-400 uppercase">Received Date</p>
+                  <p className="font-bold text-slate-900 border-b border-slate-300 min-h-[18px]">{challan.receivedDate ? formatDate(challan.receivedDate) : '—'}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-slate-400 uppercase">Nature of Processing</p>
+                  <p className="font-bold text-slate-900 border-b border-slate-300 min-h-[18px]">{fmt(challan.natureOfProcess)}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-slate-400 uppercase">Processed Qty Returned</p>
+                  <p className="font-bold text-slate-900 border-b border-slate-300 min-h-[18px]">{fmt(challan.qtyReturned)}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-slate-400 uppercase">Rework Qty</p>
+                  <p className="font-bold text-slate-900 border-b border-slate-300 min-h-[18px]">{fmt(challan.reworkQty)}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-slate-400 uppercase">Scrap Qty (kg)</p>
+                  <p className="font-bold text-slate-900 border-b border-slate-300 min-h-[18px]">{fmt(challan.scrapQtyKg)}</p>
+                </div>
+              </div>
+            </div>
+
             {challan.processingNotes && (
-              <div className="space-y-1 mb-4">
-                <h4 className="text-[9px] font-black text-indigo-700 uppercase tracking-widest">PROCESSING NOTES / INSTRUCTIONS</h4>
-                <div className="text-[10px] text-slate-700 font-bold bg-slate-50 p-2 border border-slate-200 rounded leading-relaxed italic">
+              <div>
+                <h4 className="text-[9px] font-black text-indigo-700 uppercase tracking-widest mb-1">PROCESSING INSTRUCTIONS</h4>
+                <div className="text-[10px] text-slate-700 font-bold bg-slate-50 p-2 border border-slate-200 leading-relaxed italic">
                   {challan.processingNotes}
                 </div>
               </div>
             )}
-            <div className="space-y-1">
-              <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest">TERMS & CONDITIONS</h4>
-              <ul className="text-[9px] text-slate-500 font-bold space-y-1 list-disc pl-3">
+
+            <div>
+              <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">TERMS & CONDITIONS</h4>
+              <ul className="text-[8px] text-slate-500 font-bold space-y-0.5 list-disc pl-3">
                 <li>Goods once sent for jobwork remain company property.</li>
                 <li>Report any discrepancy within 24 hours of receipt.</li>
-                <li>Return material within dynamic specified duration.</li>
+                <li>Return material within specified duration.</li>
               </ul>
             </div>
           </div>
-          <div className="p-6 flex flex-col justify-between">
-            <div className="text-right">
-              <p className="text-[9px] font-black text-slate-400 uppercase">FOR OFFICE USE ONLY</p>
-              <p className="text-[10px] font-bold text-slate-800 uppercase mt-2">Prepared by: Sheetal Dies Ops Team</p>
-              {challan.createdBy?.name && <p className="text-[9px] text-slate-500 mt-1 uppercase">Issued by: {challan.createdBy.name}</p>}
+
+          {/* Right: Signatures */}
+          <div className="p-4 flex flex-col justify-between">
+            <div>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">FOR OFFICE USE ONLY</p>
+              {challan.createdBy?.name && (
+                <p className="text-[10px] font-bold text-slate-600 mt-1 uppercase">Issued by: {challan.createdBy.name}</p>
+              )}
             </div>
-            <div className="text-right pt-6">
-              <p className="text-xs font-black text-slate-900 uppercase">FOR {challan.fromParty?.name}</p>
-              <div className="h-16" />
-              <p className="text-[10px] font-black text-slate-700 uppercase tracking-widest">AUTHORISED SIGNATORY</p>
+            <div className="space-y-6 text-right">
+              <div>
+                <p className="text-[9px] font-black text-slate-400 uppercase">RECEIVER'S SIGNATURE</p>
+                <div className="h-12 border-b border-slate-400 mt-2" />
+                <p className="text-[9px] text-slate-400 mt-1 uppercase">Name & Date</p>
+              </div>
+              <div>
+                <p className="text-[9px] font-black text-slate-400 uppercase">FOR SHEETAL DIES & TOOLS PVT. LTD.</p>
+                <div className="h-12 border-b border-slate-400 mt-2" />
+                <p className="text-[9px] font-black text-slate-700 uppercase tracking-widest mt-1">AUTHORISED SIGNATORY</p>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="p-4 bg-slate-50 flex justify-between items-center">
+        {/* ── FOOTER ── */}
+        <div className="p-3 bg-slate-50 border-t border-slate-200 flex justify-between items-center">
           <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Computer Generated Challan · SHEETAL DIES ERP · V2.0</p>
-          <p className="text-[8px] font-black text-slate-400 uppercase tabular-nums">Printed on: {formatDate(new Date(), true)}</p>
+          <p className="text-[8px] font-black text-slate-400 uppercase tabular-nums">Printed: {formatDate(new Date(), true)}</p>
         </div>
+
       </div>
     </div>
   );

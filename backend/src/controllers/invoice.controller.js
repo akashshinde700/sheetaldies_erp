@@ -84,9 +84,13 @@ const getChallanBillingStatusInternal = async (challanId, db = prisma) => {
     }
   }
 
-  // Remaining is based on dispatched qty (invoice only from dispatched)
+  // Remaining: if dispatch challans exist, use dispatched qty; else use total inward qty
+  const hasDispatch = (challan.dispatchChallans || []).some(dc =>
+    ['SENT', 'RECEIVED', 'COMPLETED'].includes(dc.status)
+  );
   for (const row of itemMap.values()) {
-    row.remainingQty = Math.max(0, row.dispatchedQty - row.invoicedQty);
+    const base = hasDispatch ? row.dispatchedQty : row.totalQty;
+    row.remainingQty = Math.max(0, base - row.invoicedQty);
   }
 
   const lineStatus = Array.from(itemMap.values());
@@ -128,18 +132,24 @@ const numToWords = (n) => {
 };
 
 // ── List Invoices ─────────────────────────────────────────────
+const MAX_EXPORT_LIMIT = 5000; // ✅ FIXED: Cap export to prevent DOS
+
 exports.list = async (req, res) => {
   try {
     const { paymentStatus, challanId, fromDate, toDate, search } = req.query;
     const { page, limit, skip } = parsePagination(req);
     const exportAll = String(req.query.exportAll) === 'true';
 
+    // ✅ FIXED: Cap export limit to prevent DOS attack
+    const finalLimit = exportAll ? Math.min(MAX_EXPORT_LIMIT, 5000) : Math.min(limit, 500);
+    const finalSkip = exportAll ? 0 : skip;
+
     // DEBUG: Log export request details
     console.log('[INVOICE EXPORT DEBUG]', {
       exportAll,
       page,
-      limit,
-      skip,
+      limit: finalLimit,
+      skip: finalSkip,
       paymentStatus,
       challanId,
       fromDate,
@@ -186,7 +196,8 @@ exports.list = async (req, res) => {
           createdBy: { select: { name: true } },
         },
         orderBy: { createdAt: 'desc' },
-        ...(exportAll ? { skip: 0, take: 100000 } : { skip, take: limit }),
+        skip: finalSkip,
+        take: finalLimit,
       }),
       prisma.taxInvoice.count({ where }),
     ]);
@@ -196,11 +207,11 @@ exports.list = async (req, res) => {
       invoicesReturned: invoices.length,
       totalInDB: total,
       exportAll,
-      responseLimit: exportAll ? invoices.length : limit,
+      responseLimit: invoices.length,
       timestamp: new Date().toISOString(),
     });
     
-    res.json(formatListResponse(invoices, total, exportAll ? 1 : page, exportAll ? invoices.length : limit));
+    res.json(formatListResponse(invoices, total, exportAll ? 1 : page, invoices.length));
   } catch (err) {
     res.status(getStatusCode('ERR_INTERNAL')).json(formatErrorResponse('ERR_INTERNAL', 'Server error.'));
   }
@@ -298,14 +309,18 @@ exports.create = async (req, res) => {
             ]);
 
             if (challan) {
+              const challanTotal = toNum(challan.subtotal, 0);
               const alreadyInvoiced = existingInvoices.reduce((s, inv) => s + toNum(inv.subtotal, 0), 0);
-              const remaining = toNum(challan.subtotal, 0) - alreadyInvoiced;
+              const remaining = challanTotal - alreadyInvoiced;
 
-              if (remaining <= 0.01) {
-                throw new Error(`Challan ${challan.challanNo} is already fully invoiced (₹${alreadyInvoiced.toFixed(2)} of ₹${challan.subtotal}). No further billing allowed.`);
-              }
-              if (subtotal > remaining + 0.01) {
-                throw new Error(`Over-invoice! Challan ${challan.challanNo}: total ₹${challan.subtotal}, already billed ₹${alreadyInvoiced.toFixed(2)}, remaining ₹${remaining.toFixed(2)}. Current invoice subtotal ₹${subtotal.toFixed(2)} exceeds remaining.`);
+              // Only enforce billing limits when challan has a non-zero value
+              if (challanTotal > 0.01) {
+                if (remaining <= 0.01) {
+                  throw new Error(`Challan ${challan.challanNo} is already fully invoiced (₹${alreadyInvoiced.toFixed(2)} of ₹${challan.subtotal}). No further billing allowed.`);
+                }
+                if (subtotal > remaining + 0.01) {
+                  throw new Error(`Over-invoice! Challan ${challan.challanNo}: total ₹${challan.subtotal}, already billed ₹${alreadyInvoiced.toFixed(2)}, remaining ₹${remaining.toFixed(2)}. Current invoice subtotal ₹${subtotal.toFixed(2)} exceeds remaining.`);
+                }
               }
 
               const status = await getChallanBillingStatusInternal(toInt(challanId), tx);

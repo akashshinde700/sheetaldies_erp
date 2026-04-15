@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { formatDate, formatCurrency } from '../../utils/formatters';
@@ -15,13 +16,17 @@ const STATUS_COLOR = {
 export default function JobworkDetail() {
   const { id }    = useParams();
   const navigate  = useNavigate();
+  const queryClient = useQueryClient();
   const [ch,      setCh]      = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving,  setSaving]  = useState(false);
+  const [creatingJC, setCreatingJC] = useState(false);
+  const [creatingRS, setCreatingRS] = useState(false);
 
   const [part2, setPart2] = useState({
     status: '', receivedDate: '', natureOfProcess: '',
     qtyReturned: '', reworkQty: '', scrapQtyKg: '', scrapDetails: '',
+    processorSign: '',
   });
 
   useEffect(() => {
@@ -37,10 +42,38 @@ export default function JobworkDetail() {
           reworkQty:       d.reworkQty       || '',
           scrapQtyKg:      d.scrapQtyKg      || '',
           scrapDetails:    d.scrapDetails    || '',
+          processorSign:   d.processorSign   || '',
         });
       })
       .finally(() => setLoading(false));
   }, [id]);
+
+  const handleCreateJobCard = async () => {
+    setCreatingJC(true);
+    try {
+      const r = await api.post('/jobwork/jobcard-from-challan', { challanId: Number(id) });
+      const jc = r.data.data?.jobCard;
+      toast.success(`Job Card ${jc?.jobCardNo} created!`);
+      queryClient.invalidateQueries({ queryKey: ['pending-items'] });
+      navigate(`/jobcards/${jc?.id}`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Error creating job card');
+    } finally { setCreatingJC(false); }
+  };
+
+  const handleCreateRunSheet = async () => {
+    if (!ch?.jobCard?.id) return;
+    setCreatingRS(true);
+    try {
+      const r = await api.post('/jobwork/runsheet-from-jobcard', { jobCardId: ch.jobCard.id });
+      const rs = r.data.data?.runsheet;
+      toast.success(`Run Sheet ${rs?.runsheetNumber} created!`);
+      queryClient.invalidateQueries({ queryKey: ['pending-items'] });
+      navigate(`/manufacturing/runsheet/${rs?.id}`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Error creating run sheet');
+    } finally { setCreatingRS(false); }
+  };
 
   const handleStatusSave = async () => {
     setSaving(true);
@@ -155,14 +188,24 @@ export default function JobworkDetail() {
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="bg-gradient-to-r from-slate-50 to-indigo-50/30 border-b border-slate-100">
-                {['Sr.', 'Description', 'Drawing No', 'Material', 'HRC', 'WO No', 'SAC No', 'Qty', 'UOM', 'Weight (kg)', 'Rate ₹', 'Amount ₹'].map(h => (
-                  <th key={h} className="px-2 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
+              {(() => {
+                const hasInvoice = ch.taxInvoices?.length > 0;
+                const headers = ['Sr.', 'Description', 'Drawing No', 'Material', 'HRC', 'WO No', 'SAC No', 'Qty', 'UOM', 'Weight (kg)', ...(hasInvoice ? ['Rate ₹', 'Amount ₹'] : [])];
+                return (
+                  <>
+                    <tr className="bg-gradient-to-r from-slate-50 to-indigo-50/30 border-b border-slate-100">
+                      {headers.map(h => (
+                        <th key={h} className="px-2 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </>
+                );
+              })()}
             </thead>
             <tbody className="divide-y divide-slate-50/80">
-              {ch.items?.map((it, i) => (
+              {ch.items?.map((it, i) => {
+                const hasInvoice = ch.taxInvoices?.length > 0;
+                return (
                 <tr key={it.id} className="hover:bg-slate-50/50 transition-colors">
                   <td className="px-2 py-2 text-slate-400 text-center font-mono">{i + 1}</td>
                   <td className="px-2 py-2 font-medium text-slate-800">{it.description || it.item?.description || '—'}</td>
@@ -172,12 +215,13 @@ export default function JobworkDetail() {
                   <td className="px-2 py-2 text-slate-600">{it.woNo || '—'}</td>
                   <td className="px-2 py-2 font-mono text-slate-500">{it.hsnCode || '—'}</td>
                   <td className="px-2 py-2 text-slate-600 text-right">{it.quantity}</td>
-                   <td className="px-2 py-2 text-slate-500">{it.uom || 'KGS'}</td>
+                  <td className="px-2 py-2 text-slate-500">{it.uom || 'KGS'}</td>
                   <td className="px-2 py-2 text-slate-600 text-right">{it.weight ? Number(it.weight).toFixed(3) : '—'}</td>
-                  <td className="px-2 py-2 text-slate-600 text-right">{formatCurrency(it.rate)}</td>
-                  <td className="px-2 py-2 font-bold text-slate-800 text-right">{formatCurrency(it.amount)}</td>
+                  {hasInvoice && <td className="px-2 py-2 text-slate-600 text-right">{formatCurrency(it.rate)}</td>}
+                  {hasInvoice && <td className="px-2 py-2 font-bold text-slate-800 text-right">{formatCurrency(it.amount)}</td>}
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -258,19 +302,50 @@ export default function JobworkDetail() {
           <F label="Scrap Details">
             <input value={part2.scrapDetails} onChange={e => setPart2(p => ({ ...p, scrapDetails: e.target.value }))} className="form-input" placeholder="Nature of scrap..." />
           </F>
+          <F label="Processor Sign">
+            <input value={part2.processorSign} onChange={e => setPart2(p => ({ ...p, processorSign: e.target.value }))} className="form-input" placeholder="Name / signature" />
+          </F>
         </div>
-        <div className="flex gap-3 mt-5">
+        <div className="flex flex-wrap gap-3 mt-5">
           <button onClick={handleStatusSave} disabled={saving} className="btn-primary">
             {saving
               ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Saving...</>
               : <><span className="material-symbols-outlined text-sm">save</span> Update Challan</>
             }
           </button>
+
+          {/* Auto-flow: No Job Card yet → Create one */}
+          {!ch.jobCard && (
+            <button onClick={handleCreateJobCard} disabled={creatingJC} className="btn-outline border-amber-300 text-amber-700 hover:bg-amber-50">
+              {creatingJC
+                ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Creating...</>
+                : <><span className="material-symbols-outlined text-sm">add_card</span> Job Card Banao</>
+              }
+            </button>
+          )}
+
+          {/* Auto-flow: Job Card exists → Go to it or create Run Sheet */}
           {ch.jobCard && (
-            <Link to={`/jobcards/${ch.jobCard.id}/inspection`}
-              className="btn-ghost" style={{ background: 'linear-gradient(135deg,#7c3aed,#6366f1)', color: 'white', border: 'none' }}>
-              <span className="material-symbols-outlined text-sm">fact_check</span> Go to Inspection
-            </Link>
+            <>
+              <Link to={`/jobcards/${ch.jobCard.id}`}
+                className="btn-outline border-indigo-200 text-indigo-700 hover:bg-indigo-50">
+                <span className="material-symbols-outlined text-sm">description</span> Job Card Dekho
+              </Link>
+              <Link to={`/jobcards/${ch.jobCard.id}/inspection`}
+                className="btn-outline border-violet-200 text-violet-700 hover:bg-violet-50">
+                <span className="material-symbols-outlined text-sm">fact_check</span> Inspection
+              </Link>
+              <button onClick={handleCreateRunSheet} disabled={creatingRS} className="btn-outline border-sky-200 text-sky-700 hover:bg-sky-50">
+                {creatingRS
+                  ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Creating...</>
+                  : <><span className="material-symbols-outlined text-sm">thermostat</span> VHT Run Sheet Banao</>
+                }
+              </button>
+              <Link to={`/quality/certificates/new?jobCardId=${ch.jobCard.id}`}
+                className="btn-outline border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+                <span className="material-symbols-outlined text-sm">verified</span> Certificate Banao
+              </Link>
+            </>
           )}
         </div>
       </div>

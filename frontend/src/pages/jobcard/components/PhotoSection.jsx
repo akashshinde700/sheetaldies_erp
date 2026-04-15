@@ -48,7 +48,9 @@ function ImageSlot({ index, initialUrl, onChange }) {
   );
 }
 
-export default function PhotoSection({ handleImageChange, existingImages = {} }) {
+export default function PhotoSection({ handleImageChange, existingImages }) {
+  const images = existingImages || {};
+
   return (
     <div className="card p-5">
       <div className="flex items-center gap-2 mb-4 border-b border-slate-100 pb-2">
@@ -63,7 +65,7 @@ export default function PhotoSection({ handleImageChange, existingImages = {} })
           <ImageSlot 
             key={i} 
             index={i} 
-            initialUrl={existingImages[`image${i}`]}
+            initialUrl={images[`image${i}`]}
             onChange={handleImageChange} 
           />
         ))}

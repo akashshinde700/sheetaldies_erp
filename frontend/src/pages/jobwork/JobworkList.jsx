@@ -135,7 +135,7 @@ export default function JobworkList() {
       {/* Header: title block + action row (stacks on narrow screens) */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-extrabold text-slate-800 font-headline">Jobwork Challans</h2>
+          <h2 className="text-xl font-extrabold text-slate-800 font-headline">Jobwork + Job Cards</h2>
           <p className="text-xs text-slate-400 mt-0.5">
             {total > 0 ? `${total} total` : 'Heat treatment job work'} · Rule 45(1) CGST
           </p>
@@ -145,9 +145,9 @@ export default function JobworkList() {
             <span className="material-symbols-outlined text-[18px] shrink-0" aria-hidden>file_download</span>
             Export Excel
           </button>
-          <Link to="/jobwork/new" className="btn-primary whitespace-nowrap">
+          <Link to="/jobwork/inward-entry" className="btn-primary whitespace-nowrap">
             <span className="material-symbols-outlined text-[18px] shrink-0" aria-hidden>add</span>
-            New Challan
+            New Inward + Job Card
           </Link>
         </div>
       </div>
@@ -235,7 +235,7 @@ export default function JobworkList() {
                       {status ? `No ${status.toLowerCase()} challans.` : 'No challans yet.'}
                     </p>
                     {!status && (
-                      <Link to="/jobwork/new" className="inline-flex items-center gap-1 text-xs text-indigo-600 font-semibold hover:underline">
+                      <Link to="/jobwork/inward-entry" className="inline-flex items-center gap-1 text-xs text-indigo-600 font-semibold hover:underline">
                         <span className="material-symbols-outlined text-sm">add</span> Create first challan
                       </Link>
                     )}

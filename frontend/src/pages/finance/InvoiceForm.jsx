@@ -38,16 +38,25 @@ export default function InvoiceForm() {
   });
 
   const [lineItems, setLineItems] = useState([{ ...EMPTY_LINE }]);
+  const [runsheetNumber, setRunsheetNumber] = useState('');
+  const [runsheetLookupLoading, setRunsheetLookupLoading] = useState(false);
+  const [runsheetLookupMessage, setRunsheetLookupMessage] = useState('');
 
   useEffect(() => {
     if (parties.length > 0 && !form.fromPartyId) {
-      setForm(p => ({ ...p, fromPartyId: String(parties[0].id) }));
-      const customer = parties.find(x => x.partyType === 'CUSTOMER' || x.partyType === 'BOTH');
-      if (customer) setForm(p => ({ ...p, toPartyId: String(customer.id) }));
+      // Invoice: fromParty = our company (BOTH), toParty = customer
+      const ourCompany   = parties.find(x => x.partyType === 'BOTH');
+      const firstCustomer = parties.find(x => x.partyType === 'CUSTOMER');
+      setForm(p => ({
+        ...p,
+        fromPartyId: ourCompany   ? String(ourCompany.id)    : String(parties[0].id),
+        toPartyId:   firstCustomer ? String(firstCustomer.id) : '',
+      }));
     }
   }, [parties, form.fromPartyId]);
 
   const handleChallanChange = async (val) => {
+    setRunsheetLookupMessage('');
     setChallanInfo(null);
     setChallanHistory([]);
     setBillingStatus(null);
@@ -99,6 +108,43 @@ export default function InvoiceForm() {
       setLineItems([{ ...EMPTY_LINE }]);
     } finally {
       setLoadingChallan(false);
+    }
+  };
+
+  const lookupRunsheetByNumber = async () => {
+    const number = runsheetNumber.trim();
+    if (!number) {
+      toast.error('Enter a VHT run sheet number to lookup.');
+      return;
+    }
+    setRunsheetLookupLoading(true);
+    setRunsheetLookupMessage('');
+    try {
+      const res = await api.get('/manufacturing/runsheets', { params: { search: number, limit: 10 } });
+      const rows = res.data.data || [];
+      if (!rows.length) {
+        toast.error('Run sheet not found.');
+        return;
+      }
+      const found = rows.find(r => String(r.runsheetNumber).toLowerCase() === number.toLowerCase()) || rows[0];
+      const item = found.items?.[0];
+      if (!item?.jobCardId) {
+        toast.error('Run sheet is not linked to a job card.');
+        return;
+      }
+      const cardRes = await api.get(`/jobcards/${item.jobCardId}`);
+      const jobCard = cardRes.data.data;
+      const challan = jobCard.challans?.[0];
+      if (!challan) {
+        toast.error('No challan linked to this job card.');
+        return;
+      }
+      handleChallanChange(String(challan.id));
+      setRunsheetLookupMessage(`Run sheet ${found.runsheetNumber} mapped to challan ${challan.challanNo}.`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to lookup run sheet.');
+    } finally {
+      setRunsheetLookupLoading(false);
     }
   };
 
@@ -244,6 +290,37 @@ export default function InvoiceForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="card p-4 sm:p-5 space-y-3">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <p className="section-title">Lookup by Run Sheet</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-2">
+              <label className="form-label">VHT Run Sheet No</label>
+              <input
+                type="text"
+                value={runsheetNumber}
+                onChange={(e) => setRunsheetNumber(e.target.value)}
+                placeholder="Enter VHT run sheet number"
+                className="form-input"
+              />
+            </div>
+            <div className="sm:col-span-1 flex items-end">
+              <button
+                type="button"
+                onClick={lookupRunsheetByNumber}
+                disabled={runsheetLookupLoading}
+                className="btn-secondary w-full"
+              >
+                {runsheetLookupLoading ? 'Looking up…' : 'Find Challan'}
+              </button>
+            </div>
+          </div>
+          {runsheetLookupMessage && (
+            <p className="text-sm text-slate-600">{runsheetLookupMessage}</p>
+          )}
+        </div>
+
         <ChallanSelectionSection 
           form={form} 
           handleChallanChange={handleChallanChange} 

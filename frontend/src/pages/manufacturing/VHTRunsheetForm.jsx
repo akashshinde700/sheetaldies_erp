@@ -83,6 +83,8 @@ export default function VHTRunsheetForm() {
   const [machines, setMachines] = useState([]);
   const [batches, setBatches] = useState([]);
   const [jobCards, setJobCards] = useState([]);
+  const [jobCardNoLookup, setJobCardNoLookup] = useState('');
+  const [fillingJobCard, setFillingJobCard] = useState(false);
 
   const [form, setForm] = useState({
     batchId: '',
@@ -211,6 +213,29 @@ export default function VHTRunsheetForm() {
     const next = [...form.items];
     next[idx] = { ...next[idx], [field]: value };
     setForm({ ...form, items: next });
+  };
+
+  const fillFromJobCardNumber = () => {
+    const number = jobCardNoLookup.trim();
+    if (!number) {
+      toast.error('Enter a job card number to fill the run sheet.');
+      return;
+    }
+    const found = jobCards.find((jc) => String(jc.jobCardNo).toLowerCase() === number.toLowerCase());
+    if (!found) {
+      toast.error('Job card number not found.');
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      items: [{
+        ...emptyLine(),
+        jobCardId: String(found.id),
+        quantity: found.quantity ? String(found.quantity) : prev.items[0]?.quantity || '',
+        weightKg: found.totalWeight != null ? String(found.totalWeight) : prev.items[0]?.weightKg || '',
+      }],
+    }));
+    toast.success(`Loaded job card ${found.jobCardNo}.`);
   };
 
   const updateGraphRow = (idx, field, value) => {
@@ -473,9 +498,31 @@ export default function VHTRunsheetForm() {
         </section>
 
         <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
-          <div className="flex justify-between items-center">
-            <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Jobs in this batch</h2>
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+            <div>
+              <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Jobs in this batch</h2>
+              <p className="text-xs text-slate-500">Select job cards or load one by number.</p>
+            </div>
             <span className="text-xs text-slate-500">Total weight: <strong>{totalWeight.toFixed(2)}</strong> kg</span>
+          </div>
+          <div className="grid sm:grid-cols-[1fr_auto] gap-3 items-end">
+            <label className="block text-xs">
+              <span className="text-slate-500">Job card number</span>
+              <input
+                type="text"
+                value={jobCardNoLookup}
+                onChange={(e) => setJobCardNoLookup(e.target.value)}
+                placeholder="Enter job card number"
+                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={fillFromJobCardNumber}
+              className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
+            >
+              Load from job card
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs min-w-[800px]">

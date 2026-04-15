@@ -70,6 +70,21 @@ export default function CertDetail() {
         <Link to={`/quality/certificates/${id}/print`} className="btn-outline">
           <span className="material-symbols-outlined text-sm">print</span> Print / PDF
         </Link>
+        {/* Auto-flow → Invoice */}
+        <Link
+          to={`/invoices/new?customerId=${cert.customerId}`}
+          className="btn-outline border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+        >
+          <span className="material-symbols-outlined text-sm">receipt_long</span> Invoice Banao
+        </Link>
+        {cert.jobCardId && (
+          <Link
+            to={`/jobcards/${cert.jobCardId}`}
+            className="btn-outline border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+          >
+            <span className="material-symbols-outlined text-sm">description</span> Job Card
+          </Link>
+        )}
         <span className={`badge ${STATUS_COLOR[cert.status] || STATUS_COLOR.DRAFT}`}>{cert.status}</span>
       </div>
 

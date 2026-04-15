@@ -4,6 +4,7 @@ const { findRunsheetGraphForJobCard } = require('../utils/runsheetGraph');
 const { toInt, toNum } = require('../utils/normalize');
 const { parseJsonIfString } = require('../utils/json');
 const { parsePagination, formatListResponse, formatErrorResponse, getStatusCode } = require('../utils/validation');
+const { canEditInspection, canViewInspection, hasRole } = require('../middleware/authorize');
 
 function normalizeTempCycleArray(raw) {
   if (raw == null) return null;
@@ -77,6 +78,17 @@ exports.upsertInspection = async (req, res) => {
     const jobCard = await prisma.jobCard.findUnique({ where: { id: jobCardId } });
     if (!jobCard)
       return res.status(404).json({ success: false, message: 'Job card not found.' });
+
+    // ✅ FIXED: Check if inspection exists and verify permission to edit
+    const existingInspection = await prisma.incomingInspection.findUnique({
+      where: { jobCardId },
+    });
+    if (existingInspection && !canEditInspection(req.user, existingInspection)) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Access denied. You can only edit your own inspections.' 
+      });
+    }
 
     const {
       catNormal, catWelded, catCrackRisk, catDistortionRisk,
@@ -230,6 +242,15 @@ exports.getInspection = async (req, res) => {
     });
     if (!inspection)
       return res.status(404).json({ success: false, message: 'No inspection found for this job card.' });
+    
+    // ✅ FIXED: Verify user has permission to view this inspection
+    if (!canViewInspection(req.user, inspection)) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Access denied. You can only view your own inspections.' 
+      });
+    }
+    
     res.json({ success: true, data: inspection });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' });
@@ -530,6 +551,7 @@ exports.getCertificate = async (req, res) => {
             part: true,
             inspection: { include: { processType: true, heatProcesses: true } },
             customer: true,
+            challans: { include: { items: true } },
           },
         },
         customer:          true,

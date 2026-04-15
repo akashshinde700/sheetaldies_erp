@@ -52,7 +52,7 @@ export default function DailyFurnacePlanningPrint() {
         <div className="p-6">
           <div className="flex items-start justify-between">
             <div>
-              <div className="font-extrabold text-lg">SHITAL VACUUM TREAT PVT. LTD.</div>
+              <div className="font-extrabold text-lg">SHEETAL DIES & TOOLS PVT. LTD.</div>
               <div className="text-xs text-slate-600">DAILY PRODUCTION PLANNING</div>
             </div>
             <div className="text-xs text-right">

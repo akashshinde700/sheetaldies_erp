@@ -333,7 +333,7 @@ export default function Dashboard() {
       {/* ── Quick Actions ── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3 3xl:gap-4">
         {[
-          { label: 'New Challan',     icon: 'engineering',   to: '/jobwork/new',              color: 'text-amber-600',  bg: 'bg-amber-50',   ring: 'ring-amber-100' },
+          { label: 'New Inward Entry', icon: 'engineering', to: '/jobwork/inward-entry', color: 'text-amber-600', bg: 'bg-amber-50', ring: 'ring-amber-100' },
           { label: 'New Certificate', icon: 'verified',      to: '/quality/certificates/new', color: 'text-emerald-600', bg: 'bg-emerald-50', ring: 'ring-emerald-100' },
           { label: 'New Invoice',     icon: 'receipt_long',  to: '/invoices/new',             color: 'text-indigo-600', bg: 'bg-indigo-50',  ring: 'ring-indigo-100' },
           { label: 'Manage Parties',  icon: 'group',         to: '/admin/parties',            color: 'text-violet-600', bg: 'bg-violet-50',  ring: 'ring-violet-100' },

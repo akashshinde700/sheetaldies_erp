@@ -32,22 +32,58 @@ const writeLog = (data) => {
   }
 };
 
-// Sanitize sensitive data from objects
-const sanitize = (obj, sensitiveFields = ['password', 'token', 'refreshToken', 'gstin', 'pan', 'bankAccount', 'accountNo', 'email', 'otp', 'phone', 'mobileNo', 'ifscCode', 'confirmPassword', 'newPassword']) => {
+// ✅ FIXED: More comprehensive sensitive field detection
+const SENSITIVE_PATTERNS = [
+  // Auth
+  'password', 'pwd', 'pass', 'newpassword', 'oldpassword', 'confirmpassword',
+  'refreshtoken', 'accesstoken', 'token', 'jwt', 'secret', 'apikey',
+  // OTP & verification
+  'otp', 'otptoken', 'verificationcode', 'verificationtoken', 'mfa', 'totp',
+  // PII
+  'ssn', 'pan', 'gstin', 'aadhaar', 'aadhaarno', 'uin',
+  // Banking
+  'accountno', 'accountnumber', 'bankaccount', 'accountnumber', 
+  'ifsccode', 'ifsc', 'routingno', 'swiftcode', 'swift',
+  'cardno', 'cardnumber', 'cvv', 'cvc', 'expirydate',
+  // Contact
+  'phone', 'phoneno', 'mobileno', 'cellphone', 'telephone',
+  'email', 'emailaddress', 'contact',
+  // Personal
+  'firstname', 'lastname', 'fullname', 'dob', 'dateofbirth',
+  'address', 'street', 'city', 'state', 'zipcode', 'postalcode',
+  // Social
+  'ssn', 'licensekey', 'licensenumber', 'passport', 'passportno'
+];
+
+const sanitize = (obj, level = 0) => {
+  if (level > 10) return obj; // Prevent infinite recursion
   if (!obj || typeof obj !== 'object') return obj;
 
   if (Array.isArray(obj)) {
-    return obj.map(item => sanitize(item, sensitiveFields));
+    return obj.map((item, i) => i < 100 ? sanitize(item, level + 1) : '...(truncated)');
   }
 
   const sanitized = {};
-  for (const [key, value] of Object.entries(obj)) {
-    // ✅ FIXED: Enhanced redaction for nested objects and case-insensitive matching
-    const keyLower = key.toLowerCase();
-    if (sensitiveFields.some(field => keyLower.includes(field.toLowerCase()))) {
-      sanitized[key] = '***REDACTED***';
+  const keys = Object.keys(obj);
+  
+  for (const key of keys) {
+    const value = obj[key];
+    const keyLower = key.toLowerCase().replace(/[_\-]/g, '');
+    
+    // Check if key matches any sensitive pattern
+    const isSensitive = SENSITIVE_PATTERNS.some(pattern => 
+      keyLower.includes(pattern.replace(/[_\-]/g, ''))
+    );
+
+    if (isSensitive && value) {
+      // Redact sensitive values but show first 2 and last 2 chars if long
+      if (typeof value === 'string' && value.length > 8) {
+        sanitized[key] = value.substring(0, 2) + '***' + value.substring(value.length - 2);
+      } else {
+        sanitized[key] = '***REDACTED***';
+      }
     } else if (typeof value === 'object' && value !== null) {
-      sanitized[key] = sanitize(value, sensitiveFields);
+      sanitized[key] = sanitize(value, level + 1);
     } else {
       sanitized[key] = value;
     }
