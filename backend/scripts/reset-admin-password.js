@@ -2,8 +2,10 @@
  * Development-only helper to reset selected user passwords.
  * Usage: node reset-admin-password.js
  */
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 const bcrypt = require('bcryptjs');
-const prisma  = require('./src/utils/prisma');
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 
 async function main() {
   if (process.env.NODE_ENV === 'production') {
@@ -18,7 +20,7 @@ async function main() {
   const hash = await bcrypt.hash(password, 10);
 
   const emails = [
-    'admin@sheetaldies.com',
+    'admin@shitalvaccumtreat.com',
     'manager@sheetaldies.com',
     'operator@sheetaldies.com',
   ];

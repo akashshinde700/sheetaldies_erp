@@ -10,7 +10,6 @@ const generateChallanNo = async () => {
   const yn = String(toInt(y, 0) + 1);                        // "27"
   const prefix = `SDT/JW/${y}-${yn}/`;
 
-  // Find the highest existing serial for this financial year
   const last = await prisma.jobworkChallan.findFirst({
     where:   { challanNo: { startsWith: prefix } },
     orderBy: { challanNo: 'desc' },
@@ -23,7 +22,6 @@ const generateChallanNo = async () => {
     nextSerial = lastSerial + 1;
   }
 
-  // Retry until unique (handles race conditions)
   let challanNo;
   do {
     challanNo = `${prefix}${String(nextSerial).padStart(4, '0')}`;
@@ -33,6 +31,34 @@ const generateChallanNo = async () => {
   } while (nextSerial < 9999);
 
   return challanNo;
+};
+
+const generateInwardNo = async () => {
+  const y  = new Date().getFullYear().toString().slice(-2);
+  const yn = String(toInt(y, 0) + 1);
+  const prefix = `INW/${y}-${yn}/`;
+
+  const last = await prisma.jobworkChallan.findFirst({
+    where:   { inwardNo: { startsWith: prefix } },
+    orderBy: { inwardNo: 'desc' },
+  });
+
+  let nextSerial = 1;
+  if (last?.inwardNo) {
+    const parts = last.inwardNo.split('/');
+    const lastSerial = toInt(parts[parts.length - 1], 0) || 0;
+    nextSerial = lastSerial + 1;
+  }
+
+  let inwardNo;
+  do {
+    inwardNo = `${prefix}${String(nextSerial).padStart(4, '0')}`;
+    const exists = await prisma.jobworkChallan.findUnique({ where: { inwardNo } });
+    if (!exists) break;
+    nextSerial++;
+  } while (nextSerial < 9999);
+
+  return inwardNo;
 };
 
 // ── List Challans ─────────────────────────────────────────────
@@ -121,7 +147,7 @@ const CHALLAN_FULL_INCLUDE = {
   fromParty: true,
   toParty:   true,
   jobCard:   { include: { part: true } },
-  items:     { include: { item: true, processType: { select: { id: true, name: true, code: true, hsnSacCode: true, pricePerKg: true } } } },
+  items:     { include: { item: true, processType: { select: { id: true, name: true, code: true, hsnSacCode: true, pricePerKg: true } }, jobCard: { select: { id: true, jobCardNo: true, status: true } } } },
   createdBy: { select: { name: true } },
   taxInvoices: { select: { id: true, invoiceNo: true } },
 };
@@ -133,7 +159,43 @@ exports.getOne = async (req, res) => {
       include: CHALLAN_FULL_INCLUDE,
     });
     if (!challan) return res.status(404).json({ success: false, message: 'Challan not found.' });
-    res.json({ success: true, data: challan });
+
+    // Pending items: not yet linked to any job card
+    const pendingItems = challan.items
+      .filter(it => !it.jobCardId)
+      .map(it => ({
+        id: it.id,
+        description: it.description,
+        drawingNo: it.drawingNo,
+        material: it.material,
+        processName: it.processName,
+        processTypeId: it.processTypeId,
+        hrc: it.hrc,
+        quantity: it.quantity,
+        weight: it.weight,
+        rate: it.rate,
+        amount: it.amount,
+      }));
+
+    // Collect unique job cards linked to this challan's items, with item count
+    const jcMap = {};
+    for (const it of challan.items) {
+      if (it.jobCard) {
+        if (!jcMap[it.jobCard.id]) {
+          jcMap[it.jobCard.id] = { ...it.jobCard, itemCount: 0 };
+        }
+        jcMap[it.jobCard.id].itemCount++;
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        ...challan,
+        pendingItems,
+        relatedJobCards: Object.values(jcMap),
+      },
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' });
   }
@@ -193,7 +255,7 @@ exports.create = async (req, res) => {
 
     // ✅ FIXED: Wrap in transaction to prevent partial failures
     const challan = await withTransaction(prisma, async (tx) => {
-      return await tx.jobworkChallan.create({
+      const created = await tx.jobworkChallan.create({
         data: {
           challanNo,
           challanDate:     new Date(challanDate || new Date()),
@@ -249,7 +311,7 @@ exports.create = async (req, res) => {
         });
       }
 
-      return challan;
+      return created;
     });
 
     res.status(201).json({ success: true, data: challan, message: `Challan ${challanNo} created.` });
@@ -356,6 +418,7 @@ exports.createInward = async (req, res) => {
               sacNo: it.sacNo || null,
               quantity: toNum(it.quantity, 0),
               qtyOut: toNum(it.qtyOut, 0), // Dispatch Qty
+              dispatchDate: it.dispatchDate ? new Date(it.dispatchDate) : null,
               uom: it.uom || 'KGS',
               weight: it.weight ? toNum(it.weight, null) : null,
               rate: toNum(it.rate, 0),
@@ -557,12 +620,254 @@ exports.createRunSheetFromJobCard = async (req, res) => {
   }
 };
 
+// ── Inward + one Job Card per item ──────────────────────────
+exports.createInwardWithJobCards = async (req, res) => {
+  try {
+    const {
+      challanDate, fromPartyId, toPartyId,
+      invoiceChNo, vehicleNo, deliveryPerson, processingNotes,
+      poNo, poDate, cillNo, receivedDate,
+      items, handlingCharges, cgstRate, sgstRate, igstRate, manualChallanNo,
+      manualInwardNo,
+    } = req.body;
+
+    if (!fromPartyId || !toPartyId)
+      return res.status(400).json({ success: false, message: 'From and To party are required.' });
+
+    const parsedItems = asArray(items);
+    if (parsedItems.length === 0)
+      return res.status(400).json({ success: false, message: 'At least one item is required.' });
+
+    const subtotal = parsedItems.reduce((s, it) => s + toNum(it.amount, 0), 0);
+    const handling = toNum(handlingCharges, 0);
+    const total = subtotal + handling;
+    const cgstRateVal = toNum(cgstRate, 0);
+    const sgstRateVal = toNum(sgstRate, 0);
+    const igstRateVal = toNum(igstRate, 0);
+    const cgstAmt = toNum((total * cgstRateVal / 100).toFixed(2), 0);
+    const sgstAmt = toNum((total * sgstRateVal / 100).toFixed(2), 0);
+    const igstAmt = toNum((total * igstRateVal / 100).toFixed(2), 0);
+    const grandTotalVal = toNum((total + cgstAmt + sgstAmt + igstAmt).toFixed(2), 0);
+
+    const generateJobCardNo = async (tx) => {
+      const now = new Date();
+      const yy = String(now.getFullYear()).slice(-2);
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const prefix = `${yy}${mm}`;
+      let attempts = 0;
+      let jcNo;
+      do {
+        jcNo = `${prefix}${String(Math.floor(1000 + Math.random() * 9000))}`;
+        const ex = await tx.jobCard.findUnique({ where: { jobCardNo: jcNo } });
+        if (!ex) break;
+        attempts++;
+      } while (attempts < 50);
+      return jcNo;
+    };
+
+    const result = await withTransaction(prisma, async (tx) => {
+      // 1. Challan No + Inward No
+      let challanNo;
+      if (manualChallanNo && manualChallanNo.trim()) {
+        const trimmed = manualChallanNo.trim();
+        const existing = await tx.jobworkChallan.findUnique({ where: { challanNo: trimmed } });
+        if (existing) throw new Error(`Challan No "${trimmed}" already exists.`);
+        challanNo = trimmed;
+      } else {
+        challanNo = await generateChallanNo();
+      }
+
+      let inwardNo;
+      if (manualInwardNo && manualInwardNo.trim()) {
+        const trimmed = manualInwardNo.trim();
+        const existing = await tx.jobworkChallan.findUnique({ where: { inwardNo: trimmed } });
+        if (existing) throw new Error(`Inward No "${trimmed}" already exists.`);
+        inwardNo = trimmed;
+      } else {
+        inwardNo = await generateInwardNo();
+      }
+
+      // 2. Create challan with items
+      const challan = await tx.jobworkChallan.create({
+        data: {
+          challanNo,
+          inwardNo,
+          challanDate: new Date(challanDate || new Date()),
+          fromPartyId: toInt(fromPartyId),
+          toPartyId: toInt(toPartyId),
+          invoiceChNo: invoiceChNo || null,
+          transportMode: 'Hand Delivery',
+          vehicleNo: vehicleNo || null,
+          deliveryPerson: deliveryPerson || null,
+          poNo: poNo || null,
+          poDate: poDate ? new Date(poDate) : null,
+          cillNo: cillNo || null,
+          receivedDate: receivedDate ? new Date(receivedDate) : null,
+          processingNotes: processingNotes || null,
+          subtotal,
+          handlingCharges: handling,
+          totalValue: total,
+          cgstRate: cgstRateVal || null,
+          cgstAmount: cgstAmt || null,
+          sgstRate: sgstRateVal || null,
+          sgstAmount: sgstAmt || null,
+          igstRate: igstRateVal || null,
+          igstAmount: igstAmt || null,
+          grandTotal: grandTotalVal,
+          createdById: req.user.id,
+          items: {
+            create: parsedItems.map(it => ({
+              itemId: it.itemId ? toInt(it.itemId) : null,
+              description: it.description || null,
+              drawingNo: it.drawingNo || null,
+              material: it.material || null,
+              hrc: it.hrc || null,
+              woNo: it.woNo || null,
+              hsnCode: it.hsnCode || null,
+              sacNo: it.sacNo || null,
+              quantity: toNum(it.quantity, 0),
+              qtyOut: it.qtyOut ? toNum(it.qtyOut, null) : null,
+              dispatchDate: it.dispatchDate ? new Date(it.dispatchDate) : null,
+              uom: it.uom || 'KGS',
+              weight: it.weight ? toNum(it.weight, null) : null,
+              rate: toNum(it.rate, 0),
+              amount: toNum(it.amount, 0),
+              processTypeId: it.processTypeId ? toInt(it.processTypeId) : null,
+              processName: it.processName || null,
+            })),
+          },
+        },
+        include: { items: true },
+      });
+
+      return challan;
+    });
+
+    res.status(201).json({
+      success: true,
+      data: { challan: result },
+      message: `Challan ${result.challanNo} created. Select combinations to create Job Cards.`,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message || 'Server error.' });
+  }
+};
+
+// ── Create ONE Job Card for selected item IDs on an existing Challan ──
+exports.createJobCardsForChallan = async (req, res) => {
+  try {
+    const challanId = toInt(req.params.id);
+    const { itemIds } = req.body; // [id1, id2, ...]
+
+    if (!Array.isArray(itemIds) || itemIds.length === 0)
+      return res.status(400).json({ success: false, message: 'Select at least one item.' });
+
+    const challan = await prisma.jobworkChallan.findUnique({
+      where: { id: challanId },
+      include: {
+        items: { where: { jobCardId: null } },
+        fromParty: { select: { id: true, name: true, address: true, city: true, state: true, pinCode: true } },
+      },
+    });
+    if (!challan) return res.status(404).json({ success: false, message: 'Challan not found.' });
+
+    const parsedIds = itemIds.map(id => toInt(id));
+    const selectedItems = challan.items.filter(ci => parsedIds.includes(ci.id));
+    if (selectedItems.length === 0)
+      return res.status(400).json({ success: false, message: 'No valid pending items found for selected IDs.' });
+
+    const generateJobCardNo = async (tx) => {
+      const now = new Date();
+      const yy = String(now.getFullYear()).slice(-2);
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const prefix = `${yy}${mm}`;
+      let attempts = 0;
+      let jcNo;
+      do {
+        jcNo = `${prefix}${String(Math.floor(1000 + Math.random() * 9000))}`;
+        const ex = await tx.jobCard.findUnique({ where: { jobCardNo: jcNo } });
+        if (!ex) break;
+        attempts++;
+      } while (attempts < 50);
+      return jcNo;
+    };
+
+    const jobCard = await withTransaction(prisma, async (tx) => {
+      const jcNo = await generateJobCardNo(tx);
+      const totalQty = selectedItems.reduce((s, ci) => s + toNum(ci.quantity, 0), 0);
+      const totalWeight = selectedItems.reduce((s, ci) => s + toNum(ci.weight, 0), 0);
+      const first = selectedItems[0];
+
+      // Find or create Item master record
+      let partId = null;
+      if (first.itemId) {
+        partId = first.itemId;
+      } else {
+        const desc = first.description || first.material || 'Job Card Material';
+        const generic = await tx.item.create({
+          data: {
+            partNo: `JOBCARD-${jcNo}`,
+            description: desc,
+            material: first.material || null,
+            hsnCode: first.hsnCode || null,
+          },
+        });
+        partId = generic.id;
+      }
+
+      const fp = challan.fromParty;
+      const custAddr = fp ? [fp.address, fp.city, fp.state, fp.pinCode].filter(Boolean).join(', ') : null;
+      const created = await tx.jobCard.create({
+        data: {
+          jobCardNo: jcNo,
+          partId,
+          customerId: challan.fromPartyId,
+          customerNameSnapshot: fp?.name || null,
+          customerAddressSnapshot: custAddr || null,
+          yourNo: challan.invoiceChNo || null,
+          drawingNo: first.drawingNo || null,
+          hrcRange: first.hrc || null,
+          dieMaterial: first.material || null,
+          quantity: toInt(totalQty, 0),
+          totalWeight: totalWeight > 0 ? totalWeight : null,
+          receivedDate: new Date(),
+          issueDate: new Date(),
+          status: 'SENT_FOR_JOBWORK',
+          createdById: req.user.id,
+        },
+      });
+
+      // Link all selected items to this job card
+      for (const ci of selectedItems) {
+        await tx.challanItem.update({ where: { id: ci.id }, data: { jobCardId: created.id } });
+      }
+
+      // Link challan → first job card (backward compat)
+      if (!challan.jobCardId) {
+        await tx.jobworkChallan.update({ where: { id: challanId }, data: { jobCardId: created.id } });
+      }
+
+      return created;
+    });
+
+    res.status(201).json({
+      success: true,
+      data: jobCard,
+      message: `Job Card ${jobCard.jobCardNo} created with ${selectedItems.length} item(s).`,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message || 'Server error.' });
+  }
+};
+
 exports.createInwardJobCardRunSheet = async (req, res) => {
   try {
     const {
       challanDate, fromPartyId, toPartyId,
       invoiceChNo, vehicleNo, deliveryPerson, dispatchDate, processingNotes,
-      poNo, poDate, cillNo,
+      poNo, poDate, cillNo, receivedDate,
       items, handlingCharges, cgstRate, sgstRate, igstRate, manualChallanNo,
       jobCardNo: manualJobCardNo,
     } = req.body;
@@ -611,6 +916,7 @@ exports.createInwardJobCardRunSheet = async (req, res) => {
           poDate: poDate ? new Date(poDate) : null,
           cillNo: cillNo || null,
           dispatchDate: dispatchDate ? new Date(dispatchDate) : null,
+          receivedDate: receivedDate ? new Date(receivedDate) : null,
           processingNotes: processingNotes || null,
           subtotal,
           handlingCharges: handling,
@@ -635,6 +941,7 @@ exports.createInwardJobCardRunSheet = async (req, res) => {
               sacNo: it.sacNo || null,
               quantity: toNum(it.quantity, 0),
               qtyOut: it.qtyOut ? toNum(it.qtyOut, null) : null,
+              dispatchDate: it.dispatchDate ? new Date(it.dispatchDate) : null,
               uom: it.uom || 'KGS',
               weight: it.weight ? toNum(it.weight, null) : null,
               rate: toNum(it.rate, 0),
@@ -695,6 +1002,10 @@ exports.createInwardJobCardRunSheet = async (req, res) => {
           status: 'SENT_FOR_JOBWORK',
           createdById: req.user.id,
         },
+        include: {
+          customer: true,
+          part: true,
+        },
       });
 
       await tx.jobworkChallan.update({
@@ -721,7 +1032,7 @@ exports.createInwardJobCardRunSheet = async (req, res) => {
           runDate: new Date(),
           furnaceId: defaultFurnace.id,
           batchId: null,
-          status: 'DRAFT',
+          status: 'PLANNED',
           createdById: req.user.id,
           items: {
             create: [{
@@ -765,28 +1076,64 @@ exports.update = async (req, res) => {
       cgstRate, sgstRate, igstRate,
     } = req.body;
 
-    let parsedItems;
-    try {
-      parsedItems = parseJsonIfString(items, { fieldName: 'items', defaultValue: [] }) || [];
-    } catch (e) {
-      if (e.code === 'INVALID_JSON') {
-        return res.status(400).json({ success: false, code: e.code, message: e.message });
-      }
-      throw e;
+    const existingChallan = await prisma.jobworkChallan.findUnique({
+      where: { id },
+      include: { items: true },
+    });
+    if (!existingChallan) {
+      return res.status(404).json({ success: false, message: 'Challan not found.' });
     }
-    const subtotal    = parsedItems.reduce((s, it) => s + toNum(it.amount, 0), 0);
-    const handling    = toNum(handlingCharges, 0);
-    const total       = subtotal + handling;
-    const cgstRateVal = toNum(cgstRate, 0);
-    const sgstRateVal = toNum(sgstRate, 0);
-    const igstRateVal = toNum(igstRate, 0);
-    const cgstAmt     = toNum((total * cgstRateVal / 100).toFixed(2), 0);
-    const sgstAmt     = toNum((total * sgstRateVal / 100).toFixed(2), 0);
-    const igstAmt     = toNum((total * igstRateVal / 100).toFixed(2), 0);
-    const grandTotalVal = toNum((total + cgstAmt + sgstAmt + igstAmt).toFixed(2), 0);
 
-    // Delete old items and recreate
-    await prisma.challanItem.deleteMany({ where: { challanId: id } });
+    let parsedItems = null;
+    if (items !== undefined) {
+      try {
+        parsedItems = parseJsonIfString(items, { fieldName: 'items', defaultValue: [] });
+      } catch (e) {
+        if (e.code === 'INVALID_JSON') {
+          return res.status(400).json({ success: false, code: e.code, message: e.message });
+        }
+        throw e;
+      }
+    }
+
+    const itemsForCalc = parsedItems !== null
+      ? parsedItems
+      : existingChallan.items.map((it) => ({ amount: toNum(it.amount, 0) }));
+
+    const subtotal = parsedItems !== null
+      ? itemsForCalc.reduce((s, it) => s + toNum(it.amount, 0), 0)
+      : toNum(existingChallan.subtotal, 0);
+
+    const handling = handlingCharges !== undefined
+      ? toNum(handlingCharges, 0)
+      : toNum(existingChallan.handlingCharges, 0);
+
+    const cgstRateVal = cgstRate !== undefined
+      ? toNum(cgstRate, 0)
+      : existingChallan.cgstRate !== null
+        ? toNum(existingChallan.cgstRate, 0)
+        : null;
+    const sgstRateVal = sgstRate !== undefined
+      ? toNum(sgstRate, 0)
+      : existingChallan.sgstRate !== null
+        ? toNum(existingChallan.sgstRate, 0)
+        : null;
+    const igstRateVal = igstRate !== undefined
+      ? toNum(igstRate, 0)
+      : existingChallan.igstRate !== null
+        ? toNum(existingChallan.igstRate, 0)
+        : null;
+
+    const total = subtotal + handling;
+    const cgstAmt = cgstRateVal !== null ? toNum((total * cgstRateVal / 100).toFixed(2), 0) : null;
+    const sgstAmt = sgstRateVal !== null ? toNum((total * sgstRateVal / 100).toFixed(2), 0) : null;
+    const igstAmt = igstRateVal !== null ? toNum((total * igstRateVal / 100).toFixed(2), 0) : null;
+    const grandTotalVal = toNum((total + (cgstAmt || 0) + (sgstAmt || 0) + (igstAmt || 0)).toFixed(2), 0);
+
+    // Delete old items and recreate only when items are explicitly supplied
+    if (items !== undefined) {
+      await prisma.challanItem.deleteMany({ where: { challanId: id } });
+    }
 
     const challan = await prisma.jobworkChallan.update({
       where: { id },
@@ -801,18 +1148,21 @@ exports.update = async (req, res) => {
         ...(dispatchDate     !== undefined && { dispatchDate:   dispatchDate ? new Date(dispatchDate) : null }),
         ...(dueDate          !== undefined && { dueDate:        dueDate      ? new Date(dueDate)      : null }),
         ...(processingNotes  !== undefined && { processingNotes }),
-        subtotal,
-        handlingCharges: handling,
-        totalValue:      total,
-        cgstRate:        cgstRateVal || null,
-        cgstAmount:      cgstAmt     || null,
-        sgstRate:        sgstRateVal || null,
-        sgstAmount:      sgstAmt     || null,
-        igstRate:        igstRateVal || null,
-        igstAmount:      igstAmt     || null,
-        grandTotal:      grandTotalVal,
-        items: {
-          create: parsedItems.map(it => ({
+        ...(items !== undefined && { subtotal }),
+        ...(handlingCharges !== undefined && { handlingCharges: handling }),
+        ...((items !== undefined || handlingCharges !== undefined || cgstRate !== undefined || sgstRate !== undefined || igstRate !== undefined) && {
+          totalValue: total,
+          cgstRate: cgstRateVal !== null ? cgstRateVal : existingChallan.cgstRate,
+          cgstAmount: cgstAmt,
+          sgstRate: sgstRateVal !== null ? sgstRateVal : existingChallan.sgstRate,
+          sgstAmount: sgstAmt,
+          igstRate: igstRateVal !== null ? igstRateVal : existingChallan.igstRate,
+          igstAmount: igstAmt,
+          grandTotal: grandTotalVal,
+        }),
+        ...(parsedItems !== null && {
+          items: {
+            create: parsedItems.map(it => ({
             itemId:      it.itemId    ? toInt(it.itemId) : null,
             description: it.description || null,
             drawingNo:   it.drawingNo   || null,
@@ -828,6 +1178,7 @@ exports.update = async (req, res) => {
             amount:      toNum(it.amount, 0),
           })),
         },
+      }),
       },
       include: { fromParty: true, toParty: true, items: true },
     });
@@ -884,13 +1235,15 @@ exports.register = async (req, res) => {
           fromParty: { select: { name: true } },
           toParty: { select: { name: true } },
           jobCard: { select: { jobCardNo: true, createdAt: true } },
-          items: true,
+          items: {
+            include: { jobCard: { select: { jobCardNo: true, createdAt: true } } },
+          },
           taxInvoices: {
             include: { items: true },
             orderBy: { createdAt: 'asc' },
           },
         },
-        orderBy: { challanDate: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         skip: (toInt(page, 1) - 1) * toInt(limit, 10),
         take: toInt(limit, 10),
       }),
@@ -923,13 +1276,14 @@ exports.register = async (req, res) => {
           srNo: rows.length + 1,
           companyName: ch.fromParty?.name || '-',
           material: it.material || '-',
+          inwardNo: ch.inwardNo || '-',
           challanNo: ch.challanNo,
           challanDate: ch.challanDate,
           materialInDate: ch.receivedDate || ch.challanDate,
           qty,
           weight: toNum(it.weight, 0),
-          jobcardNo: ch.jobCard?.jobCardNo || '-',
-          jobcardDate: ch.jobCard?.createdAt || null,
+          jobcardNo: it.jobCard?.jobCardNo || ch.jobCard?.jobCardNo || '-',
+          jobcardDate: it.jobCard?.createdAt || ch.jobCard?.createdAt || null,
           invoiceNos: (ch.taxInvoices || []).map((x) => x.invoiceNo).join(', '),
           dispatchQty,
           dispatchDate: ch.dispatchDate || null,
@@ -957,5 +1311,37 @@ exports.register = async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Failed to load inward/outward register.' });
+  }
+};
+
+exports.updateItem = async (req, res) => {
+  try {
+    const itemId = toInt(req.params.itemId);
+    const { weight, quantity, description, partName, material, drawingNo, hrc, processName } = req.body;
+    const data = {};
+    if (weight !== undefined) data.weight = weight !== '' && weight !== null ? toNum(weight, null) : null;
+    if (quantity !== undefined) data.quantity = toNum(quantity, 0);
+    if (description !== undefined) data.description = description || null;
+    if (partName !== undefined) data.description = partName || null;
+    if (material !== undefined) data.material = material || null;
+    if (drawingNo !== undefined) data.drawingNo = drawingNo || null;
+    if (hrc !== undefined) data.hrc = hrc || null;
+    if (processName !== undefined) data.processName = processName || null;
+    const item = await prisma.challanItem.update({ where: { id: itemId }, data });
+    res.json({ success: true, data: item });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to update item.' });
+  }
+};
+
+exports.deleteJobwork = async (req, res) => {
+  try {
+    const id = toInt(req.params.id);
+    await prisma.jobworkChallan.delete({ where: { id } });
+    res.json({ success: true, message: 'Inward deleted.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to delete inward.' });
   }
 };

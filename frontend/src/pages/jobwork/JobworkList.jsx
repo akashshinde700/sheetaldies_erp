@@ -147,7 +147,7 @@ export default function JobworkList() {
           </button>
           <Link to="/jobwork/inward-entry" className="btn-primary whitespace-nowrap">
             <span className="material-symbols-outlined text-[18px] shrink-0" aria-hidden>add</span>
-            New Inward + Job Card
+            New Inward
           </Link>
         </div>
       </div>
@@ -214,12 +214,18 @@ export default function JobworkList() {
       {/* Table */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
+          <table className="w-full text-left min-w-[520px]">
             <thead>
               <tr className="border-b border-slate-200/80">
-                {['Challan No', 'Date', 'From', 'To Party', 'Job Card', 'Items', 'Total', 'Status', 'Action'].map((h, i) => (
-                  <th key={h} className={`th ${i === 0 ? 'sticky left-0 z-[1] bg-white shadow-[4px_0_12px_-8px_rgba(15,23,42,0.2)]' : ''}`}>{h}</th>
-                ))}
+                <th className="th sticky left-0 z-[1] bg-white shadow-[4px_0_12px_-8px_rgba(15,23,42,0.2)]">Challan No</th>
+                <th className="th">Date</th>
+                <th className="th">From</th>
+                <th className="th hidden sm:table-cell">To Party</th>
+                <th className="th hidden sm:table-cell">Job Card</th>
+                <th className="th hidden md:table-cell">Items</th>
+                <th className="th hidden md:table-cell">Total</th>
+                <th className="th">Status</th>
+                <th className="th">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50/80">
@@ -248,8 +254,8 @@ export default function JobworkList() {
                   </td>
                   <td className="td text-slate-500">{formatDate(ch.challanDate)}</td>
                   <td className="td text-slate-500 truncate max-w-[120px]">{ch.fromParty?.name || '—'}</td>
-                  <td className="td font-medium text-slate-700 truncate max-w-[140px]">{ch.toParty?.name}</td>
-                  <td className="td">
+                  <td className="td font-medium text-slate-700 truncate max-w-[140px] hidden sm:table-cell">{ch.toParty?.name}</td>
+                  <td className="td hidden sm:table-cell">
                     {ch.jobCard ? (
                       <span className="text-xs text-indigo-600 font-mono">{ch.jobCard.jobCardNo || ch.jobCard}</span>
                     ) : (
@@ -258,12 +264,12 @@ export default function JobworkList() {
                       </span>
                     )}
                   </td>
-                  <td className="td">
+                  <td className="td hidden md:table-cell">
                     <span className="bg-slate-100 text-slate-600 rounded-lg px-2 py-0.5 text-[11px] font-bold">
                       {ch.items?.length || 0}
                     </span>
                   </td>
-                  <td className="td font-bold text-slate-800">{formatCurrency(ch.totalValue)}</td>
+                  <td className="td font-bold text-slate-800 hidden md:table-cell">{formatCurrency(ch.totalValue)}</td>
                   <td className="td min-w-[9.5rem]">
                     <label className="sr-only">Status for {ch.challanNo}</label>
                     <select

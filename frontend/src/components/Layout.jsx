@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
+
 import Sidebar from './Sidebar';
 import { useAuth } from '../context/AuthContext';
 
@@ -22,11 +23,9 @@ const PAGE_TITLES = {
   '/purchase/grn':             { title: 'Goods receipt (GRN)', icon: 'inbox' },
   '/purchase/inventory':       { title: 'Inventory',           icon: 'warehouse' },
   '/admin/parties':            { title: 'Party Management',    icon: 'group' },
+  '/admin/party-rates':        { title: 'Party Process Rates', icon: 'price_check' },
   '/admin/items':              { title: 'Items',               icon: 'inventory' },
   '/admin/machines':           { title: 'Machines',            icon: 'precision_manufacturing' },
-  '/admin/pricing':            { title: 'Pricing & rules',     icon: 'payments' },
-  '/admin/processes':          { title: 'Process Pricing',     icon: 'price_change' },
-  '/admin/price-card':         { title: 'Price Card',          icon: 'receipt' },
   '/admin/users':              { title: 'User Management',     icon: 'manage_accounts' },
   '/admin/audit-logs':         { title: 'Audit logs',          icon: 'history' },
   '/manufacturing/batches':    { title: 'Manufacturing batches', icon: 'precision_manufacturing' },
@@ -41,6 +40,61 @@ export default function Layout() {
   const { user } = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const mainRef = useRef(null);
+
+  // Reset scroll to top on every route change
+  useEffect(() => {
+    if (mainRef.current) mainRef.current.scrollTop = 0;
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const handleScrollKeys = (e) => {
+      if (!mainRef.current) return;
+      const keys = ['PageDown', 'PageUp', 'ArrowDown', 'ArrowUp', 'Home', 'End'];
+      if (!keys.includes(e.key)) return;
+
+      const active = document.activeElement;
+      const editable = active && ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName);
+      // PgUp/PgDn always scroll — inputs don't use them
+      // ArrowUp/ArrowDown/Home/End skip when an editable field is focused
+      if (editable && e.key !== 'PageDown' && e.key !== 'PageUp') return;
+
+      const target = mainRef.current;
+      const pageHeight = target.clientHeight * 0.85;
+
+      switch (e.key) {
+        case 'PageDown':
+          target.scrollBy({ top: pageHeight, behavior: 'smooth' });
+          e.preventDefault();
+          break;
+        case 'PageUp':
+          target.scrollBy({ top: -pageHeight, behavior: 'smooth' });
+          e.preventDefault();
+          break;
+        case 'ArrowDown':
+          target.scrollBy({ top: 80, behavior: 'smooth' });
+          e.preventDefault();
+          break;
+        case 'ArrowUp':
+          target.scrollBy({ top: -80, behavior: 'smooth' });
+          e.preventDefault();
+          break;
+        case 'Home':
+          target.scrollTo({ top: 0, behavior: 'smooth' });
+          e.preventDefault();
+          break;
+        case 'End':
+          target.scrollTo({ top: target.scrollHeight, behavior: 'smooth' });
+          e.preventDefault();
+          break;
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleScrollKeys);
+    return () => window.removeEventListener('keydown', handleScrollKeys);
+  }, []);
 
   const page =
     PAGE_TITLES[location.pathname] ||
@@ -78,18 +132,18 @@ export default function Layout() {
       if (/^\/admin\/parties\/\d+$/.test(location.pathname)) {
         return { title: 'Party profile', icon: 'person' };
       }
-      return { title: 'Sheetal Dies ERP', icon: 'home' };
+      return { title: 'SVT ERP', icon: 'home' };
     })();
   const initials = user?.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'U';
 
   return (
-    <div className="flex min-h-dvh min-h-screen bg-app-shell">
+    <div className="flex h-dvh h-screen bg-app-shell overflow-hidden print:block print:overflow-visible print:h-auto">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <div className="flex-1 min-w-0 w-full flex flex-col min-h-dvh min-h-screen lg:ml-64">
+      <div className="flex-1 min-w-0 w-full flex flex-col h-dvh h-screen lg:ml-64 print:ml-0 print:h-auto print:block">
 
         <header
-          className="fixed top-0 right-0 left-0 lg:left-64 z-30 flex items-center gap-3
+          className="print:hidden fixed top-0 right-0 left-0 lg:left-64 z-30 flex items-center gap-3
             h-[calc(3.75rem+env(safe-area-inset-top,0px))] header-bar-padding
             pt-[env(safe-area-inset-top,0px)]
             bg-white/90 supports-[backdrop-filter]:bg-white/75 backdrop-blur-xl backdrop-saturate-150
@@ -108,7 +162,7 @@ export default function Layout() {
             </button>
 
             <div className="hidden xl:flex flex-col min-w-0 pr-2 border-r border-slate-200/80 mr-1">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 leading-none">Sheetal Dies</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 leading-none">SVT</span>
               <span className="text-xs font-extrabold text-slate-900 font-headline leading-tight truncate max-w-[10rem]">ERP</span>
             </div>
 
@@ -175,8 +229,11 @@ export default function Layout() {
         </header>
 
         <main
+          ref={mainRef}
+          style={{ touchAction: 'pan-y' }}
           className="flex-1 mt-[calc(3.75rem+env(safe-area-inset-top,0px))] main-area-padding
-            py-4 sm:py-5 md:py-7 pb-8 sm:pb-10 overflow-x-hidden overflow-y-auto overscroll-y-contain touch-pan-y animate-fade-in safe-pb"
+            py-4 sm:py-5 md:py-7 pb-8 sm:pb-10 overflow-x-hidden overflow-y-auto overscroll-contain animate-fade-in safe-pb
+            print:mt-0 print:overflow-visible print:p-0"
         >
           <div className="w-full animate-slide-up">
             <Outlet />
@@ -185,7 +242,7 @@ export default function Layout() {
 
         <footer className="footer-bar-padding py-2.5 border-t border-slate-200/70 bg-white/85 backdrop-blur-sm safe-pb">
           <p className="text-[10px] text-slate-400 text-center leading-relaxed tracking-wide">
-            Sheetal Dies &amp; Tools Pvt. Ltd. · Precision Engineering ERP
+            Shital Vacuum Treat Pvt. Ltd. · SVT ERP
           </p>
         </footer>
       </div>

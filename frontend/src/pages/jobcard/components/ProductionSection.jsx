@@ -26,9 +26,12 @@ export default function ProductionSection({ form, setForm, machines }) {
           <input value={form.operationNo} onChange={e => setForm(p => ({...p, operationNo: e.target.value}))} className="form-input" placeholder="OP-01" />
         </F>
       </div>
-      <div className="grid grid-cols-2 gap-4">
-        <F label="Drawing No">
+      <div className="grid grid-cols-3 gap-4">
+        <F label="Drawing No (DRG NO)">
           <input value={form.drawingNo} onChange={e => setForm(p => ({...p, drawingNo: e.target.value}))} className="form-input" placeholder="SDT-2309-V4" />
+        </F>
+        <F label="WM No">
+          <input value={form.woNo || ''} onChange={e => setForm(p => ({...p, woNo: e.target.value}))} className="form-input" placeholder="WM-28389" />
         </F>
         <F label="Machine">
           <SearchSelect
@@ -39,8 +42,8 @@ export default function ProductionSection({ form, setForm, machines }) {
           />
         </F>
       </div>
-      <F label="Issue By">
-        <input value={form.operatorName} onChange={e => setForm(p => ({...p, operatorName: e.target.value}))} className="form-input" placeholder="Issue By" />
+      <F label="Operator Name">
+        <input value={form.operatorName} onChange={e => setForm(p => ({...p, operatorName: e.target.value}))} className="form-input" placeholder="Operator Name" />
       </F>
     </div>
   );

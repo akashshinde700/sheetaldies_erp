@@ -1,4 +1,5 @@
 import React from 'react';
+import SearchSelect from '../../../components/SearchSelect';
 
 const CB = ({ label, checked, onChange }) => (
   <label className="flex items-center gap-2.5 cursor-pointer group py-0.5">
@@ -24,10 +25,12 @@ export default function ProcessHardnessSection({ form, set, processes, inRange }
 
       <div>
         <label className="form-label">Primary Process</label>
-        <select value={form.processTypeId} onChange={e => set('processTypeId', e.target.value)} className="form-input">
-          <option value="">— Select —</option>
-          {processes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
+        <SearchSelect
+          value={String(form.processTypeId || '')}
+          onChange={v => set('processTypeId', v)}
+          options={(processes || []).map(p => ({ value: p.id, label: p.name }))}
+          placeholder="— Select Process —"
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">

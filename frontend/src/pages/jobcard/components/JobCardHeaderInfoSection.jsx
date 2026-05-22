@@ -31,10 +31,20 @@ export default function JobCardHeaderInfoSection({
                 <span className="truncate text-sm">{form.partId ? selectedPartLabel : '— Select or Add Part —'}</span>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   {form.partId && (
-                    <button type="button" onClick={clearPart}
-                      className="material-symbols-outlined text-[16px] text-slate-300 hover:text-rose-400 transition-colors">
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={clearPart}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          clearPart(e);
+                        }
+                      }}
+                      className="material-symbols-outlined text-[16px] text-slate-300 hover:text-rose-400 transition-colors"
+                    >
                       close
-                    </button>
+                    </span>
                   )}
                   <span className="material-symbols-outlined text-[16px] text-slate-400">expand_more</span>
                 </div>
@@ -119,6 +129,16 @@ export default function JobCardHeaderInfoSection({
         <F label="Job Card No.">
           <input value={cardData?.jobCardNo || 'Auto-generated'} disabled className="form-input bg-slate-50" />
         </F>
+        {cardData && (() => {
+          const inwardNo = cardData.challans?.[0]?.inwardNo
+            || cardData.challanItemLinks?.[0]?.challan?.inwardNo
+            || null;
+          return inwardNo ? (
+            <F label="Inward No.">
+              <input value={inwardNo} disabled className="form-input bg-indigo-50 text-indigo-700 font-mono font-bold" />
+            </F>
+          ) : null;
+        })()}
         <F label="Certificate No.">
           <input value={form.certificateNo} onChange={e => setForm(p => ({ ...p, certificateNo: e.target.value }))} className="form-input" />
         </F>
@@ -132,14 +152,12 @@ export default function JobCardHeaderInfoSection({
         </F>
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <F label="DISPATCH MODE:-">
-          <input value={form.dispatchMode} onChange={e => setForm(p => ({...p, dispatchMode: e.target.value}))} className="form-input" placeholder="DISPATCH MODE:-" />
-        </F>
         <F label="Material">
-          <input value={form.dieMaterial} onChange={e => setForm(p => ({...p, dieMaterial: e.target.value}))} className="form-input" placeholder="D2" />
+          <input value={form.dieMaterial} onChange={e => setForm(p => ({...p, dieMaterial: e.target.value}))} className="form-input" placeholder="D2, M2, H13..." />
         </F>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+      <div className="flex items-center gap-6 flex-wrap text-sm">
+        <span className="font-semibold text-slate-600 text-xs uppercase tracking-wider">Dispatch :</span>
         <label className="flex items-center gap-2"><input type="checkbox" checked={form.dispatchByOurVehicle} onChange={e => setForm(p => ({ ...p, dispatchByOurVehicle: e.target.checked }))} /> By Our Vehicle</label>
         <label className="flex items-center gap-2"><input type="checkbox" checked={form.dispatchByCourier} onChange={e => setForm(p => ({ ...p, dispatchByCourier: e.target.checked }))} /> By Courier</label>
         <label className="flex items-center gap-2"><input type="checkbox" checked={form.collectedByCustomer} onChange={e => setForm(p => ({ ...p, collectedByCustomer: e.target.checked }))} /> Collected by Customer</label>
@@ -154,8 +172,13 @@ export default function JobCardHeaderInfoSection({
             <option value="ANNEALING">ANNEALING</option>
           </select>
         </F>
-        <F label="Special Instruction">
-          <input value={form.remarks} onChange={e => setForm(p => ({...p, remarks: e.target.value}))} className="form-input" placeholder="Special Instruction" />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <F label="Control Plan No.">
+          <input value={form.controlPlanNo} onChange={e => setForm(p => ({...p, controlPlanNo: e.target.value}))} className="form-input" placeholder="Control Plan No." />
+        </F>
+        <F label="Specification">
+          <textarea value={form.specification} onChange={e => setForm(p => ({...p, specification: e.target.value}))} className="form-input" placeholder="Specification details..." rows="3"></textarea>
         </F>
       </div>
       <div className="text-xs text-slate-500">Suggested treatment: D2 - HARDEN AND TEMPER - 61-63 HRC</div>

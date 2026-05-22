@@ -18,6 +18,14 @@
   --brand-glow: rgb(14 116 144 / 0.08);
 }
 
+/* Hide number input spinners globally */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type=number] { -moz-appearance: textfield; }
+
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
@@ -516,6 +524,55 @@
   .safe-inline {
     padding-left: env(safe-area-inset-left, 0px);
     padding-right: env(safe-area-inset-right, 0px);
+  }
+}
+
+/* ── Horizontal scroll containers — smooth on all mobile browsers ── */
+.overflow-x-auto,
+[class*="overflow-x-auto"] {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: none;
+}
+
+/* ── Prevent iOS/Android zoom on form inputs (font-size < 16px triggers zoom) ── */
+@media (hover: none) and (pointer: coarse) {
+  .form-input,
+  select.form-input,
+  textarea.form-input,
+  input[type="text"],
+  input[type="number"],
+  input[type="date"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="search"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* ── Print pages: readable on mobile screen too ─────── */
+@media screen and (max-width: 900px) {
+  .page {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 4px !important;
+    box-shadow: none !important;
+    font-size: 8px !important;
+  }
+  .page table {
+    font-size: 8px !important;
+  }
+  .page .no-print {
+    display: flex !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 10 !important;
+    background: white !important;
+    padding: 8px !important;
+    border-bottom: 1px solid #e2e8f0 !important;
   }
 }
 

@@ -198,12 +198,17 @@ export default function CertList() {
       {/* Table */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
+          <table className="w-full text-left min-w-[480px]">
             <thead>
               <tr className="bg-gradient-to-r from-slate-50 to-indigo-50/30 border-b border-slate-100">
-                {['Cert No', 'Job Card', 'Customer', 'Hardness', 'Packed Qty', 'Issue Date', 'Status', 'Action'].map(h => (
-                  <th key={h} className="th">{h}</th>
-                ))}
+                <th className="th">Cert No</th>
+                <th className="th hidden sm:table-cell">Job Card</th>
+                <th className="th">Customer</th>
+                <th className="th">Hardness</th>
+                <th className="th hidden md:table-cell">Packed Qty</th>
+                <th className="th hidden sm:table-cell">Issue Date</th>
+                <th className="th">Status</th>
+                <th className="th">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50/80">
@@ -228,7 +233,7 @@ export default function CertList() {
                     <Link to={`/quality/certificates/${c.id}`}
                       className="text-xs font-bold text-indigo-600 hover:underline font-mono">{c.certNo}</Link>
                   </td>
-                  <td className="td">
+                  <td className="td hidden sm:table-cell">
                     {c.jobCard ? (
                       <span className="text-xs text-indigo-600 font-mono">{c.jobCard.jobCardNo}</span>
                     ) : <span className="text-slate-300">—</span>}
@@ -242,16 +247,23 @@ export default function CertList() {
                       </span>
                     ) : <span className="text-slate-300 text-xs">—</span>}
                   </td>
-                  <td className="td text-slate-600">{c.packedQty ?? '—'}</td>
-                  <td className="td text-slate-500">{formatDate(c.issueDate)}</td>
+                  <td className="td text-slate-600 hidden md:table-cell">{c.packedQty ?? '—'}</td>
+                  <td className="td text-slate-500 hidden sm:table-cell">{formatDate(c.issueDate)}</td>
                   <td className="td">
                     <span className={`badge ${STATUS_STYLE[c.status] || STATUS_STYLE.DRAFT}`}>
                       {c.status}
                     </span>
                   </td>
                   <td className="td">
-                    <Link to={`/quality/certificates/${c.id}`}
-                      className="text-xs font-semibold text-indigo-600 hover:underline">View</Link>
+                    <div className="flex items-center gap-2">
+                      <Link to={`/quality/certificates/${c.id}`}
+                        className="text-xs font-semibold text-indigo-600 hover:underline">View</Link>
+                      <Link to={`/quality/certificates/${c.id}/print`} target="_blank"
+                        className="inline-flex items-center justify-center w-6 h-6 rounded text-emerald-600 hover:bg-emerald-50 transition-colors"
+                        title="Print Certificate">
+                        <span className="material-symbols-outlined text-[16px]">print</span>
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}

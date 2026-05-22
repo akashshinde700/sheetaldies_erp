@@ -146,7 +146,7 @@ describe('Protected Routes (Unauthenticated)', () => {
     ['GET', '/api/quality/certificates'],
     ['GET', '/api/dispatch-challans'],
     ['GET', '/api/purchase/orders'],
-    ['GET', '/api/quotes'],
+    ['GET', '/api/customer-quotes'],
     ['GET', '/api/analytics/dashboard'],
     ['GET', '/api/audit/logs'],
   ];

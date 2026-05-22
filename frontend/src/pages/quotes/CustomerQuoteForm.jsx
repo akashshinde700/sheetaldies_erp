@@ -3,8 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
 import { useParties, useProcesses } from '../../hooks/useMasterData';
+import SearchSelect from '../../components/SearchSelect';
 
-const emptyItem = () => ({ partName: '', processTypeId: '', material: '', qty: 1, weight: '', rate: '', amount: '', hsnCode: '', remarks: '' });
+const emptyItem = () => ({ _id: Math.random(), partName: '', processTypeId: '', material: '', qty: 1, weight: '', rate: '', amount: '', hsnCode: '', remarks: '' });
 
 export default function CustomerQuoteForm() {
   const { id } = useParams();
@@ -37,6 +38,7 @@ export default function CustomerQuoteForm() {
           paymentTerms: q.paymentTerms || '',
         });
         setItems(q.items.map(i => ({
+          _id: i.id ?? Math.random(),
           partName: i.partName, processTypeId: i.processTypeId || '',
           material: i.material || '', qty: i.qty, weight: i.weight || '',
           rate: i.rate, amount: i.amount, hsnCode: i.hsnCode || '', remarks: i.remarks || '',
@@ -46,15 +48,6 @@ export default function CustomerQuoteForm() {
   }, [id, isEdit]);
 
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
-
-  const calcAmount = (i, idx) => {
-    const weight = +i.weight || 0;
-    const rate = +i.rate || 0;
-    const qty = +i.qty || 1;
-    // amount = weight * rate (if weight given) else qty * rate
-    const amount = weight > 0 ? +(weight * rate).toFixed(2) : +(qty * rate).toFixed(2);
-    setItems(prev => { const n=[...prev]; n[idx]={...n[idx], amount}; return n; });
-  };
 
   const updateItem = (idx, field, val) => {
     setItems(prev => {
@@ -66,10 +59,14 @@ export default function CustomerQuoteForm() {
         if (proc?.hsnSacCode) n[idx].hsnCode = proc.hsnSacCode;
         if (proc?.pricePerKg) n[idx].rate = proc.pricePerKg;
       }
+      // recalc amount inline — single setItems call, no setTimeout
+      const item = n[idx];
+      const weight = +item.weight || 0;
+      const rate = +item.rate || 0;
+      const qty = +item.qty || 1;
+      n[idx].amount = weight > 0 ? +(weight * rate).toFixed(2) : +(qty * rate).toFixed(2);
       return n;
     });
-    // recalc after update
-    setTimeout(() => calcAmount(items[idx], idx), 0);
   };
 
   const subtotal = items.reduce((s, i) => s + (+i.amount || 0), 0);
@@ -120,10 +117,13 @@ export default function CustomerQuoteForm() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="form-label">Customer *</label>
-              <select value={form.customerId} onChange={e => setF('customerId', e.target.value)} className="form-input" required>
-                <option value="">— Select Customer —</option>
-                {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <SearchSelect
+                value={String(form.customerId || '')}
+                onChange={v => setF('customerId', v)}
+                options={customers.map(c => ({ value: c.id, label: c.name }))}
+                placeholder="— Select Customer —"
+                required
+              />
             </div>
             <div>
               <label className="form-label">Quote Date *</label>
@@ -164,31 +164,35 @@ export default function CustomerQuoteForm() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {items.map((item, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50/50">
+                  <tr key={item._id} className="hover:bg-slate-50/50">
                     <td className="px-1 py-1.5">
                       <input type="text" value={item.partName} onChange={e => updateItem(idx, 'partName', e.target.value)}
                         className="form-input text-xs w-32" placeholder="Part name" />
                     </td>
                     <td className="px-1 py-1.5">
-                      <select value={item.processTypeId} onChange={e => updateItem(idx, 'processTypeId', e.target.value)} className="form-input text-xs w-32">
-                        <option value="">—</option>
-                        {processes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                      </select>
+                      <SearchSelect
+                        value={String(item.processTypeId || '')}
+                        onChange={v => updateItem(idx, 'processTypeId', v)}
+                        options={processes.map(p => ({ value: p.id, label: p.name }))}
+                        placeholder="—"
+                        useFixed
+                        className="w-32"
+                      />
                     </td>
                     <td className="px-1 py-1.5">
                       <input type="text" value={item.material} onChange={e => updateItem(idx, 'material', e.target.value)}
                         className="form-input text-xs w-24" placeholder="e.g. D2" />
                     </td>
                     <td className="px-1 py-1.5">
-                      <input type="number" min="1" value={item.qty} onChange={e => { updateItem(idx, 'qty', e.target.value); calcAmount({...item, qty: e.target.value}, idx); }}
+                      <input type="number" min="1" value={item.qty} onChange={e => updateItem(idx, 'qty', e.target.value)}
                         className="form-input text-xs w-14 text-center font-mono" />
                     </td>
                     <td className="px-1 py-1.5">
-                      <input type="number" step="0.001" value={item.weight} onChange={e => { updateItem(idx, 'weight', e.target.value); calcAmount({...item, weight: e.target.value}, idx); }}
+                      <input type="number" step="0.001" value={item.weight} onChange={e => updateItem(idx, 'weight', e.target.value)}
                         className="form-input text-xs w-20 text-right font-mono" placeholder="0.000" />
                     </td>
                     <td className="px-1 py-1.5">
-                      <input type="number" step="0.01" value={item.rate} onChange={e => { updateItem(idx, 'rate', e.target.value); calcAmount({...item, rate: e.target.value}, idx); }}
+                      <input type="number" step="0.01" value={item.rate} onChange={e => updateItem(idx, 'rate', e.target.value)}
                         className="form-input text-xs w-20 text-right font-mono" placeholder="0.00" />
                     </td>
                     <td className="px-1 py-1.5">

@@ -6,6 +6,39 @@ const { parseJsonIfString } = require('../utils/json');
 const { parsePagination, formatListResponse, formatErrorResponse, getStatusCode } = require('../utils/validation');
 const { canEditInspection, canViewInspection, hasRole } = require('../middleware/authorize');
 
+// Auto-determine inspection status from hardness values and defect categories
+function autoCalcInspectionStatus(data) {
+  const defectFlags = [
+    data.catCrackRisk, data.catDistortionRisk, data.catDentDamage,
+    data.catRusty, data.catCavity,
+  ];
+  if (defectFlags.some(Boolean)) return 'FAIL';
+
+  const min = data.requiredHardnessMin;
+  const max = data.requiredHardnessMax;
+  const achieved = data.achievedHardness;
+
+  if (achieved !== null && achieved !== undefined) {
+    if (min !== null && min !== undefined && achieved < min) return 'FAIL';
+    if (max !== null && max !== undefined && achieved > max) return 'FAIL';
+
+    // Check individual readings
+    const readings = [data.hardnessAfter1, data.hardnessAfter2, data.hardnessAfter3, data.hardnessAfter4]
+      .filter(v => v !== null && v !== undefined);
+    if (readings.length > 0) {
+      const anyFail = readings.some(v =>
+        (min !== null && min !== undefined && v < min) ||
+        (max !== null && max !== undefined && v > max)
+      );
+      if (anyFail) return 'CONDITIONAL';
+    }
+
+    if (min !== null && max !== null && min !== undefined && max !== undefined) return 'PASS';
+  }
+
+  return 'PENDING';
+}
+
 function normalizeTempCycleArray(raw) {
   if (raw == null) return null;
   let v = raw;
@@ -173,6 +206,11 @@ exports.upsertInspection = async (req, res) => {
       ...(images.image5 && { image5: images.image5 }),
     };
 
+    // Auto-calculate inspection status if not explicitly provided
+    if (!inspectionStatus || inspectionStatus === 'PENDING') {
+      data.inspectionStatus = autoCalcInspectionStatus(data);
+    }
+
     const inspection = await prisma.incomingInspection.upsert({
       where:  { jobCardId },
       update: data,
@@ -259,29 +297,28 @@ exports.getInspection = async (req, res) => {
 
 // ── Test Certificates ─────────────────────────────────────────
 
-const generateCertNo = async () => {
-  const year   = new Date().getFullYear();
-  const prefix = `SVT-${year}-`;
-
-  const last = await prisma.testCertificate.findFirst({
-    where:   { certNo: { startsWith: prefix } },
-    orderBy: { certNo: 'desc' },
-  });
-
-  let nextSerial = 1;
-  if (last) {
-    const parts = last.certNo.split('-');
-    const lastSerial = toInt(parts[parts.length - 1], 0);
-    nextSerial = lastSerial + 1;
+const generateCertNo = async (preferred = null) => {
+  // If caller provides a preferred no, use it if unique
+  if (preferred) {
+    const exists = await prisma.testCertificate.findUnique({ where: { certNo: String(preferred) } });
+    if (!exists) return String(preferred);
   }
 
+  // Format: YYMM + 3 random digits, e.g. 2605145
+  const now = new Date();
+  const yy  = String(now.getFullYear()).slice(-2);
+  const mm  = String(now.getMonth() + 1).padStart(2, '0');
+  const prefix = `${yy}${mm}`;
+
   let certNo;
+  let attempts = 0;
   do {
-    certNo = `${prefix}${String(nextSerial).padStart(4, '0')}`;
+    const rand = String(Math.floor(100 + Math.random() * 900));
+    certNo = `${prefix}${rand}`;
     const exists = await prisma.testCertificate.findUnique({ where: { certNo } });
     if (!exists) break;
-    nextSerial++;
-  } while (nextSerial < 9999);
+    attempts++;
+  } while (attempts < 50);
 
   return certNo;
 };
@@ -294,7 +331,7 @@ exports.createCertificate = async (req, res) => {
       dieMaterial, operatorMode,
       specInstrCertificate, specInstrMpiReport, specInstrProcessGraph,
       deliveryDate, specialRequirements, precautions,
-      catNormal, catCrackRisk, catDistortionRisk, catCriticalFinishing, catDentDamage, catCavity, catOthers,
+      catNormal, catWelded, catCrackRisk, catDistortionRisk, catCriticalFinishing, catDentDamage, catRusty, catCavity, catOthers,
       procStressRelieving, procHardening, procTempering, procAnnealing, procBrazing, procPlasmaNitriding, procSubZero, procSoakClean,
       hardnessMin, hardnessMax, hardnessUnit,
       tempCycleData, distortionBefore, distortionAfter,
@@ -309,7 +346,7 @@ exports.createCertificate = async (req, res) => {
     if (!customerId)
       return res.status(400).json({ success: false, message: 'Customer is required.' });
 
-    const certNo = await generateCertNo();
+    const certNo = await generateCertNo(issueNo || null);
 
     let parsedTempCycleData = null;
     let parsedDistortionBefore = null;
@@ -353,10 +390,12 @@ exports.createCertificate = async (req, res) => {
         specialRequirements: specialRequirements || null,
         precautions:     precautions     || null,
         catNormal:            b(catNormal),
+        catWelded:            b(catWelded),
         catCrackRisk:         b(catCrackRisk),
         catDistortionRisk:    b(catDistortionRisk),
         catCriticalFinishing: b(catCriticalFinishing),
         catDentDamage:        b(catDentDamage),
+        catRusty:             b(catRusty),
         catCavity:            b(catCavity),
         catOthers:            b(catOthers),
         procStressRelieving:  b(procStressRelieving),

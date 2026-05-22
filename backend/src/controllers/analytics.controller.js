@@ -12,11 +12,14 @@ exports.overview = async (req, res) => {
     const prevStart  = new Date(y, m - 1, 1);
     const prevEnd    = new Date(y, m, 0, 23, 59, 59);
 
+    const thirtyDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
+
     const [
       totalJobs, activeJobs, completedJobs, onHold,
       thisMonthJobs, lastMonthJobs,
       totalRevenue, thisMonthRevenue, lastMonthRevenue,
-      pendingInvoices, paidInvoices,
+      pendingInvoices, partialInvoices, paidInvoices,
+      overdueInvoices,
       totalChallans, pendingChallans,
       totalCerts, passInspections, failInspections,
     ] = await Promise.all([
@@ -26,11 +29,15 @@ exports.overview = async (req, res) => {
       prisma.jobCard.count({ where: { status: 'ON_HOLD' } }),
       prisma.jobCard.count({ where: { createdAt: { gte: monthStart } } }),
       prisma.jobCard.count({ where: { createdAt: { gte: prevStart, lte: prevEnd } } }),
-      prisma.taxInvoice.aggregate({ _sum: { grandTotal: true } }),
-      prisma.taxInvoice.aggregate({ _sum: { grandTotal: true }, where: { invoiceDate: { gte: monthStart } } }),
-      prisma.taxInvoice.aggregate({ _sum: { grandTotal: true }, where: { invoiceDate: { gte: prevStart, lte: prevEnd } } }),
+      // Use subtotal (tax-exclusive) for true revenue metrics
+      prisma.taxInvoice.aggregate({ _sum: { subtotal: true } }),
+      prisma.taxInvoice.aggregate({ _sum: { subtotal: true }, where: { invoiceDate: { gte: monthStart } } }),
+      prisma.taxInvoice.aggregate({ _sum: { subtotal: true }, where: { invoiceDate: { gte: prevStart, lte: prevEnd } } }),
       prisma.taxInvoice.count({ where: { paymentStatus: 'PENDING' } }),
+      prisma.taxInvoice.count({ where: { paymentStatus: 'PARTIAL' } }),
       prisma.taxInvoice.count({ where: { paymentStatus: 'PAID' } }),
+      // Overdue = pending invoices older than 30 days
+      prisma.taxInvoice.count({ where: { paymentStatus: { in: ['PENDING', 'PARTIAL'] }, invoiceDate: { lt: thirtyDaysAgo } } }),
       prisma.jobworkChallan.count(),
       prisma.jobworkChallan.count({ where: { status: { in: ['SENT', 'DRAFT'] } } }),
       prisma.testCertificate.count(),
@@ -43,11 +50,11 @@ exports.overview = async (req, res) => {
       data: {
         jobs: { total: totalJobs, active: activeJobs, completed: completedJobs, onHold, thisMonth: thisMonthJobs, lastMonth: lastMonthJobs },
         revenue: {
-          total: toNum(totalRevenue._sum.grandTotal, 0),
-          thisMonth: toNum(thisMonthRevenue._sum.grandTotal, 0),
-          lastMonth: toNum(lastMonthRevenue._sum.grandTotal, 0),
+          total: toNum(totalRevenue._sum.subtotal, 0),
+          thisMonth: toNum(thisMonthRevenue._sum.subtotal, 0),
+          lastMonth: toNum(lastMonthRevenue._sum.subtotal, 0),
         },
-        invoices: { pending: pendingInvoices, paid: paidInvoices },
+        invoices: { pending: pendingInvoices, partial: partialInvoices, paid: paidInvoices, overdue: overdueInvoices },
         challans: { total: totalChallans, pending: pendingChallans },
         quality: { certs: totalCerts, pass: passInspections, fail: failInspections },
       },
@@ -82,7 +89,7 @@ exports.monthlyRevenue = async (req, res) => {
       const d   = new Date(inv.invoiceDate);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       if (map[key]) {
-        map[key].revenue  += toNum(inv.grandTotal, 0);
+        map[key].revenue  += toNum(inv.subtotal, 0); // Use subtotal (tax-exclusive) for revenue
         map[key].invoices += 1;
       }
     }
@@ -149,6 +156,7 @@ exports.monthlyInvoiceBreakdown = async (req, res) => {
         month:   d.toLocaleString('en-IN', { month: 'short', year: '2-digit' }),
         invoiced: 0,
         paid:     0,
+        partial:  0,
         pending:  0,
       };
     }
@@ -159,8 +167,9 @@ exports.monthlyInvoiceBreakdown = async (req, res) => {
       if (!map[key]) continue;
       const amt = toNum(inv.grandTotal, 0);
       map[key].invoiced += amt;
-      if (inv.paymentStatus === 'PAID') map[key].paid += amt;
-      else map[key].pending += amt;
+      if      (inv.paymentStatus === 'PAID')    map[key].paid    += amt;
+      else if (inv.paymentStatus === 'PARTIAL') map[key].partial += amt;
+      else                                       map[key].pending += amt;
     }
 
     res.json({ success: true, data: Object.values(map) });
@@ -388,11 +397,23 @@ exports.pendingReports = async (req, res) => {
       prisma.jobworkChallan.count({ where: { status: { in: ['DRAFT', 'SENT'] } } }),
     ]);
 
-    // Get pending amounts
-    const invoiceStats = await prisma.taxInvoice.aggregate({
-      where: { paymentStatus: 'PENDING' },
-      _sum: { grandTotal: true },
-    });
+    // Get pending amounts (PENDING + PARTIAL)
+    const [invoiceStats, partialStats, overdueStats, partialInvoicesCount] = await Promise.all([
+      prisma.taxInvoice.aggregate({
+        where: { paymentStatus: 'PENDING' },
+        _sum: { grandTotal: true },
+      }),
+      prisma.taxInvoice.aggregate({
+        where: { paymentStatus: 'PARTIAL' },
+        _sum: { grandTotal: true },
+      }),
+      prisma.taxInvoice.aggregate({
+        where: { paymentStatus: { in: ['PENDING', 'PARTIAL'] }, invoiceDate: { lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
+        _sum: { grandTotal: true },
+        _count: { id: true },
+      }),
+      prisma.taxInvoice.count({ where: { paymentStatus: 'PARTIAL' } }),
+    ]);
 
     res.json({
       success: true,
@@ -401,15 +422,58 @@ exports.pendingReports = async (req, res) => {
           count: pendingInvoices,
           amount: toNum(invoiceStats._sum.grandTotal, 0),
         },
+        partialInvoices: {
+          count: partialInvoicesCount,
+          amount: toNum(partialStats._sum.grandTotal, 0),
+        },
+        overdueInvoices: {
+          count: toNum(overdueStats._count.id, 0),
+          amount: toNum(overdueStats._sum.grandTotal, 0),
+        },
         pendingJobCards: pendingJobCards,
         pendingCertificates: pendingCerts,
         pendingDispatches: pendingDispatch,
-        totalPending: pendingInvoices + pendingJobCards + pendingCerts + pendingDispatch,
+        totalPending: pendingInvoices + partialInvoicesCount + pendingJobCards + pendingCerts + pendingDispatch,
       },
     });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Failed to fetch pending reports.' });
+  }
+};
+
+// ── Overdue Invoices (pending payment > 30 days) ─────────────
+exports.overdueInvoices = async (req, res) => {
+  try {
+    const days = toInt(req.query.days, 30);
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const invoices = await prisma.taxInvoice.findMany({
+      where: {
+        paymentStatus: { in: ['PENDING', 'PARTIAL'] },
+        invoiceDate: { lt: cutoff },
+      },
+      include: {
+        toParty: { select: { id: true, name: true, phone: true, email: true } },
+      },
+      orderBy: { invoiceDate: 'asc' },
+      take: 100,
+    });
+
+    const data = invoices.map(inv => ({
+      id: inv.id,
+      invoiceNo: inv.invoiceNo,
+      invoiceDate: inv.invoiceDate,
+      overdueDays: Math.floor((Date.now() - new Date(inv.invoiceDate).getTime()) / (1000 * 60 * 60 * 24)),
+      grandTotal: toNum(inv.grandTotal, 0),
+      paymentStatus: inv.paymentStatus,
+      toParty: inv.toParty,
+    }));
+
+    res.json({ success: true, data, total: data.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
   }
 };
 

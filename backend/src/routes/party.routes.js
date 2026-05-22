@@ -4,9 +4,10 @@ const auth   = require('../middleware/auth');
 const { requireRole, requireManager } = require('../middleware/role');
 const { requireManager: enforceManager, requireOperator, requireOwnership } = require('../middleware/authEnforcer');
 const ctrl = require('../controllers/party.controller');
-const { toInt } = require('../utils/normalize');
+const { toInt, toNum } = require('../utils/normalize');
 const { parsePagination, formatListResponse, formatErrorResponse, getStatusCode } = require('../utils/validation');
 const { encryptPartyData, decryptPartyData, maskSensitiveFields } = require('../utils/piiHandlerExtended');
+const { hash } = require('../utils/encryption');
 const { withTransaction } = require('../utils/transactionHandler');
 const { log } = require('../utils/logger');
 
@@ -20,7 +21,7 @@ router.get('/', auth, requireRole('OPERATOR'), async (req, res) => {
     const [parties, total] = await Promise.all([
       prisma.party.findMany({
         where,
-        orderBy: { name: 'asc' },
+        orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
       }),
@@ -29,7 +30,9 @@ router.get('/', auth, requireRole('OPERATOR'), async (req, res) => {
     
     const decrypted = parties.map(p => {
       const d = decryptPartyData(p);
-      return maskSensitiveFields(d); // Mask for list view
+      delete d.gstinHash;
+      delete d.panHash;
+      return maskSensitiveFields(d);
     });
     
     log.info('Party list retrieved', { count: decrypted.length, userId: req.user.id });
@@ -46,6 +49,40 @@ router.post('/quick', auth, requireRole('OPERATOR'), ctrl.quickCreateCustomer);
 // ✅ FIX C4: Add OPERATOR role requirement for activity endpoint
 router.get('/:id/activity', auth, requireRole('OPERATOR'), ctrl.activity);
 
+// All-party process rates matrix — must be before /:id
+router.get('/process-rates/matrix', auth, requireRole('MANAGER'), async (req, res) => {
+  try {
+    const [parties, processes, rates] = await Promise.all([
+      prisma.party.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true, partyType: true },
+        orderBy: { name: 'asc' },
+      }),
+      prisma.processType.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true, code: true, pricePerKg: true, pricePerPc: true, lotPrice: true },
+        orderBy: { name: 'asc' },
+      }),
+      prisma.partyProcessRate.findMany({
+        select: { partyId: true, processTypeId: true, pricePerKg: true, pricePerPc: true, lotPrice: true },
+      }),
+    ]);
+
+    const rateMap = {};
+    for (const r of rates) {
+      rateMap[`${r.partyId}:${r.processTypeId}`] = {
+        pricePerKg: r.pricePerKg,
+        pricePerPc: r.pricePerPc,
+        lotPrice: r.lotPrice,
+      };
+    }
+
+    res.json({ success: true, data: { parties, processes, rateMap } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 router.get('/:id', auth, async (req, res) => {
   try {
     const partyId = toInt(req.params.id);
@@ -58,8 +95,9 @@ router.get('/:id', auth, async (req, res) => {
     });
     if (!p) return res.status(404).json({ success: false, message: 'Party not found.' });
     
-    // ✅ DECRYPT sensitive fields before returning to user
     const decrypted = decryptPartyData(p);
+    delete decrypted.gstinHash;
+    delete decrypted.panHash;
     res.json({ success: true, data: decrypted });
   } catch (err) {
     console.error(err);
@@ -80,40 +118,46 @@ const normalizePan = (v) => {
 function isGstinUniqueViolation(err) {
   if (err.code !== 'P2002') return false;
   const t = err.meta?.target;
-  if (Array.isArray(t) && t.includes('gstin')) return true;
-  if (typeof t === 'string' && (t === 'parties_gstin_key' || t.includes('gstin'))) return true;
+  if (Array.isArray(t) && (t.includes('gstinHash') || t.includes('gstin_hash'))) return true;
+  if (typeof t === 'string' && t.includes('gstin')) return true;
   return false;
 }
 
 function isPanUniqueViolation(err) {
   if (err.code !== 'P2002') return false;
   const t = err.meta?.target;
-  if (Array.isArray(t) && t.includes('pan')) return true;
-  if (typeof t === 'string' && (t === 'parties_pan_key' || t.includes('pan'))) return true;
+  if (Array.isArray(t) && (t.includes('panHash') || t.includes('pan_hash'))) return true;
+  if (typeof t === 'string' && t.includes('pan')) return true;
   return false;
 }
 
-const partyFields = (body) => ({
-  name:               body.name               || undefined,
-  partyCode:          body.partyCode          || null,
-  address:            body.address            || undefined,
-  city:               body.city               || null,
-  state:              body.state              || null,
-  pinCode:            body.pinCode            || null,
-  gstin:              normalizeGstin(body.gstin),
-  pan:                normalizePan(body.pan),
-  stateCode:          body.stateCode          || null,
-  phone:              body.phone              || null,
-  email:              body.email              || null,
-  partyType:          body.partyType          || 'CUSTOMER',
-  vatTin:             body.vatTin             || null,
-  cstNo:              body.cstNo              || null,
-  bankAccountHolder:  body.bankAccountHolder  || null,
-  bankName:           body.bankName           || null,
-  accountNo:          body.accountNo          || null,
-  ifscCode:           body.ifscCode           || null,
-  swiftCode:          body.swiftCode          || null,
-});
+const partyFields = (body) => {
+  const gstin = normalizeGstin(body.gstin);
+  const pan   = normalizePan(body.pan);
+  return {
+    name:               body.name               || undefined,
+    partyCode:          body.partyCode          || null,
+    address:            body.address            || undefined,
+    city:               body.city               || null,
+    state:              body.state              || null,
+    pinCode:            body.pinCode            || null,
+    gstin,
+    gstinHash:          gstin ? hash(gstin) : null,
+    pan,
+    panHash:            pan   ? hash(pan)   : null,
+    stateCode:          body.stateCode          || null,
+    phone:              body.phone              || null,
+    email:              body.email              || null,
+    partyType:          body.partyType          || 'CUSTOMER',
+    vatTin:             body.vatTin             || null,
+    cstNo:              body.cstNo              || null,
+    bankAccountHolder:  body.bankAccountHolder  || null,
+    bankName:           body.bankName           || null,
+    accountNo:          body.accountNo          || null,
+    ifscCode:           body.ifscCode           || null,
+    swiftCode:          body.swiftCode          || null,
+  };
+};
 
 router.post('/', auth, requireRole('MANAGER'), async (req, res) => {
   try {
@@ -129,15 +173,17 @@ router.post('/', auth, requireRole('MANAGER'), async (req, res) => {
       return await tx.party.create({ data: encryptedData });
     });
     
-    // Return decrypted data to user
+    // Return decrypted data to user (strip internal hash fields)
     const decrypted = decryptPartyData(party);
-    
-    log.business('Party created', { 
-      partyId: party.id, 
+    delete decrypted.gstinHash;
+    delete decrypted.panHash;
+
+    log.business('Party created', {
+      partyId: party.id,
       partyName: party.name,
-      userId: req.user.id 
+      userId: req.user.id
     });
-    
+
     res.status(201).json({ success: true, data: decrypted });
   } catch (err) {
     if (err.code === 'P2002') {
@@ -150,6 +196,51 @@ router.post('/', auth, requireRole('MANAGER'), async (req, res) => {
     
     log.error('Party creation failed', { error: err.message });
     res.status(500).json({ success: false, code: 'ERR_INTERNAL', message: err.message });
+  }
+});
+
+// GET party-specific process rates
+router.get('/:id/process-rates', auth, requireRole('OPERATOR'), async (req, res) => {
+  try {
+    const partyId = toInt(req.params.id);
+    if (Number.isNaN(partyId)) return res.status(400).json({ success: false, message: 'Invalid party ID.' });
+
+    const rates = await prisma.partyProcessRate.findMany({
+      where: { partyId },
+      include: { processType: { select: { id: true, code: true, name: true, pricePerKg: true, pricePerPc: true, lotPrice: true } } },
+    });
+    res.json({ success: true, data: rates });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// PUT (bulk upsert) party process rates — array of { processTypeId, pricePerKg, pricePerPc, lotPrice }
+router.put('/:id/process-rates', auth, requireRole('MANAGER'), async (req, res) => {
+  try {
+    const partyId = toInt(req.params.id);
+    if (Number.isNaN(partyId)) return res.status(400).json({ success: false, message: 'Invalid party ID.' });
+
+    const rows = Array.isArray(req.body) ? req.body : [];
+    await withTransaction(prisma, async (tx) => {
+      for (const row of rows) {
+        const ptId = toInt(row.processTypeId);
+        if (!ptId) continue;
+        const data = {
+          pricePerKg: row.pricePerKg != null && row.pricePerKg !== '' ? toNum(row.pricePerKg) : null,
+          pricePerPc: row.pricePerPc != null && row.pricePerPc !== '' ? toNum(row.pricePerPc) : null,
+          lotPrice:  row.lotPrice  != null && row.lotPrice  !== '' ? toNum(row.lotPrice)  : null,
+        };
+        await tx.partyProcessRate.upsert({
+          where: { partyId_processTypeId: { partyId, processTypeId: ptId } },
+          update: data,
+          create: { partyId, processTypeId: ptId, ...data },
+        });
+      }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 
@@ -174,8 +265,10 @@ router.put('/:id', auth, requireRole('MANAGER'), async (req, res) => {
       });
     });
     
-    // Return decrypted data to user
+    // Return decrypted data to user (strip internal hash fields)
     const decrypted = decryptPartyData(party);
+    delete decrypted.gstinHash;
+    delete decrypted.panHash;
     res.json({ success: true, data: decrypted });
   } catch (err) {
     if (err.code === 'P2002') {
@@ -189,6 +282,19 @@ router.put('/:id', auth, requireRole('MANAGER'), async (req, res) => {
       return res.status(404).json({ success: false, code: 'NOT_FOUND', message: 'Party not found.' });
     }
     res.status(500).json({ success: false, code: 'ERR_INTERNAL', message: err.message });
+  }
+});
+
+router.delete('/:id', auth, requireRole('MANAGER'), async (req, res) => {
+  try {
+    const partyId = toInt(req.params.id);
+    if (Number.isNaN(partyId)) return res.status(400).json({ success: false, message: 'Invalid party ID.' });
+    await prisma.party.delete({ where: { id: partyId } });
+    res.json({ success: true, message: 'Party deleted.' });
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ success: false, message: 'Party not found.' });
+    if (err.code === 'P2003') return res.status(400).json({ success: false, message: 'Cannot delete: party has linked records (inwards, invoices, etc.).' });
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 

@@ -85,7 +85,7 @@ export default function InspectionForm() {
   });
 
   useEffect(() => {
-    api.get(`/jobcards/${id}`).then(r => setJobCard(r.data.data));
+    api.get(`/jobcards/${id}`).then(r => setJobCard(r.data.data)).catch(() => {});
     api.get(`/quality/${id}/inspection`)
       .then(r => {
         const d = r.data.data;
@@ -169,14 +169,6 @@ export default function InspectionForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    const beforeHasData = form.distortionBefore.some(v => v !== '' && Number(v) !== 0);
-    const afterHasData = form.distortionAfter.some(v => v !== '' && Number(v) !== 0);
-    
-    if (!beforeHasData || !afterHasData) {
-      toast.error('Enter distortion measurements for at least one point before and after heat treatment.');
-      return;
-    }
-
     setLoading(true);
     try {
       const fd = new FormData();

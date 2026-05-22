@@ -88,6 +88,10 @@ export default function JobCardList() {
 
   const updateStatus = async (card, nextStatus) => {
     if (nextStatus === card.status) return;
+    // Require confirmation for terminal status
+    if (nextStatus === 'COMPLETED') {
+      if (!window.confirm(`Mark Job Card ${card.jobCardNo} as COMPLETED?\n\nThis requires an INSPECTION with PASS or CONDITIONAL result.`)) return;
+    }
     setStatusSavingId(card.id);
     try {
       await api.patch(`/jobcards/${card.id}/status`, { status: nextStatus });
@@ -99,6 +103,11 @@ export default function JobCardList() {
     } finally {
       setStatusSavingId(null);
     }
+  };
+
+  const isOverdue = (card) => {
+    if (!card.dueDate || card.status === 'COMPLETED') return false;
+    return new Date(card.dueDate) < new Date();
   };
 
   const exportJobCards = async () => {
@@ -223,12 +232,16 @@ export default function JobCardList() {
       {/* Table */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
+          <table className="w-full text-left min-w-[480px]">
             <thead>
               <tr className="bg-gradient-to-r from-slate-50 to-indigo-50/30 border-b border-slate-100">
-                {['Job Card No', 'Part No / Desc', 'Drawing No', 'Machine', 'Qty', 'Status (update)', 'Action'].map(h => (
-                  <th key={h} className="th">{h}</th>
-                ))}
+                <th className="th">Job Card No</th>
+                <th className="th">Part / Desc</th>
+                <th className="th hidden sm:table-cell">Drawing No</th>
+                <th className="th hidden sm:table-cell">Machine</th>
+                <th className="th hidden md:table-cell">Qty</th>
+                <th className="th">Status</th>
+                <th className="th">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50/80">
@@ -251,20 +264,30 @@ export default function JobCardList() {
                   </td>
                 </tr>
               ) : cards.map(card => (
-                <tr key={card.id} className="tr group">
+                <tr key={card.id} className={`tr group ${isOverdue(card) ? 'bg-rose-50/40' : ''}`}>
                   <td className="td">
-                    <Link to={`/jobcards/${card.id}`}
-                      className="text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:underline font-mono">
-                      {card.jobCardNo}
-                    </Link>
+                    <div className="flex items-center gap-1.5">
+                      <Link to={`/jobcards/${card.id}`}
+                        className="text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:underline font-mono">
+                        {card.jobCardNo}
+                      </Link>
+                      {isOverdue(card) && (
+                        <span title={`Due: ${formatDate(card.dueDate)}`} className="material-symbols-outlined text-[13px] text-rose-500">schedule</span>
+                      )}
+                    </div>
+                    {card.inspection?.inspectionStatus && card.inspection.inspectionStatus !== 'PENDING' && (
+                      <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${card.inspection.inspectionStatus === 'PASS' ? 'bg-emerald-100 text-emerald-700' : card.inspection.inspectionStatus === 'FAIL' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {card.inspection.inspectionStatus}
+                      </span>
+                    )}
                   </td>
                   <td className="td">
                     <p className="text-xs font-semibold text-slate-700">{card.part?.partNo}</p>
                     <p className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[180px]">{card.part?.description}</p>
                   </td>
-                  <td className="td text-slate-600 font-mono text-xs">{card.drawingNo || '—'}</td>
-                  <td className="td text-slate-600 text-xs font-medium">{card.machine?.code || '—'}</td>
-                  <td className="td font-semibold text-slate-700">{card.quantity}</td>
+                  <td className="td text-slate-600 font-mono text-xs hidden sm:table-cell">{card.drawingNo || '—'}</td>
+                  <td className="td text-slate-600 text-xs font-medium hidden sm:table-cell">{card.machine?.code || '—'}</td>
+                  <td className="td font-semibold text-slate-700 hidden md:table-cell">{card.quantity}</td>
                   <td className="td min-w-[11rem]">
                     <label className="sr-only">Status for job card {card.jobCardNo}</label>
                     <select

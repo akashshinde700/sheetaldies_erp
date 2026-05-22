@@ -40,10 +40,12 @@ export default function RegisterCardView({ loading, pagedRows }: RegisterCardVie
 
             <div className="grid grid-cols-2 gap-4 border-t border-slate-50 pt-3">
               <div>
-                <p className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400 mb-0.5">Challan No / Date</p>
+                <p className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400 mb-0.5">Inward No / Date</p>
                 <div className="flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-[14px] text-slate-400">description</span>
-                  <p className="text-xs font-semibold text-slate-800">{r.challanNo || '-'}</p>
+                  <span className="material-symbols-outlined text-[14px] text-indigo-400">description</span>
+                  <Link to={`/jobwork/${r.challanId}`} className="text-xs font-extrabold text-indigo-600 hover:text-indigo-800 hover:underline font-mono">
+                    {r.inwardNo || '-'}
+                  </Link>
                 </div>
                 <p className="text-[10px] text-slate-500 ml-5">
                   {r.challanDate ? new Date(r.challanDate).toLocaleDateString('en-IN') : '-'}

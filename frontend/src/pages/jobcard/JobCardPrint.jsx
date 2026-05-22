@@ -3,41 +3,65 @@ import { Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
 import { formatDate } from '../../utils/formatters';
 
-// ── SVT constants ─────────────────────────────────────────────
 const SVT = {
-  name:    'SHITAL VACUUM TREAT PVT LTD.',
-  addr1:   'Plot No.84/1, Sector No.10',
-  addr2:   'PCNTDA, Bhosari,',
-  addr3:   'Pune',
-  email:   'info@shitalgroup.com',
+  name:  'SHITAL VACUUM TREAT PVT LTD.',
+  addr1: 'Plot No.84/1, Sector No.10, PCNTDA, Bhosari, Pune – 411019',
+  email: 'info@shitalgroup.com',
 };
+
+// ── shared cell style helpers ─────────────────────────────────
+const B  = '1px solid #222';
+const B2 = '2px solid #222';
+
+const cellStyle  = (extra = {}) => ({ border: B,  padding: '3px 6px', fontSize: 9,  ...extra });
+const headStyle  = (extra = {}) => ({ border: B,  padding: '3px 6px', fontSize: 9,  fontWeight: 700, background: '#f0f0f0', ...extra });
+const labelStyle = (extra = {}) => ({ fontSize: 10, color: '#000', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: 2, ...extra });
+const valueStyle = (extra = {}) => ({ fontSize: 11, fontWeight: 700, ...extra });
+const sigLine    = { borderTop: B, marginTop: 28, fontSize: 9, color: '#000', textAlign: 'center', paddingTop: 2 };
 
 function CB({ checked }) {
   return (
-    <span className="inline-flex items-center justify-center w-[11px] h-[11px] border border-black text-[8px] leading-none mr-0.5 flex-shrink-0">
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      width: 11, height: 11, border: B, fontSize: 8, lineHeight: 1,
+      marginRight: 3, flexShrink: 0, verticalAlign: 'middle',
+    }}>
       {checked ? '✓' : ''}
     </span>
   );
 }
 
+function SectionBar({ children, style = {} }) {
+  return (
+    <div style={{ background: '#f0f0f0', borderBottom: B, padding: '3px 8px', fontWeight: 700, fontSize: 10, letterSpacing: '0.05em', ...style }}>
+      {children}
+    </div>
+  );
+}
+
 const getImageUrl = (src) => {
   if (!src) return null;
-  return src.startsWith('http') ? src : `${import.meta.env.VITE_API_URL}${src}`;
+  if (src.startsWith('http')) return src;
+  const base = import.meta.env.VITE_API_URL || '';
+  return `${base}${src}`;
 };
 
-function SvtLogo({ size = 46 }) {
+function SvtLogo({ size = 44 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 56 56" fill="none">
-      <circle cx="28" cy="28" r="27" fill="#0f172a" stroke="#0f172a" strokeWidth="2" />
-      <text x="28" y="35" textAnchor="middle" fill="white" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="16" letterSpacing="1">SVT</text>
+    <svg width={size} height={size * 1.15} viewBox="0 0 100 115" fill="none" style={{ flexShrink: 0 }}>
+      <polygon points="50,2 95,27 95,77 50,102 5,77 5,27" fill="#1a1a1a" stroke="#000" strokeWidth="1.5"/>
+      <path d="M 38,28 C 22,28 20,38 30,43 L 40,48 C 54,53 54,65 38,66 C 28,66 24,62 24,62"
+        fill="none" stroke="white" strokeWidth="7" strokeLinecap="round"/>
+      <text x="60" y="70" textAnchor="middle" fill="white" fontFamily="Arial Black,Arial,sans-serif" fontWeight="900" fontSize="28" letterSpacing="1">VT</text>
+      <text x="50" y="96" textAnchor="middle" fill="#aaa" fontFamily="Arial,sans-serif" fontSize="6" letterSpacing="0.5">PUNE</text>
     </svg>
   );
 }
 
-function TuvLogo({ size = 40 }) {
+function TuvLogo({ size = 38 }) {
   return (
     <svg width={size * 1.4} height={size} viewBox="0 0 72 52" fill="none">
-      <rect x="1" y="1" width="70" height="50" rx="4" fill="white" stroke="#1e3a8a" strokeWidth="2" />
+      <rect x="1" y="1" width="70" height="50" rx="4" fill="white" stroke="#1e3a8a" strokeWidth="2"/>
       <text x="36" y="20" textAnchor="middle" fill="#1e3a8a" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="14" letterSpacing="1">TÜV</text>
       <text x="36" y="33" textAnchor="middle" fill="#1e3a8a" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="9" letterSpacing="1">AUSTRIA</text>
       <text x="36" y="44" textAnchor="middle" fill="#64748b" fontFamily="Arial,sans-serif" fontSize="7">CERTIFIED</text>
@@ -45,18 +69,103 @@ function TuvLogo({ size = 40 }) {
   );
 }
 
-// Fixed HT process rows (matching Excel rows 50-54)
-const HT_ROWS = ['SR-', 'HARDENING', '1 ST TEMP', '2 ND TEMP', '3 RD TEMP'];
+const HT_ROWS = 9;
 
 export default function JobCardPrint() {
   const { id } = useParams();
   const [jc, setJc] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError]   = useState(null);
+  const [error, setError] = useState(null);
+  // Page 1 inline-editable fields (still editable in print preview)
+  const [controlPlanNo, setControlPlanNo] = useState('');
+  const [specification, setSpecification] = useState('');
+  const [dieMaterial, setDieMaterial] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [specialRequirements, setSpecialRequirements] = useState('');
+  const [precautions, setPrecautions] = useState('');
+  const [dispatchByOurVehicle, setDispatchByOurVehicle] = useState(false);
+  const [dispatchByCourier, setDispatchByCourier] = useState(false);
+  const [collectedByCustomer, setCollectedByCustomer] = useState(false);
+  const [specInstrCert, setSpecInstrCert] = useState(false);
+  const [specInstrMPIRep, setSpecInstrMPIRep] = useState(false);
+  const [specInstrGraph, setSpecInstrGraph] = useState(false);
+
+  // Page 2 inspection state (read-only on print page — edit via job card form)
+  const [inspState, setInspState] = useState({
+    catNormal: false, catWelded: false, catCrackRisk: false, catDistortionRisk: false,
+    catCriticalFinishing: false, catDentDamage: false, catRusty: false, catOthers: false,
+    procStressRelieving: false, procHardening: false, procTempering: false, procAnnealing: false,
+    procBrazing: false, procPlasmaNitriding: false, procSubZero: false, procSoakClean: false,
+    visualBefore: false, visualAfter: false, mpiBefore: false, mpiAfter: false, mpiNil: false,
+    requiredHardnessMin: '', requiredHardnessMax: '', hardnessUnit: 'HRC',
+    achievedHardness: '',
+    hardnessAfter1: '', hardnessAfter2: '', hardnessAfter3: '', hardnessAfter4: '',
+    packedQty: '',
+  });
+
+  const saveField = (field, value) => {
+    api.put(`/jobcards/${id}`, { [field]: value }).catch(() => {});
+  };
+
+  const saveInsp = (updates) => {
+    const next = { ...inspState, ...updates };
+    setInspState(next);
+    api.put(`/quality/${id}/inspection`, next).catch(() => {});
+  };
 
   useEffect(() => {
     api.get(`/jobcards/${id}`)
-      .then((r) => setJc(r.data.data))
+      .then(async (r) => {
+        let d = r.data.data;
+        if (!d.certificateNo) {
+          try {
+            const cr = await api.post(`/jobcards/${id}/assign-certificate-no`);
+            d = { ...d, certificateNo: cr.data.data.certificateNo };
+          } catch (_) {}
+        }
+        setJc(d);
+        setControlPlanNo(d.controlPlanNo || '');
+        setSpecification(d.specification || '');
+        const linked = d.challanItemLinks || [];
+        setDieMaterial(d.dieMaterial || linked[0]?.material || '');
+        if (d.dueDate) {
+          setDueDate(d.dueDate.slice(0, 10));
+        } else if (d.issueDate) {
+          const base = new Date(d.issueDate);
+          base.setDate(base.getDate() + 4);
+          const computed = base.toISOString().slice(0, 10);
+          setDueDate(computed);
+          api.put(`/jobcards/${id}`, { dueDate: computed }).catch(() => {});
+        } else {
+          setDueDate('');
+        }
+        setSpecialRequirements(d.specialRequirements || '');
+        setPrecautions(d.precautions || '');
+        setDispatchByOurVehicle(!!d.dispatchByOurVehicle);
+        setDispatchByCourier(!!d.dispatchByCourier);
+        setCollectedByCustomer(!!d.collectedByCustomer);
+        setSpecInstrCert(!!d.specInstrCert);
+        setSpecInstrMPIRep(!!d.specInstrMPIRep);
+        setSpecInstrGraph(!!d.specInstrGraph);
+        const i = d.inspection || {};
+        setInspState({
+          catNormal: !!i.catNormal, catWelded: !!i.catWelded, catCrackRisk: !!i.catCrackRisk,
+          catDistortionRisk: !!i.catDistortionRisk, catCriticalFinishing: !!i.catCriticalFinishing,
+          catDentDamage: !!i.catDentDamage, catRusty: !!i.catRusty, catOthers: !!i.catOthers,
+          procStressRelieving: !!i.procStressRelieving, procHardening: !!i.procHardening,
+          procTempering: !!i.procTempering, procAnnealing: !!i.procAnnealing,
+          procBrazing: !!i.procBrazing, procPlasmaNitriding: !!i.procPlasmaNitriding,
+          procSubZero: !!i.procSubZero, procSoakClean: !!i.procSoakClean,
+          visualBefore: !!i.visualBefore, visualAfter: i.visualAfter !== false,
+          mpiBefore: !!i.mpiBefore, mpiAfter: !!i.mpiAfter, mpiNil: i.mpiNil !== false && !i.mpiAfter,
+          requiredHardnessMin: i.requiredHardnessMin || '', requiredHardnessMax: i.requiredHardnessMax || '',
+          hardnessUnit: i.hardnessUnit || 'HRC',
+          achievedHardness: i.achievedHardness || '',
+          hardnessAfter1: i.hardnessAfter1 || '', hardnessAfter2: i.hardnessAfter2 || '',
+          hardnessAfter3: i.hardnessAfter3 || '', hardnessAfter4: i.hardnessAfter4 || '',
+          packedQty: i.packedQty || '',
+        });
+      })
       .catch(() => setError('Job Card not found.'))
       .finally(() => setLoading(false));
   }, [id]);
@@ -69,17 +178,18 @@ export default function JobCardPrint() {
     </div>
   );
 
-  const insp = jc.inspection || {};
+  const insp     = jc.inspection || {};
   const customer = jc.customer;
   const custName = jc.customerNameSnapshot || customer?.name || '—';
-  const custAddr = jc.customerAddressSnapshot || customer?.address || '—';
+  const custAddr = jc.customerAddressSnapshot || [customer?.address, customer?.city, customer?.state, customer?.pinCode].filter(Boolean).join(', ') || '—';
 
-  // Challan items (all challan items flattened)
-  const challan = jc.challans?.[0];
-  const dcNo    = challan?.challanNo || '—';
-  const challanItems = jc.challans?.flatMap(ch => ch.items || []) || [];
+  const challan              = jc.challans?.[0];
+  const challanItemLinks     = jc.challanItemLinks || [];
+  const challanItemsFromChallans = jc.challans?.flatMap(ch => ch.items || []) || [];
+  const challanItems         = challanItemLinks.length > 0 ? challanItemLinks : challanItemsFromChallans;
+  const dcNo      = challan?.challanNo  || challanItemLinks[0]?.challan?.challanNo  || '—';
+  const inwardNo  = challan?.inwardNo   || challanItemLinks[0]?.challan?.inwardNo   || '—';
 
-  // Fallback: single item from part
   const items = challanItems.length > 0
     ? challanItems
     : jc.part ? [{ partName: jc.part.description, qty: jc.quantity, weight: jc.totalWeight }] : [];
@@ -87,444 +197,500 @@ export default function JobCardPrint() {
   const totalQty = items.reduce((s, it) => s + (Number(it.qty ?? it.quantity) || 0), 0);
   const totalWt  = items.reduce((s, it) => s + (Number(it.weight ?? it.totalWeight) || 0), 0);
 
-  const material = jc.dieMaterial || challanItems[0]?.material || '—';
-  const htSpec   = jc.hrcRange?.replace(/\d.*/, '').trim() || jc.operationMode || 'HARDEN AND TEMPER';
-  const hrc      = jc.hrcRange || '—';
+  const htSpec = jc.hrcRange?.replace(/\d.*/, '').trim() || jc.operationMode || 'HARDEN AND TEMPER';
+  const hrc    = jc.hrcRange || '—';
 
   const distBefore = Array.isArray(insp.distortionBefore)
-    ? insp.distortionBefore.map(v => (typeof v === 'object' ? v.val : v))
-    : [];
+    ? insp.distortionBefore.map(v => (typeof v === 'object' ? v.val : v)) : [];
   const distAfter = Array.isArray(insp.distortionAfter)
-    ? insp.distortionAfter.map(v => (typeof v === 'object' ? v.val : v))
-    : [];
+    ? insp.distortionAfter.map(v => (typeof v === 'object' ? v.val : v)) : [];
 
+  const imageUrls = [jc.image1, jc.image2, jc.image3, jc.image4, jc.image5].map(getImageUrl);
   const ITEMS_8 = [0,1,2,3,4,5,6,7];
 
-  const imageUrls = [jc.image1, jc.image2].map(getImageUrl);
-
-  // Category name of the item group (e.g. "THREADROLL") — from partName or part description
-  const categoryName = challanItems[0]?.partName?.toUpperCase() || jc.part?.description?.toUpperCase() || '';
-
-  const td = (extra = '') => ({ style: { border: '1px solid black', padding: '3px 5px' }, className: extra });
-  const th = (extra = '') => ({ style: { border: '1px solid black', padding: '3px 5px', fontWeight: 'bold', background: '#f8f8f8' }, className: extra });
+  const editInput = (value, setValue, field, opts = {}) => (
+    <input
+      className="no-print-border"
+      value={value}
+      onChange={e => setValue(e.target.value)}
+      onBlur={e => saveField(field, e.target.value)}
+      style={{
+        width: '100%', fontSize: 10, border: '1px dashed #bbb', borderRadius: 2,
+        padding: '1px 4px', outline: 'none', background: 'transparent',
+        fontFamily: 'Arial, sans-serif', ...opts,
+      }}
+    />
+  );
 
   return (
     <div className="bg-slate-100 py-4 print:bg-white print:py-0" style={{ fontFamily: 'Arial, sans-serif' }}>
       <style>{`
         @media print {
           .no-print { display: none !important; }
-          .page { box-shadow: none !important; margin: 0 !important; }
-          body { background: white !important; -webkit-print-color-adjust: exact; }
-          @page { margin: 8mm; size: A4 portrait; }
+          .page { box-shadow: none !important; margin: 0 !important; max-width: 100% !important; }
+          body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          @page { margin: 4mm; size: A4 landscape; }
+          .no-print-border { border: none !important; padding-left: 0 !important; background: transparent !important; }
+          body.print-p1-only #page2 { display: none !important; }
+          body.print-p2-only #page1 { display: none !important; }
+          body * { font-weight: bold !important; color: #000 !important; }
+          #page1 { font-size: 11px !important; }
+          #page1 td, #page1 th { font-size: 11px !important; }
+          #page2 { break-before: page; page-break-before: always; font-size: 10px !important; }
+          #page2 td, #page2 th { padding: 2px 5px !important; font-size: 10px !important; }
+          #page2 div[style] { font-size: inherit; }
+          #page2 img { max-height: 120px !important; }
         }
+        * { box-sizing: border-box; }
       `}</style>
 
-      {/* Action bar */}
-      <div className="no-print max-w-[900px] mx-auto mb-3 flex items-center gap-2 px-2">
-        <Link to={`/jobcards/${id}`} className="btn-ghost text-sm">← Back</Link>
-        <button className="btn-primary ml-auto text-sm" onClick={() => window.print()}>Print / Save PDF</button>
+      {/* ── Nav bar (no-print) ── */}
+      <div className="no-print max-w-[1150px] mx-auto mb-4 px-2">
+        <div className="flex items-center gap-2">
+          <Link to={`/jobcards/${id}`} className="btn-ghost text-sm">← Back</Link>
+          <button className="btn-ghost text-xs" onClick={() => { document.body.classList.add('print-p1-only'); window.print(); document.body.classList.remove('print-p1-only'); }}>Print Page 1</button>
+          <button className="btn-ghost text-xs" onClick={() => { document.body.classList.add('print-p2-only'); window.print(); document.body.classList.remove('print-p2-only'); }}>Print Page 2</button>
+          <button className="btn-primary text-sm ml-auto" onClick={() => window.print()}>Print Both</button>
+        </div>
       </div>
 
-      {/* ══════════════════════════════════════════════════════
+      {/* ══════════════════════════════════════════
           PAGE 1 — JOB CARD
-      ══════════════════════════════════════════════════════ */}
-      <div className="page max-w-[900px] mx-auto bg-white shadow-lg text-[10px]" style={{ border: '1px solid black' }}>
+      ══════════════════════════════════════════ */}
+      <div id="page1" className="page max-w-[1150px] mx-auto bg-white shadow-lg" style={{ border: B2, fontSize: 10 }}>
 
         {/* ── HEADER ── */}
-        <table className="w-full" style={{ borderCollapse: 'collapse', borderBottom: '2px solid black' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', borderBottom: B2 }}>
           <tbody>
             <tr>
-              {/* Factory */}
-              <td style={{ width: '35%', borderRight: '1px solid black', padding: '6px 8px', verticalAlign: 'top' }}>
-                <div className="flex items-start gap-2">
-                  <SvtLogo size={44} />
+              {/* Left — logo + company */}
+              <td style={{ width: '38%', borderRight: B2, padding: '6px 10px', verticalAlign: 'middle' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <SvtLogo size={46} />
                   <div>
-                    <div style={{ fontSize: 9, color: '#555', fontWeight: 'bold' }}>Factory:</div>
-                    <div style={{ fontWeight: 'bold', fontSize: 11 }}>{SVT.name}</div>
-                    <div style={{ fontSize: 9 }}>{SVT.addr1}</div>
-                    <div style={{ fontSize: 9 }}>{SVT.addr2} {SVT.addr3}</div>
-                    <div style={{ fontSize: 9 }}>{SVT.email}</div>
+                    <div style={{ fontWeight: 900, fontSize: 12, letterSpacing: '0.02em' }}>{SVT.name}</div>
+                    <div style={{ fontSize: 10, color: '#000', fontWeight: 600, marginTop: 2 }}>{SVT.addr1}</div>
+                    <div style={{ fontSize: 10, color: '#000', fontWeight: 600 }}>{SVT.email}</div>
                   </div>
                 </div>
               </td>
-              {/* Title + Reg Office + TUV */}
-              <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div style={{ fontSize: 9, color: '#555', fontWeight: 'bold' }}>Registered Office:</div>
-                    <div style={{ fontWeight: 'bold', fontSize: 11 }}>{SVT.name}</div>
-                    <div style={{ fontSize: 9 }}>{SVT.addr1}</div>
-                    <div style={{ fontSize: 9 }}>{SVT.addr2} {SVT.addr3}</div>
-                    <div style={{ fontSize: 9 }}>{SVT.email}</div>
-                  </div>
-                  <div className="flex flex-col items-end gap-1 ml-4">
-                    <TuvLogo size={38} />
-                    <table style={{ fontSize: 8, borderCollapse: 'collapse', border: '1px solid black', marginTop: 4 }}>
-                      <tbody>
-                        <tr><td style={{ border: '1px solid black', padding: '1px 5px', fontWeight: 'bold' }}>DOC NO</td><td style={{ border: '1px solid black', padding: '1px 5px' }}>QF-PD-01</td></tr>
-                        <tr><td style={{ border: '1px solid black', padding: '1px 5px', fontWeight: 'bold' }}>REVISION NO</td><td style={{ border: '1px solid black', padding: '1px 5px' }}>01</td></tr>
-                        <tr><td style={{ border: '1px solid black', padding: '1px 5px', fontWeight: 'bold' }}>REV. DATE</td><td style={{ border: '1px solid black', padding: '1px 5px' }}>—</td></tr>
-                        <tr><td style={{ border: '1px solid black', padding: '1px 5px', fontWeight: 'bold' }}>PAGE NO</td><td style={{ border: '1px solid black', padding: '1px 5px' }}>1 Of 2</td></tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-                <div style={{ textAlign: 'center', fontWeight: 900, fontSize: 16, letterSpacing: '0.15em', marginTop: 4 }}>JOB CARD</div>
+              {/* Center — title */}
+              <td style={{ textAlign: 'center', verticalAlign: 'middle', padding: '6px 10px', borderRight: B2 }}>
+                <div style={{ fontWeight: 900, fontSize: 22, letterSpacing: '0.25em', textTransform: 'uppercase' }}>JOB CARD</div>
               </td>
             </tr>
           </tbody>
         </table>
 
-        {/* ── CP NUMBER ── */}
-        <div style={{ borderBottom: '1px solid black', padding: '3px 8px', fontSize: 9, fontWeight: 'bold' }}>
-          CP NO — SVT/047/2022-23
-        </div>
-
-        {/* ── CUSTOMER + JOB DETAILS ── */}
-        <table className="w-full" style={{ borderCollapse: 'collapse', borderBottom: '1px solid black' }}>
+        {/* ── CUSTOMER + JOB META ── */}
+        <table style={{ width: '100%', borderCollapse: 'collapse', borderBottom: B }}>
           <tbody>
             <tr>
-              <td style={{ width: '55%', borderRight: '1px solid black', padding: '6px 8px', verticalAlign: 'top' }}>
-                <div style={{ fontWeight: 'bold', marginBottom: 2 }}>Customer's:</div>
-                <div style={{ fontWeight: 'bold', fontSize: 11 }}>{custName}</div>
-                <div style={{ fontSize: 9, whiteSpace: 'pre-wrap', lineHeight: 1.4, marginTop: 2 }}>{custAddr}</div>
+              {/* Customer */}
+              <td style={{ width: '52%', borderRight: B, padding: '6px 10px', verticalAlign: 'top' }}>
+                <div style={labelStyle()}>Customer</div>
+                <div style={{ fontWeight: 800, fontSize: 11, marginBottom: 2 }}>{custName}</div>
+                <div style={{ fontSize: 10, color: '#000', fontWeight: 600, lineHeight: 1.55 }}>
+                  {(() => {
+                    const parts = custAddr.split(', ').map(p => p.trim()).filter(Boolean);
+                    const deduped = parts.filter((part, i) =>
+                      !parts.some((other, j) => j !== i && other.toLowerCase().includes(part.toLowerCase()))
+                    );
+                    return deduped.join(', ');
+                  })()}
+                </div>
               </td>
-              <td style={{ padding: '6px 8px', verticalAlign: 'top', fontSize: 9.5 }}>
-                <table className="w-full">
+              {/* Job meta */}
+              <td style={{ padding: '6px 10px', verticalAlign: 'top' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <tbody>
-                    <tr><td style={{ paddingRight: 8, paddingBottom: 2, color: '#555', whiteSpace: 'nowrap' }}>Certificate No.</td><td style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>: {jc.certificateNo || '—'}</td></tr>
-                    <tr><td style={{ paddingRight: 8, paddingBottom: 2, color: '#555' }}>Job Card No.</td><td style={{ fontFamily: 'monospace' }}>: {jc.jobCardNo || '—'}</td></tr>
-                    <tr><td style={{ paddingRight: 8, paddingBottom: 2, color: '#555' }}>Your PO No.</td><td style={{ fontFamily: 'monospace' }}>: {jc.yourNo || '—'}</td></tr>
-                    <tr><td style={{ paddingRight: 8, paddingBottom: 2, color: '#555' }}>Your DC No.</td><td style={{ fontFamily: 'monospace' }}>: {dcNo}</td></tr>
-                    <tr><td style={{ paddingRight: 8, paddingBottom: 2, color: '#555' }}>Issue Date</td><td style={{ fontFamily: 'monospace' }}>: {formatDate(jc.issueDate) || '—'}</td></tr>
-                    <tr><td style={{ paddingRight: 8, color: '#555' }}>Issue By</td><td style={{ fontFamily: 'monospace' }}>: {jc.issueBy || jc.createdBy?.name || '—'}</td></tr>
-                  </tbody>
-                </table>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* ── DISPATCH MODE ── */}
-        <table className="w-full" style={{ borderCollapse: 'collapse', borderBottom: '1px solid black' }}>
-          <tbody>
-            <tr>
-              <td style={{ padding: '4px 8px', borderRight: '1px solid black' }}>
-                <span style={{ fontWeight: 'bold', marginRight: 8 }}>DISPATCH MODE:-</span>
-                <span className="mr-4"><CB checked={jc.dispatchByOurVehicle} /> BY OUR VEHICLE</span>
-                <span className="mr-4"><CB checked={jc.dispatchByCourier} /> BY COURIER</span>
-                <span><CB checked={jc.collectedByCustomer} /> COLLECTED BY CUSTOMER</span>
-              </td>
-              <td style={{ padding: '4px 8px', width: 200, verticalAlign: 'top' }}>
-                <div style={{ fontWeight: 'bold', marginBottom: 2 }}>Special Instruction</div>
-                <div><CB checked={jc.specInstrCert} /> CERTIFICATE</div>
-                <div><CB checked={jc.specInstrMPIRep} /> MPI REPORT</div>
-                <div><CB checked={jc.specInstrGraph} /> PROCESS GRAPH</div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* ── MATERIAL / HT SPEC / HRC ── */}
-        <table className="w-full" style={{ borderCollapse: 'collapse', borderBottom: '1px solid black' }}>
-          <tbody>
-            <tr>
-              <td style={{ border: '1px solid black', padding: '4px 8px', width: 70, fontWeight: 'bold', fontSize: 11 }}>{material}</td>
-              <td style={{ border: '1px solid black', padding: '4px 8px' }}>
-                <span style={{ color: '#555', marginRight: 6 }}>Heat Treatment Specification</span>
-                <span style={{ fontWeight: 'bold' }}>{htSpec}</span>
-              </td>
-              <td style={{ border: '1px solid black', padding: '4px 8px', width: 130, fontWeight: 900, fontSize: 12, textAlign: 'center' }}>{hrc}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* ── ITEMS TABLE ── */}
-        <table className="w-full" style={{ borderCollapse: 'collapse', borderBottom: '1px solid black' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid black' }}>
-              <th {...th('text-left')} style={{ ...th().style, width: 40 }}>Item</th>
-              <th {...th('text-left')}>Description</th>
-              <th {...th('text-center')} style={{ ...th().style, width: 100 }}>Quantity (Pcs)</th>
-              <th {...th('text-center')} style={{ ...th().style, width: 100 }}>Weight (Kg)</th>
-              <th {...th('text-center')} style={{ ...th().style, width: 100 }}>Remarks</th>
-            </tr>
-          </thead>
-          <tbody>
-            {/* Category sub-heading row */}
-            {categoryName && (
-              <tr>
-                <td colSpan={5} style={{ border: '1px solid black', padding: '2px 6px', fontWeight: 'bold', fontSize: 9, background: '#f9f9f9' }}>
-                  {categoryName}
-                </td>
-              </tr>
-            )}
-            {items.map((it, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid #ddd' }}>
-                <td {...td('text-center')}>{i + 1}</td>
-                <td {...td()}>{it.partName || it.description || '—'}</td>
-                <td {...td('text-center font-mono')}>{it.qty ?? it.quantity ?? '—'}</td>
-                <td {...td('text-center font-mono')}>{it.weight != null ? Number(it.weight).toFixed(2) : (it.totalWeight != null ? Number(it.totalWeight).toFixed(2) : '—')}</td>
-                <td {...td('text-center')}>{it.remarks || ''}</td>
-              </tr>
-            ))}
-            {/* Empty filler rows */}
-            {Array.from({ length: Math.max(0, 4 - items.length) }).map((_, i) => (
-              <tr key={`e${i}`} style={{ height: 20 }}>
-                <td style={{ border: '1px solid black' }}></td>
-                <td style={{ border: '1px solid black' }}></td>
-                <td style={{ border: '1px solid black' }}></td>
-                <td style={{ border: '1px solid black' }}></td>
-                <td style={{ border: '1px solid black' }}></td>
-              </tr>
-            ))}
-            {/* Total */}
-            <tr style={{ borderTop: '1px solid black' }}>
-              <td colSpan={2} style={{ border: '1px solid black', padding: '3px 6px', fontWeight: 'bold', textAlign: 'right' }}>Total</td>
-              <td style={{ border: '1px solid black', padding: '3px 6px', fontWeight: 'bold', textAlign: 'center', fontFamily: 'monospace' }}>{totalQty || '—'}</td>
-              <td style={{ border: '1px solid black', padding: '3px 6px', fontWeight: 'bold', textAlign: 'center', fontFamily: 'monospace' }}>{totalWt ? totalWt.toFixed(2) : '—'}</td>
-              <td style={{ border: '1px solid black' }}></td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* ── SPECIAL REQUIREMENTS + DELIVERY DATE ── */}
-        <table className="w-full" style={{ borderCollapse: 'collapse', borderBottom: '1px solid black' }}>
-          <tbody>
-            <tr>
-              <td style={{ width: '50%', borderRight: '1px solid black', padding: '4px 8px', minHeight: 30 }}>
-                <span style={{ fontWeight: 'bold' }}>Special Requirements: </span>
-                {jc.specialRequirements || ''}
-              </td>
-              <td style={{ padding: '4px 8px' }}>
-                <span style={{ fontWeight: 'bold' }}>Delivery Date: </span>
-                {formatDate(jc.dueDate) || '—'}
-              </td>
-            </tr>
-            <tr>
-              <td colSpan={2} style={{ borderTop: '1px solid black', padding: '4px 8px', minHeight: 24 }}>
-                <span style={{ fontWeight: 'bold' }}>Precautions During Production &amp; Final Inspection: </span>
-                {jc.precautions || ''}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* ── PAGE 1 FOOTER ── */}
-        <div style={{ padding: '3px 8px', fontSize: 8, color: '#555' }}>
-          QF-PD-01 &nbsp;&nbsp; Effective Date: 01-04-2019 &nbsp;&nbsp; Revision: 01 &nbsp;&nbsp; Revision Date: 00 &nbsp;&nbsp; Page 1 of 2
-        </div>
-      </div>
-
-      {/* ══════════════════════════════════════════════════════
-          PAGE 2 — INCOMING INSPECTION + HT PROCESS + DISTORTION
-      ══════════════════════════════════════════════════════ */}
-      <div className="page max-w-[900px] mx-auto bg-white shadow-lg text-[10px] mt-4 print:mt-0" style={{ border: '1px solid black', pageBreakBefore: 'always' }}>
-
-        {/* ── INCOMING INSPECTION HEADER ── */}
-        <div style={{ borderBottom: '1px solid black', padding: '4px 8px', fontWeight: 'bold', fontSize: 11 }}>
-          INCOMING INSPECTION
-        </div>
-
-        {/* ── CATEGORIZATION | PROCESS | INSPECTION RIGHT PANEL ── */}
-        <table className="w-full" style={{ borderCollapse: 'collapse', borderBottom: '1px solid black' }}>
-          <thead>
-            <tr>
-              <th style={{ border: '1px solid black', padding: '3px 6px', width: '22%', textAlign: 'left', fontSize: 9 }}>Categorization</th>
-              <th style={{ border: '1px solid black', padding: '3px 6px', width: '22%', textAlign: 'left', fontSize: 9 }}>Process</th>
-              <th style={{ border: '1px solid black', padding: '3px 6px', textAlign: 'left', fontSize: 9 }} colSpan={2}>INCOMING INSPECTION BY:</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              {/* Categorization */}
-              <td style={{ border: '1px solid black', padding: '4px 6px', verticalAlign: 'top' }}>
-                <div><CB checked={insp.catNormal} /> NORMAL</div>
-                <div><CB checked={insp.catWelded ?? false} /> WELDED</div>
-                <div><CB checked={insp.catCrackRisk} /> CRACK OR CRACK RISK</div>
-                <div><CB checked={insp.catDistortionRisk} /> DISTORTION RISK</div>
-                <div><CB checked={insp.catCriticalFinishing} /> CRITICAL FINISHING</div>
-                <div><CB checked={insp.catDentDamage} /> DENT / DAMAGE</div>
-                <div><CB checked={insp.catRusty ?? false} /> RUSTY</div>
-                <div><CB checked={insp.catOthers} /> OTHERS</div>
-              </td>
-              {/* Process */}
-              <td style={{ border: '1px solid black', padding: '4px 6px', verticalAlign: 'top' }}>
-                <div><CB checked={insp.procStressRelieving} /> STRESS RELIVING</div>
-                <div><CB checked={insp.procHardening} /> HARDENING</div>
-                <div><CB checked={insp.procTempering} /> TEMPERING</div>
-                <div><CB checked={insp.procAnnealing} /> ANNEALING</div>
-                <div><CB checked={insp.procBrazing} /> BRAZING</div>
-                <div><CB checked={insp.procPlasmaNitriding} /> PLASMA NITRIDING</div>
-                <div><CB checked={insp.procSubZero} /> SUB ZERO</div>
-                <div><CB checked={insp.procSoakClean} /> SOAK CLEAN</div>
-              </td>
-              {/* Visual / MPI / Hardness */}
-              <td style={{ border: '1px solid black', padding: '4px 6px', verticalAlign: 'top', width: '28%' }}>
-                <div style={{ fontWeight: 'bold', fontSize: 9, marginBottom: 2 }}>VISUAL INSPECTION</div>
-                <div><CB checked={insp.visualBefore} /> BEFORE</div>
-                <div><CB checked={insp.visualAfter ?? true} /> AFTER</div>
-                <div style={{ marginTop: 6, fontWeight: 'bold', fontSize: 9, marginBottom: 2 }}>MPI INSPECTION</div>
-                <div><CB checked={insp.mpiBefore} /> BEFORE</div>
-                <div><CB checked={insp.mpiAfter} /> AFTER</div>
-                <div><CB checked={insp.mpiNil ?? !insp.mpiAfter} /> NIL</div>
-              </td>
-              {/* Require + Achieved hardness */}
-              <td style={{ padding: '4px 6px', verticalAlign: 'top', width: '28%' }}>
-                <div style={{ border: '1px solid black', marginBottom: 4 }}>
-                  <div style={{ borderBottom: '1px solid black', padding: '2px 4px', fontWeight: 'bold', fontSize: 9 }}>REQUIRE HARDNESS</div>
-                  <div style={{ padding: '4px', fontWeight: 900, fontSize: 12 }}>
-                    {insp.requiredHardnessMin && insp.requiredHardnessMax
-                      ? `${insp.requiredHardnessMin}-${insp.requiredHardnessMax} ${insp.hardnessUnit || 'HRC'}`
-                      : (jc.hrcRange || '—')}
-                  </div>
-                </div>
-                <div style={{ border: '1px solid black' }}>
-                  <div style={{ borderBottom: '1px solid black', padding: '2px 4px', fontWeight: 'bold', fontSize: 9 }}>ACHIVED HARDNESS</div>
-                  <div style={{ padding: '4px', fontWeight: 900, fontSize: 12 }}>
-                    {insp.achievedHardness ? `${insp.achievedHardness} ${insp.hardnessUnit || 'HRC'}` : '—'}
-                  </div>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* ── HEAT TREATMENT PROCESS TABLE ── */}
-        <div style={{ borderBottom: '1px solid black' }}>
-          <div style={{ padding: '3px 8px', fontWeight: 'bold', display: 'flex', gap: 20, borderBottom: '1px solid black' }}>
-            <span>HEAT TREATMENT PROCESS</span>
-            <span style={{ fontWeight: 'normal' }}>CYCLE NO: <span style={{ fontFamily: 'monospace' }}>{jc.heatNo || '—'}</span></span>
-          </div>
-          <table className="w-full" style={{ borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ fontSize: 8 }}>
-                {['EQIPMENT','PROCESS','TEMP/TIME','START TIME','END TIME','DATE','LOADING BY','RESULT','SIGN'].map(h => (
-                  <th key={h} style={{ border: '1px solid black', padding: '2px 3px', fontWeight: 'bold' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {HT_ROWS.map((row, i) => {
-                const hp = insp.heatProcesses?.[i] || {};
-                return (
-                  <tr key={i} style={{ height: 20 }}>
-                    <td style={{ border: '1px solid black', padding: '2px 3px', fontSize: 8 }}>{hp.equipment || ''}</td>
-                    <td style={{ border: '1px solid black', padding: '2px 3px', fontSize: 8, fontWeight: 'bold' }}>{row}</td>
-                    <td style={{ border: '1px solid black', padding: '2px 3px', fontSize: 8 }}>{hp.tempTime || ''}</td>
-                    <td style={{ border: '1px solid black', padding: '2px 3px', fontSize: 8 }}>{hp.startTime ? new Date(hp.startTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}</td>
-                    <td style={{ border: '1px solid black', padding: '2px 3px', fontSize: 8 }}>{hp.endTime ? new Date(hp.endTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}</td>
-                    <td style={{ border: '1px solid black', padding: '2px 3px', fontSize: 8 }}>{hp.processDate ? formatDate(hp.processDate) : ''}</td>
-                    <td style={{ border: '1px solid black', padding: '2px 3px', fontSize: 8 }}>{hp.loadingBy || ''}</td>
-                    <td style={{ border: '1px solid black', padding: '2px 3px', fontSize: 8 }}>{hp.result || ''}</td>
-                    <td style={{ border: '1px solid black', padding: '2px 3px', fontSize: 8 }}></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* ── DISTORTION + HARDNESS + PACKED ── */}
-        <table className="w-full" style={{ borderCollapse: 'collapse', borderBottom: '1px solid black' }}>
-          <tbody>
-            <tr>
-              {/* Distortion table */}
-              <td style={{ verticalAlign: 'top', padding: '4px 6px', borderRight: '1px solid black' }}>
-                <table style={{ borderCollapse: 'collapse', fontSize: 8 }}>
-                  <thead>
-                    <tr>
-                      <th colSpan={9} style={{ border: '1px solid black', padding: '2px 4px', fontWeight: 'bold' }}>DISTORTION</th>
-                    </tr>
-                    <tr>
-                      <th style={{ border: '1px solid black', padding: '2px 4px', fontWeight: 'bold' }}>ITEM</th>
-                      {ITEMS_8.map(i => (
-                        <th key={i} style={{ border: '1px solid black', padding: '2px 6px', textAlign: 'center' }}>{i + 1}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td style={{ border: '1px solid black', padding: '2px 4px', fontWeight: 'bold' }}>BEFORE</td>
-                      {ITEMS_8.map(i => (
-                        <td key={i} style={{ border: '1px solid black', padding: '2px 4px', textAlign: 'center' }}>
-                          {distBefore[i] ?? (i === 0 ? 'NA' : '')}
-                        </td>
-                      ))}
-                    </tr>
-                    <tr>
-                      <td style={{ border: '1px solid black', padding: '2px 4px', fontWeight: 'bold' }}>AFTER:</td>
-                      {ITEMS_8.map(i => (
-                        <td key={i} style={{ border: '1px solid black', padding: '2px 4px', textAlign: 'center' }}>
-                          {distAfter[i] ?? (i === 0 ? 'NA' : '')}
-                        </td>
-                      ))}
-                    </tr>
-                  </tbody>
-                </table>
-              </td>
-              {/* HARDNESS AFTER + PACKED */}
-              <td style={{ verticalAlign: 'top', padding: '4px 6px', width: 200 }}>
-                <table style={{ borderCollapse: 'collapse', fontSize: 8, width: '100%' }}>
-                  <tbody>
-                    <tr><td colSpan={2} style={{ border: '1px solid black', padding: '2px 4px', fontWeight: 'bold' }}>HARDNESS AFTER</td></tr>
-                    {[1,2,3,4].map(n => (
-                      <tr key={n}>
-                        <td style={{ border: '1px solid black', padding: '2px 4px', width: 20, fontWeight: 'bold' }}>{n}</td>
-                        <td style={{ border: '1px solid black', padding: '2px 4px', fontFamily: 'monospace' }}>
-                          {insp[`hardnessAfter${n}`] || ''}
-                        </td>
+                    {[
+                      ['Certificate No.', jc.certificateNo || '—', true],
+                      ['Job Card No.',    jc.jobCardNo || '—', false],
+                      ['Inward No.',      inwardNo, false],
+                      ['Your PO No.',     jc.yourNo || '—', false],
+                      ['Your DC No.',     dcNo, false],
+                      ['Issue Date',      formatDate(jc.issueDate) || '—', false],
+                      ['Issue By',        jc.issueBy || jc.createdBy?.name || '—', false],
+                    ].map(([lbl, val, bold]) => (
+                      <tr key={lbl}>
+                        <td style={{ paddingRight: 8, paddingBottom: 3, fontSize: 10, color: '#000', whiteSpace: 'nowrap', fontWeight: 700 }}>{lbl}</td>
+                        <td style={{ paddingBottom: 3, fontSize: 11, fontWeight: bold ? 900 : 700, fontFamily: 'monospace', color: '#000' }}>: {val}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-                <div style={{ border: '1px solid black', marginTop: 4 }}>
-                  <div style={{ borderBottom: '1px solid black', padding: '2px 4px', fontWeight: 'bold', fontSize: 8 }}>PACKED QUANTITY</div>
-                  <div style={{ padding: '3px 4px', fontFamily: 'monospace', fontSize: 8 }}>{insp.packedQty || ''}</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* ── DISPATCH MODE / CONTROL PLAN / SPECIFICATION / SPECIAL INSTRUCTION ── */}
+        <table style={{ width: '100%', borderCollapse: 'collapse', borderBottom: B }}>
+          <tbody>
+            <tr>
+              {/* Dispatch Mode */}
+              <td style={{ padding: '4px 8px', borderRight: B, verticalAlign: 'top', width: '26%' }}>
+                <div style={labelStyle({ marginBottom: 4 })}>Dispatch Mode</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#000' }}><CB checked={dispatchByOurVehicle} /> BY OUR VEHICLE</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#000' }}><CB checked={dispatchByCourier} /> BY COURIER</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#000' }}><CB checked={collectedByCustomer} /> COLLECTED BY CUSTOMER</div>
                 </div>
-                <div style={{ border: '1px solid black', marginTop: 4 }}>
-                  <div style={{ borderBottom: '1px solid black', padding: '2px 4px', fontWeight: 'bold', fontSize: 8 }}>PACKED BY</div>
-                  <div style={{ padding: '3px 4px', fontSize: 8 }}>{insp.packedBy || ''}</div>
+              </td>
+              {/* Control Plan No */}
+              <td style={{ padding: '4px 8px', borderRight: B, verticalAlign: 'top', width: '22%' }}>
+                <div style={labelStyle({ marginBottom: 3 })}>Control Plan No.</div>
+                {editInput(controlPlanNo, setControlPlanNo, 'controlPlanNo', { fontWeight: 600 })}
+              </td>
+              {/* Specification */}
+              <td style={{ padding: '4px 8px', borderRight: B, verticalAlign: 'top' }}>
+                <div style={labelStyle({ marginBottom: 3 })}>Specification</div>
+                {editInput(specification, setSpecification, 'specification')}
+              </td>
+              {/* Special Instruction */}
+              <td style={{ padding: '4px 8px', verticalAlign: 'top' }}>
+                <div style={labelStyle({ marginBottom: 4 })}>Special Instruction</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#000' }}><CB checked={specInstrCert} /> CERTIFICATE</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#000' }}><CB checked={specInstrMPIRep} /> MPI REPORT</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#000' }}><CB checked={specInstrGraph} /> PROCESS GRAPH</div>
                 </div>
               </td>
             </tr>
           </tbody>
         </table>
 
-        {/* ── JOB IMAGES ── */}
-        <div style={{ borderBottom: '1px solid black' }}>
-          <div style={{ borderBottom: '1px solid black', padding: '3px 8px', fontWeight: 'bold' }}>JOB IMAGE</div>
-          <div style={{ display: 'flex', gap: 8, padding: 8 }}>
-            {[0, 1].map(n => (
-              <div key={n} style={{ border: '1px solid black', width: 140, height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {imageUrls[n]
-                  ? <img src={imageUrls[n]} alt={`Job ${n+1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  : <span style={{ fontSize: 9, color: '#aaa' }}>{n + 1}</span>}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ── SIGNATURE ROW ── */}
-        <table className="w-full" style={{ borderCollapse: 'collapse', borderBottom: '1px solid black' }}>
+        {/* ── MATERIAL / HRC / HT SPEC ── */}
+        <table style={{ width: '100%', borderCollapse: 'collapse', borderBottom: B }}>
           <tbody>
             <tr>
-              {['INCOMING INSPECTION BY', 'FINAL INSPECTION BY', 'APPROVED BY:'].map(label => (
-                <td key={label} style={{ border: '1px solid black', padding: '4px 6px', width: '33%' }}>
-                  <div style={{ fontWeight: 'bold', fontSize: 8, marginBottom: 18 }}>{label}</div>
-                </td>
-              ))}
+              <td style={{ width: '26%', borderRight: B, padding: '4px 10px', verticalAlign: 'middle' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={labelStyle({ marginBottom: 0 })}>Material :</span>
+                  <input
+                    className="no-print-border"
+                    value={dieMaterial}
+                    onChange={e => setDieMaterial(e.target.value)}
+                    onBlur={e => saveField('dieMaterial', e.target.value)}
+                    placeholder="—"
+                    style={{ fontWeight: 800, fontSize: 12, border: '1px dashed #bbb', borderRadius: 2, padding: '1px 6px', outline: 'none', background: 'transparent', width: 80, textAlign: 'center' }}
+                  />
+                </div>
+              </td>
+              <td style={{ width: '22%', borderRight: B, padding: '4px 18px', verticalAlign: 'middle' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={labelStyle({ marginBottom: 0 })}>Hardness :</span>
+                  <span style={{ fontWeight: 900, fontSize: 14, letterSpacing: '0.05em' }}>{hrc}</span>
+                </div>
+              </td>
+              <td style={{ padding: '4px 12px', verticalAlign: 'middle' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={labelStyle({ marginBottom: 0 })}>Heat Treatment Specification :</span>
+                  <span style={{ fontWeight: 700, fontSize: 11 }}>{htSpec}</span>
+                </div>
+              </td>
             </tr>
           </tbody>
         </table>
 
+        {/* ── ITEMS TABLE + RIGHT PANEL ── */}
+        <div style={{ display: 'flex', borderBottom: B }}>
+          {/* Items table */}
+          <div style={{ flex: 1, borderRight: B, overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: '#f0f0f0' }}>
+                  <th style={headStyle({ width: 34, textAlign: 'center' })}>Item</th>
+                  <th style={headStyle({ textAlign: 'left' })}>Description</th>
+                  <th style={headStyle({ width: 100, textAlign: 'center' })}>Quantity (Pcs)</th>
+                  <th style={headStyle({ width: 100, textAlign: 'center' })}>Weight (Kg)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((it, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid #ddd' }}>
+                    <td style={cellStyle({ textAlign: 'center', fontWeight: 600 })}>{i + 1}</td>
+                    <td style={cellStyle()}>
+                      <div style={{ fontWeight: 700, fontSize: 10 }}>
+                        {(() => {
+                          let name = it.partName || it.description || '—';
+                          if (it.processName && name.includes(it.processName)) {
+                            name = name.replace(new RegExp('\\s*[-–]\\s*' + it.processName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), '').trim();
+                          }
+                          return name;
+                        })()}
+                      </div>
+                      {jc.woNo && (
+                        <div style={{ fontSize: 8, color: '#444', marginTop: 1 }}>WM NO - {jc.woNo}</div>
+                      )}
+                      {(it.drawingNo || jc.drawingNo) && (
+                        <div className="no-print" style={{ fontSize: 8, color: '#444' }}>DRG NO. - {it.drawingNo || jc.drawingNo}</div>
+                      )}
+                    </td>
+                    <td style={cellStyle({ textAlign: 'center', fontFamily: 'monospace', fontSize: 10 })}>{it.qty ?? it.quantity ?? '—'}</td>
+                    <td style={cellStyle({ textAlign: 'center', fontFamily: 'monospace', fontSize: 10 })}>
+                      {it.weight != null ? Number(it.weight).toFixed(2) : (it.totalWeight != null ? Number(it.totalWeight).toFixed(2) : '—')}
+                    </td>
+                  </tr>
+                ))}
+                <tr style={{ borderTop: B2, background: '#f8f8f8' }}>
+                  <td colSpan={2} style={{ border: B, padding: '3px 6px', fontWeight: 700, textAlign: 'right', fontSize: 9 }}>TOTAL</td>
+                  <td style={{ border: B, padding: '3px 6px', fontWeight: 700, textAlign: 'center', fontFamily: 'monospace' }}>{totalQty || '—'}</td>
+                  <td style={{ border: B, padding: '3px 6px', fontWeight: 700, textAlign: 'center', fontFamily: 'monospace' }}>{totalWt ? totalWt.toFixed(2) : '—'}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          {/* Right panel */}
+          <div style={{ width: 175, display: 'flex', flexDirection: 'column', fontSize: 9 }}>
+            <div style={{ borderBottom: B, padding: '4px 8px' }}>
+              <div style={labelStyle({ marginBottom: 3 })}>Delivery Date</div>
+              <input
+                type="date"
+                className="no-print-border"
+                value={dueDate}
+                onChange={e => setDueDate(e.target.value)}
+                onBlur={e => saveField('dueDate', e.target.value)}
+                style={{ fontWeight: 700, fontSize: 10, border: '1px dashed #bbb', borderRadius: 2, padding: '1px 4px', outline: 'none', background: 'transparent', width: '100%' }}
+              />
+            </div>
+            <div style={{ borderBottom: B, padding: '4px 8px', flex: 1 }}>
+              <div style={labelStyle({ marginBottom: 3 })}>Special Requirements</div>
+              <textarea
+                className="no-print-border"
+                value={specialRequirements}
+                onChange={e => setSpecialRequirements(e.target.value)}
+                onBlur={e => saveField('specialRequirements', e.target.value)}
+                rows={3}
+                style={{ width: '100%', resize: 'none', fontSize: 9, lineHeight: 1.5, border: '1px dashed #bbb', borderRadius: 2, padding: '1px 4px', outline: 'none', background: 'transparent' }}
+              />
+            </div>
+            <div style={{ padding: '4px 8px', flex: 1 }}>
+              <div style={labelStyle({ marginBottom: 3, textAlign: 'center' })}>Precautions During Production &amp; Final Inspection</div>
+              <textarea
+                className="no-print-border"
+                value={precautions}
+                onChange={e => setPrecautions(e.target.value)}
+                onBlur={e => saveField('precautions', e.target.value)}
+                rows={3}
+                style={{ width: '100%', resize: 'none', fontSize: 9, lineHeight: 1.5, border: '1px dashed #bbb', borderRadius: 2, padding: '1px 4px', outline: 'none', background: 'transparent' }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* ── PAGE 1 FOOTER ── */}
+        <table style={{ width: '100%', borderCollapse: 'collapse', borderTop: B2 }}>
+          <tbody><tr style={{ fontSize: 8, color: '#000', fontWeight: 700 }}>
+            <td style={{ padding: '4px 10px', textAlign: 'center', width: '25%' }}>QF-PD-01</td>
+            <td style={{ padding: '4px 10px', textAlign: 'center', width: '25%' }}>Effective Date: 01-04-2019</td>
+            <td style={{ padding: '4px 10px', textAlign: 'center', width: '25%' }}>Revision: 01</td>
+            <td style={{ padding: '4px 10px', textAlign: 'center', width: '25%' }}>Page 1 of 2</td>
+          </tr></tbody>
+        </table>
+      </div>
+
+      {/* ══════════════════════════════════════════
+          PAGE 2 — INCOMING INSPECTION
+      ══════════════════════════════════════════ */}
+      <div id="page2" className="page max-w-[1150px] mx-auto bg-white shadow-lg mt-4 print:mt-0" style={{ border: B2, fontSize: 10, pageBreakBefore: 'always' }}>
+
+        {/* ── CATEGORIZATION | PROCESS | INSPECTION ── */}
+        <table style={{ width: '100%', borderCollapse: 'collapse', borderBottom: B }}>
+          <thead>
+            <tr>
+              <th style={headStyle({ width: '18%', textAlign: 'left', borderRight: B })}>Categorization — INCOMING INSPECTION</th>
+              <th style={headStyle({ width: '18%', textAlign: 'left', borderRight: B })}>Process</th>
+              <th style={headStyle({ textAlign: 'left', borderRight: B })} colSpan={2}>Inspection Details</th>
+              <th style={headStyle({ width: '20%', textAlign: 'left', borderLeft: B })}>Incoming Inspection By</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style={{ border: B, padding: '5px 10px', verticalAlign: 'top', lineHeight: 2.1, fontSize: 9, color: '#000', fontWeight: 700 }}>
+                {[
+                  [inspState.catNormal,           'NORMAL'],
+                  [inspState.catWelded,           'WELDED'],
+                  [inspState.catCrackRisk,        'CRACK OR CRACK RISK'],
+                  [inspState.catDistortionRisk,   'DISTORTION RISK'],
+                  [inspState.catCriticalFinishing,'CRITICAL FINISHING'],
+                  [inspState.catDentDamage,       'DENT / DAMAGE'],
+                  [inspState.catRusty,            'RUSTY'],
+                  [inspState.catOthers,           'OTHERS'],
+                ].map(([c, lbl]) => <div key={lbl}><CB checked={c} /> {lbl}</div>)}
+              </td>
+              <td style={{ border: B, padding: '5px 10px', verticalAlign: 'top', lineHeight: 2.1, fontSize: 9, color: '#000', fontWeight: 700 }}>
+                {[
+                  [inspState.procStressRelieving, 'STRESS RELIEVING'],
+                  [inspState.procHardening,       'HARDENING'],
+                  [inspState.procTempering,       'TEMPERING'],
+                  [inspState.procAnnealing,       'ANNEALING'],
+                  [inspState.procBrazing,         'BRAZING'],
+                  [inspState.procPlasmaNitriding, 'PLASMA NITRIDING'],
+                  [inspState.procSubZero,         'SUB ZERO'],
+                  [inspState.procSoakClean,       'SOAK CLEAN'],
+                ].map(([c, lbl]) => <div key={lbl}><CB checked={c} /> {lbl}</div>)}
+              </td>
+              {/* Visual / MPI */}
+              <td style={{ border: B, padding: '5px 10px', verticalAlign: 'top', width: '22%', lineHeight: 2.1, fontSize: 9, color: '#000', fontWeight: 700 }}>
+                <div style={labelStyle({ marginBottom: 3 })}>Visual Inspection</div>
+                <div><CB checked={inspState.visualBefore} /> BEFORE</div>
+                <div><CB checked={inspState.visualAfter} /> AFTER</div>
+                <div style={{ marginTop: 8 }}>
+                  <div style={labelStyle({ marginBottom: 3 })}>MPI Inspection</div>
+                  <div><CB checked={inspState.mpiBefore} /> BEFORE</div>
+                  <div><CB checked={inspState.mpiAfter} /> AFTER</div>
+                  <div><CB checked={inspState.mpiNil} /> NIL</div>
+                </div>
+              </td>
+              {/* Hardness */}
+              <td style={{ padding: '5px 8px', verticalAlign: 'top', width: '22%' }}>
+                <div style={{ border: B, marginBottom: 6 }}>
+                  <div style={{ ...headStyle(), borderBottom: B }}>Required Hardness</div>
+                  <div style={{ padding: '5px 8px', fontWeight: 900, fontSize: 13, fontFamily: 'monospace' }}>
+                    {inspState.requiredHardnessMin && inspState.requiredHardnessMax
+                      ? `${inspState.requiredHardnessMin}–${inspState.requiredHardnessMax} ${inspState.hardnessUnit || 'HRC'}`
+                      : (jc.hrcRange || '—')}
+                  </div>
+                </div>
+                <div style={{ border: B }}>
+                  <div style={{ ...headStyle(), borderBottom: B }}>Achieved Hardness</div>
+                  <div style={{ padding: '5px 8px', fontWeight: 900, fontSize: 13, fontFamily: 'monospace' }}>
+                    {inspState.achievedHardness ? `${inspState.achievedHardness} ${inspState.hardnessUnit || 'HRC'}` : '—'}
+                  </div>
+                </div>
+              </td>
+              {/* Incoming Inspection By */}
+              <td style={{ border: B, padding: '5px 10px', verticalAlign: 'top', width: '20%' }}>
+                <div style={labelStyle({ marginBottom: 4 })}>Incoming Inspection By</div>
+                <div style={{ ...sigLine, marginTop: 70 }}>Signature &amp; Date</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* ── HEAT TREATMENT PROCESS ── */}
+        <SectionBar>
+          HEAT TREATMENT PROCESS &nbsp;&nbsp;
+          <span style={{ fontWeight: 400, fontSize: 9 }}>Cycle No: <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{jc.heatNo || '—'}</span></span>
+        </SectionBar>
+        <table style={{ width: '100%', borderCollapse: 'collapse', borderBottom: B }}>
+          <thead>
+            <tr>
+              {['Equipment','Process','Temp / Time','Start Time','End Time','Date','Loading By','Result','Sign'].map(h => (
+                <th key={h} style={headStyle({ textAlign: 'center', fontSize: 10, padding: '3px 4px' })}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: HT_ROWS }, (_, i) => {
+              const hp = insp.heatProcesses?.[i] || {};
+              return (
+                <tr key={i} style={{ height: 26 }}>
+                  <td style={cellStyle({ textAlign: 'center' })}>{hp.equipment || ''}</td>
+                  <td style={cellStyle({ fontWeight: 700, textAlign: 'center' })}>{hp.process || ''}</td>
+                  <td style={cellStyle({ textAlign: 'center' })}>{hp.tempTime || ''}</td>
+                  <td style={cellStyle({ textAlign: 'center' })}>{hp.startTime ? new Date(hp.startTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}</td>
+                  <td style={cellStyle({ textAlign: 'center' })}>{hp.endTime ? new Date(hp.endTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}</td>
+                  <td style={cellStyle({ textAlign: 'center' })}>{hp.processDate ? formatDate(hp.processDate) : ''}</td>
+                  <td style={cellStyle({ textAlign: 'center' })}>{hp.loadingBy || ''}</td>
+                  <td style={cellStyle({ textAlign: 'center' })}>{hp.result || ''}</td>
+                  <td style={cellStyle({ textAlign: 'center' })}></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+
+        {/* ── DISTORTION + HARDNESS AFTER ── */}
+        <table style={{ width: '100%', borderCollapse: 'collapse', borderBottom: B }}>
+          <tbody>
+            <tr>
+              <td style={{ verticalAlign: 'top', padding: '6px 8px', borderRight: B }}>
+                <table style={{ borderCollapse: 'collapse', fontSize: 9, width: '100%' }}>
+                  <thead>
+                    <tr>
+                      <th colSpan={9} style={headStyle({ textAlign: 'center' })}>DISTORTION MEASUREMENT</th>
+                    </tr>
+                    <tr>
+                      <th style={headStyle({ textAlign: 'center', width: 50 })}>ITEM</th>
+                      {ITEMS_8.map(i => <th key={i} style={headStyle({ textAlign: 'center', minWidth: 40 })}>{i + 1}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[['BEFORE', distBefore], ['AFTER', distAfter]].map(([lbl, arr]) => (
+                      <tr key={lbl} style={{ height: 26 }}>
+                        <td style={cellStyle({ fontWeight: 700, textAlign: 'center', background: '#f8f8f8' })}>{lbl}</td>
+                        {ITEMS_8.map(i => (
+                          <td key={i} style={cellStyle({ textAlign: 'center' })}>
+                            {arr[i] ?? (i === 0 ? 'NA' : '')}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </td>
+              <td style={{ verticalAlign: 'top', padding: '6px 8px', width: 180 }}>
+                <table style={{ borderCollapse: 'collapse', fontSize: 9, width: '100%' }}>
+                  <thead>
+                    <tr><th colSpan={2} style={headStyle({ textAlign: 'center' })}>HARDNESS AFTER</th></tr>
+                  </thead>
+                  <tbody>
+                    {[1,2,3,4].map(n => (
+                      <tr key={n} style={{ height: 24 }}>
+                        <td style={cellStyle({ width: 28, fontWeight: 700, textAlign: 'center', background: '#f8f8f8' })}>{n}</td>
+                        <td style={cellStyle({ fontFamily: 'monospace' })}>{inspState[`hardnessAfter${n}`] || ''}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* ── JOB IMAGES + SIGNATURES (side by side) ── */}
+        <div style={{ display: 'flex', borderBottom: B }}>
+          {/* Images — larger, take most of the width */}
+          <div style={{ flex: 1, borderRight: B }}>
+            <SectionBar>JOB IMAGES</SectionBar>
+            <div style={{ display: 'flex', gap: 8, padding: '6px 10px', flexWrap: 'wrap' }}>
+              {[0, 1, 2, 3, 4].map(n => (
+                <div key={n} style={{ border: B, width: 160, height: 115, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafafa', flexShrink: 0 }}>
+                  {imageUrls[n]
+                    ? <img src={imageUrls[n]} alt={`Job ${n+1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : <span style={{ fontSize: 8, color: '#bbb' }}>Image {n + 1}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Packed Qty + Quality Approved — narrow column */}
+          <div style={{ width: 230, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ borderBottom: B, padding: '6px 10px', flex: 1 }}>
+              <div style={labelStyle()}>Packed Quantity</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 10, marginTop: 4, fontWeight: 600 }}>{inspState.packedQty || ''}</div>
+              <div style={sigLine}>Packed By</div>
+            </div>
+            <div style={{ padding: '6px 10px', flex: 1 }}>
+              <div style={labelStyle()}>Quality Approved By</div>
+              <div style={sigLine}>Signature &amp; Date</div>
+            </div>
+          </div>
+        </div>
+
         {/* ── PAGE 2 FOOTER ── */}
-        <div style={{ padding: '3px 8px', fontSize: 8, color: '#555' }}>
-          QF-PD-01 &nbsp;&nbsp; Effective Date: 01/04/2019 &nbsp;&nbsp; Revision: 00 &nbsp;&nbsp; Revision Date: 00 &nbsp;&nbsp; Page 2 of 2
-        </div>
-        <div style={{ borderTop: '1px solid #ddd', padding: '3px 8px', fontSize: 8, color: '#555' }}>
-          <strong>Color Code for Job Card —</strong> WHITE: Regular &nbsp; RED: Rework &nbsp; BLUE: New Development &nbsp; YELLOW: Stress Relieving &amp; Other Process.
-        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', borderTop: B2 }}>
+          <tbody><tr style={{ fontSize: 8, color: '#000', fontWeight: 700 }}>
+            <td style={{ padding: '4px 10px', textAlign: 'left', width: '75%', whiteSpace: 'nowrap', fontSize: 7 }}>
+              Color Code — WHITE: Regular &nbsp;|&nbsp; RED: Rework &nbsp;|&nbsp; BLUE: New Development &nbsp;|&nbsp; YELLOW: Stress Relieving &amp; Other &nbsp;|&nbsp; QF-PD-01 &nbsp;|&nbsp; Effective Date: 01/04/2019 &nbsp;|&nbsp; Revision: 00
+            </td>
+            <td style={{ padding: '4px 10px', textAlign: 'right', width: '25%', whiteSpace: 'nowrap' }}>
+              Page 2 of 2
+            </td>
+          </tr></tbody>
+        </table>
       </div>
     </div>
   );

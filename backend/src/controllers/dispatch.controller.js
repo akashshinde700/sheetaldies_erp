@@ -1,5 +1,4 @@
 const prisma = require('../utils/prisma');
-const { transaction } = require('../utils/transaction');
 const { toInt, toNum } = require('../utils/normalize');
 const { formatErrorResponse, getStatusCode, formatListResponse, parsePagination } = require('../utils/validation');
 const { parseJsonIfString } = require('../utils/json');
@@ -24,19 +23,42 @@ const generateDispatchChallanNo = async (db = prisma) => {
   return `${prefix}${String(nextSerial).padStart(4, '0')}`;
 };
 
-const assertDispatchAllowed = async ({ jobworkChallanId }) => {
+const assertDispatchAllowed = async ({ jobworkChallanId, parsedItems = [], dispatchId = null }) => {
   if (!jobworkChallanId) return true;
 
   const jw = await prisma.jobworkChallan.findUnique({
     where: { id: toInt(jobworkChallanId) },
-    include: { jobCard: true },
+    select: { id: true, jobCardId: true },
   });
   if (!jw) return 'Linked Jobwork challan not found.';
 
-  // Rule: Certificate required before dispatch
-  if (jw.jobCardId) {
-    const cert = await prisma.testCertificate.findFirst({ where: { jobCardId: jw.jobCardId } });
-    if (!cert) return 'Test Certificate is required before dispatch.';
+  // Collect all job card IDs: header challan + each item's source challan item
+  const jobCardIds = new Set();
+  if (jw.jobCardId) jobCardIds.add(jw.jobCardId);
+
+  const srcIds = parsedItems.map(it => toInt(it.sourceChallanItemId)).filter(Boolean);
+  if (srcIds.length === 0 && dispatchId) {
+    // For update/status change: load existing items
+    const existing = await prisma.dispatchChallanItem.findMany({
+      where: { dispatchId: toInt(dispatchId) },
+      select: { sourceChallanItemId: true },
+    });
+    existing.forEach(it => { if (it.sourceChallanItemId) srcIds.push(it.sourceChallanItemId); });
+  }
+  if (srcIds.length > 0) {
+    const challanItems = await prisma.challanItem.findMany({
+      where: { id: { in: srcIds } },
+      select: { jobCardId: true },
+    });
+    challanItems.forEach(ci => { if (ci.jobCardId) jobCardIds.add(ci.jobCardId); });
+  }
+
+  for (const jcId of jobCardIds) {
+    const cert = await prisma.testCertificate.findFirst({ where: { jobCardId: jcId } });
+    if (!cert) {
+      const jc = await prisma.jobCard.findUnique({ where: { id: jcId }, select: { jobCardNo: true } });
+      return `Test Certificate required for Job Card ${jc?.jobCardNo || jcId} before dispatch.`;
+    }
   }
 
   return true;
@@ -156,7 +178,7 @@ exports.create = async (req, res) => {
     }
 
     // Gating: certificate required when linked to jobwork challan
-    const allowed = await assertDispatchAllowed({ jobworkChallanId });
+    const allowed = await assertDispatchAllowed({ jobworkChallanId, parsedItems });
     if (allowed !== true) return res.status(400).json({ success: false, message: allowed });
 
     let challan = null;
@@ -201,7 +223,7 @@ exports.create = async (req, res) => {
                   itemId: toInt(it.itemId),
                   sourceChallanItemId: it.sourceChallanItemId ? toInt(it.sourceChallanItemId) : null,
                   description: it.description || null,
-                  quantity: toInt(it.quantity),
+                  quantity: toNum(it.quantity),
                   weightKg: it.weightKg ? toNum(it.weightKg, null) : null,
                   remarks: it.remarks || null,
                 })),
@@ -265,13 +287,7 @@ exports.update = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Challan not found.' });
     }
 
-    const allowed = await assertDispatchAllowed({ jobworkChallanId: jobworkChallanId ?? existing.jobworkChallanId });
-    if (allowed !== true) return res.status(400).json({ success: false, message: allowed });
-
-    // If items provided, delete old and recreate
-    if (items) {
-      await prisma.dispatchChallanItem.deleteMany({ where: { dispatchId: id } });
-    }
+    const effectiveJobworkChallanId = jobworkChallanId !== undefined ? jobworkChallanId : existing.jobworkChallanId;
 
     let parsedItems = null;
     if (items) {
@@ -285,56 +301,83 @@ exports.update = async (req, res) => {
       }
     }
 
-    if ((jobworkChallanId ?? existing.jobworkChallanId) && parsedItems) {
-      const jwId = toInt(jobworkChallanId ?? existing.jobworkChallanId);
-      for (const it of parsedItems) {
-        if (!it.sourceChallanItemId) {
-          return res.status(400).json({ success: false, message: 'Source challan line is required for dispatch items when Jobwork Challan is linked.' });
-        }
-        const chItem = await prisma.challanItem.findUnique({
-          where: { id: toInt(it.sourceChallanItemId) },
-          select: { id: true, challanId: true, quantity: true },
-        });
-        if (!chItem || chItem.challanId !== jwId) {
-          return res.status(400).json({ success: false, message: 'Invalid source challan line for this jobwork challan.' });
-        }
-        const alreadyDispatched = await getDispatchedQtyForChallanItem({ sourceChallanItemId: chItem.id, excludeDispatchId: id });
-        const nextTotal = alreadyDispatched + toNum(it.quantity);
-        if (nextTotal - toNum(chItem.quantity) > 0.00001) {
-          return res.status(400).json({ success: false, message: `Over-dispatch blocked. Challan line ${chItem.id}: dispatched ${alreadyDispatched}, trying ${toNum(it.quantity)}, total ${nextTotal} > ${toNum(chItem.quantity)}.` });
+    const allowed = await assertDispatchAllowed({
+      jobworkChallanId: effectiveJobworkChallanId,
+      parsedItems: parsedItems || [],
+      dispatchId: id,
+    });
+    if (allowed !== true) return res.status(400).json({ success: false, message: allowed });
+
+    const jwId = effectiveJobworkChallanId ? toInt(effectiveJobworkChallanId) : null;
+    const updated = await prisma.$transaction(async (tx) => {
+      if (jwId) {
+        const validateDispatchRow = async (it) => {
+          if (!it.sourceChallanItemId) {
+            return 'Source challan line is required for dispatch items when Jobwork Challan is linked.';
+          }
+          const chItem = await tx.challanItem.findUnique({
+            where: { id: toInt(it.sourceChallanItemId) },
+            select: { id: true, challanId: true, quantity: true },
+          });
+          if (!chItem || chItem.challanId !== jwId) {
+            return 'Invalid source challan line for this jobwork challan.';
+          }
+          const alreadyDispatched = await getDispatchedQtyForChallanItem({ sourceChallanItemId: chItem.id, excludeDispatchId: id }, tx);
+          const nextTotal = alreadyDispatched + toNum(it.quantity);
+          if (nextTotal - toNum(chItem.quantity) > 0.00001) {
+            return `Over-dispatch blocked. Challan line ${chItem.id}: dispatched ${alreadyDispatched}, trying ${toNum(it.quantity)}, total ${nextTotal} > ${toNum(chItem.quantity)}.`;
+          }
+          return null;
+        };
+
+        const rowsToValidate = parsedItems !== null
+          ? parsedItems
+          : await tx.dispatchChallanItem.findMany({ where: { dispatchId: id } });
+
+        for (const it of rowsToValidate) {
+          const error = await validateDispatchRow(it);
+          if (error) {
+            const validationError = new Error(error);
+            validationError.code = 'VALIDATION_ERROR';
+            throw validationError;
+          }
         }
       }
-    }
 
-    const updated = await prisma.dispatchChallan.update({
-      where: { id },
-      data: {
-        ...(challanDate !== undefined && { challanDate: new Date(challanDate) }),
-        ...(fromPartyId !== undefined && { fromPartyId: toInt(fromPartyId) }),
-        ...(toPartyId !== undefined && { toPartyId: toInt(toPartyId) }),
-        ...(jobworkChallanId !== undefined && { jobworkChallanId: jobworkChallanId ? toInt(jobworkChallanId) : null }),
-        ...(dispatchMode !== undefined && { dispatchMode }),
-        ...(vehicleNo !== undefined && { vehicleNo }),
-        ...(remarks !== undefined && { remarks }),
-        ...(status !== undefined && { status }),
-        ...(parsedItems && {
-          items: {
-            create: parsedItems.map(it => ({
-              itemId: toInt(it.itemId),
-              sourceChallanItemId: it.sourceChallanItemId ? toInt(it.sourceChallanItemId) : null,
-              description: it.description || null,
-              quantity: toInt(it.quantity),
-              weightKg: it.weightKg ? toNum(it.weightKg, null) : null,
-              remarks: it.remarks || null,
-            })),
-          },
-        }),
-      },
-      include: {
-        fromParty: { select: { name: true } },
-        toParty: { select: { name: true } },
-        items: true,
-      },
+      if (items) {
+        await tx.dispatchChallanItem.deleteMany({ where: { dispatchId: id } });
+      }
+
+      return tx.dispatchChallan.update({
+        where: { id },
+        data: {
+          ...(challanDate !== undefined && { challanDate: new Date(challanDate) }),
+          ...(fromPartyId !== undefined && { fromPartyId: toInt(fromPartyId) }),
+          ...(toPartyId !== undefined && { toPartyId: toInt(toPartyId) }),
+          ...(jobworkChallanId !== undefined && { jobworkChallanId: jobworkChallanId ? toInt(jobworkChallanId) : null }),
+          ...(dispatchMode !== undefined && { dispatchMode }),
+          ...(vehicleNo !== undefined && { vehicleNo }),
+          ...(remarks !== undefined && { remarks }),
+          ...(status !== undefined && { status }),
+          ...(parsedItems !== null && {
+            items: {
+              create: parsedItems.map(it => ({
+                itemId: toInt(it.itemId),
+                sourceChallanItemId: it.sourceChallanItemId ? toInt(it.sourceChallanItemId) : null,
+                description: it.description || null,
+                quantity: toNum(it.quantity),
+                weightKg: it.weightKg ? toNum(it.weightKg, null) : null,
+                remarks: it.remarks || null,
+              })),
+            },
+          }),
+        },
+        include: {
+          fromParty: { select: { name: true } },
+          toParty: { select: { name: true } },
+          items: true,
+        },
+      });
     });
 
     res.json({
@@ -344,6 +387,9 @@ exports.update = async (req, res) => {
     });
   } catch (err) {
     console.error(err);
+    if (err.code === 'VALIDATION_ERROR') {
+      return res.status(400).json({ success: false, message: err.message });
+    }
     res.status(500).json({ success: false, message: 'Error updating dispatch challan.' });
   }
 };
@@ -359,9 +405,10 @@ exports.delete = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Challan not found.' });
     }
 
-    // Delete items first (cascade should handle this, but be safe)
-    await prisma.dispatchChallanItem.deleteMany({ where: { dispatchId: id } });
-    await prisma.dispatchChallan.delete({ where: { id } });
+    await prisma.$transaction([
+      prisma.dispatchChallanItem.deleteMany({ where: { dispatchId: id } }),
+      prisma.dispatchChallan.delete({ where: { id } }),
+    ]);
 
     res.json({
       success: true,
@@ -371,6 +418,14 @@ exports.delete = async (req, res) => {
     console.error(err);
     res.status(500).json({ success: false, message: 'Error deleting dispatch challan.' });
   }
+};
+
+const DISPATCH_TRANSITIONS = {
+  DRAFT:     ['SENT', 'CANCELLED'],
+  SENT:      ['RECEIVED', 'CANCELLED'],
+  RECEIVED:  ['COMPLETED'],
+  COMPLETED: [],
+  CANCELLED: [],
 };
 
 // ── Update Dispatch Status ────────────────────────────────────
@@ -385,8 +440,19 @@ exports.updateStatus = async (req, res) => {
       return res.status(400).json({ success: false, message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
     }
 
-    const existing = await prisma.dispatchChallan.findUnique({ where: { id }, select: { jobworkChallanId: true } });
-    const allowed = await assertDispatchAllowed({ jobworkChallanId: existing?.jobworkChallanId });
+    const existing = await prisma.dispatchChallan.findUnique({ where: { id }, select: { status: true, jobworkChallanId: true } });
+    if (!existing) return res.status(404).json({ success: false, message: 'Challan not found.' });
+
+    // Enforce valid status transitions
+    const allowedNext = DISPATCH_TRANSITIONS[existing.status] || [];
+    if (existing.status !== status && !allowedNext.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot transition from ${existing.status} to ${status}. Allowed: ${allowedNext.join(', ') || 'none'}.`,
+      });
+    }
+
+    const allowed = await assertDispatchAllowed({ jobworkChallanId: existing?.jobworkChallanId, dispatchId: id });
     if (allowed !== true && ['SENT', 'RECEIVED', 'COMPLETED'].includes(status)) {
       return res.status(400).json({ success: false, message: allowed });
     }

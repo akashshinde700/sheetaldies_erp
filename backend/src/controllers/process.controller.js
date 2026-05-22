@@ -7,14 +7,17 @@ const { formatErrorResponse, getStatusCode, formatListResponse, parsePagination 
 exports.list = async (req, res) => {
   try {
     const { page, limit, skip } = parsePagination(req);
+    const showAll = req.query.all === 'true' && ['ADMIN', 'MANAGER'].includes(req.user?.role);
+    const where = showAll ? {} : { isActive: true };
     const [data, total] = await Promise.all([
       prisma.processType.findMany({
+        where,
         orderBy: { name: 'asc' },
         include: { updatedBy: { select: { name: true } } },
         skip,
         take: limit,
       }),
-      prisma.processType.count(),
+      prisma.processType.count({ where }),
     ]);
     res.json(formatListResponse(data, total, page, limit));
   } catch (err) {
@@ -38,7 +41,7 @@ exports.getOne = async (req, res) => {
 // ── Create new process type (Admin only) ──────────────────────
 exports.create = async (req, res) => {
   try {
-    const { code, name, description, hsnSacCode, pricePerKg, pricePerPc, minCharge, gstRate } = req.body;
+    const { code, name, description, hsnSacCode, pricePerKg, pricePerPc, lotPrice, gstRate } = req.body;
     if (!code || !name)
       return res.status(400).json({ success: false, message: 'Code and name are required.' });
 
@@ -54,7 +57,7 @@ exports.create = async (req, res) => {
         hsnSacCode:  hsnSacCode  || null,
         pricePerKg:  pricePerKg  ? toNum(pricePerKg, null)  : null,
         pricePerPc:  pricePerPc  ? toNum(pricePerPc, null)  : null,
-        minCharge:   minCharge   ? toNum(minCharge, null)   : null,
+        lotPrice:   lotPrice   ? toNum(lotPrice, null)   : null,
         gstRate:     gstRate     ? toNum(gstRate, 18)       : 18.00,
         updatedById: req.user.id,
       },
@@ -70,7 +73,7 @@ exports.create = async (req, res) => {
 exports.update = async (req, res) => {
   try {
     const id = toInt(req.params.id);
-    const { name, description, hsnSacCode, pricePerKg, pricePerPc, minCharge, gstRate, isActive } = req.body;
+    const { name, description, hsnSacCode, pricePerKg, pricePerPc, lotPrice, gstRate, isActive } = req.body;
 
     const pt = await prisma.processType.update({
       where: { id },
@@ -80,13 +83,34 @@ exports.update = async (req, res) => {
         ...(hsnSacCode  !== undefined && { hsnSacCode }),
         ...(pricePerKg  !== undefined && { pricePerKg: pricePerKg  ? toNum(pricePerKg, null)  : null }),
         ...(pricePerPc  !== undefined && { pricePerPc: pricePerPc  ? toNum(pricePerPc, null)  : null }),
-        ...(minCharge   !== undefined && { minCharge:  minCharge   ? toNum(minCharge, null)   : null }),
+        ...(lotPrice   !== undefined && { lotPrice:  lotPrice   ? toNum(lotPrice, null)   : null }),
         ...(gstRate     !== undefined && { gstRate:    toNum(gstRate, 18) }),
         ...(isActive    !== undefined && { isActive: Boolean(isActive) }),
         updatedById: req.user.id,
       },
     });
     res.json({ success: true, data: pt, message: 'Process type updated.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ── Delete process type (Admin/Manager only) ──────────────────
+exports.remove = async (req, res) => {
+  try {
+    const id = toInt(req.params.id);
+    const [challanCount, invoiceCount] = await Promise.all([
+      prisma.challanItem.count({ where: { processTypeId: id } }),
+      prisma.invoiceItem.count({ where: { processTypeId: id } }),
+    ]);
+    if (challanCount + invoiceCount > 0)
+      return res.status(409).json({
+        success: false,
+        message: `Cannot delete: process is used in ${challanCount} challan item(s) and ${invoiceCount} invoice item(s). Deactivate it instead.`,
+      });
+    await prisma.processType.delete({ where: { id } });
+    res.json({ success: true, message: 'Process type deleted.' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error.' });

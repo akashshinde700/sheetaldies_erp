@@ -16,6 +16,7 @@ export interface RegisterRow {
   challanItemId: number;
   companyName: string;
   material: string;
+  inwardNo: string;
   challanNo: string;
   challanDate: string;
   materialInDate: string;
@@ -46,7 +47,7 @@ export default function InwardOutwardRegister() {
       const r = await api.get('/jobwork/register', { params: { limit: 500 } });
       return r.data.data || [];
     },
-    staleTime: 2 * 60 * 1000,
+    staleTime: 0,
   });
 
   const filtered = useMemo(() => {
@@ -58,6 +59,7 @@ export default function InwardOutwardRegister() {
     return rows.filter((r) => {
       const matchesSearch = !q || (
         r.companyName?.toLowerCase().includes(q) ||
+        r.inwardNo?.toLowerCase().includes(q) ||
         r.challanNo?.toLowerCase().includes(q) ||
         r.material?.toLowerCase().includes(q) ||
         r.jobcardNo?.toLowerCase().includes(q) ||
@@ -93,8 +95,10 @@ export default function InwardOutwardRegister() {
   }, [filtered, page]);
 
   const exportRows = () => {
-    const data = filtered.map((r) => ({
-      'Sr No': r.srNo,
+    const sorted = [...filtered].sort((a, b) => (a.inwardNo || '').localeCompare(b.inwardNo || '', 'en', { numeric: true }));
+    const data = sorted.map((r, i) => ({
+      'Sr No': i + 1,
+      'Inward No': r.inwardNo,
       'Company Name': r.companyName,
       Material: r.material,
       'Challan No': r.challanNo,
@@ -127,7 +131,7 @@ export default function InwardOutwardRegister() {
         <div className="flex items-center gap-2">
           <Link to="/jobwork/inward-entry" className="btn-primary whitespace-nowrap">
             <span className="material-symbols-outlined text-[18px] shrink-0">input</span>
-            New Inward + Job Card
+            New Inward
           </Link>
           <button type="button" onClick={exportRows} className="btn-outline whitespace-nowrap">
             <span className="material-symbols-outlined text-[18px] shrink-0">file_download</span>

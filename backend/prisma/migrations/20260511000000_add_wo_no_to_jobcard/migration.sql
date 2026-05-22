@@ -1,0 +1,1 @@
+ALTER TABLE job_cards ADD COLUMN wo_no VARCHAR(100) NULL;

@@ -6,7 +6,7 @@ const jwt = require('jsonwebtoken');
 
 const BASE_URL = process.env.API_BASE_URL || 'http://localhost:5000/api';
 const ADMIN_USER_ID = parseInt(process.env.E2E_ADMIN_USER_ID || '1', 10);
-const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || 'admin@sheetaldies.com';
+const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || 'admin@shitalvaccumtreat.com';
 const ADMIN_NAME = process.env.E2E_ADMIN_NAME || 'Admin';
 const MAX_STEPS = parseInt(process.env.E2E_MAX_STEPS || '60', 10);
 

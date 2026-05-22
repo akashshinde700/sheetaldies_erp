@@ -18,6 +18,7 @@ function usePendingCount() {
 
 const NAV_MAIN = [
   { label: 'Dashboard',    icon: 'dashboard',    to: '/',                       end: true },
+  { label: 'Parties',      icon: 'group',        to: '/admin/parties' },
   { label: 'Inwards',      icon: 'import_export', to: '/jobwork/register' },
   { label: 'Job Cards',    icon: 'description',  to: '/jobcards' },
   { label: 'VHT Runsheet', icon: 'thermostat',   to: '/manufacturing/runsheet' },
@@ -28,12 +29,10 @@ const NAV_MAIN = [
 const NAV_OPERATIONS = [
   { label: 'Invoices',     icon: 'receipt_long', to: '/invoices' },
   { label: 'Analytics',    icon: 'analytics',    to: '/analytics' },
-  { label: 'Pricing & rules', icon: 'payments', to: '/admin/pricing' },
   { label: 'Purchase Orders', icon: 'shopping_cart', to: '/purchase' },
   { label: 'Goods Receipt (GRN)', icon: 'inbox', to: '/purchase/grn' },
   { label: 'Inventory', icon: 'warehouse', to: '/purchase/inventory' },
   { label: 'Customer Quotes', icon: 'request_quote', to: '/customer-quotes' },
-  { label: 'Supplier Quotes', icon: 'description', to: '/quotes' },
   { label: 'Dispatch', icon: 'local_shipping', to: '/dispatch' },
   { label: 'Manufacturing Batches', icon: 'precision_manufacturing', to: '/manufacturing/batches' },
   { label: 'Daily Planning', icon: 'event_note', to: '/manufacturing/planning' },
@@ -41,11 +40,11 @@ const NAV_OPERATIONS = [
 ];
 
 const NAV_ADMIN = [
-  { label: 'Parties',         icon: 'group',        to: '/admin/parties' },
-  { label: 'Items',           icon: 'inventory',    to: '/admin/items' },
-  { label: 'Machines',        icon: 'precision_manufacturing', to: '/admin/machines' },
-  { label: 'Process Pricing', icon: 'price_change', to: '/admin/processes' },
-  { label: 'Audit Logs',      icon: 'history',      to: '/admin/audit-logs' },
+  { label: 'Processes',   icon: 'settings_suggest', to: '/admin/processes' },
+  { label: 'Party Rates', icon: 'price_check',      to: '/admin/party-rates' },
+  { label: 'Items',       icon: 'inventory',         to: '/admin/items' },
+  { label: 'Machines',    icon: 'precision_manufacturing', to: '/admin/machines' },
+  { label: 'Audit Logs',  icon: 'history',           to: '/admin/audit-logs' },
 ];
 
 const NavItem = ({ item, onNavigate, pendingCount = 0 }) => {
@@ -115,13 +114,13 @@ export default function Sidebar({ open, onClose }) {
         <button
           type="button"
           aria-label="Close menu"
-          className="fixed inset-0 z-30 lg:hidden bg-slate-900/40 backdrop-blur-[2px] animate-backdrop-in"
+          className="print:hidden fixed inset-0 z-30 lg:hidden bg-slate-900/40 backdrop-blur-[2px] animate-backdrop-in"
           onClick={onClose}
         />
       )}
 
       <aside
-        className={`h-dvh h-screen max-h-dvh fixed left-0 top-0 z-40 flex flex-col w-64 max-w-[min(16rem,calc(100vw-1.5rem))]
+        className={`print:hidden h-dvh h-screen max-h-dvh fixed left-0 top-0 z-40 flex flex-col w-64 max-w-[min(16rem,calc(100vw-1.5rem))]
           border-r border-slate-200/90 shadow-[8px_0_30px_-10px_rgba(15,23,42,0.14)] lg:shadow-none lg:max-w-none
           transition-transform duration-300 ease-out will-change-transform
           bg-app-sidebar safe-pt safe-pb
@@ -138,8 +137,8 @@ export default function Sidebar({ open, onClose }) {
               <span className="material-symbols-outlined text-[20px]">precision_manufacturing</span>
             </div>
             <div className="min-w-0">
-              <h1 className="text-slate-950 font-extrabold text-sm tracking-tight font-headline truncate">Sheetal Dies</h1>
-              <p className="text-slate-600 text-[10px] tracking-widest uppercase font-semibold">ERP System</p>
+              <h1 className="text-slate-950 font-extrabold text-sm tracking-tight font-headline truncate">SVT ERP</h1>
+              <p className="text-slate-600 text-[10px] tracking-widest uppercase font-semibold">Shital Vacuum Treat</p>
             </div>
           </div>
         </div>

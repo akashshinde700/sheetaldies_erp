@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { toInt, toNum } from '../../utils/normalize';
@@ -11,10 +11,11 @@ import InvoiceDetailsSection from './components/InvoiceDetailsSection';
 import InvoicedItemsSection from './components/InvoicedItemsSection';
 import InvoiceTaxTotalsSection from './components/InvoiceTaxTotalsSection';
 
-const EMPTY_LINE = { description:'', material:'', hrc:'', woNo:'', hsnSac:'998898', quantity:'', unit:'KGS', weight:'', rate:'', amount:'', processTypeId:'', sourceChallanItemId:'' };
+const newEmptyLine = () => ({ _id: Math.random(), description:'', material:'', hrc:'', woNo:'', hsnSac:'998898', quantity:'', unit:'KGS', weight:'', rate:'', amount:'', processTypeId:'', sourceChallanItemId:'' });
 
 export default function InvoiceForm() {
   const navigate    = useNavigate();
+  const [searchParams] = useSearchParams();
   const { data: parties = [] } = useParties();
   const { data: processes = [] } = useProcesses();
   const { data: challans = [] } = useMasterJobCards();
@@ -37,7 +38,8 @@ export default function InvoiceForm() {
     transportFreight: '0', tcsRate: '0', extraAmt: '0',
   });
 
-  const [lineItems, setLineItems] = useState([{ ...EMPTY_LINE }]);
+  const [lineItems, setLineItems] = useState([newEmptyLine()]);
+  const [partyRates, setPartyRates] = useState({}); // { [processTypeId]: { pricePerKg, pricePerPc, lotPrice } }
   const [runsheetNumber, setRunsheetNumber] = useState('');
   const [runsheetLookupLoading, setRunsheetLookupLoading] = useState(false);
   const [runsheetLookupMessage, setRunsheetLookupMessage] = useState('');
@@ -55,13 +57,49 @@ export default function InvoiceForm() {
     }
   }, [parties, form.fromPartyId]);
 
+  useEffect(() => {
+    if (!form.toPartyId) { setPartyRates({}); return; }
+    api.get(`/parties/${form.toPartyId}/process-rates`).then(r => {
+      const m = {};
+      for (const row of r.data.data || []) m[String(row.processTypeId)] = row;
+      setPartyRates(m);
+    }).catch(() => setPartyRates({}));
+
+    // Auto-detect IGST vs CGST+SGST based on customer state code
+    const toParty = parties.find(p => String(p.id) === String(form.toPartyId));
+    const fromParty = parties.find(p => String(p.id) === String(form.fromPartyId));
+    if (toParty && fromParty) {
+      const custStateCode = toParty.stateCode || '';
+      const ourStateCode  = fromParty.stateCode || '27'; // default Maharashtra
+      if (custStateCode && custStateCode !== ourStateCode) {
+        // Interstate: apply IGST at 18%, zero CGST/SGST
+        setForm(p => ({ ...p, cgstRate: '0', sgstRate: '0', igstRate: '18' }));
+        toast('Interstate customer detected — IGST 18% applied.', { icon: 'ℹ️' });
+      } else {
+        // Intra-state: apply CGST+SGST
+        setForm(p => ({ ...p, cgstRate: '9', sgstRate: '9', igstRate: '0' }));
+      }
+    }
+  }, [form.toPartyId]);
+
+  // Auto-load challan when navigated from a job card link
+  useEffect(() => {
+    const jcId = searchParams.get('jobCardId');
+    if (!jcId) return;
+    api.get(`/jobcards/${jcId}`).then(r => {
+      const jc = r.data.data;
+      const challanId = jc.challans?.[0]?.id;
+      if (challanId) handleChallanChange(String(challanId));
+    }).catch(() => {});
+  }, []);
+
   const handleChallanChange = async (val) => {
     setRunsheetLookupMessage('');
     setChallanInfo(null);
     setChallanHistory([]);
     setBillingStatus(null);
     setForm(p => ({ ...p, challanId: val, challanRef: '' }));
-    if (!val) { setLineItems([{ ...EMPTY_LINE }]); return; }
+    if (!val) { setLineItems([newEmptyLine()]); return; }
 
     setLoadingChallan(true);
     try {
@@ -74,18 +112,21 @@ export default function InvoiceForm() {
       setChallanInfo(ch);
       setChallanHistory(histRes.data.data || []);
       setBillingStatus(billRes.data.data || null);
+      // Challan: fromParty=customer, toParty=processor
+      // Invoice: fromParty=processor (bills), toParty=customer (pays) — reversed
       setForm(p => ({
         ...p,
         challanId:   val,
         challanRef:  ch.challanNo,
-        fromPartyId: String(ch.fromPartyId || p.fromPartyId),
-        toPartyId:   String(ch.toPartyId   || p.toPartyId),
+        fromPartyId: String(ch.toPartyId   || p.fromPartyId),
+        toPartyId:   String(ch.fromPartyId || p.toPartyId),
       }));
       if (ch.items?.length > 0) {
         setLineItems(ch.items.map(it => {
           const line = (billRes.data.data?.lineStatus || []).find(x => x.challanItemId === it.id);
           const dispatchQty = line ? line.remainingQty : toNum(it.quantity, 0);
           return {
+            _id:           it.id ?? Math.random(),
             description:   it.description || it.item?.name || '',
             material:      it.material    || '',
             hrc:           it.hrc         || '',
@@ -101,11 +142,11 @@ export default function InvoiceForm() {
           }
         }));
       } else {
-        setLineItems([{ ...EMPTY_LINE }]);
+        setLineItems([newEmptyLine()]);
       }
     } catch {
       toast.error('Could not load challan details.');
-      setLineItems([{ ...EMPTY_LINE }]);
+      setLineItems([newEmptyLine()]);
     } finally {
       setLoadingChallan(false);
     }
@@ -175,7 +216,7 @@ export default function InvoiceForm() {
 
     const sampleItem = sampleChallan.items?.[0];
     if (sampleItem) {
-      setLineItems([{ ...EMPTY_LINE,
+      setLineItems([{ ...newEmptyLine(),
         description: sampleItem.description || '',
         material: sampleItem.material || '',
         hrc: sampleItem.hrc || '',
@@ -188,7 +229,7 @@ export default function InvoiceForm() {
         amount: sampleItem.amount ? String(sampleItem.amount) : '0',
       }]);
     } else {
-      setLineItems([{ ...EMPTY_LINE }]);
+      setLineItems([newEmptyLine()]);
     }
     toast.success('Invoice values loaded from DB-backed sample.');
   };
@@ -207,7 +248,9 @@ export default function InvoiceForm() {
         if (proc) {
           arr[i].description = proc.name;
           arr[i].hsnSac      = proc.hsnSacCode || '998898';
-          if (proc.pricePerKg) arr[i].rate = proc.pricePerKg;
+          const partyRate = partyRates[String(val)];
+          arr[i].rate = partyRate?.pricePerKg != null ? String(partyRate.pricePerKg) : '';
+          arr[i].amount = (toNum(arr[i].quantity, 0) * toNum(arr[i].rate, 0)).toFixed(2);
         }
       }
       return arr;
@@ -345,7 +388,7 @@ export default function InvoiceForm() {
           processes={processes} 
           updateLine={updateLine} 
           challanInfo={challanInfo} 
-          EMPTY_LINE={EMPTY_LINE} 
+          newEmptyLine={newEmptyLine}
           remainingByChallanItem={remainingByChallanItem} 
         />
 

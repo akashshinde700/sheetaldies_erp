@@ -75,7 +75,7 @@ export default function CertDetail() {
           to={`/invoices/new?customerId=${cert.customerId}`}
           className="btn-outline border-emerald-300 text-emerald-700 hover:bg-emerald-50"
         >
-          <span className="material-symbols-outlined text-sm">receipt_long</span> Invoice Banao
+          <span className="material-symbols-outlined text-sm">receipt_long</span> Create Invoice
         </Link>
         {cert.jobCardId && (
           <Link
@@ -117,10 +117,25 @@ export default function CertDetail() {
           {cert.approvedBy         && <div><span className="text-xs text-slate-400 block mb-0.5">Approved By</span><span className="font-semibold">{cert.approvedBy}</span></div>}
           {cert.issuedTo           && <div><span className="text-xs text-slate-400 block mb-0.5">Issued To</span><span className="font-semibold">{cert.issuedTo}</span></div>}
           {cert.heatNo             && <div><span className="text-xs text-slate-400 block mb-0.5">Heat No</span><span className="font-semibold font-mono">{cert.heatNo}</span></div>}
-          {cert.dispatchMode       && <div><span className="text-xs text-slate-400 block mb-0.5">Dispatch Mode</span><span className="font-semibold">{cert.dispatchMode}</span></div>}
+          {(() => {
+            const jc = cert.jobCard || {};
+            const byVehicle   = jc.dispatchByOurVehicle  || (cert.dispatchedThrough || '').includes('Our Vehicle');
+            const byCourier   = jc.dispatchByCourier      || (cert.dispatchedThrough || '').includes('Courier');
+            const collected   = jc.collectedByCustomer    || (cert.dispatchedThrough || '').includes('Collected');
+            if (!byVehicle && !byCourier && !collected && !cert.dispatchedThrough) return null;
+            return (
+              <div className="col-span-2 sm:col-span-3">
+                <span className="text-xs text-slate-400 block mb-1">Dispatch Mode</span>
+                <div className="flex flex-wrap gap-4 text-sm font-semibold">
+                  {byVehicle && <span>☑ By Our Vehicle</span>}
+                  {byCourier && <span>☑ By Courier</span>}
+                  {collected && <span>☑ Collected by Customer</span>}
+                </div>
+              </div>
+            );
+          })()}
           {cert.dispatchChallanNo  && <div><span className="text-xs text-slate-400 block mb-0.5">Dispatch Challan No</span><span className="font-semibold font-mono">{cert.dispatchChallanNo}</span></div>}
           {cert.dispatchChallanDate && <div><span className="text-xs text-slate-400 block mb-0.5">Dispatch Challan Date</span><span className="font-semibold">{formatDate(cert.dispatchChallanDate)}</span></div>}
-          {cert.dispatchedThrough  && <div><span className="text-xs text-slate-400 block mb-0.5">Dispatched Through</span><span className="font-semibold">{cert.dispatchedThrough}</span></div>}
         </div>
       </div>
 

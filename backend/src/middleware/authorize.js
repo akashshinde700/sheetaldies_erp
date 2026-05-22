@@ -91,14 +91,9 @@ const requireManager = (req, res, next) => {
  * @returns {boolean}
  */
 const canEditInspection = (user, inspection) => {
-  // ADMIN and MANAGER can edit any inspection
-  if (hasRole(user.role, 'MANAGER')) {
-    return true;
-  }
-  
-  // OPERATOR/VIEWER can only edit their own inspection
-  const inspectionOwnerId = inspection.inspectedBy || inspection.createdById;
-  return user.id === inspectionOwnerId;
+  // All authenticated users OPERATOR+ can edit inspections
+  // (IncomingInspection has no createdById FK, so ownership can't be enforced)
+  return hasRole(user.role, 'OPERATOR');
 };
 
 /**

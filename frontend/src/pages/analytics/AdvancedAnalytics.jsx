@@ -9,6 +9,20 @@ const fmtMoney = (n) =>
 
 const COLORS = ['#6366f1', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#14b8a6'];
 
+// Module-level — must NOT be inside a component or focus is lost on every keystroke
+const StatCard = ({ icon, label, value, subtext, color }) => (
+  <div className="card p-5 flex items-start gap-4">
+    <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 ${color}`}>
+      <span className="material-symbols-outlined text-white text-[20px]">{icon}</span>
+    </div>
+    <div className="min-w-0">
+      <p className="text-xs text-slate-400 font-medium mb-0.5">{label}</p>
+      <p className="text-2xl font-extrabold text-slate-800 leading-none">{value}</p>
+      {subtext && <p className="text-[11px] text-slate-400 mt-1">{subtext}</p>}
+    </div>
+  </div>
+);
+
 const CustomTooltip = ({ active, payload, label, prefix = '' }) => {
   if (!active || !payload?.length) return null;
   return (
@@ -116,19 +130,6 @@ export default function AdvancedAnalytics() {
   useEffect(() => {
     fetchAnalytics();
   }, [fetchAnalytics]);
-
-  const StatCard = ({ icon, label, value, subtext, color }) => (
-    <div className="card p-5 flex items-start gap-4">
-      <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 ${color}`}>
-        <span className="material-symbols-outlined text-white text-[20px]">{icon}</span>
-      </div>
-      <div className="min-w-0">
-        <p className="text-xs text-slate-400 font-medium mb-0.5">{label}</p>
-        <p className="text-2xl font-extrabold text-slate-800 leading-none">{value}</p>
-        {subtext && <p className="text-[11px] text-slate-400 mt-1">{subtext}</p>}
-      </div>
-    </div>
-  );
 
   if (loading) {
     return (

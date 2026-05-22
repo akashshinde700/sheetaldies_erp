@@ -21,11 +21,12 @@ export default function CertCategorizationSection({ form, set }) {
           <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3">Categorization</p>
           <div className="space-y-1.5">
             <CB label="Normal"              checked={form.catNormal}            onChange={v => set('catNormal', v)} />
+            <CB label="Welded"              checked={form.catWelded}            onChange={v => set('catWelded', v)} />
             <CB label="Crack or Crack Risk" checked={form.catCrackRisk}         onChange={v => set('catCrackRisk', v)} />
             <CB label="Distortion Risk"     checked={form.catDistortionRisk}    onChange={v => set('catDistortionRisk', v)} />
-            <CB label="Initial Finishing"   checked={form.catCriticalFinishing} onChange={v => set('catCriticalFinishing', v)} />
+            <CB label="Critical Finishing"  checked={form.catCriticalFinishing} onChange={v => set('catCriticalFinishing', v)} />
             <CB label="Dent / Damage"       checked={form.catDentDamage}        onChange={v => set('catDentDamage', v)} />
-            <CB label="Cavity"              checked={form.catCavity}            onChange={v => set('catCavity', v)} />
+            <CB label="Rusty"               checked={form.catRusty}             onChange={v => set('catRusty', v)} />
             <CB label="Others"              checked={form.catOthers}            onChange={v => set('catOthers', v)} />
           </div>
         </div>

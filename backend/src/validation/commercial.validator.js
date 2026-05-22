@@ -101,6 +101,7 @@ const jobworkItemSchema = Joi.object({
   partName: Joi.string().allow('', null),
   quantity: Joi.number().positive().required(),
   qtyOut: Joi.number().min(0).allow(null),
+  dispatchDate: Joi.date().allow('', null),
   uom: Joi.string().allow('', null),
   weight: Joi.number().min(0).allow(null),
   rate: Joi.number().min(0).required(),
@@ -123,6 +124,9 @@ exports.createJobworkSchema = Joi.object({
   deliveryPerson: Joi.string().allow('', null),
   dispatchDate: Joi.date().allow('', null),
   dueDate: Joi.date().allow('', null),
+  poNo: Joi.string().allow('', null),
+  poDate: Joi.date().allow('', null),
+  cillNo: Joi.string().allow('', null),
   processingNotes: Joi.string().allow('', null),
   handlingCharges: Joi.number().min(0).allow(null),
   cgstRate: Joi.number().min(0).allow(null),
@@ -148,7 +152,7 @@ exports.updateJobworkSchema = Joi.object({
   cgstRate: Joi.number().min(0).allow(null),
   sgstRate: Joi.number().min(0).allow(null),
   igstRate: Joi.number().min(0).allow(null),
-  items: Joi.array().items(jobworkItemSchema).min(1).required(),
+  items: Joi.array().items(jobworkItemSchema).min(1).optional(),
 });
 
 exports.idParamSchema = idParamSchema;

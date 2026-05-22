@@ -19,6 +19,17 @@ function asArray(v) {
   return [];
 }
 
+// D2 default cycle — fallback when no graph saved on runsheet or cert
+const DEFAULT_TEMP_CYCLE = [
+  { time: '0',   temp: '550'  },
+  { time: '30',  temp: '550'  },
+  { time: '30',  temp: '850'  },
+  { time: '75',  temp: '850'  },
+  { time: '75',  temp: '1030' },
+  { time: '135', temp: '1030' },
+  { time: '145', temp: '80'   },
+];
+
 function num(v) {
   const n = typeof v === 'number' ? v : Number(v);
   return Number.isFinite(n) ? n : null;
@@ -33,9 +44,8 @@ function CB({ checked }) {
   );
 }
 
-// ── Temperature graph — staircase / step chart (matches Excel HT cycle) ──────
+// ── Temperature graph — staircase chart matching physical job card format ──────
 function TempGraph({ points }) {
-  // Accept [{time, temp}] or [{x,y}] or plain number array
   const rawPts = (() => {
     if (!points || points.length === 0) return [];
     if (typeof points[0] === 'number') return points.map((v, i) => ({ x: i, y: v }));
@@ -45,136 +55,128 @@ function TempGraph({ points }) {
       .sort((a, b) => a.x - b.x);
   })();
 
-  // Canvas dimensions
-  const W = 720; const H = 180; const PL = 36; const PR = 12; const PT = 12; const PB = 28;
+  const W = 720; const H = 210; const PL = 52; const PR = 20; const PT = 18; const PB = 30;
   const iW = W - PL - PR; const iH = H - PT - PB;
-
-  // Y scale: always 0..1300 so axis is consistent across different cycles
-  const Y_MAX = 1300;
-  const sy = y => PT + iH - (y / Y_MAX) * iH;
-  const Y_TICKS = [0, 200, 400, 600, 800, 1000, 1200];
-
-  // X scale: use actual time value
   const n = rawPts.length;
-  const minX = n > 0 ? Math.min(...rawPts.map(p => p.x)) : 0;
-  const maxX = n > 0 ? Math.max(...rawPts.map(p => p.x)) : 1;
+
+  // Dynamic Y scale based on data
+  const allY = rawPts.map(p => p.y);
+  const dataMin = n > 0 ? Math.min(...allY) : 0;
+  const dataMax = n > 0 ? Math.max(...allY) : 1000;
+  const Y_MIN = dataMin < 0 ? Math.floor(dataMin / 100) * 100 - 20 : 0;
+  const Y_MAX = Math.ceil((dataMax + 80) / 100) * 100;
+  const yStep = (Y_MAX - Y_MIN) <= 600 ? 100 : 200;
+  const yTicks = [];
+  for (let t = Math.ceil(Y_MIN / yStep) * yStep; t <= Y_MAX; t += yStep) yTicks.push(t);
+
+  const sy = y => PT + iH - ((y - Y_MIN) / (Y_MAX - Y_MIN || 1)) * iH;
+  const minX = n > 0 ? rawPts[0].x : 0;
+  const maxX = n > 0 ? rawPts[n - 1].x : 1;
   const sx = x => PL + ((x - minX) / (maxX - minX || 1)) * iW;
 
-  // X tick labels: show actual time values (minutes)
-  const xTickIdxs = rawPts.length <= 12
-    ? rawPts.map((_, i) => i)
-    : rawPts.reduce((acc, _, i) => {
-        if (i === 0 || i === n - 1 || i % Math.ceil(n / 8) === 0) acc.push(i);
-        return acc;
-      }, []);
+  const zero_y = sy(0);
 
-  // Build step-line path: horizontal first, then vertical (Excel staircase style)
-  // From (x1,y1) → horizontal to (x2,y1) → vertical to (x2,y2)
-  const buildPath = () => {
-    if (n < 2) return '';
-    let d = `M ${sx(rawPts[0].x).toFixed(1)} ${sy(rawPts[0].y).toFixed(1)}`;
-    for (let i = 1; i < n; i++) {
-      d += ` H ${sx(rawPts[i].x).toFixed(1)} V ${sy(rawPts[i].y).toFixed(1)}`;
-    }
-    return d;
-  };
-
-  // Label only at local maxima, minima transitions, start/end
-  const shouldLabel = (i) => {
-    if (i === 0 || i === n - 1) return true;
-    const prev = rawPts[i - 1].y;
-    const curr = rawPts[i].y;
-    const next = rawPts[i + 1]?.y ?? curr;
-    // local peak OR start of hold (two same values in a row)
-    return curr > prev || curr > next;
-  };
-
-  const emptyGraph = (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 170 }}>
+  if (n < 2) return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: H }}>
       <rect x="0" y="0" width={W} height={H} fill="white" />
       <line x1={PL} y1={PT} x2={PL} y2={PT + iH} stroke="#999" strokeWidth="1" />
-      <line x1={PL} y1={PT + iH} x2={PL + iW} y2={PT + iH} stroke="#999" strokeWidth="1" />
-      {Y_TICKS.map(t => {
-        const yy = sy(t);
-        return (
-          <g key={t}>
-            <line x1={PL} y1={yy} x2={PL + iW} y2={yy} stroke="#eee" strokeWidth="0.5" strokeDasharray="3,3" />
-            <text x={PL - 3} y={yy + 3} textAnchor="end" fontSize="8" fill="#aaa">{t}</text>
-          </g>
-        );
-      })}
+      <line x1={PL} y1={zero_y} x2={PL + iW} y2={zero_y} stroke="#999" strokeWidth="1" />
       <text x={PL + iW / 2} y={PT + iH / 2 + 5} textAnchor="middle" fontSize="9" fill="#bbb">— No graph data —</text>
-      <text x={PL - 24} y={PT + iH / 2} textAnchor="middle" fontSize="8" fill="#aaa"
-        transform={`rotate(-90,${PL - 24},${PT + iH / 2})`}>TEMP (°C)</text>
-      <text x={PL + iW / 2} y={H - 4} textAnchor="middle" fontSize="8" fill="#aaa">TIME (MINUTE) →</text>
     </svg>
   );
 
-  if (n < 2) return emptyGraph;
-
-  const pathD = buildPath();
+  // Build staircase: H first, then V (temperature holds before ramping)
+  let d = `M ${sx(rawPts[0].x).toFixed(1)} ${sy(rawPts[0].y).toFixed(1)}`;
+  for (let i = 1; i < n; i++) {
+    d += ` H ${sx(rawPts[i].x).toFixed(1)} V ${sy(rawPts[i].y).toFixed(1)}`;
+  }
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 170 }}>
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: H, fontFamily: 'Arial, sans-serif' }}>
       <rect x="0" y="0" width={W} height={H} fill="white" />
 
-      {/* Y grid lines + labels */}
-      {Y_TICKS.map(t => {
-        const yy = sy(t);
-        return (
-          <g key={t}>
-            <line x1={PL} y1={yy} x2={PL + iW} y2={yy}
-              stroke={t === 0 ? '#555' : '#ddd'} strokeWidth={t === 0 ? '1' : '0.6'} strokeDasharray={t === 0 ? '' : '4,3'} />
-            <text x={PL - 3} y={yy + 3} textAnchor="end" fontSize="8" fill="#444">{t}</text>
-          </g>
-        );
-      })}
+      {/* Subtle horizontal grid lines */}
+      {yTicks.map(t => (
+        <line key={t} x1={PL} y1={sy(t)} x2={PL + iW} y2={sy(t)}
+          stroke={t === 0 ? '#888' : '#ddd'}
+          strokeWidth={t === 0 ? '0.8' : '0.5'}
+          strokeDasharray={t === 0 ? '' : '4,3'} />
+      ))}
 
-      {/* Vertical axis */}
-      <line x1={PL} y1={PT} x2={PL} y2={PT + iH} stroke="#555" strokeWidth="1" />
-      {/* Horizontal axis */}
-      <line x1={PL} y1={PT + iH} x2={PL + iW} y2={PT + iH} stroke="#555" strokeWidth="1" />
+      {/* Y axis line + arrow */}
+      <line x1={PL} y1={PT - 2} x2={PL} y2={PT + iH + 2} stroke="#333" strokeWidth="1.2" />
+      <polygon points={`${PL},${PT - 9} ${PL - 4},${PT - 1} ${PL + 4},${PT - 1}`} fill="#333" />
+
+      {/* X axis line (at y=0) + arrow */}
+      <line x1={PL} y1={zero_y} x2={PL + iW + 2} y2={zero_y} stroke="#333" strokeWidth="1.2" />
+      <polygon points={`${PL + iW + 10},${zero_y} ${PL + iW + 2},${zero_y - 4} ${PL + iW + 2},${zero_y + 4}`} fill="#333" />
+
+      {/* Y axis labels */}
+      {yTicks.filter(t => t !== 0).map(t => (
+        <text key={t} x={PL - 4} y={sy(t) + 3} textAnchor="end" fontSize="7.5" fill="#444">{t}</text>
+      ))}
+
+      {/* Y axis title: rotated, stacked like physical form */}
+      {'TEMPERATURE'.split('').map((ch, i) => (
+        <text key={i} x={10} y={PT + 8 + i * 9} textAnchor="middle" fontSize="6.5" fontWeight="bold" fill="#555">{ch}</text>
+      ))}
+      <text x={10} y={PT + 8 + 11 * 9} textAnchor="middle" fontSize="6.5" fill="#555">°C</text>
 
       {/* Staircase line */}
-      <path d={pathD} fill="none" stroke="#111" strokeWidth="1.8" strokeLinejoin="miter" />
+      <path d={d} fill="none" stroke="#111" strokeWidth="2" strokeLinejoin="miter" strokeLinecap="square" />
 
-      {/* Dots + temperature labels at key points */}
+      {/* Per-point: dot + temperature label on left of plateau + duration label on segment */}
       {rawPts.map((p, i) => {
-        const cx = sx(p.x); const cy = sy(p.y);
-        const label = shouldLabel(i);
-        // offset label up/down to avoid overlap with gridlines
-        const labelY = cy - 6 < PT + 8 ? cy + 13 : cy - 6;
+        const cx = sx(p.x);
+        const cy = sy(p.y);
+        const above = p.y >= 0;
+
+        // Temperature label at start of this plateau (left side)
+        // Show if temperature changed from previous point
+        const prevTemp = i > 0 ? rawPts[i - 1].y : null;
+        const tempChanged = prevTemp === null || prevTemp !== p.y;
+        const tempLabelY = above
+          ? (cy - 7 < PT + 4 ? cy + 12 : cy - 7)
+          : cy + 12;
+
+        // Duration label: middle of horizontal segment FROM this point to next
+        let durEl = null;
+        if (i < n - 1) {
+          const dur = rawPts[i + 1].x - p.x;
+          if (dur > 0) {
+            const midX = (sx(p.x) + sx(rawPts[i + 1].x)) / 2;
+            const durY = above
+              ? (cy - 7 < PT + 14 ? cy + 12 : cy - 7)
+              : cy + 12;
+            // offset slightly from temp label when both show at same point
+            const durYFinal = tempChanged && Math.abs(durY - tempLabelY) < 8 ? durY - 9 : durY;
+            durEl = (
+              <text x={midX} y={durYFinal} textAnchor="middle" fontSize="7.5" fill="#555">{dur}</text>
+            );
+          }
+        }
+
         return (
           <g key={i}>
-            <circle cx={cx} cy={cy} r={label ? 2.8 : 1.8} fill="#111" />
-            {label && p.y > 0 && (
-              <text x={cx} y={labelY} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#111">
+            <circle cx={cx} cy={cy} r="2.5" fill="#111" />
+            {tempChanged && p.y !== 0 && (
+              <text x={cx + 3} y={tempLabelY} textAnchor="start" fontSize="8.5" fontWeight="bold" fill="#111">
                 {p.y}
               </text>
             )}
+            {durEl}
           </g>
         );
       })}
 
-      {/* X tick labels — time in minutes */}
-      {xTickIdxs.map(i => (
-        <text key={i} x={sx(rawPts[i].x)} y={PT + iH + 13}
-          textAnchor="middle" fontSize="7.5" fill="#555">
-          {rawPts[i].x}
-        </text>
-      ))}
-
-      {/* Axis labels */}
-      <text
-        x={PL - 24} y={PT + iH / 2}
-        textAnchor="middle" fontSize="8" fill="#555"
-        transform={`rotate(-90,${PL - 24},${PT + iH / 2})`}
-      >
-        TEMP (°C)
-      </text>
+      {/* X axis label */}
       <text x={PL + iW / 2} y={H - 4} textAnchor="middle" fontSize="8" fill="#555">
-        TIME (STEP) →
+        TIME (MINUTE)
       </text>
+      {/* Arrow label on X */}
+      <text x={PL + iW + 14} y={zero_y + 3} textAnchor="start" fontSize="8" fill="#333">→</text>
+      {/* Arrow label on Y */}
+      <text x={PL - 2} y={PT - 11} textAnchor="middle" fontSize="8" fill="#333">↑</text>
     </svg>
   );
 }
@@ -182,9 +184,14 @@ function TempGraph({ points }) {
 // ── SVT logo ─────────────────────────────────────────────────
 function SvtLogo({ size = 50 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 56 56" fill="none">
-      <circle cx="28" cy="28" r="27" fill="#0f172a" stroke="#0f172a" strokeWidth="2" />
-      <text x="28" y="35" textAnchor="middle" fill="white" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="16" letterSpacing="1">SVT</text>
+    <svg width={size} height={size * 1.15} viewBox="0 0 100 115" fill="none">
+      <polygon points="50,2 95,27 95,77 50,102 5,77 5,27" fill="#1a1a1a" stroke="#000" strokeWidth="1.5"/>
+      <path d="M 38,28 C 22,28 20,38 30,43 L 40,48 C 54,53 54,65 38,66 C 28,66 24,62 24,62"
+        fill="none" stroke="white" strokeWidth="7" strokeLinecap="round"/>
+      <text x="60" y="70" textAnchor="middle" fill="white"
+        fontFamily="Arial Black, Arial, sans-serif" fontWeight="900" fontSize="28" letterSpacing="1">VT</text>
+      <text x="50" y="96" textAnchor="middle" fill="#aaa"
+        fontFamily="Arial, sans-serif" fontSize="6" letterSpacing="0.5">PUNE</text>
     </svg>
   );
 }
@@ -214,9 +221,13 @@ export default function CertPrint() {
       .finally(() => setLoading(false));
   }, [id]);
 
+  const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/api$/, '');
+  const makeImgUrl = p => p ? (p.startsWith('http') ? p : `${API_BASE}${p}`) : null;
+
   const derived = useMemo(() => {
     if (!cert) return {};
     const tempPoints = asArray(cert.effectiveTempCycleData ?? cert.tempCycleData);
+    const effectiveTempPoints = tempPoints.length >= 2 ? tempPoints : DEFAULT_TEMP_CYCLE;
     const insp = cert.jobCard?.inspection;
 
     // Required hardness
@@ -231,7 +242,7 @@ export default function CertPrint() {
     // Challan items (for WM No, DRG No)
     const challanItems = cert.jobCard?.challans?.flatMap(ch => ch.items || []) || [];
 
-    return { tempPoints, reqText, achText, challanItems };
+    return { tempPoints, effectiveTempPoints, reqText, achText, challanItems };
   }, [cert]);
 
   if (loading) return <div className="p-4 text-slate-400 text-sm">Loading…</div>;
@@ -249,9 +260,10 @@ export default function CertPrint() {
   const totalWt    = items.reduce((s, it) => s + (num(it.totalWeight) || 0), 0);
   const challanItems = derived.challanItems || [];
 
-  const byOurVehicle     = jc.dispatchByOurVehicle  || cert.dispatchedThrough === 'OUR_VEHICLE';
-  const byCourier        = jc.dispatchByCourier      || cert.dispatchedThrough === 'COURIER';
-  const collectedByCust  = jc.collectedByCustomer    || cert.dispatchedThrough === 'COLLECTED';
+  const dt = cert.dispatchedThrough || '';
+  const byOurVehicle     = jc.dispatchByOurVehicle  || dt.toLowerCase().includes('vehicle');
+  const byCourier        = jc.dispatchByCourier      || dt.toLowerCase().includes('courier');
+  const collectedByCust  = jc.collectedByCustomer    || dt.toLowerCase().includes('collected');
 
   // Get DC No from yourRefNo or from linked challan
   const yourDcNo = cert.yourRefNo || jc.challans?.[0]?.challanNo || '—';
@@ -320,7 +332,7 @@ export default function CertPrint() {
                     <TuvLogo size={40} />
                     <table className="text-[8px] border border-black mt-1" style={{ borderCollapse: 'collapse' }}>
                       <tbody>
-                        <tr><td className="px-2 py-0.5 border border-black font-semibold">DOC NO</td><td className="px-2 py-0.5 border border-black">QF-QA-04</td></tr>
+                        <tr><td className="px-2 py-0.5 border border-black font-semibold">DOC NO</td><td className="px-2 py-0.5 border border-black">QF-QA-08</td></tr>
                         <tr><td className="px-2 py-0.5 border border-black font-semibold">REVISION NO</td><td className="px-2 py-0.5 border border-black">00</td></tr>
                         <tr><td className="px-2 py-0.5 border border-black font-semibold">REV. DATE</td><td className="px-2 py-0.5 border border-black"></td></tr>
                         <tr><td className="px-2 py-0.5 border border-black font-semibold">PAGE NO</td><td className="px-2 py-0.5 border border-black">1 Of 1</td></tr>
@@ -361,38 +373,39 @@ export default function CertPrint() {
           </tbody>
         </table>
 
-        {/* ── DISPATCH MODE + SPECIAL INSTRUCTION ── */}
+        {/* ── DISPATCH MODE + MATERIAL + SPECIAL INSTRUCTION (merged) ── */}
         <table className="w-full border-collapse" style={{ borderBottom: '1px solid black' }}>
           <tbody>
+            {/* Row 1: Dispatch Mode */}
             <tr>
-              <td className="p-2" style={{ borderRight: '1px solid black' }}>
+              <td className="p-2" colSpan={3} style={{ borderRight: '1px solid black', borderBottom: '1px solid black' }}>
                 <span className="font-bold mr-2">DISPATCH MODE:-</span>
                 <span className="mr-3"><CB checked={byOurVehicle} /> BY OUR VEHICLE</span>
                 <span className="mr-3"><CB checked={byCourier} /> BY COURIER</span>
                 <span><CB checked={collectedByCust || (!byOurVehicle && !byCourier)} /> COLLECTED BY CUSTOMER</span>
               </td>
-              <td className="p-2" style={{ width: '200px' }}>
+              <td className="p-2 align-top" rowSpan={3} style={{ width: '200px' }}>
                 <div className="font-bold mb-1">Special Instruction</div>
                 <div><CB checked={cert.specInstrCertificate} /> CERTIFICATE</div>
                 <div><CB checked={cert.specInstrMpiReport} /> MPI REPORT</div>
                 <div><CB checked={cert.specInstrProcessGraph} /> PROCESS GRAPH</div>
               </td>
             </tr>
-          </tbody>
-        </table>
-
-        {/* ── MATERIAL / HT SPEC / HRC ── */}
-        <table className="w-full border-collapse" style={{ borderBottom: '1px solid black' }}>
-          <tbody>
+            {/* Row 2: Labels */}
+            <tr style={{ borderBottom: '1px solid black' }}>
+              <td className="px-2 py-0.5 text-slate-500 text-[9px]" style={{ borderRight: '1px solid black' }}>Material</td>
+              <td className="px-2 py-0.5 text-slate-500 text-[9px]" style={{ borderRight: '1px solid black' }}>Heat Treatment Specification</td>
+              <td className="px-2 py-0.5 text-slate-500 text-[9px]" style={{ borderRight: '1px solid black' }}></td>
+            </tr>
+            {/* Row 3: Values */}
             <tr>
               <td className="p-2 font-bold" style={{ width: '80px', borderRight: '1px solid black' }}>
                 {material}
               </td>
-              <td className="p-2" style={{ borderRight: '1px solid black' }}>
-                <span className="text-slate-500 mr-2">Heat Treatment Specification</span>
-                <span className="font-bold">{htSpec || 'HARDEN AND TEMPER'}</span>
+              <td className="p-2 font-bold" style={{ borderRight: '1px solid black' }}>
+                {htSpec || 'HARDEN AND TEMPER'}
               </td>
-              <td className="p-2 font-extrabold text-center" style={{ width: '120px', fontSize: '12px' }}>
+              <td className="p-2 font-extrabold text-center" style={{ width: '120px', fontSize: '12px', borderRight: '1px solid black' }}>
                 {derived.reqText}
               </td>
             </tr>
@@ -464,12 +477,12 @@ export default function CertPrint() {
                 <td className="p-2 align-top" style={{ width: '22%', borderRight: '1px solid black' }}>
                   <div className="font-bold mb-1 text-[9px]">Categorization</div>
                   <div><CB checked={cert.catNormal} /> NORMAL</div>
-                  <div><CB checked={false} /> WELDED</div>
+                  <div><CB checked={cert.catWelded} /> WELDED</div>
                   <div><CB checked={cert.catCrackRisk} /> CRACK OR CRACK RISK</div>
                   <div><CB checked={cert.catDistortionRisk} /> DISTORTION RISK</div>
                   <div><CB checked={cert.catCriticalFinishing} /> CRITCAL FINISHING</div>
                   <div><CB checked={cert.catDentDamage} /> DENT/ DAMAGE</div>
-                  <div><CB checked={false} /> RUSTY</div>
+                  <div><CB checked={cert.catRusty} /> RUSTY</div>
                   <div><CB checked={cert.catOthers} /> OTHERS</div>
                 </td>
 
@@ -526,7 +539,7 @@ export default function CertPrint() {
             </span>
           </div>
           <div className="px-2 py-1">
-            <TempGraph points={derived.tempPoints || []} />
+            <TempGraph points={derived.effectiveTempPoints || []} />
           </div>
         </div>
 
@@ -535,15 +548,15 @@ export default function CertPrint() {
           <tbody>
             <tr>
               <td className="align-top p-2" style={{ borderRight: '1px solid black' }}>
-                <table className="border-collapse text-[9px]" style={{ border: '1px solid black' }}>
+                <table className="w-full border-collapse text-[9px]" style={{ border: '1px solid black' }}>
                   <thead>
                     <tr>
                       <th className="p-1 font-bold" style={{ border: '1px solid black' }} colSpan={9}>DISTORTION</th>
                     </tr>
                     <tr>
-                      <th className="p-1 font-bold" style={{ border: '1px solid black' }}>ITEM</th>
+                      <th className="p-1 font-bold" style={{ border: '1px solid black', width: '15%' }}>ITEM</th>
                       {ITEMS_8.map(i => (
-                        <th key={i} className="p-1 text-center" style={{ border: '1px solid black', minWidth: '28px' }}>{i + 1}</th>
+                        <th key={i} className="p-1 text-center" style={{ border: '1px solid black' }}>{i + 1}</th>
                       ))}
                     </tr>
                   </thead>
@@ -579,14 +592,6 @@ export default function CertPrint() {
                   </tbody>
                 </table>
                 <div className="mt-1.5" style={{ border: '1px solid black' }}>
-                  <div className="px-2 py-1 font-bold text-[9px]" style={{ borderBottom: '1px solid black' }}>PACKED QUANTITY</div>
-                  <div className="px-2 py-2 font-mono">{cert.packedQty != null ? cert.packedQty : ''}</div>
-                </div>
-                <div className="mt-1.5" style={{ border: '1px solid black' }}>
-                  <div className="px-2 py-1 font-bold text-[9px]" style={{ borderBottom: '1px solid black' }}>PACKED BY</div>
-                  <div className="px-2 py-2">{cert.packedBy || ''}</div>
-                </div>
-                <div className="mt-1.5" style={{ border: '1px solid black' }}>
                   <div className="px-2 py-1 font-bold text-[9px]" style={{ borderBottom: '1px solid black' }}>APPROVED BY:</div>
                   <div className="px-2 py-3">{cert.approvedBy || ''}</div>
                 </div>
@@ -599,14 +604,15 @@ export default function CertPrint() {
         <div style={{ borderBottom: '1px solid black' }}>
           <div className="px-2 py-1 font-bold" style={{ borderBottom: '1px solid black' }}>JOB IMAGE</div>
           <div className="flex gap-2 p-2">
-            {[cert.image1, cert.image2, cert.image3, cert.image4, cert.image5]
+            {[jc.image1, jc.image2, jc.image3, jc.image4, jc.image5]
+              .map(makeImgUrl)
               .filter(Boolean)
-              .map((img, i) => (
+              .map((url, i) => (
                 <div key={i} className="border border-black" style={{ width: 140, height: 110 }}>
-                  <img src={img} alt={`Job ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={url} alt={`Job ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
               ))}
-            {![cert.image1, cert.image2].some(Boolean) && (
+            {![jc.image1, jc.image2].some(Boolean) && (
               <div className="flex gap-2">
                 {[1, 2].map(n => (
                   <div key={n} className="border border-black flex items-center justify-center text-slate-400 text-[9px]"
@@ -621,10 +627,10 @@ export default function CertPrint() {
 
         {/* ── FOOTER ── */}
         <div className="flex justify-between items-end px-2 py-1.5 text-[8.5px] text-slate-600">
-          <span>QF-QA-04 &nbsp;&nbsp; Effective Date : 01/04/2019 &nbsp;&nbsp; Revision: 00 &nbsp;&nbsp; Revision Date : 00 &nbsp;&nbsp; Page 1 of 1</span>
+          <span>QF-QA-08 &nbsp;&nbsp; Effective Date: 10/05/2019 &nbsp;&nbsp; Revision: 00 &nbsp;&nbsp; Revision Date: 00 &nbsp;&nbsp; Page 1 of 1</span>
         </div>
         <div className="px-2 py-1 text-[8px] text-slate-600" style={{ borderTop: '1px solid #ccc' }}>
-          <span className="font-semibold">Color Code for Job Crd -</span>
+          <span className="font-semibold">Color Code for Job Card —</span>
           <span className="ml-2">WHITE – Regular,</span>
           <span className="ml-2">RED – Rework,</span>
           <span className="ml-2">BLUE – New Development,</span>

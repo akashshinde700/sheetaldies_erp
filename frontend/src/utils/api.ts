@@ -39,15 +39,19 @@ const api = axios.create({
  */
 api.interceptors.request.use(
   (config) => {
-    // Cookies-based auth is used for security, so Authorization header is not required.
-    // Add request ID for tracing
+    // For FormData, delete Content-Type so the browser sets multipart/form-data with the
+    // correct boundary automatically. Axios's default 'application/json' header otherwise
+    // prevents multer from parsing uploaded files on the server.
+    if (config.data instanceof FormData) {
+      delete (config.headers as Record<string, unknown>)['Content-Type'];
+    }
+
     config.headers['X-Request-ID'] = `${Date.now()}-${Math.random()
       .toString(36)
       .substr(2, 9)}`;
 
-    // Log request (development only)
     if (import.meta.env.DEV) {
-      console.log(`📤 ${config.method.toUpperCase()} ${config.url}`);
+      console.log(`📤 ${config.method?.toUpperCase()} ${config.url}`);
     }
 
     return config;

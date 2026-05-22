@@ -10,6 +10,7 @@ exports.quickCreateCustomer = async (req, res) => {
     const address = (req.body.address || '').trim();
     const email = (req.body.email || '').trim() || null;
     const partyType = String(req.body.partyType || 'CUSTOMER').toUpperCase();
+    const rates = Array.isArray(req.body.rates) ? req.body.rates : [];
     if (!name || !address) {
       return res.status(400).json({ success: false, message: 'Name and address are required.' });
     }
@@ -28,14 +29,30 @@ exports.quickCreateCustomer = async (req, res) => {
       return res.json({ success: true, data: existing, reused: true });
     }
 
-    const party = await prisma.party.create({
-      data: encryptPartyData({
-        name,
-        address,
-        email,
-        partyType,
-      }),
+    // Create party + rates atomically so partial failure leaves no orphaned party
+    const party = await prisma.$transaction(async (tx) => {
+      const created = await tx.party.create({
+        data: encryptPartyData({ name, address, email, partyType }),
+      });
+      if (rates.length > 0) {
+        for (const row of rates) {
+          const ptId = toInt(row.processTypeId);
+          if (!ptId) continue;
+          const rateData = {
+            pricePerKg: row.pricePerKg != null && row.pricePerKg !== '' ? toNum(row.pricePerKg) : null,
+            pricePerPc: row.pricePerPc != null && row.pricePerPc !== '' ? toNum(row.pricePerPc) : null,
+            lotPrice:  row.lotPrice  != null && row.lotPrice  !== '' ? toNum(row.lotPrice)  : null,
+          };
+          await tx.partyProcessRate.upsert({
+            where: { partyId_processTypeId: { partyId: created.id, processTypeId: ptId } },
+            update: rateData,
+            create: { partyId: created.id, processTypeId: ptId, ...rateData },
+          });
+        }
+      }
+      return created;
     });
+
     res.status(201).json({ success: true, data: decryptPartyData(party), reused: false });
   } catch (err) {
     console.error(err);
