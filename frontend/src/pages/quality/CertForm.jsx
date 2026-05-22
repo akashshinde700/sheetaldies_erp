@@ -31,6 +31,7 @@ export default function CertForm() {
 
   const [images,    setImages]    = useState({});
   const [loading,   setLoading]   = useState(false);
+  const [jcData,    setJcData]    = useState(null); // locked job card snapshot
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -122,16 +123,21 @@ export default function CertForm() {
   };
 
   useEffect(() => {
-    if (!form.jobCardId) return;
+    if (!form.jobCardId) {
+      setJcData(null);
+      return;
+    }
     let cancelled = false;
 
     api.get(`/jobcards/${form.jobCardId}`).then(r => {
       if (cancelled) return;
       const jc = r.data.data;
+      setJcData(jc);
 
-      const hardnessMin = jc.hrcRange ? jc.hrcRange.split(/[–\-]/)[0]?.trim() : '61';
-      const hardnessMax = jc.hrcRange ? jc.hrcRange.split(/[–\-]/)[1]?.trim() : '63';
+      const hardnessMin = jc.hrcRange ? jc.hrcRange.split(/[–\-]/)[0]?.trim() : '';
+      const hardnessMax = jc.hrcRange ? jc.hrcRange.split(/[–\-]/)[1]?.trim() : '';
       const heatTreatment = jc.operationMode || 'HARDEN AND TEMPER';
+      const insp = jc.inspection || {};
 
       // Build cert items from linked challan items
       const linkedItems = (jc.challanItemLinks || []).length > 0
@@ -156,16 +162,35 @@ export default function CertForm() {
         heatNo:       jc.heatNo       || p.heatNo,
         dieMaterial:  jc.dieMaterial  || p.dieMaterial || 'D2',
         operatorMode: heatTreatment,
-        hardnessMin,
-        hardnessMax,
+        hardnessMin:  hardnessMin || insp.requiredHardnessMin || p.hardnessMin,
+        hardnessMax:  hardnessMax || insp.requiredHardnessMax || p.hardnessMax,
+        hardnessUnit: insp.hardnessUnit || p.hardnessUnit,
         specialRequirements: jc.specialRequirements || p.specialRequirements,
         precautions:         jc.precautions         || p.precautions,
-        specInstrCertificate: jc.specInstrCert      ?? p.specInstrCertificate,
-        specInstrMpiReport:   jc.specInstrMPIRep    ?? p.specInstrMpiReport,
-        specInstrProcessGraph: jc.specInstrGraph    ?? p.specInstrProcessGraph,
+        specInstrCertificate:  jc.specInstrCert   ?? p.specInstrCertificate,
+        specInstrMpiReport:    jc.specInstrMPIRep ?? p.specInstrMpiReport,
+        specInstrProcessGraph: jc.specInstrGraph  ?? p.specInstrProcessGraph,
         dispatchByOurVehicle: !!jc.dispatchByOurVehicle,
         dispatchByCourier:    !!jc.dispatchByCourier,
         collectedByCustomer:  !!jc.collectedByCustomer,
+        // Categorization from inspection
+        catNormal:            !!insp.catNormal,
+        catWelded:            !!insp.catWelded,
+        catCrackRisk:         !!insp.catCrackRisk,
+        catDistortionRisk:    !!insp.catDistortionRisk,
+        catCriticalFinishing: !!insp.catCriticalFinishing,
+        catDentDamage:        !!insp.catDentDamage,
+        catRusty:             !!insp.catRusty,
+        catOthers:            !!insp.catOthers,
+        // Process from inspection
+        procStressRelieving:  !!insp.procStressRelieving,
+        procHardening:        !!insp.procHardening,
+        procTempering:        !!insp.procTempering,
+        procAnnealing:        !!insp.procAnnealing,
+        procBrazing:          !!insp.procBrazing,
+        procPlasmaNitriding:  !!insp.procPlasmaNitriding,
+        procSubZero:          !!insp.procSubZero,
+        procSoakClean:        !!insp.procSoakClean,
       }));
 
       loadTempCycleFromRunsheet(form.jobCardId).then(ok => {
@@ -226,18 +251,18 @@ export default function CertForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <CertHeaderSection form={form} set={set} parties={parties} jobCards={jobCards} />
-        <CertTechnicalSection form={form} set={set} updateTemperatureCurve={updateTemperatureCycle} />
-        <CertCategorizationSection form={form} set={set} />
-        
+        <CertHeaderSection form={form} set={set} parties={parties} jobCards={jobCards} jcData={jcData} />
+        <CertTechnicalSection form={form} set={set} updateTemperatureCurve={updateTemperatureCycle} jcData={jcData} />
+        <CertCategorizationSection form={form} set={set} jcData={jcData} />
+
         <CertItemsTable certItems={certItems} setCertItems={setCertItems} />
-        <CertHardnessSection form={form} set={set} />
+        <CertHardnessSection form={form} set={set} jcData={jcData} />
         <DistortionTable form={form} setForm={setForm} set={set} />
         <HeatProcessLog heatRows={heatRows} setHeatRows={setHeatRows} emptyHeatRow={emptyHeatRow} />
         <InspectionResultsTable inspResults={inspResults} setInspResults={setInspResults} />
         <TemperatureCurve tempRows={tempRows} setTempRows={setTempRows} form={form} loadTempCycleFromRunsheet={loadTempCycleFromRunsheet} />
         <CertPhotosSection handleImageChange={handleImageChange} />
-        <CertPackingSection form={form} set={set} />
+        <CertPackingSection form={form} set={set} jcData={jcData} />
 
         <div className="flex gap-3 pb-4">
           <button type="submit" disabled={loading} className="btn-primary">
