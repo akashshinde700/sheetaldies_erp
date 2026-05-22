@@ -139,6 +139,89 @@ export default function CertDetail() {
         </div>
       </div>
 
+      {/* Categorization & Process */}
+      {(() => {
+        const cats = [
+          ['catNormal',            'Normal'],
+          ['catCrackRisk',         'Crack Risk'],
+          ['catDistortionRisk',    'Distortion Risk'],
+          ['catCriticalFinishing', 'Critical Finishing'],
+          ['catDentDamage',        'Dent / Damage'],
+          ['catCavity',            'Cavity'],
+          ['catOthers',            'Others'],
+        ].filter(([k]) => cert[k]);
+        const procs = [
+          ['procStressRelieving', 'Stress Relieving'],
+          ['procHardening',       'Hardening'],
+          ['procTempering',       'Tempering'],
+          ['procAnnealing',       'Annealing'],
+          ['procBrazing',         'Brazing'],
+          ['procPlasmaNitriding', 'Plasma Nitriding'],
+          ['procSubZero',         'Sub Zero'],
+          ['procSoakClean',       'Soak Clean'],
+        ].filter(([k]) => cert[k]);
+        if (!cats.length && !procs.length) return null;
+        return (
+          <div className="card p-5 grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {cats.length > 0 && (
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Categorization</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {cats.map(([, label]) => (
+                    <span key={label} className="text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 rounded-full px-2.5 py-0.5">{label}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {procs.length > 0 && (
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Process</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {procs.map(([, label]) => (
+                    <span key={label} className="text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full px-2.5 py-0.5">{label}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Special Instructions / Delivery / Requirements / Precautions */}
+      {(cert.specInstrCertificate || cert.specInstrMpiReport || cert.specInstrProcessGraph ||
+        cert.deliveryDate || cert.specialRequirements || cert.precautions) && (
+        <div className="card p-5 space-y-4">
+          {(cert.specInstrCertificate || cert.specInstrMpiReport || cert.specInstrProcessGraph) && (
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Special Instructions</p>
+              <div className="flex flex-wrap gap-2">
+                {cert.specInstrCertificate  && <span className="text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2.5 py-0.5">☑ Certificate</span>}
+                {cert.specInstrMpiReport    && <span className="text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2.5 py-0.5">☑ MPI Report</span>}
+                {cert.specInstrProcessGraph && <span className="text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2.5 py-0.5">☑ Process Graph</span>}
+              </div>
+            </div>
+          )}
+          {cert.deliveryDate && (
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Delivery Date</p>
+              <p className="text-sm font-semibold text-slate-800">{formatDate(cert.deliveryDate)}</p>
+            </div>
+          )}
+          {cert.specialRequirements && (
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Special Requirements</p>
+              <p className="text-sm text-slate-700 whitespace-pre-wrap">{cert.specialRequirements}</p>
+            </div>
+          )}
+          {cert.precautions && (
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Precautions</p>
+              <p className="text-sm text-slate-700 whitespace-pre-wrap">{cert.precautions}</p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Hardness */}
       {(cert.hardnessMin || cert.hardnessMax) && (
         <div className="card p-5">
@@ -186,6 +269,42 @@ export default function CertDetail() {
           </table>
         </div>
       )}
+
+      {/* Distortion Before/After */}
+      {(cert.distortionBefore || cert.distortionAfter) && (() => {
+        const parse = v => {
+          if (!v) return [];
+          const arr = typeof v === 'string' ? (() => { try { return JSON.parse(v); } catch { return []; } })() : (Array.isArray(v) ? v : []);
+          return arr.map(x => x != null && typeof x === 'object' ? (x.val ?? x.value ?? '') : x);
+        };
+        const before = parse(cert.distortionBefore);
+        const after  = parse(cert.distortionAfter);
+        const len = Math.max(before.length, after.length);
+        if (!len) return null;
+        return (
+          <div className="card p-5">
+            <p className="section-title border-b border-slate-100 pb-2 mb-4">Distortion Measurement</p>
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-gradient-to-r from-slate-50 to-indigo-50/30 border-b border-slate-100">
+                  <th className="px-3 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">Point</th>
+                  <th className="px-3 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">Before HT (mm)</th>
+                  <th className="px-3 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">After HT (mm)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50/80">
+                {Array.from({ length: len }, (_, i) => (
+                  <tr key={i} className="hover:bg-slate-50/50">
+                    <td className="px-3 py-2 text-slate-400 font-mono">{i + 1}</td>
+                    <td className="px-3 py-2 text-slate-700">{before[i] ?? '—'}</td>
+                    <td className="px-3 py-2 text-slate-700">{after[i]  ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
 
       {/* Inspection Results */}
       {cert.inspectionResults?.length > 0 && (
