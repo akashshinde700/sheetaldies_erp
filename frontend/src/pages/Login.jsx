@@ -103,8 +103,8 @@ export default function Login() {
           >
             <span className="material-symbols-outlined text-white text-3xl sm:text-4xl">precision_manufacturing</span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight font-headline">Sheetal Dies ERP</h1>
-          <p className="text-slate-500 text-xs mt-1.5 px-2">Precision Engineering Management System</p>
+          <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight font-headline">SVT ERP</h1>
+          <p className="text-slate-500 text-xs mt-1.5 px-2">Shital Vacuum Treat Pvt. Ltd.</p>
         </div>
 
         <div className="bg-white rounded-xl shadow-lg shadow-slate-900/8 overflow-hidden border border-slate-200/90">
@@ -143,7 +143,7 @@ export default function Login() {
                     onChange={handleChange}
                     onBlur={handleBlur}
                     className="form-input"
-                    placeholder="admin@sheetaldies.com"
+                    placeholder="admin@shitalvaccumtreat.com"
                   />
                   {touched.email && errors.email && (
                     <p className="mt-2 text-sm text-red-600">{errors.email}</p>
@@ -242,7 +242,7 @@ export default function Login() {
         </div>
 
         <p className="text-center text-slate-500 text-xs mt-5">
-          © {new Date().getFullYear()} Sheetal Dies & Tools Pvt. Ltd.
+          © {new Date().getFullYear()} Shital Vacuum Treat Pvt. Ltd.
         </p>
       </div>
     </div>

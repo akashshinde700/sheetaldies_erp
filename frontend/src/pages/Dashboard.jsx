@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../utils/api';
-import { formatCurrency, formatDate } from '../utils/formatters';
+import { formatDate } from '../utils/formatters';
 
 const CARDS_PAGE_SIZE = 10;
 
@@ -87,7 +87,7 @@ export default function Dashboard() {
   const [recentCards, setRecentCards] = useState([]);
   const [cardsTotal,  setCardsTotal]  = useState(0);
   const [cardsPage,   setCardsPage]   = useState(1);
-  const [invoiceMeta, setInvoiceMeta] = useState({ pending: 0, pendingAmt: 0 });
+  const [invoiceMeta, setInvoiceMeta] = useState({ pending: 0, partial: 0, overdue: 0 });
   const [kpiLoading,  setKpiLoading]  = useState(true);
   const [cardsLoading, setCardsLoading] = useState(true);
   const [error,       setError]       = useState(null);
@@ -100,15 +100,18 @@ export default function Dashboard() {
       setKpiLoading(true);
       setError(null);
       try {
-        const [s, inv] = await Promise.all([
+        const [s, overview] = await Promise.all([
           api.get('/jobcards/stats'),
-          api.get('/invoices', { params: { paymentStatus: 'PENDING', limit: 100 } }),
+          api.get('/analytics/overview'),
         ]);
         if (cancelled) return;
         setStats(s.data.data);
-        const pendingInvs = inv.data.data || [];
-        const pendingAmt = pendingInvs.reduce((sum, i) => sum + Number(i.totalAmount || 0), 0);
-        setInvoiceMeta({ pending: inv.data.pagination?.total || pendingInvs.length, pendingAmt });
+        const inv = overview.data.data?.invoices || {};
+        setInvoiceMeta({
+          pending: inv.pending || 0,
+          partial: inv.partial || 0,
+          overdue: inv.overdue || 0,
+        });
       } catch {
         if (!cancelled) setError('Failed to load dashboard data.');
       } finally {
@@ -143,14 +146,17 @@ export default function Dashboard() {
     Promise.all([
       api.get('/jobcards/stats'),
       api.get('/jobcards', { params: { page: cardsPage, limit: CARDS_PAGE_SIZE } }),
-      api.get('/invoices', { params: { paymentStatus: 'PENDING', limit: 100 } }),
-    ]).then(([s, c, inv]) => {
+      api.get('/analytics/overview'),
+    ]).then(([s, c, overview]) => {
       setStats(s.data.data);
       setRecentCards(c.data.data || []);
       setCardsTotal(c.data.pagination?.total ?? 0);
-      const pendingInvs = inv.data.data || [];
-      const pendingAmt = pendingInvs.reduce((sum, i) => sum + Number(i.totalAmount || 0), 0);
-      setInvoiceMeta({ pending: inv.data.pagination?.total || pendingInvs.length, pendingAmt });
+      const inv = overview.data.data?.invoices || {};
+      setInvoiceMeta({
+        pending: inv.pending || 0,
+        partial: inv.partial || 0,
+        overdue: inv.overdue || 0,
+      });
     }).catch(() => setError('Failed to load dashboard data.'))
       .finally(() => {
         setKpiLoading(false);
@@ -220,7 +226,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── KPIs Row 2 ── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 3xl:gap-5">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 3xl:gap-5">
         <KpiCard
           label="Completed Jobs" value={stats?.completed} loading={kpiLoading}
           sub="All time completions" icon="task_alt"
@@ -229,11 +235,20 @@ export default function Dashboard() {
         />
         <KpiCard
           label="Pending Invoices" value={invoiceMeta.pending} loading={kpiLoading}
-          badge={invoiceMeta.pending > 0 ? 'Follow up' : 'All clear'}
-          badgeColor={invoiceMeta.pending > 0 ? 'bg-orange-100 text-orange-900' : 'bg-emerald-100 text-emerald-800'}
-          sub={`${formatCurrency(invoiceMeta.pendingAmt)} outstanding`}
+          badge={invoiceMeta.partial > 0 ? `${invoiceMeta.partial} Partial` : invoiceMeta.pending > 0 ? 'Follow up' : 'All clear'}
+          badgeColor={invoiceMeta.partial > 0 ? 'bg-amber-100 text-amber-900' : invoiceMeta.pending > 0 ? 'bg-orange-100 text-orange-900' : 'bg-emerald-100 text-emerald-800'}
+          sub={`${invoiceMeta.partial > 0 ? `${invoiceMeta.partial} partial · ` : ''}Tap to view`}
           icon="receipt_long"
           iconBg="bg-orange-100 text-orange-700"
+          to="/invoices"
+        />
+        <KpiCard
+          label="Overdue Invoices" value={invoiceMeta.overdue} loading={kpiLoading}
+          badge={invoiceMeta.overdue > 0 ? 'Overdue!' : 'All clear'}
+          badgeColor={invoiceMeta.overdue > 0 ? 'bg-rose-100 text-rose-900' : 'bg-emerald-100 text-emerald-800'}
+          sub="Unpaid &gt;30 days — follow up"
+          icon="schedule"
+          iconBg={invoiceMeta.overdue > 0 ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-500'}
           to="/invoices"
         />
         <KpiCard

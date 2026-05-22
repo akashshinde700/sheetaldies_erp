@@ -130,7 +130,7 @@ export default function InvoicePrint() {
           .no-print { display: none !important; }
           .page { box-shadow: none !important; margin: 0 !important; }
           body { background: white !important; -webkit-print-color-adjust: exact; }
-          @page { margin: 8mm; size: A4; }
+          @page { margin: 5mm; size: A4 portrait; }
         }
       `}</style>
 
@@ -320,7 +320,7 @@ export default function InvoicePrint() {
             ))}
 
             {/* Empty rows */}
-            {Array.from({ length: Math.max(0, 4 - items.length) }).map((_, i) => (
+            {Array.from({ length: Math.max(0, 2 - items.length) }).map((_, i) => (
               <tr key={`e${i}`} style={{ height: '22px' }}>
                 <td style={tdStyle()}></td>
                 <td style={tdStyle()}></td>

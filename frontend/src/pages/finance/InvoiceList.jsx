@@ -51,6 +51,8 @@ export default function InvoiceList() {
   const [toDate,   setToDate]   = useState('');
   const [page,     setPage]     = useState(1);
   const [total,    setTotal]    = useState(0);
+  const [paidModal, setPaidModal] = useState(null); // { id, invoiceNo }
+  const [paidDate,  setPaidDate]  = useState(() => new Date().toISOString().split('T')[0]);
 
   const fetchData = useCallback(() => {
     setLoading(true); setError(null);
@@ -72,11 +74,13 @@ export default function InvoiceList() {
   useEffect(() => { setPage(1); }, [filter, search, fromDate, toDate]);
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const markPaid = async (id) => {
+  const confirmMarkPaid = async () => {
+    if (!paidModal) return;
     try {
-      await api.patch(`/invoices/${id}/payment`, { paymentStatus: 'PAID', paidDate: new Date().toISOString().split('T')[0] });
+      await api.patch(`/invoices/${paidModal.id}/payment`, { paymentStatus: 'PAID', paidDate: paidDate });
       toast.success('Marked as paid.');
-      setInvoices(p => p.map(inv => inv.id === id ? { ...inv, paymentStatus: 'PAID' } : inv));
+      setInvoices(p => p.map(inv => inv.id === paidModal.id ? { ...inv, paymentStatus: 'PAID', paidDate } : inv));
+      setPaidModal(null);
     } catch { toast.error('Error updating payment.'); }
   };
 
@@ -133,6 +137,39 @@ export default function InvoiceList() {
 
   return (
     <div className="space-y-5 animate-slide-up">
+      {/* Mark Paid Modal */}
+      {paidModal && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+                <span className="material-symbols-outlined text-emerald-600 text-xl">payments</span>
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-800">Mark Invoice as Paid</h3>
+                <p className="text-xs text-slate-500 font-mono">{paidModal.invoiceNo}</p>
+              </div>
+            </div>
+            <div>
+              <label className="form-label">Payment Received Date</label>
+              <input
+                type="date"
+                value={paidDate}
+                max={new Date().toISOString().split('T')[0]}
+                onChange={e => setPaidDate(e.target.value)}
+                className="form-input w-full"
+              />
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button onClick={() => setPaidModal(null)} className="btn-outline flex-1">Cancel</button>
+              <button onClick={confirmMarkPaid} className="btn-primary flex-1 bg-emerald-600 hover:bg-emerald-700 border-emerald-600 hover:border-emerald-700">
+                <span className="material-symbols-outlined text-sm">check</span> Confirm Paid
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -202,12 +239,19 @@ export default function InvoiceList() {
       {/* Table */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
+          <table className="w-full text-left min-w-[520px]">
             <thead>
               <tr className="bg-gradient-to-r from-slate-50 to-indigo-50/30 border-b border-slate-100">
-                {['Invoice No', 'Date', 'To Party', 'Challan', 'Subtotal', 'GST', 'Total', 'Payment', 'Tally', 'Action'].map(h => (
-                  <th key={h} className="th">{h}</th>
-                ))}
+                <th className="th">Invoice No</th>
+                <th className="th">Date</th>
+                <th className="th">To Party</th>
+                <th className="th hidden sm:table-cell">Challan</th>
+                <th className="th hidden md:table-cell">Subtotal</th>
+                <th className="th hidden md:table-cell">GST</th>
+                <th className="th">Total</th>
+                <th className="th">Payment</th>
+                <th className="th hidden sm:table-cell">Tally</th>
+                <th className="th">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50/80">
@@ -241,11 +285,11 @@ export default function InvoiceList() {
                     {formatDate(inv.invoiceDate)}
                   </td>
                   <td className="td font-medium text-slate-700 truncate max-w-[150px]">{inv.toParty?.name}</td>
-                  <td className="td text-slate-500 font-mono text-[11px]">
+                  <td className="td text-slate-500 font-mono text-[11px] hidden sm:table-cell">
                     {inv.challan?.challanNo || inv.challanRef || '—'}
                   </td>
-                  <td className="td text-slate-600">{formatCurrency(inv.subtotal)}</td>
-                  <td className="td text-slate-500">
+                  <td className="td text-slate-600 hidden md:table-cell">{formatCurrency(inv.subtotal)}</td>
+                  <td className="td text-slate-500 hidden md:table-cell">
                     {formatCurrency(Number(inv.cgstAmount || 0) + Number(inv.sgstAmount || 0) + Number(inv.igstAmount || 0))}
                   </td>
                   <td className="td font-bold text-slate-800">{formatCurrency(inv.totalAmount)}</td>
@@ -254,7 +298,7 @@ export default function InvoiceList() {
                       {inv.paymentStatus}
                     </span>
                   </td>
-                  <td className="td">
+                  <td className="td hidden sm:table-cell">
                     {inv.sentToTally
                       ? <span className="badge bg-violet-100 text-violet-700">
                           <span className="material-symbols-outlined text-[12px]">lock</span> Sent
@@ -274,7 +318,8 @@ export default function InvoiceList() {
                       {inv.paymentStatus !== 'PAID' && !inv.sentToTally && (
                         <>
                           <span className="text-slate-200">·</span>
-                          <button onClick={() => markPaid(inv.id)}
+                          <button
+                            onClick={() => { setPaidDate(new Date().toISOString().split('T')[0]); setPaidModal({ id: inv.id, invoiceNo: inv.invoiceNo }); }}
                             className="text-xs font-semibold text-emerald-600 hover:underline">Paid</button>
                         </>
                       )}

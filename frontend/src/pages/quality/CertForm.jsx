@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { toNum } from '../../utils/normalize';
@@ -24,6 +24,7 @@ import TemperatureCurve from './components/TemperatureCurve';
 
 export default function CertForm() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { data: parties = [] } = useParties();
   const { data: jobCards = [] } = useMasterJobCards();
   const { data: processes = [] } = useProcesses();
@@ -32,21 +33,31 @@ export default function CertForm() {
   const [loading,   setLoading]   = useState(false);
 
   const today = new Date().toISOString().split('T')[0];
+
+  const genCertNo = () => {
+    const now = new Date();
+    const yy  = String(now.getFullYear()).slice(-2);
+    const mm  = String(now.getMonth() + 1).padStart(2, '0');
+    const rand = String(Math.floor(100 + Math.random() * 900));
+    return `${yy}${mm}${rand}`;
+  };
+
   const [form, setForm] = useState({
-    jobCardId: '', yourPoNo: '', yourPoDate: '', yourRefNo: '',
-    issueNo: '', issueDate: today, checkedBy: '',
+    jobCardId: searchParams.get('jobCardId') || '', yourPoNo: '', yourPoDate: '', yourRefNo: '',
+    issueNo: genCertNo(), issueDate: today, checkedBy: '',
     customerId: '', issuedByPartyId: '',
     dieMaterial: '', operatorMode: '', 
     specInstrCertificate: true, specInstrMpiReport: false, specInstrProcessGraph: false,
     deliveryDate: '', specialRequirements: '', precautions: '',
-    catNormal: false, catCrackRisk: false, catDistortionRisk: false,
-    catCriticalFinishing: false, catDentDamage: false, catCavity: false, catOthers: false,
+    catNormal: false, catWelded: false, catCrackRisk: false, catDistortionRisk: false,
+    catCriticalFinishing: false, catDentDamage: false, catRusty: false, catCavity: false, catOthers: false,
     procStressRelieving: false, procHardening: false, procTempering: false, procAnnealing: false,
     procBrazing: false, procPlasmaNitriding: false, procSubZero: false, procSoakClean: false,
     hardnessMin: '', hardnessMax: '', hardnessUnit: 'HRC',
     distortionBefore: Array(8).fill(''), distortionAfter: Array(8).fill(''),
     packedQty: '', packedBy: '', approvedBy: '',
-    issuedTo: '', heatNo: '', dispatchMode: '', dispatchChallanNo: '', dispatchChallanDate: '', dispatchedThrough: '',
+    issuedTo: '', heatNo: '', dispatchByOurVehicle: false, dispatchByCourier: false, collectedByCustomer: false,
+    dispatchChallanNo: '', dispatchChallanDate: '', dispatchedThrough: '',
     specialInstruction: '',
   });
 
@@ -111,26 +122,59 @@ export default function CertForm() {
   };
 
   useEffect(() => {
-    if (!form.jobCardId || !jobCards.length) return;
-    const selectedJobCard = jobCards.find((jc) => String(jc.id) === form.jobCardId);
-    if (!selectedJobCard) return;
+    if (!form.jobCardId) return;
+    let cancelled = false;
 
-    const hardnessMin = selectedJobCard.hardnessMin || (selectedJobCard.hrcRange && selectedJobCard.hrcRange.split(/[–-]/)[0]?.trim()) || '61';
-    const hardnessMax = selectedJobCard.hardnessMax || (selectedJobCard.hrcRange && selectedJobCard.hrcRange.split(/[–-]/)[1]?.trim()) || '63';
-    const heatTreatment = selectedJobCard.treatmentType || selectedJobCard.operationMode || 'HARDEN AND TEMPER';
+    api.get(`/jobcards/${form.jobCardId}`).then(r => {
+      if (cancelled) return;
+      const jc = r.data.data;
 
-    setForm(p => ({
-      ...p,
-      dieMaterial: selectedJobCard.dieMaterial || 'D2',
-      operatorMode: heatTreatment,
-      hardnessMin,
-      hardnessMax
-    }));
+      const hardnessMin = jc.hrcRange ? jc.hrcRange.split(/[–\-]/)[0]?.trim() : '61';
+      const hardnessMax = jc.hrcRange ? jc.hrcRange.split(/[–\-]/)[1]?.trim() : '63';
+      const heatTreatment = jc.operationMode || 'HARDEN AND TEMPER';
 
-    loadTempCycleFromRunsheet(form.jobCardId).then(ok => {
-      if (!ok) updateTemperatureCycle(heatTreatment);
-    });
-  }, [form.jobCardId, jobCards]);
+      // Build cert items from linked challan items
+      const linkedItems = (jc.challanItemLinks || []).length > 0
+        ? jc.challanItemLinks
+        : (jc.challans?.flatMap(ch => ch.items || []) || []);
+      if (linkedItems.length > 0) {
+        setCertItems(linkedItems.map(it => ({
+          description: it.partName || it.description || '',
+          quantity: String(it.qty ?? it.quantity ?? 1),
+          weightPerPc: it.weight ? String(Number(it.weight) / Math.max(Number(it.qty ?? it.quantity ?? 1), 1)) : '',
+          totalWeight: it.weight ? String(Number(it.weight).toFixed(3)) : '',
+          samplingPlan: '',
+          remarks: '',
+        })));
+      }
+
+      setForm(p => ({
+        ...p,
+        customerId:   jc.customerId   ? String(jc.customerId) : p.customerId,
+        issuedTo:     jc.customerNameSnapshot || jc.customer?.name || p.issuedTo,
+        yourPoNo:     jc.yourNo       || p.yourPoNo,
+        heatNo:       jc.heatNo       || p.heatNo,
+        dieMaterial:  jc.dieMaterial  || p.dieMaterial || 'D2',
+        operatorMode: heatTreatment,
+        hardnessMin,
+        hardnessMax,
+        specialRequirements: jc.specialRequirements || p.specialRequirements,
+        precautions:         jc.precautions         || p.precautions,
+        specInstrCertificate: jc.specInstrCert      ?? p.specInstrCertificate,
+        specInstrMpiReport:   jc.specInstrMPIRep    ?? p.specInstrMpiReport,
+        specInstrProcessGraph: jc.specInstrGraph    ?? p.specInstrProcessGraph,
+        dispatchByOurVehicle: !!jc.dispatchByOurVehicle,
+        dispatchByCourier:    !!jc.dispatchByCourier,
+        collectedByCustomer:  !!jc.collectedByCustomer,
+      }));
+
+      loadTempCycleFromRunsheet(form.jobCardId).then(ok => {
+        if (!ok) updateTemperatureCycle(heatTreatment);
+      });
+    }).catch(() => {});
+
+    return () => { cancelled = true; };
+  }, [form.jobCardId]);
 
   const handleImageChange = (i, file) => setImages(p => ({ ...p, [i]: file }));
 
@@ -140,8 +184,15 @@ export default function CertForm() {
     
     setLoading(true);
     try {
+      // Convert dispatch checkboxes → dispatchedThrough string
+      const dispatchParts = [];
+      if (form.dispatchByOurVehicle) dispatchParts.push('By Our Vehicle');
+      if (form.dispatchByCourier)    dispatchParts.push('By Courier');
+      if (form.collectedByCustomer)  dispatchParts.push('Collected by Customer');
+      const submitForm = { ...form, dispatchedThrough: dispatchParts.join(', ') || form.dispatchedThrough };
+
       const fd = new FormData();
-      Object.entries(form).forEach(([k, v]) => {
+      Object.entries(submitForm).forEach(([k, v]) => {
         if (k === 'distortionBefore' || k === 'distortionAfter') {
           fd.append(k, JSON.stringify(v.map((val, i) => ({ pt: i + 1, val: toNum(val, 0) }))));
         } else {

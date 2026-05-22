@@ -144,19 +144,6 @@ exports.list = async (req, res) => {
     const finalLimit = exportAll ? Math.min(MAX_EXPORT_LIMIT, 5000) : Math.min(limit, 500);
     const finalSkip = exportAll ? 0 : skip;
 
-    // DEBUG: Log export request details
-    console.log('[INVOICE EXPORT DEBUG]', {
-      exportAll,
-      page,
-      limit: finalLimit,
-      skip: finalSkip,
-      paymentStatus,
-      challanId,
-      fromDate,
-      toDate,
-      timestamp: new Date().toISOString(),
-    });
-    
     const where = {};
     if (paymentStatus) where.paymentStatus = paymentStatus;
     if (challanId)     where.challanId     = toInt(challanId);
@@ -202,15 +189,6 @@ exports.list = async (req, res) => {
       prisma.taxInvoice.count({ where }),
     ]);
 
-    // DEBUG: Log results
-    console.log('[INVOICE RESULTS]', {
-      invoicesReturned: invoices.length,
-      totalInDB: total,
-      exportAll,
-      responseLimit: invoices.length,
-      timestamp: new Date().toISOString(),
-    });
-    
     res.json(formatListResponse(invoices, total, exportAll ? 1 : page, invoices.length));
   } catch (err) {
     res.status(getStatusCode('ERR_INTERNAL')).json(formatErrorResponse('ERR_INTERNAL', 'Server error.'));
@@ -276,7 +254,47 @@ exports.create = async (req, res) => {
     if (!fromPartyId || !toPartyId)
       return res.status(400).json({ success: false, message: 'From and To party required.' });
 
-    const parsedItems  = asArray(items);
+    const { challanId } = req.body;
+
+    // Fetch party-specific process rates for auto-calculation (for manual invoices without challan)
+    let partyRatesMap = {};
+    if (!challanId && fromPartyId) {
+      const partyRates = await prisma.partyProcessRate.findMany({
+        where: { partyId: toInt(fromPartyId) },
+        include: { processType: { select: { id: true, pricePerKg: true, pricePerPc: true, lotPrice: true } } },
+      });
+      for (const pr of partyRates) {
+        partyRatesMap[pr.processTypeId] = {
+          pricePerKg: pr.pricePerKg ?? pr.processType?.pricePerKg,
+          pricePerPc: pr.pricePerPc ?? pr.processType?.pricePerPc,
+          lotPrice:   pr.lotPrice   ?? pr.processType?.lotPrice,
+        };
+      }
+    }
+
+    // Apply party-specific rates to items if not explicitly provided
+    const parsedItems = asArray(items).map(it => {
+      const ptId = it.processTypeId ? toInt(it.processTypeId) : null;
+      if (ptId && partyRatesMap[ptId] && (!it.rate || toNum(it.rate, 0) === 0)) {
+        const partyRate = partyRatesMap[ptId];
+        const lotPrice = toNum(partyRate.lotPrice, 0);
+        // Flat lot price — use as-is regardless of weight/qty
+        if (lotPrice > 0) {
+          return { ...it, rate: String(lotPrice.toFixed(2)), amount: String(lotPrice.toFixed(2)) };
+        }
+        const weight = toNum(it.weight, 0);
+        const qty = toNum(it.quantity, 0);
+        if (weight > 0 && toNum(partyRate.pricePerKg, 0) > 0) {
+          const amount = weight * toNum(partyRate.pricePerKg, 0);
+          return { ...it, rate: String(toNum(partyRate.pricePerKg, 0).toFixed(2)), amount: String(amount.toFixed(2)) };
+        } else if (qty > 0 && toNum(partyRate.pricePerPc, 0) > 0) {
+          const amount = qty * toNum(partyRate.pricePerPc, 0);
+          return { ...it, rate: String(toNum(partyRate.pricePerPc, 0).toFixed(2)), amount: String(amount.toFixed(2)) };
+        }
+      }
+      return it;
+    });
+
     const subtotal     = parsedItems.reduce((s, it) => s + toNum(it.amount, 0), 0);
     const cgst         = (subtotal * toNum(cgstRate, 9)) / 100;
     const sgst         = (subtotal * toNum(sgstRate, 9)) / 100;
@@ -287,8 +305,6 @@ exports.create = async (req, res) => {
     const tcsAmt       = (total * tcsRateVal) / 100;
     const extraAmtVal  = toNum(extraAmt, 0);
     const grandTotal   = total + transport + tcsAmt + extraAmtVal;
-
-    const { challanId } = req.body;
 
     let invoice = null;
     let invoiceNo = null;
@@ -308,8 +324,11 @@ exports.create = async (req, res) => {
               }),
             ]);
 
-            if (challan) {
-              const challanTotal = toNum(challan.subtotal, 0);
+            if (!challan) {
+              throw new Error(`Linked challan ${challanId} not found.`);
+            }
+
+            const challanTotal = toNum(challan.subtotal, 0);
               const alreadyInvoiced = existingInvoices.reduce((s, inv) => s + toNum(inv.subtotal, 0), 0);
               const remaining = challanTotal - alreadyInvoiced;
 
@@ -338,7 +357,6 @@ exports.create = async (req, res) => {
 
               const qtyAfter = status.totalRemainingQty - parsedItems.reduce((s, it) => s + toNum(it.quantity, 0), 0);
               txBillingType = qtyAfter <= 0.00001 ? 'FINAL_DISPATCH' : 'PARTIAL_DISPATCH';
-            }
           }
 
           invoiceNo = await generateInvoiceNo(tx);
@@ -400,7 +418,8 @@ exports.create = async (req, res) => {
           txErr.message.includes('Over-invoice') ||
           txErr.message.includes('already fully invoiced') ||
           txErr.message.includes('Over-quantity') ||
-          txErr.message.includes('source challan item')
+          txErr.message.includes('source challan item') ||
+          txErr.message.includes('not found')
         )) {
           return res.status(400).json({ success: false, message: txErr.message });
         }

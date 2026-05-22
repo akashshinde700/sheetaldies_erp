@@ -39,8 +39,8 @@ export default function PendingDashboard() {
       const r = await api.get('/analytics/pending-items');
       return r.data.data;
     },
-    staleTime: 30 * 1000,
-    refetchInterval: 60 * 1000,
+    staleTime: 45 * 1000,        // Data considered fresh for 45 seconds
+    refetchInterval: 90 * 1000, // Auto-refetch every 90 seconds
   });
 
   const summary = data?.summary || {};
@@ -96,7 +96,7 @@ export default function PendingDashboard() {
         <div>
           <h2 className="text-xl font-extrabold text-slate-800 font-headline">Pending List</h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Challan → Job Card → Certificate → Invoice — har stage ka pending
+            Challan → Job Card → Certificate → Invoice — pending items at each stage
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -142,12 +142,12 @@ export default function PendingDashboard() {
           icon="input"
           iconBg="bg-amber-50"
           iconColor="text-amber-500"
-          title="Challans — Job Card Banana Baaki Hai"
+          title="Challans — Job Card Pending"
           count={data?.challansNeedJobCard?.length ?? 0}
           countColor="bg-amber-100 text-amber-700"
         />
         {!data?.challansNeedJobCard?.length ? (
-          <EmptyState message="Sab challans ka job card ban gaya!" />
+          <EmptyState message="All challans have job cards!" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -183,7 +183,7 @@ export default function PendingDashboard() {
                       >
                         {creating[`jc_${ch.id}`]
                           ? <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
-                          : <><span className="material-symbols-outlined text-sm">add_card</span> Job Card Banao</>
+                          : <><span className="material-symbols-outlined text-sm">add_card</span> Create Job Card</>
                         }
                       </button>
                     </td>
@@ -201,12 +201,12 @@ export default function PendingDashboard() {
           icon="verified"
           iconBg="bg-violet-50"
           iconColor="text-violet-500"
-          title="Job Cards — Certificate Banana Baaki Hai"
+          title="Job Cards — Certificate Pending"
           count={data?.jobCardsNeedCert?.length ?? 0}
           countColor="bg-violet-100 text-violet-700"
         />
         {!data?.jobCardsNeedCert?.length ? (
-          <EmptyState message="Sab job cards ka certificate ban gaya!" />
+          <EmptyState message="All job cards have certificates!" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -268,12 +268,12 @@ export default function PendingDashboard() {
           icon="receipt_long"
           iconBg="bg-sky-50"
           iconColor="text-sky-500"
-          title="Certificates — Invoice Banana Baaki Hai"
+          title="Certificates — Invoice Pending"
           count={data?.certsNeedInvoice?.length ?? 0}
           countColor="bg-sky-100 text-sky-700"
         />
         {!data?.certsNeedInvoice?.length ? (
-          <EmptyState message="Sab approved certificates ka invoice ban gaya!" />
+          <EmptyState message="All approved certificates have invoices!" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -308,7 +308,7 @@ export default function PendingDashboard() {
                         className="btn-primary text-[11px] px-3 py-1.5 h-auto"
                       >
                         <span className="material-symbols-outlined text-sm">receipt_long</span>
-                        Invoice Banao
+                        Create Invoice
                       </Link>
                     </td>
                   </tr>
@@ -325,12 +325,12 @@ export default function PendingDashboard() {
           icon="payments"
           iconBg="bg-rose-50"
           iconColor="text-rose-500"
-          title="Invoices — Payment Baaki Hai"
+          title="Invoices — Payment Pending"
           count={data?.invoicesPendingPayment?.length ?? 0}
           countColor="bg-rose-100 text-rose-700"
         />
         {!data?.invoicesPendingPayment?.length ? (
-          <EmptyState message="Koi payment pending nahi!" />
+          <EmptyState message="No payment pending!" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">

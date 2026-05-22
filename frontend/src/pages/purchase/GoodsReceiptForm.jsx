@@ -3,6 +3,7 @@ import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { toNum } from '../../utils/normalize';
 import { formatCurrency, formatDate } from '../../utils/formatters';
+import SearchSelect from '../../components/SearchSelect';
 
 function formatCurrency2(v) {
   return formatCurrency(v);
@@ -118,21 +119,17 @@ export default function GoodsReceiptForm() {
         <h2 className="text-lg font-bold text-slate-900 font-headline mb-4">Create GRN</h2>
 
         <div className="mb-6">
-          <label htmlFor="grn-po-select" className="form-label">Purchase order *</label>
-          <select
-            id="grn-po-select"
-            value={selectedPO?.id || ''}
-            onChange={(e) => handlePOSelect(e.target.value)}
-            className="form-input"
+          <label className="form-label">Purchase order *</label>
+          <SearchSelect
+            value={String(selectedPO?.id || '')}
+            onChange={v => handlePOSelect(v)}
+            options={(pos || []).map(po => ({
+              value: po.id,
+              label: `${po.poNumber} — ${po.vendor?.name || ''} (₹${formatCurrency2(po.totalAmount)})`,
+            }))}
+            placeholder="Choose PO…"
             required
-          >
-            <option value="">Choose PO…</option>
-            {pos.map(po => (
-              <option key={po.id} value={po.id}>
-                {po.poNumber} — {po.vendor?.name} (₹{formatCurrency2(po.totalAmount)})
-              </option>
-            ))}
-          </select>
+          />
         </div>
 
         {selectedPO && (

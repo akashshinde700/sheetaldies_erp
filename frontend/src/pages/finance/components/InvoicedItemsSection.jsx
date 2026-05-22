@@ -1,10 +1,8 @@
 import React from 'react';
 import SearchSelect from '../../../components/SearchSelect';
-import { toNum } from '../../../utils/normalize';
-import { formatCurrency } from '../../../utils/formatters';
 
-export default function InvoicedItemsSection({ 
-  lineItems, setLineItems, processes, updateLine, challanInfo, EMPTY_LINE, remainingByChallanItem 
+export default function InvoicedItemsSection({
+  lineItems, setLineItems, processes, updateLine, challanInfo, newEmptyLine, remainingByChallanItem
 }) {
   return (
     <div className="card p-4 sm:p-5 3xl:p-6 min-w-0">
@@ -13,13 +11,13 @@ export default function InvoicedItemsSection({
           <p className="section-title">Services / Items</p>
           {challanInfo && <p className="text-[10px] text-slate-400 mt-0.5">Auto-filled from challan — edit if partial delivery</p>}
         </div>
-        <button type="button" onClick={() => setLineItems(p => [...p, { ...EMPTY_LINE }])}
+        <button type="button" onClick={() => setLineItems(p => [...p, newEmptyLine()])}
           className="flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors">
           <span className="material-symbols-outlined text-sm">add</span> Add Row
         </button>
       </div>
 
-      <div className="hidden sm:grid grid-cols-[2rem_1fr_1.6fr_5rem_4.5rem_5rem_6rem_1.5rem] gap-2 px-3 pb-1.5">
+      <div className="hidden sm:grid grid-cols-[2rem_1fr_1.6fr_5rem_4.5rem_5rem_6.5rem_1.5rem] gap-2 px-3 pb-1.5">
         {['Sr.','Process','Description','Qty / UOM','Rate (₹)','Weight (kg)','Amount (₹)',''].map(h => (
           <p key={h} className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{h}</p>
         ))}
@@ -27,8 +25,8 @@ export default function InvoicedItemsSection({
 
       <div className="space-y-2">
         {lineItems.map((it, i) => (
-          <div key={i} className="bg-slate-50/70 border border-slate-200 rounded-xl p-3 hover:border-indigo-200 transition-colors">
-            <div className="hidden sm:grid grid-cols-[2rem_1fr_1.6fr_5rem_4.5rem_5rem_6rem_1.5rem] gap-2 items-center">
+          <div key={it._id} className="bg-slate-50/70 border border-slate-200 rounded-xl p-3 hover:border-indigo-200 transition-colors">
+            <div className="hidden sm:grid grid-cols-[2rem_1fr_1.6fr_5rem_4.5rem_5rem_6.5rem_1.5rem] gap-2 items-center">
               <span className="text-[11px] text-slate-400 font-mono text-center">{i+1}</span>
               <SearchSelect
                 value={it.processTypeId}
@@ -54,9 +52,9 @@ export default function InvoicedItemsSection({
               <input type="number" min="0" step="0.001" value={it.weight} onChange={e => updateLine(i, 'weight', e.target.value)}
                 placeholder="0.000"
                 className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white text-right focus:outline-none focus:ring-1 focus:ring-indigo-300 w-full" />
-              <p className="text-xs font-bold text-indigo-700 text-right whitespace-nowrap">
-                {it.amount ? formatCurrency(toNum(it.amount, 0)) : '—'}
-              </p>
+              <input type="number" min="0" step="0.01" value={it.amount} onChange={e => updateLine(i, 'amount', e.target.value)}
+                required placeholder="0.00"
+                className="border border-indigo-200 rounded-lg px-2 py-1.5 text-xs bg-indigo-50 text-right font-bold text-indigo-700 focus:outline-none focus:ring-1 focus:ring-indigo-400 w-full" />
               <div className="flex justify-center">
                 {lineItems.length > 1 && (
                   <button type="button" onClick={() => setLineItems(p => p.filter((_, j) => j !== i))}
@@ -109,8 +107,11 @@ export default function InvoicedItemsSection({
                     className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white text-right focus:outline-none focus:ring-1 focus:ring-indigo-300 w-full" />
                 </div>
               </div>
-              <div className="flex justify-end">
-                <p className="text-xs font-bold text-indigo-700">{it.amount ? formatCurrency(toNum(it.amount, 0)) : '—'}</p>
+              <div>
+                <label className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block mb-1">Amount (₹)</label>
+                <input type="number" min="0" step="0.01" value={it.amount} onChange={e => updateLine(i, 'amount', e.target.value)}
+                  required placeholder="0.00"
+                  className="border border-indigo-200 rounded-lg px-2 py-1.5 text-xs bg-indigo-50 text-right font-bold text-indigo-700 focus:outline-none focus:ring-1 focus:ring-indigo-400 w-full" />
               </div>
             </div>
 
@@ -118,18 +119,16 @@ export default function InvoicedItemsSection({
               {challanInfo?.items?.length > 0 && (
                 <div className="col-span-2 sm:col-span-4">
                   <label className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block mb-1">Source Challan Line</label>
-                  <select
-                    value={it.sourceChallanItemId || ''}
-                    onChange={e => updateLine(i, 'sourceChallanItemId', e.target.value)}
-                    className="border border-slate-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300 w-full"
-                  >
-                    <option value="">Select source challan line</option>
-                    {challanInfo.items.map((cIt, idx) => (
-                      <option key={cIt.id} value={cIt.id}>
-                        {idx + 1}. {cIt.description || 'Item'} (Qty {cIt.quantity}, Rate {cIt.rate})
-                      </option>
-                    ))}
-                  </select>
+                  <SearchSelect
+                    value={String(it.sourceChallanItemId || '')}
+                    onChange={v => updateLine(i, 'sourceChallanItemId', v)}
+                    options={challanInfo.items.map((cIt, idx) => ({
+                      value: cIt.id,
+                      label: `${idx + 1}. ${cIt.description || 'Item'} (Qty ${cIt.quantity}, Rate ${cIt.rate})`,
+                    }))}
+                    placeholder="Select source challan line"
+                    useFixed
+                  />
                 </div>
               )}
               {it.sourceChallanItemId && remainingByChallanItem.has(String(it.sourceChallanItemId)) && (

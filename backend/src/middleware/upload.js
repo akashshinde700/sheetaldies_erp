@@ -8,13 +8,11 @@ if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 // CRITICAL FIX: Comprehensive file type validation
 const ALLOWED_MIME_TYPES = {
-  // Images
-  'image/jpeg': '.jpg',
-  'image/png': '.png',
-  'image/gif': '.gif',
-  'image/webp': '.webp',
-  // Documents
-  'application/pdf': '.pdf',
+  'image/jpeg': ['.jpg', '.jpeg'],
+  'image/png':  ['.png'],
+  'image/gif':  ['.gif'],
+  'image/webp': ['.webp'],
+  'application/pdf': ['.pdf'],
 };
 
 /**
@@ -48,19 +46,14 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  // CRITICAL FIX: Strict MIME type validation
-  const mimeAllowed = ALLOWED_MIME_TYPES[file.mimetype];
-  
-  if (!mimeAllowed) {
-    return cb(new Error(`File type '${file.mimetype}' not allowed. Allowed types: ${Object.keys(ALLOWED_MIME_TYPES).join(', ')}`), false);
+  const allowedExts = ALLOWED_MIME_TYPES[file.mimetype];
+  if (!allowedExts) {
+    return cb(new Error(`File type '${file.mimetype}' not allowed. Allowed: ${Object.keys(ALLOWED_MIME_TYPES).join(', ')}`), false);
   }
-  
-  // Verify extension matches MIME type
   const ext = path.extname(file.originalname).toLowerCase();
-  if (mimeAllowed !== ext) {
-    return cb(new Error(`File extension '${ext}' does not match MIME type '${file.mimetype}'`), false);
+  if (!allowedExts.includes(ext)) {
+    return cb(new Error(`File extension '${ext}' does not match type '${file.mimetype}'. Allowed extensions: ${allowedExts.join(', ')}`), false);
   }
-  
   cb(null, true);
 };
 

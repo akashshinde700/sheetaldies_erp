@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
 import { toNum, toInt } from '../../utils/normalize';
+import SearchSelect from '../../components/SearchSelect';
 
 const STATUS_OPTIONS = ['DRAFT', 'SENT', 'RECEIVED', 'COMPLETED', 'CANCELLED'];
 
@@ -190,36 +191,35 @@ export default function DispatchChallanForm() {
               </div>
               <div>
                 <label className="form-label">From party *</label>
-                <select required value={formData.fromPartyId} onChange={(e) => handleChange('fromPartyId', e.target.value)} className="form-input w-full">
-                  <option value="">Select from party</option>
-                  {parties.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                <SearchSelect
+                  value={String(formData.fromPartyId || '')}
+                  onChange={v => handleChange('fromPartyId', v)}
+                  options={(parties || []).map(p => ({ value: p.id, label: p.name }))}
+                  placeholder="Select from party"
+                  required
+                  className="w-full"
+                />
               </div>
               <div>
                 <label className="form-label">To party *</label>
-                <select required value={formData.toPartyId} onChange={(e) => handleChange('toPartyId', e.target.value)} className="form-input w-full">
-                  <option value="">Select to party</option>
-                  {parties.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                <SearchSelect
+                  value={String(formData.toPartyId || '')}
+                  onChange={v => handleChange('toPartyId', v)}
+                  options={(parties || []).map(p => ({ value: p.id, label: p.name }))}
+                  placeholder="Select to party"
+                  required
+                  className="w-full"
+                />
               </div>
               <div>
                 <label className="form-label">Jobwork challan</label>
-                <select value={formData.jobworkChallanId} onChange={(e) => handleChange('jobworkChallanId', e.target.value)} className="form-input w-full">
-                  <option value="">Optional link</option>
-                  {jobworkChallans.map((j) => (
-                    <option key={j.id} value={j.id}>
-                      {j.challanNo || `JW-${j.id}`}
-                    </option>
-                  ))}
-                </select>
+                <SearchSelect
+                  value={String(formData.jobworkChallanId || '')}
+                  onChange={v => handleChange('jobworkChallanId', v)}
+                  options={[{ value: '', label: 'Optional link' }, ...(jobworkChallans || []).map(j => ({ value: j.id, label: j.challanNo || `JW-${j.id}` }))]}
+                  placeholder="Optional link"
+                  className="w-full"
+                />
               </div>
               <div>
                 <label className="form-label">Dispatch mode</label>
@@ -264,30 +264,29 @@ export default function DispatchChallanForm() {
                 {formData.jobworkChallanId && (
                   <div className="md:col-span-2">
                     <label className="form-label text-xs">Source challan line</label>
-                    <select
-                      value={item.sourceChallanItemId || ''}
-                      onChange={(e) => updateItem(idx, 'sourceChallanItemId', e.target.value)}
-                      className="form-input w-full text-sm"
-                    >
-                      <option value="">Select line</option>
-                      {selectedJwItems.map((chIt) => (
-                        <option key={chIt.id} value={chIt.id}>
-                          {chIt.description || `Line ${chIt.id}`} (Qty {chIt.quantity})
-                        </option>
-                      ))}
-                    </select>
+                    <SearchSelect
+                      value={String(item.sourceChallanItemId || '')}
+                      onChange={v => updateItem(idx, 'sourceChallanItemId', v)}
+                      options={(selectedJwItems || []).map(chIt => ({
+                        value: chIt.id,
+                        label: `${chIt.description || `Line ${chIt.id}`} (Qty ${chIt.quantity})`,
+                      }))}
+                      placeholder="Select line"
+                      useFixed
+                      className="w-full"
+                    />
                   </div>
                 )}
                 <div>
                   <label className="form-label text-xs">Item</label>
-                  <select value={item.itemId} onChange={(e) => updateItem(idx, 'itemId', e.target.value)} className="form-input w-full text-sm">
-                    <option value="">Select item</option>
-                    {itemsMaster.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.partNo || m.description || `Item ${m.id}`}
-                      </option>
-                    ))}
-                  </select>
+                  <SearchSelect
+                    value={String(item.itemId || '')}
+                    onChange={v => updateItem(idx, 'itemId', v)}
+                    options={(itemsMaster || []).map(m => ({ value: m.id, label: m.partNo || m.description || `Item ${m.id}` }))}
+                    placeholder="Select item"
+                    useFixed
+                    className="w-full"
+                  />
                 </div>
                 <div className="md:col-span-2">
                   <label className="form-label text-xs">Description</label>

@@ -20,22 +20,22 @@ export default function IssueInstructionsSection({ form, setForm }) {
         </F>
       </div>
       <div className="bg-gradient-to-r from-indigo-50 to-violet-50 rounded-xl p-4 border border-indigo-100">
-        <p className="text-xs font-bold text-slate-600 uppercase tracking-widest mb-3">Special Instructions (What to Include)</p>
+        <p className="text-xs font-bold text-slate-600 uppercase tracking-widest mb-3">Special Instructions</p>
         <div className="space-y-2">
           <label className="flex items-center gap-3 cursor-pointer group">
             <input type="checkbox" checked={form.specInstrCert} onChange={e => setForm(p => ({...p, specInstrCert: e.target.checked}))}
               className="w-4 h-4 rounded border-2 border-indigo-300 accent-indigo-600 cursor-pointer" />
-            <span className="text-sm text-slate-700 font-medium">☑ CERTIFICATE</span>
+            <span className="text-sm text-slate-700 font-medium">CERTIFICATE</span>
           </label>
           <label className="flex items-center gap-3 cursor-pointer group">
             <input type="checkbox" checked={form.specInstrMPIRep} onChange={e => setForm(p => ({...p, specInstrMPIRep: e.target.checked}))}
               className="w-4 h-4 rounded border-2 border-indigo-300 accent-indigo-600 cursor-pointer" />
-            <span className="text-sm text-slate-700 font-medium">☐ MPI REPORT</span>
+            <span className="text-sm text-slate-700 font-medium">MPI REPORT</span>
           </label>
           <label className="flex items-center gap-3 cursor-pointer group">
             <input type="checkbox" checked={form.specInstrGraph} onChange={e => setForm(p => ({...p, specInstrGraph: e.target.checked}))}
               className="w-4 h-4 rounded border-2 border-indigo-300 accent-indigo-600 cursor-pointer" />
-            <span className="text-sm text-slate-700 font-medium">☐ PROCESS GRAPH</span>
+            <span className="text-sm text-slate-700 font-medium">PROCESS GRAPH</span>
           </label>
         </div>
       </div>

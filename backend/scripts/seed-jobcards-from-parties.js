@@ -2,7 +2,7 @@
  * Creates one job card per party for the first 5 CUSTOMER, 5 VENDOR, 5 BOTH in the DB
  * (uses parties you already inserted). Idempotent: skips if a seed job card already exists for that party.
  *
- * Needs: at least one User (run `npm run db:ensure-admin` for admin@sheetaldies.com), at least one Item (creates minimal item if none).
+ * Needs: at least one User (run `npm run db:ensure-admin` for admin@shitalvaccumtreat.com), at least one Item (creates minimal item if none).
  *
  *   npm run db:seed-jobcards
  */
@@ -41,7 +41,7 @@ async function main() {
   if (!user) {
     console.error(
       'No user in database. Run:\n  npm run db:ensure-admin\nThen re-run this script.\n' +
-        '(Default login: admin@sheetaldies.com / Admin@123)'
+        '(Default login: admin@shitalvaccumtreat.com / Admin@123)'
     );
     process.exit(1);
   }

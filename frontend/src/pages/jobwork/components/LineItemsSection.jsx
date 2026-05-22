@@ -1,4 +1,5 @@
 import React from 'react';
+import SearchSelect from '../../../components/SearchSelect';
 
 export default function LineItemsSection({ lineItems, setLineItems, items, updateLineItem, EMPTY_ROW }) {
   return (
@@ -31,11 +32,14 @@ export default function LineItemsSection({ lineItems, setLineItems, items, updat
             {lineItems.map((row, i) => (
               <tr key={i}>
                 <td className="td">
-                  <select value={row.itemId} onChange={e => updateLineItem(i, 'itemId', e.target.value)}
-                    className="form-input text-xs py-1 w-28">
-                    <option value="">—</option>
-                    {items.map(it => <option key={it.id} value={it.id}>{it.partNo}</option>)}
-                  </select>
+                  <SearchSelect
+                    value={String(row.itemId || '')}
+                    onChange={v => updateLineItem(i, 'itemId', v)}
+                    options={(items || []).map(it => ({ value: it.id, label: it.partNo || it.description || String(it.id) }))}
+                    placeholder="—"
+                    useFixed
+                    className="w-28"
+                  />
                 </td>
                 <td className="td"><input list="challan-desc-suggestions" value={row.description} onChange={e => updateLineItem(i, 'description', e.target.value)} className="form-input text-xs py-1 w-36" /></td>
                 <td className="td"><input value={row.drawingNo} onChange={e => updateLineItem(i, 'drawingNo', e.target.value)} className="form-input text-xs py-1 w-20" /></td>

@@ -12,9 +12,9 @@ import IssueInstructionsSection from './components/IssueInstructionsSection';
 import ProductionSection from './components/ProductionSection';
 import JobDatesSection from './components/JobDatesSection';
 import StatusRemarksSection from './components/StatusRemarksSection';
-import DocControlSection from './components/DocControlSection';
 import PhotoSection from './components/PhotoSection';
 import LinkedDataSection from './components/LinkedDataSection';
+import InspectionEditSection from './components/InspectionEditSection';
 
 export default function JobCardForm() {
   const { id }   = useParams();
@@ -22,7 +22,7 @@ export default function JobCardForm() {
   const isEdit   = Boolean(id);
 
   const [form, setForm] = useState({
-    partId: '', operationNo: '', drawingNo: '', machineId: '',
+    partId: '', operationNo: '', drawingNo: '', woNo: '', machineId: '',
     operatorName: '', quantity: '', startDate: '', endDate: '', remarks: '', status: 'CREATED',
     dieNo: '', yourNo: '', heatNo: '', dieMaterial: '', customerId: '',
     receivedDate: '', dueDate: '', totalWeight: '', dispatchMode: '', operationMode: 'NORMAL',
@@ -34,14 +34,16 @@ export default function JobCardForm() {
     dispatchByOurVehicle: false, dispatchByCourier: false, collectedByCustomer: false,
     hrcRange: '', specialRequirements: '', precautions: '',
     documentNo: 'QF-PD-01', revisionNo: '01', revisionDate: '', pageNo: '1 OF 2',
+    controlPlanNo: '', specification: '',
   });
   const queryClient = useQueryClient();
   const { data: parts = [] } = useItems();
   const { data: machines = [] } = useMachines();
   const { data: customers = [] } = useParties();
-  const [loading,   setLoading]   = useState(false);
-  const [cardData,  setCardData]  = useState(null);
-  const [images,    setImages]    = useState({});
+  const [loading,    setLoading]   = useState(false);
+  const [cardData,   setCardData]  = useState(null);
+  const [images,     setImages]    = useState({});
+  const [savingSlot, setSavingSlot] = useState(null);
 
   // Part quick-add state
   const [partOpen,     setPartOpen]     = useState(false);
@@ -99,6 +101,7 @@ export default function JobCardForm() {
             customerId:   d.customerId   ? String(d.customerId) : '',
             operationNo:  d.operationNo  || '',
             drawingNo:    d.drawingNo    || '',
+            woNo:         d.woNo         || '',
             machineId:    d.machineId    || '',
             operatorName: d.operatorName || '',
             quantity:     d.quantity     || '',
@@ -132,6 +135,8 @@ export default function JobCardForm() {
             specInstrCert: d.specInstrCert || false,
             specInstrMPIRep: d.specInstrMPIRep || false,
             specInstrGraph: d.specInstrGraph || false,
+            controlPlanNo: d.controlPlanNo || '',
+            specification: d.specification || '',
           });
         }
       } catch (e) {
@@ -343,8 +348,48 @@ export default function JobCardForm() {
     toast.success('Job card values loaded from DB-backed sample.');
   };
 
-  const handleImageChange = (index, file) => {
+  const handleImageChange = async (index, file) => {
     setImages(prev => ({ ...prev, [index]: file }));
+
+    if (!isEdit) return;
+
+    setSavingSlot(index);
+    try {
+      if (file === null) {
+        // Remove image: delete file from disk + clear DB field
+        const res = await fetch(`/api/jobcards/${id}/image/${index}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.message || `Server error ${res.status}`);
+        }
+        toast.success(`Image ${index} removed.`);
+      } else {
+        // Upload new image
+        const fd = new FormData();
+        fd.append(`image${index}`, file);
+        const res = await fetch(`/api/jobcards/${id}`, {
+          method: 'PUT',
+          body: fd,
+          credentials: 'include',
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.message || `Server error ${res.status}`);
+        }
+        toast.success(`Image ${index} saved.`);
+      }
+      setImages(prev => ({ ...prev, [index]: null }));
+      const r = await api.get(`/jobcards/${id}`);
+      setCardData(r.data.data);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update image.');
+      setImages(prev => ({ ...prev, [index]: null }));
+    } finally {
+      setSavingSlot(null);
+    }
   };
 
   const STATUS_TRANSITIONS = {
@@ -477,15 +522,10 @@ export default function JobCardForm() {
           moveToNextStatus={moveToNextStatus} 
         />
 
-        <DocControlSection form={form} setForm={setForm} />
-
-        <PhotoSection handleImageChange={handleImageChange} existingImages={cardData} />
+        <PhotoSection handleImageChange={handleImageChange} existingImages={cardData} savingSlot={savingSlot} />
 
         {/* Actions */}
         <div className="flex gap-3 pt-1">
-          <button type="button" onClick={fillFromImage} className="btn-outline">
-            <span className="material-symbols-outlined text-sm">file_upload</span> Load from image sample
-          </button>
           <button type="submit" disabled={loading} className="btn-primary">
             {loading ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Saving...</> : <><span className="material-symbols-outlined text-sm">save</span> {isEdit ? 'Update' : 'Create Job Card'}</>}
           </button>
@@ -494,9 +534,18 @@ export default function JobCardForm() {
               <span className="material-symbols-outlined text-sm">fact_check</span> Inspection →
             </Link>
           )}
+          {isEdit && (
+            <Link to={`/jobcards/${id}/print`} className="btn-outline">
+              <span className="material-symbols-outlined text-sm">print</span> Print
+            </Link>
+          )}
           <Link to="/jobcards" className="btn-ghost">Cancel</Link>
         </div>
       </form>
+
+      {isEdit && cardData && (
+        <InspectionEditSection id={id} inspection={cardData.inspection} />
+      )}
 
       <LinkedDataSection isEdit={isEdit} cardData={cardData} id={id} />
     </div>

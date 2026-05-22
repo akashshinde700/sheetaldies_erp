@@ -1,4 +1,5 @@
 import React from 'react';
+import SearchSelect from '../../../components/SearchSelect';
 
 export default function ProcessLogSection({ heatRows, setHeatRows, processes, emptyHeatRow }) {
   return (
@@ -34,10 +35,14 @@ export default function ProcessLogSection({ heatRows, setHeatRows, processes, em
                   <tr key={i} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-1 py-2"><input value={row.equipment} onChange={e=>upd('equipment',e.target.value)} className="border border-slate-200 rounded-lg px-2 py-1.5 w-24 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300" placeholder="Furnace" /></td>
                     <td className="px-1 py-2">
-                      <select value={row.processTypeId} onChange={e=>upd('processTypeId',e.target.value)} className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-indigo-300">
-                        <option value="">—</option>
-                        {processes.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
-                      </select>
+                      <SearchSelect
+                        value={String(row.processTypeId || '')}
+                        onChange={v => upd('processTypeId', v)}
+                        options={(processes || []).map(p => ({ value: p.id, label: p.name }))}
+                        placeholder="—"
+                        useFixed
+                        className="w-28"
+                      />
                     </td>
                     <td className="px-1 py-2"><input type="number" value={row.cycleNo} onChange={e=>upd('cycleNo',e.target.value)} className="border border-slate-200 rounded-lg px-2 py-1.5 w-14 text-xs text-center focus:outline-none focus:ring-1 focus:ring-indigo-300" placeholder="1" /></td>
                     <td className="px-1 py-2"><input value={row.tempTime} onChange={e=>upd('tempTime',e.target.value)} className="border border-slate-200 rounded-lg px-2 py-1.5 w-28 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-300" placeholder="e.g. 1020°C / 30m" /></td>

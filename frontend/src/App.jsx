@@ -43,14 +43,13 @@ const InvoicePrint = lazy(() => import('./pages/finance/InvoicePrint'));
 const Analytics = lazy(() => import('./pages/analytics/Analytics'));
 const AdvancedAnalytics = lazy(() => import('./pages/analytics/AdvancedAnalytics'));
 
-const ProcessPricing = lazy(() => import('./pages/admin/ProcessPricing'));
-const PriceCard = lazy(() => import('./pages/admin/PriceCard'));
 const PartyList = lazy(() => import('./pages/admin/PartyList'));
 const PartyDetail = lazy(() => import('./pages/admin/PartyDetail'));
+const PartyRatesMatrix = lazy(() => import('./pages/admin/PartyRatesMatrix'));
 const UserManagement = lazy(() => import('./pages/admin/UserManagement'));
 const ItemList = lazy(() => import('./pages/admin/ItemList'));
 const MachineList = lazy(() => import('./pages/admin/MachineList'));
-const PricingManagement = lazy(() => import('./pages/admin/PricingManagement'));
+const ProcessList = lazy(() => import('./pages/admin/ProcessList'));
 
 const DispatchList = lazy(() => import('./pages/dispatch/DispatchList'));
 const DispatchChallanForm = lazy(() => import('./pages/dispatch/DispatchChallanForm'));
@@ -68,10 +67,6 @@ const VHTRunsheetPrint = lazy(() => import('./pages/manufacturing/VHTRunsheetPri
 const ManufacturingReports = lazy(() => import('./pages/manufacturing/ManufacturingReports'));
 const DailyFurnacePlanning = lazy(() => import('./pages/manufacturing/DailyFurnacePlanning'));
 const DailyFurnacePlanningPrint = lazy(() => import('./pages/manufacturing/DailyFurnacePlanningPrint'));
-
-const QuoteList = lazy(() => import('./pages/quotes/QuoteList'));
-const QuoteForm = lazy(() => import('./pages/quotes/QuoteForm'));
-const QuoteDetail = lazy(() => import('./pages/quotes/QuoteDetail'));
 
 const CustomerQuoteList   = lazy(() => import('./pages/quotes/CustomerQuoteList'));
 const CustomerQuoteForm   = lazy(() => import('./pages/quotes/CustomerQuoteForm'));
@@ -140,11 +135,10 @@ const AppRoutes = () => (
       <Route path="analytics/advanced"    element={<AdvancedAnalytics />} />
       <Route path="admin/parties/:partyId"   element={<PrivateRoute role="MANAGER"><PartyDetail /></PrivateRoute>} />
       <Route path="admin/parties"            element={<PrivateRoute role="MANAGER"><PartyList /></PrivateRoute>} />
+      <Route path="admin/party-rates"        element={<PrivateRoute role="MANAGER"><PartyRatesMatrix /></PrivateRoute>} />
+      <Route path="admin/processes"           element={<PrivateRoute role="MANAGER"><ProcessList /></PrivateRoute>} />
       <Route path="admin/items"               element={<PrivateRoute role="MANAGER"><ItemList /></PrivateRoute>} />
       <Route path="admin/machines"            element={<PrivateRoute role="MANAGER"><MachineList /></PrivateRoute>} />
-      <Route path="admin/pricing"             element={<PrivateRoute role="MANAGER"><PricingManagement /></PrivateRoute>} />
-      <Route path="admin/processes"         element={<PrivateRoute role="ADMIN"><ProcessPricing /></PrivateRoute>} />
-      <Route path="admin/price-card"        element={<PrivateRoute role="ADMIN"><PriceCard /></PrivateRoute>} />
       <Route path="admin/users"             element={<PrivateRoute role="ADMIN"><UserManagement /></PrivateRoute>} />
       <Route path="admin/audit-logs"       element={<PrivateRoute role="ADMIN"><AuditLogsViewer /></PrivateRoute>} />
       <Route path="dispatch"                  element={<DispatchList />} />
@@ -155,10 +149,6 @@ const AppRoutes = () => (
       <Route path="purchase/:id/print"        element={<PrivateRoute role="MANAGER"><PurchaseOrderPrint /></PrivateRoute>} />
       <Route path="purchase/grn"              element={<PrivateRoute role="MANAGER"><GoodsReceiptForm /></PrivateRoute>} />
       <Route path="purchase/inventory"        element={<PrivateRoute role="MANAGER"><InventoryView /></PrivateRoute>} />
-      <Route path="quotes"                    element={<PrivateRoute role="MANAGER"><QuoteList /></PrivateRoute>} />
-      <Route path="quotes/new"                element={<PrivateRoute role="MANAGER"><QuoteForm /></PrivateRoute>} />
-      <Route path="quotes/:id"                element={<PrivateRoute role="MANAGER"><QuoteDetail /></PrivateRoute>} />
-      <Route path="quotes/:id/edit"           element={<PrivateRoute role="MANAGER"><QuoteForm /></PrivateRoute>} />
       <Route path="customer-quotes"           element={<PrivateRoute role="OPERATOR"><CustomerQuoteList /></PrivateRoute>} />
       <Route path="customer-quotes/new"       element={<PrivateRoute role="OPERATOR"><CustomerQuoteForm /></PrivateRoute>} />
       <Route path="customer-quotes/:id"       element={<PrivateRoute role="OPERATOR"><CustomerQuoteDetail /></PrivateRoute>} />

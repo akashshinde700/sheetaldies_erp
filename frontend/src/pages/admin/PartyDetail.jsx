@@ -3,6 +3,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { formatDate, formatCurrency } from '../../utils/formatters';
+import { useAuth } from '../../context/AuthContext';
 
 const PAGE_SIZE = 10;
 
@@ -46,6 +47,7 @@ const MiniPagination = ({ page, setPage, total }) => {
 export default function PartyDetail() {
   const { partyId } = useParams();
   const navigate = useNavigate();
+  const { isManager } = useAuth();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [jobCardsPage, setJobCardsPage] = useState(1);
@@ -55,6 +57,68 @@ export default function PartyDetail() {
   const [jobworkToPage, setJobworkToPage] = useState(1);
   const [dispatchToPage, setDispatchToPage] = useState(1);
   const [dispatchFromPage, setDispatchFromPage] = useState(1);
+
+  // Process Rates state
+  const [processRates, setProcessRates] = useState([]);
+  const [allProcesses, setAllProcesses] = useState([]);
+  const [editingRates, setEditingRates] = useState(false);
+  const [ratesMap, setRatesMap] = useState({});
+  const [savingRates, setSavingRates] = useState(false);
+
+  const loadRates = async () => {
+    if (!isManager) return;
+    const [ratesRes, procRes] = await Promise.all([
+      api.get(`/parties/${partyId}/process-rates`),
+      api.get('/processes'),
+    ]);
+    const rates = ratesRes.data.data || [];
+    const procs = (procRes.data.data || procRes.data).filter(p => p.isActive !== false);
+    const unique = [];
+    const seen = new Set();
+    for (const p of procs) {
+      if (!seen.has(p.name)) { seen.add(p.name); unique.push(p); }
+    }
+    setAllProcesses(unique);
+    setProcessRates(rates);
+  };
+
+  const startEditRates = () => {
+    const m = {};
+    for (const row of processRates) {
+      m[row.processTypeId] = {
+        pricePerKg: row.pricePerKg ?? '',
+        pricePerPc: row.pricePerPc ?? '',
+        lotPrice:  row.lotPrice  ?? '',
+      };
+    }
+    setRatesMap(m);
+    setEditingRates(true);
+  };
+
+  const cancelEditRates = () => { setEditingRates(false); setRatesMap({}); };
+
+  const setRate = (ptId, field, val) =>
+    setRatesMap(prev => ({ ...prev, [ptId]: { ...(prev[ptId] || {}), [field]: val } }));
+
+  const saveRates = async () => {
+    setSavingRates(true);
+    try {
+      const payload = Object.entries(ratesMap).map(([ptId, v]) => ({
+        processTypeId: Number(ptId),
+        pricePerKg: v.pricePerKg !== '' ? v.pricePerKg : null,
+        pricePerPc: v.pricePerPc !== '' ? v.pricePerPc : null,
+        lotPrice:  v.lotPrice  !== '' ? v.lotPrice  : null,
+      }));
+      await api.put(`/parties/${partyId}/process-rates`, payload);
+      toast.success('Process rates saved.');
+      setEditingRates(false);
+      await loadRates();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save rates.');
+    } finally {
+      setSavingRates(false);
+    }
+  };
 
   useEffect(() => {
     let alive = true;
@@ -71,6 +135,8 @@ export default function PartyDetail() {
     })();
     return () => { alive = false; };
   }, [partyId, navigate]);
+
+  useEffect(() => { loadRates(); }, [partyId, isManager]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
@@ -157,6 +223,116 @@ export default function PartyDetail() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Process Rates Master Card — ADMIN / MANAGER only */}
+      {isManager && allProcesses.length > 0 && (
+        <div className="card overflow-hidden p-0">
+          <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-indigo-600 text-[20px]">price_change</span>
+              <p className="section-title">Process Rates (Party-Specific)</p>
+              <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Admin / Manager</span>
+            </div>
+            {!editingRates ? (
+              <button
+                type="button"
+                onClick={startEditRates}
+                className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 border border-indigo-200 hover:border-indigo-400 px-3 py-1.5 rounded-xl transition-colors"
+              >
+                <span className="material-symbols-outlined text-sm">edit</span> Edit Rates
+              </button>
+            ) : (
+              <div className="flex gap-2">
+                <button type="button" onClick={cancelEditRates} className="btn-ghost text-xs">Cancel</button>
+                <button
+                  type="button"
+                  onClick={saveRates}
+                  disabled={savingRates}
+                  className="flex items-center gap-1 text-xs btn-primary py-1.5 px-3"
+                >
+                  {savingRates
+                    ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Saving…</>
+                    : <><span className="material-symbols-outlined text-sm">save</span> Save</>}
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs min-w-[540px]">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-100 text-slate-500">
+                  <th className="th">Process</th>
+                  <th className="th">Rate/Kg (₹)</th>
+                  <th className="th">Rate/Pc (₹)</th>
+                  <th className="th">Lot Charge (₹)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {allProcesses.map(pt => {
+                  const saved = processRates.find(r => r.processTypeId === pt.id);
+                  return (
+                    <tr key={pt.id} className="tr">
+                      <td className="td font-medium text-slate-700">{pt.name}</td>
+                      {editingRates ? (
+                        <>
+                          <td className="td">
+                            <input
+                              type="number" step="0.01" min="0"
+                              value={ratesMap[pt.id]?.pricePerKg ?? ''}
+                              onChange={e => setRate(pt.id, 'pricePerKg', e.target.value)}
+                              className="form-input py-1 text-xs w-24"
+                              placeholder="0.00"
+                            />
+                          </td>
+                          <td className="td">
+                            <input
+                              type="number" step="0.01" min="0"
+                              value={ratesMap[pt.id]?.pricePerPc ?? ''}
+                              onChange={e => setRate(pt.id, 'pricePerPc', e.target.value)}
+                              className="form-input py-1 text-xs w-24"
+                              placeholder="0.00"
+                            />
+                          </td>
+                          <td className="td">
+                            <input
+                              type="number" step="0.01" min="0"
+                              value={ratesMap[pt.id]?.lotPrice ?? ''}
+                              onChange={e => setRate(pt.id, 'lotPrice', e.target.value)}
+                              className="form-input py-1 text-xs w-24"
+                              placeholder="0.00"
+                            />
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="td font-mono text-slate-700">
+                            {saved?.pricePerKg != null
+                              ? <span className="text-indigo-700 font-semibold">₹{Number(saved.pricePerKg).toFixed(2)}</span>
+                              : <span className="text-slate-300">—</span>}
+                          </td>
+                          <td className="td font-mono text-slate-700">
+                            {saved?.pricePerPc != null
+                              ? <span className="text-indigo-700 font-semibold">₹{Number(saved.pricePerPc).toFixed(2)}</span>
+                              : <span className="text-slate-300">—</span>}
+                          </td>
+                          <td className="td font-mono text-slate-700">
+                            {saved?.lotPrice != null
+                              ? <span className="text-indigo-700 font-semibold">₹{Number(saved.lotPrice).toFixed(2)}</span>
+                              : <span className="text-slate-300">—</span>}
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-5 py-2.5 border-t border-slate-100 bg-slate-50/50">
+            <p className="text-[10px] text-slate-400">Party-specific rates apply during inward entry and invoicing. Leave blank to skip.</p>
           </div>
         </div>
       )}

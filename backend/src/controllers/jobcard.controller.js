@@ -1,8 +1,19 @@
+const fs    = require('fs');
+const path  = require('path');
 const prisma = require('../utils/prisma');
 const { transaction } = require('../utils/transaction');
 const { jobCardStatusBody, JOB_CARD_STATUSES } = require('../validation/schemas');
 const { toInt, toNum } = require('../utils/normalize');
 const { formatErrorResponse, getStatusCode, formatListResponse, parsePagination } = require('../utils/validation');
+
+const UPLOAD_BASE = path.join(__dirname, '../../uploads');
+
+function deleteImageFile(urlPath) {
+  if (!urlPath) return;
+  const filename = path.basename(urlPath);
+  const full = path.join(UPLOAD_BASE, 'jobcards', filename);
+  fs.unlink(full, () => {}); // ignore errors (file may already be gone)
+}
 
 // ── Job Card Status Transitions ───────────────────────────────
 // Valid transitions:
@@ -152,7 +163,7 @@ const autoCreateJobworkChallanIfNeeded = async (jobCardId, createdById) => {
             drawingNo: card.drawingNo || card.part?.drawingNo || null,
             material: card.dieMaterial || card.part?.material || null,
             hrc: card.hrcRange || null,
-            woNo: card.jobCardNo || null,
+            woNo: card.woNo || null,
             hsnCode: card.part?.hsnCode || null,
             quantity: qty > 0 ? qty : 1,
             uom: card.part?.unit || 'NOS',
@@ -246,22 +257,39 @@ exports.list = async (req, res) => {
 // ── Get single Job Card ───────────────────────────────────────
 exports.getOne = async (req, res) => {
   try {
+    const id = toInt(req.params.id);
+    if (!id || id < 1) return res.status(400).json({ success: false, message: 'Invalid job card ID.' });
     const card = await prisma.jobCard.findUnique({
-      where: { id: toInt(req.params.id) },
+      where: { id },
       include: {
         part:     true,
         machine:  true,
-        customer: { select: { id: true, name: true } },
+        customer: { select: { id: true, name: true, address: true, city: true, state: true, pinCode: true } },
         createdBy: { select: { name: true, email: true } },
         inspection: {
           include: { processType: true, heatProcesses: true },
         },
         challans: {
-          include: {
+          select: {
+            id: true, challanNo: true, inwardNo: true, challanDate: true,
             toParty: { select: { name: true } },
             fromParty: { select: { name: true } },
             items: true,
           },
+          orderBy: { createdAt: 'desc' },
+        },
+        challanItemLinks: {
+          include: {
+            challan: { select: { id: true, challanNo: true, inwardNo: true, fromParty: { select: { name: true } } } },
+          },
+        },
+        vhtRunsheetItems: {
+          include: {
+            runsheet: { select: { id: true, runsheetNumber: true, runDate: true, status: true } },
+          },
+        },
+        testCertificates: {
+          select: { id: true, certNo: true, status: true, createdAt: true },
           orderBy: { createdAt: 'desc' },
         },
         parentJobCard: { select: { id: true, jobCardNo: true, quantity: true } },
@@ -272,7 +300,14 @@ exports.getOne = async (req, res) => {
       },
     });
     if (!card) return res.status(404).json({ success: false, message: 'Job card not found.' });
-    res.json({ success: true, data: card });
+
+    // Derive flat runsheets array from vhtRunsheetItems for frontend compatibility
+    const runsheets = card.vhtRunsheetItems
+      .map(item => item.runsheet)
+      .filter(Boolean)
+      .filter((rs, idx, arr) => arr.findIndex(r => r.id === rs.id) === idx);
+
+    res.json({ success: true, data: { ...card, runsheets } });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' });
   }
@@ -281,12 +316,13 @@ exports.getOne = async (req, res) => {
 // ── Create Job Card ───────────────────────────────────────────
 exports.create = async (req, res) => {
   try {
-    const { partId, operationNo, drawingNo, machineId, operatorName, quantity, startDate, endDate, remarks,
+    const { partId, operationNo, drawingNo, woNo, machineId, operatorName, quantity, startDate, endDate, remarks,
           dieNo, yourNo, heatNo, dieMaterial, customerId, receivedDate, dueDate, totalWeight, operationMode,
           issueDate, issueBy, specInstrCert, specInstrMPIRep, specInstrGraph,
           certificateNo, customerNameSnapshot, customerAddressSnapshot, factoryName, factoryAddress, contactEmail,
           dispatchByOurVehicle, dispatchByCourier, collectedByCustomer,
-          hrcRange, specialRequirements, precautions, documentNo, revisionNo, revisionDate, pageNo } = req.body;
+          hrcRange, specialRequirements, precautions, documentNo, revisionNo, revisionDate, pageNo,
+          controlPlanNo, specification } = req.body;
     if (!partId || !quantity)
       return res.status(400).json({ success: false, code: 'ERR_VALIDATION', message: 'Part and quantity are required.' });
 
@@ -302,6 +338,7 @@ exports.create = async (req, res) => {
       customerId:   customerId   ? toInt(customerId) : null,
       operationNo:  operationNo  || null,
       drawingNo:    drawingNo    || null,
+      woNo:         woNo         || null,
       machineId:    machineId    ? toInt(machineId) : null,
       operatorName: operatorName || null,
       quantity:     toInt(quantity),
@@ -333,6 +370,8 @@ exports.create = async (req, res) => {
       specInstrCert: specInstrCert === 'true' || specInstrCert === true,
       specInstrMPIRep: specInstrMPIRep === 'true' || specInstrMPIRep === true,
       specInstrGraph: specInstrGraph === 'true' || specInstrGraph === true,
+      controlPlanNo: controlPlanNo || null,
+      specification: specification || null,
       createdById:  req.user.id,
     };
 
@@ -362,12 +401,13 @@ exports.create = async (req, res) => {
 exports.update = async (req, res) => {
   try {
     const id = toInt(req.params.id);
-    const { operationNo, drawingNo, machineId, operatorName, quantity, timeTaken, startDate, endDate, status, remarks,
+    const { operationNo, drawingNo, woNo, machineId, operatorName, quantity, timeTaken, startDate, endDate, status, remarks,
             dieNo, yourNo, heatNo, dieMaterial, customerId, receivedDate, dueDate, totalWeight, operationMode,
             issueDate, issueBy, specInstrCert, specInstrMPIRep, specInstrGraph,
             certificateNo, customerNameSnapshot, customerAddressSnapshot, factoryName, factoryAddress, contactEmail,
             dispatchByOurVehicle, dispatchByCourier, collectedByCustomer,
-            hrcRange, specialRequirements, precautions, documentNo, revisionNo, revisionDate, pageNo } = req.body;
+            hrcRange, specialRequirements, precautions, documentNo, revisionNo, revisionDate, pageNo,
+            controlPlanNo, specification } = req.body;
 
     // ── Status Transition Validation ──
     if (status !== undefined) {
@@ -393,6 +433,7 @@ exports.update = async (req, res) => {
         ...(customerId   !== undefined && { customerId:  customerId ? toInt(customerId) : null }),
         ...(operationNo  !== undefined && { operationNo }),
         ...(drawingNo    !== undefined && { drawingNo }),
+        ...(woNo         !== undefined && { woNo: woNo || null }),
         ...(machineId    !== undefined && { machineId: machineId ? toInt(machineId) : null }),
         ...(operatorName !== undefined && { operatorName }),
         ...(quantity     !== undefined && { quantity: toInt(quantity) }),
@@ -426,12 +467,21 @@ exports.update = async (req, res) => {
         ...(specInstrCert !== undefined && { specInstrCert: specInstrCert === 'true' || specInstrCert === true }),
         ...(specInstrMPIRep !== undefined && { specInstrMPIRep: specInstrMPIRep === 'true' || specInstrMPIRep === true }),
         ...(specInstrGraph !== undefined && { specInstrGraph: specInstrGraph === 'true' || specInstrGraph === true }),
+        ...(controlPlanNo !== undefined && { controlPlanNo: controlPlanNo || null }),
+        ...(specification !== undefined && { specification: specification || null }),
       };
 
-    // Add images if uploaded
-    for (let i = 1; i <= 5; i++) {
-      if (req.files && req.files[`image${i}`] && req.files[`image${i}`][0]) {
-        updateData[`image${i}`] = `/uploads/jobcards/${req.files[`image${i}`][0].filename}`;
+    // Add images if uploaded; delete old file to free disk space
+    if (req.files && Object.keys(req.files).length > 0) {
+      const existing = await prisma.jobCard.findUnique({
+        where: { id },
+        select: { image1: true, image2: true, image3: true, image4: true, image5: true },
+      });
+      for (let i = 1; i <= 5; i++) {
+        if (req.files[`image${i}`] && req.files[`image${i}`][0]) {
+          deleteImageFile(existing?.[`image${i}`]);
+          updateData[`image${i}`] = `/uploads/jobcards/${req.files[`image${i}`][0].filename}`;
+        }
       }
     }
 
@@ -529,7 +579,7 @@ exports.split = async (req, res) => {
             machineId:   s.machineId ? toInt(s.machineId) : parent.machineId,
             operatorName: s.operatorName || parent.operatorName || null,
             quantity:    qty,
-            totalWeight: parent.totalWeight ? toNum(Number(parent.totalWeight) * qty / parent.quantity, null) : null,
+            totalWeight: (parent.totalWeight && parent.quantity > 0) ? toNum(Number(parent.totalWeight) * qty / parent.quantity, null) : null,
             startDate:   parent.startDate,
             dueDate:     parent.dueDate,
             hrcRange:    s.hrcRange || parent.hrcRange || null,
@@ -568,6 +618,56 @@ exports.split = async (req, res) => {
 };
 
 // ── Dashboard Stats ───────────────────────────────────────────
+// ── Certificate No Generator ──────────────────────────────────
+// Format: YYMM + 3-digit sequence (resets each month, unique)
+const generateCertificateNo = async (db = prisma) => {
+  const now = new Date();
+  const yy = now.getFullYear().toString().slice(-2);
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const prefix = `${yy}${mm}`;
+
+  const existing = await db.jobCard.findMany({
+    where: { certificateNo: { startsWith: prefix } },
+    select: { certificateNo: true },
+  });
+
+  let maxSeq = 0;
+  for (const { certificateNo } of existing) {
+    const seq = parseInt((certificateNo || '').slice(4), 10);
+    if (!isNaN(seq) && seq > maxSeq) maxSeq = seq;
+  }
+
+  // Guard against collisions — increment until unique
+  let seq = maxSeq + 1;
+  while (seq <= 999) {
+    const candidate = `${prefix}${String(seq).padStart(3, '0')}`;
+    const clash = await db.jobCard.findFirst({ where: { certificateNo: candidate } });
+    if (!clash) return candidate;
+    seq += 1;
+  }
+  throw new Error('Could not generate unique certificate number for this month.');
+};
+
+exports.assignCertificateNo = async (req, res) => {
+  try {
+    const id = toInt(req.params.id);
+    const jc = await prisma.jobCard.findUnique({ where: { id }, select: { id: true, certificateNo: true } });
+    if (!jc) return res.status(404).json({ success: false, message: 'Job card not found.' });
+
+    // Already assigned — return as-is (idempotent)
+    if (jc.certificateNo) {
+      return res.json({ success: true, data: { certificateNo: jc.certificateNo } });
+    }
+
+    const certNo = await generateCertificateNo();
+    await prisma.jobCard.update({ where: { id }, data: { certificateNo: certNo } });
+    return res.json({ success: true, data: { certificateNo: certNo } });
+  } catch (err) {
+    console.error('assignCertificateNo error:', err);
+    res.status(500).json({ success: false, message: 'Could not assign certificate number.' });
+  }
+};
+
 exports.stats = async (req, res) => {
   try {
     const [total, inProgress, sentForJobwork, completed, onHold, quality] = await Promise.all([
@@ -581,5 +681,39 @@ exports.stats = async (req, res) => {
     res.json({ success: true, data: { total, inProgress, sentForJobwork, completed, onHold, qualityAlerts: quality } });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+/** DELETE /jobcards/:id/image/:index — remove one image slot, delete file from disk */
+exports.removeImage = async (req, res) => {
+  try {
+    const id    = toInt(req.params.id);
+    const index = toInt(req.params.index);
+    if (index < 1 || index > 5) {
+      return res.status(400).json({ success: false, message: 'Image index must be 1–5.' });
+    }
+    const field = `image${index}`;
+    const card = await prisma.jobCard.findUnique({ where: { id }, select: { [field]: true } });
+    if (!card) return res.status(404).json({ success: false, message: 'Job card not found.' });
+
+    deleteImageFile(card[field]);
+
+    await prisma.jobCard.update({ where: { id }, data: { [field]: null } });
+    res.json({ success: true, message: `Image ${index} removed.` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+exports.deleteJobCard = async (req, res) => {
+  try {
+    const id = toInt(req.params.id);
+    if (!id || id < 1) return res.status(400).json({ success: false, message: 'Invalid ID.' });
+    await prisma.jobCard.delete({ where: { id } });
+    res.json({ success: true, message: 'Job card deleted.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to delete job card.' });
   }
 };

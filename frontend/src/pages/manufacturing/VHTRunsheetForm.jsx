@@ -3,14 +3,53 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { toNum, toInt } from '../../utils/normalize';
+import SearchSelect from '../../components/SearchSelect';
 
-const DEFAULT_GRAPH = [
-  { tempC: 550, holdMin: 20, label: '' },
-  { tempC: 850, holdMin: 20, label: '' },
-  { tempC: 1045, holdMin: 120, label: 'Soak' },
-];
+// Cycle presets from Excel Graphs sheet (D2/H13/HSS/D3/SR cycles)
+const CYCLE_PRESETS = {
+  D2: [
+    { tempC: 550,  holdMin: 30,  label: 'Preheat 1' },
+    { tempC: 750,  holdMin: 30,  label: 'Preheat 2' },
+    { tempC: 950,  holdMin: 20,  label: 'Preheat 3' },
+    { tempC: 1040, holdMin: 90,  label: 'Harden (Soak)' },
+    { tempC: 500,  holdMin: 120, label: 'Temper 1' },
+    { tempC: 500,  holdMin: 120, label: 'Temper 2' },
+  ],
+  'H13 / HDS': [
+    { tempC: 550,  holdMin: 30,  label: 'Preheat 1' },
+    { tempC: 750,  holdMin: 30,  label: 'Preheat 2' },
+    { tempC: 950,  holdMin: 20,  label: 'Preheat 3' },
+    { tempC: 1030, holdMin: 90,  label: 'Harden (Soak)' },
+    { tempC: 560,  holdMin: 120, label: 'Temper 1' },
+    { tempC: 590,  holdMin: 120, label: 'Temper 2' },
+    { tempC: 560,  holdMin: 120, label: 'Temper 3' },
+  ],
+  HSS: [
+    { tempC: 650,  holdMin: 30,  label: 'Preheat 1' },
+    { tempC: 850,  holdMin: 30,  label: 'Preheat 2' },
+    { tempC: 1050, holdMin: 20,  label: 'Preheat 3' },
+    { tempC: 1195, holdMin: 60,  label: 'Harden (Soak)' },
+    { tempC: 540,  holdMin: 120, label: 'Temper 1' },
+    { tempC: 540,  holdMin: 120, label: 'Temper 2' },
+    { tempC: 540,  holdMin: 120, label: 'Temper 3' },
+  ],
+  D3: [
+    { tempC: 500,  holdMin: 20,  label: 'Preheat 1' },
+    { tempC: 750,  holdMin: 20,  label: 'Preheat 2' },
+    { tempC: 850,  holdMin: 20,  label: 'Preheat 3' },
+    { tempC: 990,  holdMin: 90,  label: 'Harden (Soak)' },
+    { tempC: 200,  holdMin: 120, label: 'Temper 1' },
+    { tempC: 200,  holdMin: 120, label: 'Temper 2' },
+  ],
+  'Stress Relieving': [
+    { tempC: 650,  holdMin: 180, label: 'Stress Relieving' },
+  ],
+};
+
+const DEFAULT_GRAPH = CYCLE_PRESETS['D2'];
 
 const emptyLine = () => ({
+  _id: Math.random(),
   jobCardId: '',
   quantity: '',
   weightKg: '',
@@ -171,6 +210,7 @@ export default function VHTRunsheetForm() {
           remarks: r.remarks || '',
           items:
             r.items?.map((it) => ({
+              _id: it.id ?? Math.random(),
               jobCardId: it.jobCardId ? String(it.jobCardId) : '',
               itemId: it.itemId ? String(it.itemId) : '',
               quantity: String(it.quantity ?? ''),
@@ -195,24 +235,28 @@ export default function VHTRunsheetForm() {
 
   const onSelectJobCard = (idx, jobCardId) => {
     const jc = jcById.get(Number(jobCardId));
-    const next = [...form.items];
-    next[idx] = {
-      ...next[idx],
-      jobCardId,
-      quantity: jc ? String(jc.quantity) : next[idx].quantity,
-      weightKg: jc?.totalWeight != null ? String(jc.totalWeight) : next[idx].weightKg,
-      customerName: jc?.customerNameSnapshot || jc?.customer?.name || '',
-      jobDescription: jc?.part?.description || '',
-      materialGrade: jc?.dieMaterial || jc?.part?.material || '',
-      hrcRequired: jc?.hrcRange || '',
-    };
-    setForm({ ...form, items: next });
+    setForm(prev => {
+      const next = [...prev.items];
+      next[idx] = {
+        ...next[idx],
+        jobCardId,
+        quantity: jc ? String(jc.quantity) : next[idx].quantity,
+        weightKg: jc?.totalWeight != null ? String(jc.totalWeight) : next[idx].weightKg,
+        customerName: jc?.customerNameSnapshot || jc?.customer?.name || '',
+        jobDescription: jc?.part?.description || '',
+        materialGrade: jc?.dieMaterial || jc?.part?.material || '',
+        hrcRequired: jc?.hrcRange || '',
+      };
+      return { ...prev, items: next };
+    });
   };
 
   const updateItem = (idx, field, value) => {
-    const next = [...form.items];
-    next[idx] = { ...next[idx], [field]: value };
-    setForm({ ...form, items: next });
+    setForm(prev => {
+      const next = [...prev.items];
+      next[idx] = { ...next[idx], [field]: value };
+      return { ...prev, items: next };
+    });
   };
 
   const fillFromJobCardNumber = () => {
@@ -226,7 +270,7 @@ export default function VHTRunsheetForm() {
       toast.error('Job card number not found.');
       return;
     }
-    setForm((prev) => ({
+    setForm(prev => ({
       ...prev,
       items: [{
         ...emptyLine(),
@@ -239,9 +283,11 @@ export default function VHTRunsheetForm() {
   };
 
   const updateGraphRow = (idx, field, value) => {
-    const next = [...(form.tempGraphPoints || [])];
-    next[idx] = { ...next[idx], [field]: field === 'holdMin' || field === 'tempC' ? (value === '' ? '' : Number(value)) : value };
-    setForm({ ...form, tempGraphPoints: next });
+    setForm(prev => {
+      const next = [...(prev.tempGraphPoints || [])];
+      next[idx] = { ...next[idx], [field]: field === 'holdMin' || field === 'tempC' ? (value === '' ? '' : Number(value)) : value };
+      return { ...prev, tempGraphPoints: next };
+    });
   };
 
   const totalWeight = useMemo(
@@ -376,30 +422,24 @@ export default function VHTRunsheetForm() {
             </label>
             <label className="block text-xs">
               <span className="text-slate-500">Furnace *</span>
-              <select
+              <SearchSelect
+                value={String(form.furnaceId || '')}
+                onChange={v => setForm({ ...form, furnaceId: v })}
+                options={machines.map(m => ({ value: m.id, label: m.name || m.code }))}
+                placeholder="Select furnace"
                 required
-                value={form.furnaceId}
-                onChange={(e) => setForm({ ...form, furnaceId: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-              >
-                <option value="">Select</option>
-                {machines.map((m) => (
-                  <option key={m.id} value={m.id}>{m.name || m.code}</option>
-                ))}
-              </select>
+                className="mt-1"
+              />
             </label>
             <label className="block text-xs">
               <span className="text-slate-500">Manufacturing batch (optional)</span>
-              <select
-                value={form.batchId}
-                onChange={(e) => setForm({ ...form, batchId: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-              >
-                <option value="">None</option>
-                {batches.map((b) => (
-                  <option key={b.id} value={b.id}>{b.batchNumber}</option>
-                ))}
-              </select>
+              <SearchSelect
+                value={String(form.batchId || '')}
+                onChange={v => setForm({ ...form, batchId: v })}
+                options={[{ value: '', label: 'None' }, ...(batches || []).map(b => ({ value: b.id, label: b.batchNumber }))]}
+                placeholder="None"
+                className="mt-1"
+              />
             </label>
             <label className="block text-xs">
               <span className="text-slate-500">Cycle end time</span>
@@ -541,21 +581,17 @@ export default function VHTRunsheetForm() {
               </thead>
               <tbody>
                 {form.items.map((it, idx) => (
-                  <tr key={idx} className="border-b border-slate-50">
+                  <tr key={it._id} className="border-b border-slate-50">
                     <td className="py-2 pr-2">
-                      <select
-                        value={it.jobCardId}
-                        onChange={(e) => onSelectJobCard(idx, e.target.value)}
-                        className="w-full border rounded px-2 py-1.5 max-w-[200px]"
+                      <SearchSelect
+                        value={String(it.jobCardId || '')}
+                        onChange={v => onSelectJobCard(idx, v)}
+                        options={jobCards.map(jc => ({ value: jc.id, label: jc.jobCardNo }))}
+                        placeholder="Select job card"
                         required={idx === 0}
-                      >
-                        <option value="">Select job card</option>
-                        {jobCards.map((jc) => (
-                          <option key={jc.id} value={jc.id}>
-                            {jc.jobCardNo}
-                          </option>
-                        ))}
-                      </select>
+                        useFixed
+                        className="max-w-[200px]"
+                      />
                     </td>
                     <td className="py-2 pr-2">
                       <input
@@ -613,10 +649,10 @@ export default function VHTRunsheetForm() {
                     <td className="py-2">
                       <button
                         type="button"
-                        onClick={() => {
-                          const next = form.items.filter((_, i) => i !== idx);
-                          setForm({ ...form, items: next.length ? next : [emptyLine()] });
-                        }}
+                        onClick={() => setForm(prev => {
+                          const next = prev.items.filter((_, i) => i !== idx);
+                          return { ...prev, items: next.length ? next : [emptyLine()] };
+                        })}
                         className="text-red-600 text-xs"
                       >
                         Remove
@@ -629,7 +665,7 @@ export default function VHTRunsheetForm() {
           </div>
           <button
             type="button"
-            onClick={() => setForm({ ...form, items: [...form.items, emptyLine()] })}
+            onClick={() => setForm(prev => ({ ...prev, items: [...prev.items, emptyLine()] }))}
             className="text-sm text-indigo-600 font-medium"
           >
             + Add line
@@ -690,8 +726,21 @@ export default function VHTRunsheetForm() {
         <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
           <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Temperature–time graph (steps)</h2>
           <p className="text-xs text-slate-500">
-            Enter soak segments (°C and hold minutes). Preview shows a step curve similar to the paper graph.
+            Select a material cycle preset or enter custom segments. Graph on the test certificate will reflect these values.
           </p>
+          <div className="flex flex-wrap gap-2">
+            <span className="text-xs text-slate-500 self-center font-semibold">Load preset:</span>
+            {Object.keys(CYCLE_PRESETS).map(name => (
+              <button
+                key={name}
+                type="button"
+                className="px-3 py-1 text-xs font-bold rounded-lg border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+                onClick={() => setForm(f => ({ ...f, tempGraphPoints: CYCLE_PRESETS[name].map(p => ({ ...p })) }))}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
           <div className="space-y-2">
             {(form.tempGraphPoints || []).map((row, idx) => (
               <div key={idx} className="flex flex-wrap gap-2 items-center">
@@ -726,10 +775,10 @@ export default function VHTRunsheetForm() {
                 <button
                   type="button"
                   className="text-xs text-red-600"
-                  onClick={() => {
-                    const next = (form.tempGraphPoints || []).filter((_, i) => i !== idx);
-                    setForm({ ...form, tempGraphPoints: next.length ? next : DEFAULT_GRAPH });
-                  }}
+                  onClick={() => setForm(prev => {
+                    const next = (prev.tempGraphPoints || []).filter((_, i) => i !== idx);
+                    return { ...prev, tempGraphPoints: next.length ? next : DEFAULT_GRAPH };
+                  })}
                 >
                   Remove
                 </button>
@@ -739,10 +788,10 @@ export default function VHTRunsheetForm() {
               type="button"
               className="text-sm text-indigo-600"
               onClick={() =>
-                setForm({
-                  ...form,
-                  tempGraphPoints: [...(form.tempGraphPoints || []), { tempC: '', holdMin: '', label: '' }],
-                })
+                setForm(prev => ({
+                  ...prev,
+                  tempGraphPoints: [...(prev.tempGraphPoints || []), { tempC: '', holdMin: '', label: '' }],
+                }))
               }
             >
               + Add segment

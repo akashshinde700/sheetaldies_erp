@@ -29,7 +29,20 @@ export default function CertPackingSection({ form, set }) {
         </div>
         <div>
           <label className="form-label">Dispatch Mode</label>
-          <input value={form.dispatchMode} onChange={e => set('dispatchMode', e.target.value)} className="form-input" placeholder="By Hand / Courier / Transport" />
+          <div className="flex flex-col gap-1.5 mt-1">
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="checkbox" checked={!!form.dispatchByOurVehicle} onChange={e => set('dispatchByOurVehicle', e.target.checked)} className="accent-indigo-600" />
+              By Our Vehicle
+            </label>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="checkbox" checked={!!form.dispatchByCourier} onChange={e => set('dispatchByCourier', e.target.checked)} className="accent-indigo-600" />
+              By Courier
+            </label>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="checkbox" checked={!!form.collectedByCustomer} onChange={e => set('collectedByCustomer', e.target.checked)} className="accent-indigo-600" />
+              Collected by Customer
+            </label>
+          </div>
         </div>
         <div>
           <label className="form-label">Dispatch Challan No</label>

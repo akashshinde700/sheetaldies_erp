@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "code-review-graph": {
+      "command": "C:/Users/ACER/AppData/Local/code-review-graph/bin/code-review-graph.exe",
+      "args": [
+        "serve"
+      ],
+      "type": "stdio"
+    }
+  }
+}

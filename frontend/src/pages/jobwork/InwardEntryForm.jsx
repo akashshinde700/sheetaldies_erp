@@ -1,20 +1,132 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useRef, useMemo, Fragment } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
-import { useParties, useProcesses } from '../../hooks/useMasterData';
+import { useParties, useProcesses, useItems } from '../../hooks/useMasterData';
 import { toNum, toInt } from '../../utils/normalize';
+import SearchSelect from '../../components/SearchSelect';
+
+function AutocompleteInput({ value, onChange, suggestions, placeholder, className }) {
+  const [open, setOpen] = useState(false);
+  const inputRef = useRef(null);
+  const filtered = value
+    ? suggestions.filter(s => s.toLowerCase().includes(value.toLowerCase()))
+    : suggestions;
+  const handleSelect = (s) => {
+    onChange(s);
+    setOpen(false);
+  };
+  return (
+    <div className="relative">
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder={placeholder}
+        autoComplete="off"
+        className={className}
+      />
+      {open && filtered.length > 0 && (
+        <div className="absolute z-50 top-full left-0 mt-0.5 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden max-h-40 overflow-y-auto min-w-[120px] w-max">
+          {filtered.slice(0, 12).map(s => (
+            <button
+              key={s}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => handleSelect(s)}
+              className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 text-slate-800 truncate"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function InwardEntryForm() {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { data: parties = [] } = useParties();
-  const { data: processes = [] } = useProcesses();
-  const [createdChallan, setCreatedChallan] = useState(null);
-  const [createdJobCard, setCreatedJobCard] = useState(null);
-  const [createdRunSheet, setCreatedRunSheet] = useState(null);
-  const [creatingJobCard, setCreatingJobCard] = useState(false);
+  const { data: processesRaw = [] } = useProcesses();
+  const { data: itemsMaster = [] } = useItems();
+
+  // Deduplicate processes by name
+  const processes = useMemo(() => {
+    const uniqueByName = [];
+    const seenNames = new Set();
+    for (const p of processesRaw) {
+      if (!seenNames.has(p.name)) {
+        seenNames.add(p.name);
+        uniqueByName.push(p);
+      }
+    }
+    return uniqueByName;
+  }, [processesRaw]);
+
+  const partNameSuggestions = useMemo(() => {
+    const names = itemsMaster.map(i => i.description).filter(Boolean);
+    return [...new Set(names)].sort();
+  }, [itemsMaster]);
+
+  const materialSuggestions = useMemo(() => {
+    const mats = itemsMaster.map(i => i.material).filter(Boolean);
+    return [...new Set(mats)].sort();
+  }, [itemsMaster]);
+
   const [creatingFullFlow, setCreatingFullFlow] = useState(false);
   const [items, setItems] = useState([]);
+
+  const hrcSuggestions = useMemo(() => {
+    const fromItems = items.map(i => i.hrc).filter(Boolean);
+    const defaults = ['54-56', '58-60', '60-62', '62-64', '62-65', '64-66'];
+    return [...new Set([...fromItems, ...defaults])];
+  }, [items]);
   const [loading, setLoading] = useState(false);
+  const [partyRates, setPartyRates] = useState({}); // { [processTypeId]: { pricePerKg, pricePerPc, lotPrice } }
+  const [materialWeights, setMaterialWeights] = useState({});
+  const [materialQtys, setMaterialQtys] = useState({});
+  const [directGrandTotalWeight, setDirectGrandTotalWeight] = useState('');
+  const [directGrandTotalQty, setDirectGrandTotalQty] = useState('');
+
+  const materialSummary = useMemo(() => {
+    const map = {};
+    for (const it of items) {
+      const mat = it.material?.trim() || '(unknown)';
+      if (!map[mat]) map[mat] = { qty: 0 };
+      map[mat].qty += toNum(it.qty, 0);
+    }
+    return Object.entries(map).map(([material, data]) => ({ material, sumQty: data.qty }));
+  }, [items]);
+
+  const grandTotalWeight = useMemo(() => {
+    const dgt = toNum(directGrandTotalWeight, 0);
+    if (dgt > 0) return dgt;
+    return Object.values(materialWeights).reduce((sum, w) => sum + toNum(w, 0), 0);
+  }, [materialWeights, directGrandTotalWeight]);
+
+  const grandTotalQty = useMemo(() => {
+    const dgt = toNum(directGrandTotalQty, 0);
+    if (dgt > 0) return dgt;
+    return materialSummary.reduce((sum, { material, sumQty }) => {
+      const direct = toNum(materialQtys[material], 0);
+      return sum + (direct > 0 ? direct : sumQty);
+    }, 0);
+  }, [materialSummary, materialQtys, directGrandTotalQty]);
+  const [partyModal, setPartyModal] = useState({
+    open: false,
+    name: '',
+    address: '',
+    email: '',
+    partyType: 'CUSTOMER',
+    saving: false,
+    rates: {}, // { [processTypeId]: pricePerKg }
+  });
   const [form, setForm] = useState({
     fromPartyId: '',
     challanNo: '',
@@ -25,12 +137,8 @@ export default function InwardEntryForm() {
     invoiceRef: '',
     poNo: '',
     poDate: '',
-    cillNo: '',
-    dispatchQty: '0',
-    dispatchDate: '',
     processingNotes: '',
   });
-
 
   const emptyItem = () => ({
     partName: '',
@@ -43,12 +151,15 @@ export default function InwardEntryForm() {
     qty: '',
     weight: '',
     rate: '0',
+    lotPrice: '',
     amount: '0',
     processTypeId: '',
     processName: '',
   });
 
   const calcAmount = (it, overrides = {}) => {
+    const lotPrice = toNum(it.lotPrice, 0);
+    if (lotPrice > 0) return lotPrice.toFixed(2);
     const weight = toNum(overrides.weight ?? it.weight, 0);
     const qty    = toNum(overrides.qty    ?? it.qty,    0);
     const rate   = toNum(overrides.rate   ?? it.rate,   0);
@@ -61,20 +172,14 @@ export default function InwardEntryForm() {
     const proc = processes.find(p => p.id === toInt(processTypeId));
     setItems(items.map(it => {
       if (it.id !== id) return it;
-      const weight = toNum(it.weight, 0);
-      const pricePerKg = proc ? toNum(proc.pricePerKg, 0) : 0;
-      const minCharge  = proc ? toNum(proc.minCharge,  0) : 0;
-      let autoRate = it.rate;
-      if (proc && pricePerKg > 0) {
-        const calc = weight > 0 ? weight * pricePerKg : pricePerKg;
-        autoRate = String(Math.max(calc, minCharge || 0).toFixed(2));
-      }
+      const { rate: autoRate, lotPrice: autoLot } = getEffectiveRate(proc) ?? {};
       const updated = {
         ...it,
         processTypeId,
         processName: proc?.name || '',
-        hsnCode: proc?.hsnSacCode || it.hsnCode,
-        rate: autoRate,
+        hsnCode: it.hsnCode,
+        rate: autoRate ?? it.rate,
+        lotPrice: autoLot ?? '',
       };
       updated.amount = calcAmount(updated);
       return updated;
@@ -93,21 +198,7 @@ export default function InwardEntryForm() {
     setItems(items.map(it => {
       if (it.id !== id) return it;
       const updated = { ...it, [field]: value };
-      // Re-calc rate when weight changes and a process is selected
-      if (field === 'weight' && updated.processTypeId) {
-        const proc = processes.find(p => p.id === toInt(updated.processTypeId));
-        if (proc) {
-          const pricePerKg = toNum(proc.pricePerKg, 0);
-          const minCharge  = toNum(proc.minCharge,  0);
-          if (pricePerKg > 0) {
-            const w = toNum(value, 0);
-            const calc = w > 0 ? w * pricePerKg : pricePerKg;
-            updated.rate = String(Math.max(calc, minCharge || 0).toFixed(2));
-          }
-        }
-      }
-      // Always recalc amount when weight, qty, or rate changes
-      if (['weight', 'qty', 'rate'].includes(field)) {
+      if (['weight', 'qty', 'rate', 'lotPrice'].includes(field)) {
         updated.amount = calcAmount(updated);
       }
       return updated;
@@ -116,204 +207,229 @@ export default function InwardEntryForm() {
 
   const handleFormChange = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
+    if (field === 'fromPartyId' && value) {
+      api.get(`/parties/${value}/process-rates`).then(r => {
+        const m = {};
+        for (const row of r.data.data || []) {
+          if (row.pricePerKg != null || row.pricePerPc != null || row.lotPrice != null) {
+            m[row.processTypeId] = { pricePerKg: row.pricePerKg, pricePerPc: row.pricePerPc, lotPrice: row.lotPrice };
+          }
+        }
+        setPartyRates(m);
+        setItems(prev => prev.map(it => {
+          if (!it.processTypeId) return it;
+          const proc = processes.find(p => p.id === toInt(it.processTypeId));
+          const effective = getEffectiveRate(proc, m);
+          if (effective) {
+            const updated = { ...it, rate: effective.rate ?? it.rate, lotPrice: effective.lotPrice ?? '' };
+            updated.amount = calcAmount(updated);
+            return updated;
+          }
+          return it;
+        }));
+      }).catch(() => {
+        setPartyRates({});
+        toast.error('Could not load party rates. Using default process rates.');
+      });
+    } else if (field === 'fromPartyId') {
+      setPartyRates({});
+    }
+  };
+
+  // Returns { rate, lotPrice } — rate is always the per-unit price, never weight*rate
+  const getEffectiveRate = (proc, ratesOverride = null) => {
+    if (!proc) return null;
+    const partyR = (ratesOverride || partyRates)[proc.id];
+    const lotPrice   = toNum(partyR?.lotPrice   ?? proc.lotPrice,   0);
+    const pricePerKg = toNum(partyR?.pricePerKg ?? proc.pricePerKg, 0);
+    // Lot price: flat per-lot charge — rate field shows the lot price, amount = lot price
+    if (lotPrice > 0) return { rate: String(lotPrice.toFixed(2)), lotPrice: String(lotPrice.toFixed(2)) };
+    if (pricePerKg > 0) return { rate: String(pricePerKg.toFixed(2)), lotPrice: '' };
+    return null;
+  };
+
+  const validateForm = () => {
+    if (!form.fromPartyId) { toast.error('Company Name is required'); return false; }
+    if (items.length === 0) { toast.error('Add at least one item'); return false; }
+    const hasGrandTotalQty = toNum(directGrandTotalQty, 0) > 0;
+    if (!hasGrandTotalQty) {
+      const anyQtyMissing = items.some(it => {
+        const mat = (it.material || '').trim() || '(unknown)';
+        return toNum(it.qty, 0) === 0 && toNum(materialQtys[mat], 0) === 0;
+      });
+      if (anyQtyMissing) {
+        toast.error('Set Qty per item, or fill Grand Total Qty in Material Summary');
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const buildPayload = () => {
+    const resolvedToPartyId = parties.find(p => p.partyType === 'BOTH')?.id;
+    return {
+      manualChallanNo: form.challanNo,
+      challanDate: form.challanDate,
+      fromPartyId: toInt(form.fromPartyId),
+      toPartyId: resolvedToPartyId,
+      receivedDate: form.materialInDate,
+      invoiceChNo: form.invoiceRef,
+      vehicleNo: form.vehicleNo,
+      deliveryPerson: form.deliveryPerson,
+      poNo: form.poNo,
+      poDate: form.poDate || null,
+      processingNotes: form.processingNotes,
+      items: items.map((it) => {
+        const mat = it.material?.trim() || '(unknown)';
+        const matEntry = materialSummary.find(m => m.material === mat);
+        const dgtW = toNum(directGrandTotalWeight, 0);
+        const dgtQ = toNum(directGrandTotalQty, 0);
+        const totalSumQty = materialSummary.reduce((s, m) => s + m.sumQty, 0);
+
+        // Resolve weight: item-level → material-level → grand total proportional fallback
+        const itemWeight = toNum(it.weight, 0);
+        let resolvedWeight = itemWeight;
+        if (resolvedWeight === 0) {
+          const matW = dgtW > 0
+            ? (totalSumQty > 0 ? (dgtW * (matEntry?.sumQty || 0)) / totalSumQty : 0)
+            : toNum(materialWeights[mat], 0);
+          const directQty = toNum(materialQtys[mat], 0);
+          const refQty = directQty > 0 ? directQty : (matEntry?.sumQty || 0);
+          const itemQty = toNum(it.qty, 0);
+          if (matW > 0 && refQty > 0 && itemQty > 0) {
+            resolvedWeight = (matW * itemQty) / refQty;
+          } else if (dgtW > 0 && totalSumQty > 0) {
+            resolvedWeight = (dgtW * toNum(it.qty, 0)) / totalSumQty;
+          }
+        }
+
+        // Resolve qty: item-level → material-level → grand total proportional fallback
+        const itemQty = toNum(it.qty, 0);
+        let resolvedQty = itemQty;
+        if (resolvedQty === 0) {
+          const directQty = dgtQ > 0
+            ? (materialSummary.length > 0 ? dgtQ / materialSummary.length : 0)
+            : toNum(materialQtys[mat], 0);
+          const itemCount = matEntry ? items.filter(i => (i.material?.trim() || '(unknown)') === mat).length : 1;
+          if (directQty > 0 && itemCount > 0) {
+            resolvedQty = directQty / itemCount;
+          }
+        }
+
+        return {
+          material: it.material,
+          drawingNo: it.drawingNo,
+          hrc: it.hrc,
+          woNo: it.woNo,
+          hsnCode: it.hsnCode,
+          sacNo: it.sacNo,
+          quantity: resolvedQty,
+          weight: resolvedWeight,
+          rate: toNum(it.rate, 0),
+          amount: toNum(it.amount, 0),
+          uom: 'KGS',
+          description: [it.partName, it.material, it.processName].filter(Boolean).join(' - ') || it.material,
+          processTypeId: it.processTypeId ? toInt(it.processTypeId) : null,
+          processName: it.processName || null,
+        };
+      }),
+    };
+  };
+
+  const autoSaveMasterData = (itemsList) => {
+    for (const it of itemsList) {
+      const part = it.partName?.trim();
+      const mat  = it.material?.trim();
+      if (!part && !mat) continue;
+      const partKnown = part && itemsMaster.some(m => m.description?.toLowerCase() === part.toLowerCase());
+      const matKnown  = mat  && materialSuggestions.includes(mat);
+      if (part && !partKnown) {
+        api.post('/items', {
+          partNo: `P-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+          description: part,
+          material: mat || undefined,
+        }).catch(() => {});
+      } else if (!part && mat && !matKnown) {
+        api.post('/items', {
+          partNo: `M-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+          description: mat,
+          material: mat,
+        }).catch(() => {});
+      }
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!form.fromPartyId) {
-      toast.error('Company Name is required');
-      return;
-    }
-
-    if (items.length === 0) {
-      toast.error('Add at least one item');
-      return;
-    }
-
-    const hasInvalidItems = items.some(it => !it.material || !it.qty);
-    if (hasInvalidItems) {
-      toast.error('All items must have Material and Qty');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const resolvedFromPartyId = toInt(form.fromPartyId);
-      const resolvedToPartyId = parties.find(p => p.partyType === 'BOTH')?.id;
-      if (!resolvedToPartyId) {
-        toast.error('No processor found. Please select a processor.');
-        setLoading(false);
-        return;
-      }
-
-      const payload = {
-        manualChallanNo: form.challanNo,
-        challanDate: form.challanDate,
-        fromPartyId: resolvedFromPartyId,
-        toPartyId: resolvedToPartyId,
-        receivedDate: form.materialInDate,
-        invoiceChNo: form.invoiceRef,
-        vehicleNo: form.vehicleNo,
-        deliveryPerson: form.deliveryPerson,
-        poNo: form.poNo,
-        poDate: form.poDate || null,
-        cillNo: form.cillNo,
-        dispatchDate: form.dispatchDate,
-        processingNotes: form.processingNotes,
-        items: items.map((it, idx) => ({
-          material: it.material,
-          drawingNo: it.drawingNo,
-          hrc: it.hrc,
-          woNo: it.woNo,
-          hsnCode: it.hsnCode,
-          sacNo: it.sacNo,
-          quantity: toNum(it.qty, 0),
-          weight: toNum(it.weight, 0),
-          qtyOut: idx === 0 ? toNum(form.dispatchQty, 0) : 0,
-          rate: toNum(it.rate, 0),
-          amount: toNum(it.amount, 0),
-          uom: 'KGS',
-          description: [it.partName, it.material, it.processName].filter(Boolean).join(' - ') || it.material,
-          processTypeId: it.processTypeId ? toInt(it.processTypeId) : null,
-          processName: it.processName || null,
-        })),
-      };
-
-      const r = await api.post('/jobwork/inward', payload);
-      toast.success(`Created challan ${r.data.data.challan.challanNo}!`);
-      setCreatedChallan(r.data.data.challan);
-      // navigate('/jobwork/register');
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Error creating inward entry');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCreateJobCard = async () => {
-    if (!createdChallan) return;
-    setCreatingJobCard(true);
-    try {
-      const r = await api.post('/jobwork/jobcard-from-challan', {
-        challanId: createdChallan.id,
-      });
-      toast.success(`Created job card ${r.data.data.jobCard.jobCardNo}!`);
-      setCreatedJobCard(r.data.data.jobCard);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Error creating job card');
-    } finally {
-      setCreatingJobCard(false);
-    }
-  };
-
-  const handleCreateFullWorkflow = async (e) => {
-    e.preventDefault();
-
-    if (!form.fromPartyId) {
-      toast.error('Company Name is required');
-      return;
-    }
-
-    if (items.length === 0) {
-      toast.error('Add at least one item');
-      return;
-    }
-
-    const hasInvalidItems = items.some(it => !it.material || !it.qty);
-    if (hasInvalidItems) {
-      toast.error('All items must have Material and Qty');
-      return;
-    }
-
+    if (!validateForm()) return;
     setCreatingFullFlow(true);
     try {
-      const resolvedFromPartyId = toInt(form.fromPartyId);
-      const resolvedToPartyId2 = parties.find(p => p.partyType === 'BOTH')?.id;
-      if (!resolvedToPartyId2) {
-        toast.error('No processor found.');
-        setCreatingFullFlow(false);
-        return;
-      }
-
-      const payload = {
-        manualChallanNo: form.challanNo,
-        challanDate: form.challanDate,
-        fromPartyId: resolvedFromPartyId,
-        toPartyId: resolvedToPartyId2,
-        receivedDate: form.materialInDate,
-        invoiceChNo: form.invoiceRef,
-        vehicleNo: form.vehicleNo,
-        deliveryPerson: form.deliveryPerson,
-        poNo: form.poNo,
-        poDate: form.poDate || null,
-        cillNo: form.cillNo,
-        dispatchDate: form.dispatchDate,
-        processingNotes: form.processingNotes,
-        items: items.map((it, idx) => ({
-          material: it.material,
-          drawingNo: it.drawingNo,
-          hrc: it.hrc,
-          woNo: it.woNo,
-          hsnCode: it.hsnCode,
-          sacNo: it.sacNo,
-          quantity: toNum(it.qty, 0),
-          weight: toNum(it.weight, 0),
-          qtyOut: idx === 0 ? toNum(form.dispatchQty, 0) : 0,
-          rate: toNum(it.rate, 0),
-          amount: toNum(it.amount, 0),
-          uom: 'KGS',
-          description: [it.partName, it.material, it.processName].filter(Boolean).join(' - ') || it.material,
-          processTypeId: it.processTypeId ? toInt(it.processTypeId) : null,
-          processName: it.processName || null,
-        })),
-      };
-
-      const r = await api.post('/jobwork/inward-to-runsheet', payload);
-      const { challan, jobCard, runsheet } = r.data.data;
-      setCreatedChallan(challan);
-      setCreatedJobCard(jobCard);
-      setCreatedRunSheet(runsheet);
-      toast.success(`Created challan ${challan.challanNo}, job card ${jobCard.jobCardNo}, run sheet ${runsheet.runsheetNumber}`);
+      const payload = buildPayload();
+      if (!payload.toPartyId) { toast.error('No processor found.'); setCreatingFullFlow(false); return; }
+      const r = await api.post('/jobwork/inward-with-jobcards', payload);
+      const { challan } = r.data.data;
+      toast.success(`Challan ${challan.challanNo} created — select combinations to create Job Cards.`);
+      autoSaveMasterData(items);
+      navigate(`/jobwork/${challan.id}`);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Error creating full workflow');
+      toast.error(err.response?.data?.message || 'Error creating inward entry');
     } finally {
       setCreatingFullFlow(false);
     }
   };
 
+  const openPartyModal = () => {
+    setPartyModal({
+      open: true,
+      name: '',
+      address: '',
+      email: '',
+      partyType: 'CUSTOMER',
+      saving: false,
+      rates: {},
+    });
+  };
+
+  const closePartyModal = () => {
+    setPartyModal(p => ({ ...p, open: false, saving: false }));
+  };
+
+  const setPartyRate = (ptId, value) => {
+    setPartyModal(p => ({ ...p, rates: { ...p.rates, [ptId]: value } }));
+  };
+
+  const createPartyQuick = async () => {
+    if (!partyModal.name.trim() || !partyModal.address.trim()) {
+      toast.error('Party Name and Address are required');
+      return;
+    }
+    setPartyModal(p => ({ ...p, saving: true }));
+    try {
+      const r = await api.post('/parties/quick', {
+        name: partyModal.name.trim(),
+        address: partyModal.address.trim(),
+        email: partyModal.email.trim() || null,
+        partyType: partyModal.partyType,
+        rates: Object.entries(partyModal.rates).map(([ptId, pricePerKg]) => ({
+          processTypeId: Number(ptId),
+          pricePerKg: pricePerKg !== '' ? Number(pricePerKg) : null,
+        })),
+      });
+      const created = r.data.data;
+      toast.success(`Party "${created.name}" created!`);
+      closePartyModal();
+      // Invalidate query cache so party list refreshes without page reload
+      await queryClient.invalidateQueries({ queryKey: ['parties'] });
+      // Auto-select the newly created party
+      if (created?.id) handleFormChange('fromPartyId', created.id);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to create party');
+      setPartyModal(p => ({ ...p, saving: false }));
+    }
+  };
+
   const totalQty    = items.reduce((sum, it) => sum + toNum(it.qty, 0), 0);
   const totalWeight = items.reduce((sum, it) => sum + toNum(it.weight, 0), 0);
-  const totalAmount = items.reduce((sum, it) => sum + toNum(it.amount, 0), 0);
-
-  const formatDisplayDate = (value) => value ? new Date(value).toLocaleDateString('en-IN') : '-';
-  const previewMaterial = items.length > 0
-    ? items.map(it => [it.partName, it.material].filter(Boolean).join(' ')).filter(Boolean).join(' | ') || '—'
-    : '—';
-  const dispatchQty = toNum(form.dispatchQty, 0);
-  const balanceQty = totalQty - dispatchQty;
-
-  const selectedCustomerName = parties.find(p => p.id === toInt(form.fromPartyId))?.name || '—';
-
-  const previewCards = [
-    { label: 'COMPANY NAME', value: selectedCustomerName },
-    { label: 'MATERIAL', value: previewMaterial },
-    { label: 'CHALLAN NO', value: form.challanNo || '—' },
-    { label: 'CHALLAN DATE', value: formatDisplayDate(form.challanDate) },
-    { label: 'PO NO', value: form.poNo || '—' },
-    { label: 'CILL NO', value: form.cillNo || '—' },
-    { label: 'MATERIAL IN DATE', value: formatDisplayDate(form.materialInDate) },
-    { label: 'QTY', value: totalQty.toLocaleString('en-IN', { maximumFractionDigits: 2 }) },
-    { label: 'WEIGHT', value: totalWeight.toLocaleString('en-IN', { maximumFractionDigits: 2 }) },
-    { label: 'JOBCARD NO', value: createdJobCard?.jobCardNo || 'Will be generated' },
-    { label: 'JOBCARD DATE', value: createdJobCard ? formatDisplayDate(createdJobCard.createdAt || createdJobCard.receivedDate) : 'Will be generated' },
-    { label: 'RUNSHEET NO', value: createdRunSheet?.runsheetNumber || 'Will be generated' },
-    { label: 'DISPATCH QTY', value: String(dispatchQty) },
-    { label: 'DISPATCH DATE', value: formatDisplayDate(form.dispatchDate) },
-    { label: 'BAL QTY', value: balanceQty.toLocaleString('en-IN', { maximumFractionDigits: 2 }) },
-    { label: 'EST. AMOUNT (₹)', value: totalAmount > 0 ? totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '—' },
-    { label: 'VEHICLE NO', value: form.vehicleNo || '—' },
-  ];
 
   return (
     <div className="page-stack w-full animate-slide-up">
@@ -329,24 +445,10 @@ export default function InwardEntryForm() {
         </div>
       </div>
 
-      {items.length > 0 && (
-        <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-3 mb-5">
-            {previewCards.map((card) => (
-              <div key={card.label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500 mb-2">{card.label}</div>
-                <div className="text-sm font-bold text-slate-900 leading-tight">{card.value}</div>
-              </div>
-            ))}
-          </div>
-
-        </>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Challan Details Section */}
+      <form onSubmit={handleSubmit} className="space-y-5" id="inward-form">
+        {/* Challan Details */}
         <div className="card p-5 space-y-4">
-          <div className="flex items-center gap-2 mb-4 border-b border-slate-100 pb-2">
+          <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
             <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center">
               <span className="material-symbols-outlined text-indigo-500 text-[15px]">description</span>
             </div>
@@ -354,34 +456,36 @@ export default function InwardEntryForm() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-
-            {/* Company Name = Customer */}
             <div className="md:col-span-2">
               <label className="form-label">Company Name <span className="text-rose-500">*</span></label>
-              <select
-                value={form.fromPartyId}
-                onChange={(e) => handleFormChange('fromPartyId', e.target.value)}
-                className="form-input font-semibold"
-                required
-              >
-                <option value="">— Select Customer —</option>
-                {parties
-                  .filter(p => p.partyType === 'CUSTOMER')
-                  .map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-              </select>
+              <div className="flex gap-2">
+                <SearchSelect
+                  value={String(form.fromPartyId || '')}
+                  onChange={v => handleFormChange('fromPartyId', v)}
+                  options={parties.filter(p => p.partyType === 'CUSTOMER').map(p => ({ value: p.id, label: p.name }))}
+                  placeholder="— Select Customer —"
+                  required
+                  className="flex-1 font-semibold"
+                />
+                <button
+                  type="button"
+                  onClick={openPartyModal}
+                  className="btn-outline whitespace-nowrap"
+                >
+                  <span className="material-symbols-outlined text-[18px] shrink-0">add</span>
+                  New
+                </button>
+              </div>
             </div>
 
             <div>
-              <label className="form-label">Challan No</label>
-              <input
-                type="text"
-                value={form.challanNo}
+              <label className="form-label">
+                Challan No
+                <span className="ml-1 text-[9px] font-bold text-slate-400 uppercase tracking-wide">(Tax Doc)</span>
+              </label>
+              <input type="text" value={form.challanNo}
                 onChange={(e) => handleFormChange('challanNo', e.target.value)}
-                placeholder="Auto-generate if blank"
-                className="form-input"
-              />
+                placeholder="Auto-generate if blank" className="form-input" />
             </div>
 
             <div>
@@ -410,13 +514,6 @@ export default function InwardEntryForm() {
             </div>
 
             <div>
-              <label className="form-label">Cill No</label>
-              <input type="text" value={form.cillNo}
-                onChange={(e) => handleFormChange('cillNo', e.target.value)}
-                placeholder="Optional" className="form-input" />
-            </div>
-
-            <div>
               <label className="form-label">Vehicle No</label>
               <input type="text" value={form.vehicleNo}
                 onChange={(e) => handleFormChange('vehicleNo', e.target.value)}
@@ -429,10 +526,8 @@ export default function InwardEntryForm() {
                 onChange={(e) => handleFormChange('deliveryPerson', e.target.value)}
                 placeholder="Optional" className="form-input" />
             </div>
-
           </div>
 
-          {/* Processing Notes */}
           <div>
             <label className="form-label">Processing Notes</label>
             <textarea
@@ -447,235 +542,257 @@ export default function InwardEntryForm() {
 
         {/* Items Section */}
         <div className="card p-5 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center">
                 <span className="material-symbols-outlined text-amber-600 text-[15px]">inventory_2</span>
               </div>
               <p className="section-title">Items Received</p>
-              <span className="text-[11px] bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-bold">
-                {items.length} items
-              </span>
+              {items.length > 0 && (
+                <span className="text-[11px] bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-bold">
+                  {items.length} items
+                </span>
+              )}
             </div>
-            <button
-              type="button"
-              onClick={handleAddItem}
-              className="btn-sm btn-primary"
-            >
+            <button type="button" onClick={handleAddItem} className="btn-sm btn-primary">
               <span className="material-symbols-outlined text-sm">add</span>
               Add Item
             </button>
           </div>
 
           {items.length === 0 ? (
-            <div className="text-center py-8 text-slate-400">
+            <div className="text-center py-10 text-slate-400">
               <span className="material-symbols-outlined text-5xl opacity-20 block mb-2">box</span>
               <p className="font-semibold">No items added yet</p>
               <p className="text-xs mt-1">Click "Add Item" to start</p>
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-3 mb-4">
-                {previewCards.map((card) => (
-                  <div key={card.label} className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm">
-                    <div className="text-[9px] font-black uppercase tracking-[0.28em] text-slate-500 mb-2">{card.label}</div>
-                    <div className="text-sm font-bold text-slate-900 leading-tight break-words">{card.value}</div>
-                  </div>
-                ))}
-              </div>
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-              {items.map((item, idx) => (
-                <div key={item.id} className="p-4 border-2 border-slate-100 rounded-lg hover:border-indigo-200 transition-colors">
-                  <div className="flex items-start justify-between mb-3">
-                    <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded">Item {idx + 1}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveItem(item.id)}
-                      className="text-rose-500 hover:text-rose-700 text-sm font-bold"
-                    >
-                      <span className="material-symbols-outlined">close</span>
-                    </button>
-                  </div>
 
-                  {/* Process Selection Row */}
-                  <div className="pb-3 border-b border-slate-200 mb-0">
-                    <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block">PROCESS</label>
-                    <select
-                      value={item.processTypeId}
-                      onChange={(e) => handleProcessChange(item.id, e.target.value)}
-                      className="form-input text-sm font-bold"
-                    >
-                      <option value="">— Select Process —</option>
-                      {processes.filter(p => p.isActive !== false).map(p => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}{p.pricePerKg ? ` (₹${Number(p.pricePerKg).toFixed(0)}/kg)` : ''}
-                        </option>
+              <div className="overflow-x-auto rounded-lg border border-slate-200">
+                <table className="w-full text-xs min-w-[820px]">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-700 border-b border-slate-300 text-left">
+                      <th className="px-2 py-2.5 w-8 text-center font-bold text-[11px] uppercase tracking-wide">#</th>
+                      <th className="px-3 py-2.5 font-bold text-[11px] uppercase tracking-wide min-w-[150px]">Process</th>
+                      <th className="px-3 py-2.5 font-bold text-[11px] uppercase tracking-wide min-w-[160px]">Part Name</th>
+                      <th className="px-3 py-2.5 font-bold text-[11px] uppercase tracking-wide min-w-[110px]">Material</th>
+                      <th className="px-3 py-2.5 font-bold text-[11px] uppercase tracking-wide w-20">HRC</th>
+                      <th className="px-3 py-2.5 font-bold text-[11px] uppercase tracking-wide w-20 text-right">Qty</th>
+                      <th className="px-3 py-2.5 font-bold text-[11px] uppercase tracking-wide w-24 text-right">Wt (kg)</th>
+                      <th className="px-2 py-2.5 w-8"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {items.map((item, idx) => (
+                      <Fragment key={item.id}>
+                        <tr className="hover:bg-slate-50 align-middle border-b border-slate-100">
+                          <td className="px-2 py-2 text-center text-slate-400 font-mono text-[11px]">{idx + 1}</td>
+                          <td className="px-2 py-1.5">
+                            <SearchSelect
+                              value={String(item.processTypeId || '')}
+                              onChange={v => handleProcessChange(item.id, v)}
+                              options={processes.filter(p => p.isActive !== false).map(p => ({ value: p.id, label: p.name }))}
+                              placeholder="— Process —"
+                              useFixed
+                              className="w-full"
+                            />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <AutocompleteInput
+                              value={item.partName || ''}
+                              onChange={(v) => handleItemChange(item.id, 'partName', v)}
+                              suggestions={partNameSuggestions}
+                              placeholder="Part name…"
+                              className="w-full form-input text-xs py-1.5 font-semibold"
+                            />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <AutocompleteInput
+                              value={item.material || ''}
+                              onChange={(v) => handleItemChange(item.id, 'material', v)}
+                              suggestions={materialSuggestions}
+                              placeholder="D2, H13…"
+                              className="w-full form-input text-xs py-1.5 font-semibold"
+                            />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <AutocompleteInput
+                              value={item.hrc || ''}
+                              onChange={(v) => handleItemChange(item.id, 'hrc', v)}
+                              suggestions={hrcSuggestions}
+                              placeholder="54-56"
+                              className="w-full form-input text-xs py-1.5"
+                            />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <input
+                              type="number"
+                              value={item.qty}
+                              onChange={(e) => handleItemChange(item.id, 'qty', e.target.value)}
+                              placeholder="0"
+                              className="w-full form-input text-xs py-1.5 text-right"
+                              min="0" step="0.01"
+                            />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <input
+                              type="number"
+                              value={item.weight}
+                              onChange={(e) => handleItemChange(item.id, 'weight', e.target.value)}
+                              placeholder="0.00"
+                              className="w-full form-input text-xs py-1.5 text-right"
+                              min="0" step="0.01"
+                            />
+                          </td>
+                          <td className="px-2 py-1.5 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveItem(item.id)}
+                              className="p-1 rounded text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">close</span>
+                            </button>
+                          </td>
+                        </tr>
+                        {/* Secondary fields row — always visible */}
+                        <tr className="bg-slate-50 border-b border-slate-200">
+                          <td></td>
+                          <td colSpan={9} className="px-3 py-2">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                              <div>
+                                <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Drawing No</label>
+                                <input type="text" value={item.drawingNo}
+                                  onChange={(e) => handleItemChange(item.id, 'drawingNo', e.target.value)}
+                                  placeholder="Optional" className="form-input text-xs py-1.5" />
+                              </div>
+                              <div>
+                                <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">WO / Ref No</label>
+                                <input type="text" value={item.woNo || ''}
+                                  onChange={(e) => handleItemChange(item.id, 'woNo', e.target.value)}
+                                  placeholder="Optional" className="form-input text-xs py-1.5" />
+                              </div>
+                              <div>
+                                <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">HSN Code</label>
+                                <input type="text" value={item.hsnCode || ''}
+                                  onChange={(e) => handleItemChange(item.id, 'hsnCode', e.target.value)}
+                                  placeholder="Optional" className="form-input text-xs py-1.5" />
+                              </div>
+                              <div>
+                                <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">SAC No</label>
+                                <input type="text" value={item.sacNo || ''}
+                                  onChange={(e) => handleItemChange(item.id, 'sacNo', e.target.value)}
+                                  placeholder="Optional" className="form-input text-xs py-1.5" />
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      </Fragment>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-slate-100 border-t-2 border-slate-300">
+                    <tr>
+                      <td colSpan={5} className="px-3 py-2 text-xs font-bold text-slate-500">
+                        {items.length} item{items.length !== 1 ? 's' : ''}
+                      </td>
+                      <td className="px-3 py-2 text-right text-xs font-black text-indigo-700 tabular-nums">
+                        {totalQty > 0 ? totalQty.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : ''}
+                      </td>
+                      <td className="px-3 py-2 text-right text-xs font-black text-amber-700 tabular-nums">
+                        {totalWeight > 0 ? totalWeight.toLocaleString('en-IN', { maximumFractionDigits: 2 }) + ' kg' : ''}
+                      </td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* Add Item — bottom */}
+              <div className="flex justify-end pt-1">
+                <button type="button" onClick={handleAddItem} className="btn-sm btn-outline">
+                  <span className="material-symbols-outlined text-sm">add</span>
+                  Add Item
+                </button>
+              </div>
+
+              {/* Material Weight Summary */}
+              {materialSummary.length > 0 && (
+                <div className="mt-3 rounded-xl border border-slate-200 overflow-hidden">
+                  <div className="bg-slate-50 px-4 py-2 border-b border-slate-200">
+                    <p className="text-xs font-bold text-slate-600 uppercase tracking-widest">Material Weight Summary</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Enter total weight per material — used when individual item weight is blank</p>
+                  </div>
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-slate-100 text-left">
+                        <th className="px-4 py-2 font-bold text-[11px] uppercase tracking-wide text-slate-600">Material</th>
+                        <th className="px-4 py-2 font-bold text-[11px] uppercase tracking-wide text-slate-600 text-right">Item Qty (sum)</th>
+                        <th className="px-4 py-2 font-bold text-[11px] uppercase tracking-wide text-slate-600 text-right w-36">Total Qty (direct)</th>
+                        <th className="px-4 py-2 font-bold text-[11px] uppercase tracking-wide text-slate-600 text-right w-40">Total Weight (kg)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {materialSummary.map(({ material, sumQty }) => (
+                        <tr key={material} className="hover:bg-slate-50">
+                          <td className="px-4 py-2 font-semibold text-slate-800">{material}</td>
+                          <td className="px-4 py-2 text-right text-slate-400 tabular-nums text-[11px]">
+                            {sumQty > 0 ? sumQty.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '—'}
+                          </td>
+                          <td className="px-4 py-2">
+                            <input
+                              type="number"
+                              value={materialQtys[material] ?? ''}
+                              onChange={e => setMaterialQtys(prev => ({ ...prev, [material]: e.target.value }))}
+                              placeholder="0"
+                              className="form-input text-xs py-1 text-right w-full"
+                              min="0" step="1"
+                            />
+                          </td>
+                          <td className="px-4 py-2">
+                            <input
+                              type="number"
+                              value={materialWeights[material] ?? ''}
+                              onChange={e => setMaterialWeights(prev => ({ ...prev, [material]: e.target.value }))}
+                              placeholder="0.00"
+                              className="form-input text-xs py-1 text-right w-full"
+                              min="0" step="0.01"
+                            />
+                          </td>
+                        </tr>
                       ))}
-                    </select>
-                    {item.processName && (
-                      <p className="text-[10px] text-indigo-600 font-semibold mt-0.5">Rate auto-fills from process pricing · editable below</p>
-                    )}
-                  </div>
-
-                  {/* Row 1: Material Info */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pb-3 border-b border-slate-200 mt-3">
-                    <div className="md:col-span-2">
-                      <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block">PART NAME / DESCRIPTION</label>
-                      <input
-                        type="text"
-                        value={item.partName || ''}
-                        onChange={(e) => handleItemChange(item.id, 'partName', e.target.value)}
-                        placeholder="e.g., GEARS, INSERT, HUB INSERT"
-                        className="form-input text-sm font-bold"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block">MATERIAL GRADE</label>
-                      <input
-                        type="text"
-                        value={item.material}
-                        onChange={(e) => handleItemChange(item.id, 'material', e.target.value)}
-                        placeholder="e.g., H13, D2, M2"
-                        className="form-input text-sm font-bold"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block">HRC / SPECIFICATION</label>
-                      <input
-                        type="text"
-                        value={item.hrc}
-                        onChange={(e) => handleItemChange(item.id, 'hrc', e.target.value)}
-                        placeholder="e.g., 54-56"
-                        className="form-input text-sm font-bold"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block">DRAWING NO</label>
-                      <input
-                        type="text"
-                        value={item.drawingNo}
-                        onChange={(e) => handleItemChange(item.id, 'drawingNo', e.target.value)}
-                        placeholder="Optional"
-                        className="form-input text-sm"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block">WO/REF NO</label>
-                      <input
-                        type="text"
-                        value={item.woNo || ''}
-                        onChange={(e) => handleItemChange(item.id, 'woNo', e.target.value)}
-                        placeholder="Optional"
-                        className="form-input text-sm"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block">HSN CODE</label>
-                      <input
-                        type="text"
-                        value={item.hsnCode || ''}
-                        onChange={(e) => handleItemChange(item.id, 'hsnCode', e.target.value)}
-                        placeholder="Optional"
-                        className="form-input text-sm"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block">SAC NO</label>
-                      <input
-                        type="text"
-                        value={item.sacNo || ''}
-                        onChange={(e) => handleItemChange(item.id, 'sacNo', e.target.value)}
-                        placeholder="Optional"
-                        className="form-input text-sm"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Row 2: Qty, Weight & Amount */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
-                    <div>
-                      <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block">QTY (PCS)</label>
-                      <input
-                        type="number"
-                        value={item.qty}
-                        onChange={(e) => handleItemChange(item.id, 'qty', e.target.value)}
-                        placeholder="0"
-                        className="form-input text-sm font-bold"
-                        min="0"
-                        step="0.01"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block">WEIGHT (KGS)</label>
-                      <input
-                        type="number"
-                        value={item.weight}
-                        onChange={(e) => handleItemChange(item.id, 'weight', e.target.value)}
-                        placeholder="0"
-                        className="form-input text-sm font-bold"
-                        min="0"
-                        step="0.01"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block">RATE (₹)</label>
-                      <input
-                        type="number"
-                        value={item.rate}
-                        onChange={(e) => handleItemChange(item.id, 'rate', e.target.value)}
-                        placeholder="0"
-                        className="form-input text-sm font-bold"
-                        min="0"
-                        step="0.01"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[8px] font-black text-slate-500 uppercase mb-1 block">AMOUNT (₹)</label>
-                      <div className="form-input text-sm font-black text-emerald-700 bg-emerald-50 border-emerald-200 flex items-center">
-                        {toNum(item.amount, 0) > 0
-                          ? toNum(item.amount, 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })
-                          : '—'}
-                      </div>
-                    </div>
-                  </div>
+                    </tbody>
+                    <tfoot className="bg-indigo-50 border-t-2 border-indigo-300">
+                      <tr>
+                        <td colSpan={2} className="px-4 py-2 text-xs font-bold text-indigo-700">
+                          Grand Total
+                          <span className="ml-1 text-[9px] font-normal text-indigo-400 normal-case">(direct entry overrides material-wise)</span>
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="number"
+                            value={directGrandTotalQty}
+                            onChange={e => setDirectGrandTotalQty(e.target.value)}
+                            placeholder={grandTotalQty > 0 ? String(grandTotalQty) : '0'}
+                            className="form-input text-xs py-1 text-right w-full font-black text-indigo-700 border-indigo-300"
+                            min="0" step="1"
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="number"
+                            value={directGrandTotalWeight}
+                            onChange={e => setDirectGrandTotalWeight(e.target.value)}
+                            placeholder={grandTotalWeight > 0 ? grandTotalWeight.toFixed(2) : '0.00'}
+                            className="form-input text-xs py-1 text-right w-full font-black text-amber-700 border-amber-300"
+                            min="0" step="0.01"
+                          />
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
                 </div>
-              ))}
-            </div>
-          </>
-        )}
-
-          {/* Totals */}
-          {items.length > 0 && (
-            <div className="bg-indigo-50 border-2 border-indigo-200 rounded-lg p-5">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                <div className="bg-white rounded-lg p-3 border-2 border-indigo-100">
-                  <p className="text-[8px] font-black text-slate-500 uppercase mb-2 tracking-wider">Total Qty (KGS)</p>
-                  <p className="text-3xl font-black text-indigo-700">{totalQty.toLocaleString('en-IN', {maximumFractionDigits: 2})}</p>
-                </div>
-                <div className="bg-white rounded-lg p-3 border-2 border-amber-100">
-                  <p className="text-[8px] font-black text-slate-500 uppercase mb-2 tracking-wider">Total Weight (KGS)</p>
-                  <p className="text-3xl font-black text-amber-700">{totalWeight.toLocaleString('en-IN', {maximumFractionDigits: 2})}</p>
-                </div>
-                <div className="bg-white rounded-lg p-3 border-2 border-slate-200">
-                  <p className="text-[8px] font-black text-slate-500 uppercase mb-2 tracking-wider">Items Count</p>
-                  <p className="text-3xl font-black text-slate-700">{items.length}</p>
-                </div>
-                <div className="bg-white rounded-lg p-3 border-2 border-emerald-100">
-                  <p className="text-[8px] font-black text-slate-500 uppercase mb-2 tracking-wider">Est. Amount (₹)</p>
-                  <p className="text-2xl font-black text-emerald-700">
-                    {totalAmount > 0 ? totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '—'}
-                  </p>
-                </div>
-              </div>
-            </div>
+              )}
+            </>
           )}
         </div>
 
@@ -683,36 +800,18 @@ export default function InwardEntryForm() {
         <div className="flex flex-col gap-3 pt-3 sm:flex-row sm:items-center">
           <button
             type="submit"
-            disabled={loading || creatingFullFlow}
+            disabled={creatingFullFlow}
             className="btn-primary flex-1"
-          >
-            {loading ? (
-              <>
-                <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
-                Saving...
-              </>
-            ) : (
-              <>
-                <span className="material-symbols-outlined text-sm">save</span>
-                Create Inward Entry
-              </>
-            )}
-          </button>
-          <button
-            type="button"
-            disabled={creatingFullFlow || loading}
-            onClick={handleCreateFullWorkflow}
-            className="btn-secondary flex-1"
           >
             {creatingFullFlow ? (
               <>
                 <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
-                Creating Full Workflow...
+                Creating…
               </>
             ) : (
               <>
                 <span className="material-symbols-outlined text-sm">auto_awesome_motion</span>
-                Create Inward + Job Card + Run Sheet
+                Create Inward
               </>
             )}
           </button>
@@ -722,91 +821,121 @@ export default function InwardEntryForm() {
         </div>
       </form>
 
-      {/* Created Challan Section */}
-      {createdChallan && (
-        <div className="card p-6 bg-green-50 border-green-200">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
-              <span className="material-symbols-outlined text-green-600 text-[20px]">check_circle</span>
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-green-800">Challan Created Successfully</h3>
-              <p className="text-sm text-green-600">Challan No: <span className="font-mono font-bold">{createdChallan.challanNo}</span></p>
-            </div>
-          </div>
-
-          {!createdJobCard && (
-            <div className="space-y-4">
-              <p className="text-sm text-green-700">Now create a job card for this challan. Job card number and date will be generated automatically.</p>
-              <div className="flex gap-3">
-                <button
-                  onClick={handleCreateJobCard}
-                  disabled={creatingJobCard}
-                  className="btn-primary"
-                >
-                  {creatingJobCard ? (
-                    <>
-                      <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
-                      Creating Job Card...
-                    </>
-                  ) : (
-                    <>
-                      <span className="material-symbols-outlined text-sm">add</span>
-                      Create Job Card
-                    </>
-                  )}
-                </button>
-                <Link to="/jobwork/register" className="btn-ghost">
-                  View Register
-                </Link>
+      {/* Quick Create Party Modal */}
+      {partyModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between shrink-0">
+              <div>
+                <div className="text-xs font-black tracking-widest text-slate-400 uppercase">Quick Create Party</div>
+                <div className="text-lg font-extrabold text-slate-800 mt-1">New Customer with Process Rates</div>
               </div>
+              <button type="button" onClick={closePartyModal} className="text-slate-400 hover:text-slate-700">
+                <span className="material-symbols-outlined">close</span>
+              </button>
             </div>
-          )}
 
-          {createdJobCard && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-green-600 text-[16px]">check_circle</span>
+            <div className="p-5 space-y-4 overflow-y-auto flex-1">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="form-label">Party Type</label>
+                  <select
+                    value={partyModal.partyType}
+                    onChange={(e) => setPartyModal(p => ({ ...p, partyType: e.target.value }))}
+                    className="form-input"
+                  >
+                    <option value="CUSTOMER">CUSTOMER</option>
+                    <option value="VENDOR">VENDOR</option>
+                    <option value="BOTH">BOTH</option>
+                  </select>
                 </div>
-                <p className="text-sm text-green-700">
-                  Job Card Created: <span className="font-mono font-bold">{createdJobCard.jobCardNo}</span>
-                </p>
+                <div>
+                  <label className="form-label">Email (optional)</label>
+                  <input
+                    type="email"
+                    value={partyModal.email}
+                    onChange={(e) => setPartyModal(p => ({ ...p, email: e.target.value }))}
+                    className="form-input"
+                    placeholder="email@company.com"
+                  />
+                </div>
               </div>
-              {createdRunSheet ? (
-                <div className="space-y-3">
-                  <p className="text-sm text-green-700">
-                    Run Sheet Created: <span className="font-mono font-bold">{createdRunSheet.runsheetNumber}</span>
-                  </p>
-                  <div className="flex gap-3">
-                    <Link to={`/manufacturing/runsheet/${createdRunSheet.id}`} className="btn-primary">
-                      <span className="material-symbols-outlined text-sm">engineering</span>
-                      View Run Sheet
-                    </Link>
-                    <Link to="/jobwork/register" className="btn-ghost">
-                      View Register
-                    </Link>
+
+              <div>
+                <label className="form-label">Party Name *</label>
+                <input
+                  value={partyModal.name}
+                  onChange={(e) => setPartyModal(p => ({ ...p, name: e.target.value }))}
+                  className="form-input"
+                  placeholder="Company / Party name"
+                />
+              </div>
+
+              <div>
+                <label className="form-label">Address *</label>
+                <textarea
+                  value={partyModal.address}
+                  onChange={(e) => setPartyModal(p => ({ ...p, address: e.target.value }))}
+                  className="form-input"
+                  rows={3}
+                  placeholder="Full address"
+                />
+              </div>
+
+              {/* Process Rates */}
+              {processes.length > 0 && (
+                <div className="border-t border-slate-100 pt-4">
+                  <p className="section-title mb-3">Process Rates (₹/kg)</p>
+                  <div className="overflow-x-auto rounded-xl border border-slate-200">
+                    <table className="w-full text-xs min-w-[400px]">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200">
+                          <th className="text-left px-3 py-2 font-semibold text-slate-600">Process</th>
+                          <th className="text-left px-3 py-2 font-semibold text-slate-600">Rate/Kg (₹)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {processes.filter(p => p.isActive !== false).map(pt => (
+                          <tr key={pt.id} className="hover:bg-slate-50/60">
+                            <td className="px-3 py-2 font-medium text-slate-700">
+                              {pt.name}
+                            </td>
+                            <td className="px-3 py-1.5">
+                              <input
+                                type="number" step="0.01" min="0"
+                                value={partyModal.rates[pt.id] ?? ''}
+                                onChange={(e) => setPartyRate(pt.id, e.target.value)}
+                                className="form-input py-1 text-xs w-24"
+                                placeholder={pt.pricePerKg ?? '—'}
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
+                  <p className="text-[10px] text-slate-400 mt-1.5">Leave blank to use global process rate. Party rate takes priority during inward entry.</p>
                 </div>
-              ) : (
-                <>
-                  <p className="text-sm text-green-700">Next: Create a run sheet for this job card in the Manufacturing section.</p>
-                  <div className="flex gap-3">
-                    <Link to="/manufacturing/runsheet/new" className="btn-primary">
-                      <span className="material-symbols-outlined text-sm">engineering</span>
-                      Create Run Sheet
-                    </Link>
-                    <Link to="/jobwork/register" className="btn-ghost">
-                      View Register
-                    </Link>
-                  </div>
-                </>
               )}
             </div>
-          )}
+
+            <div className="p-5 border-t border-slate-100 flex gap-3 justify-end shrink-0">
+              <button type="button" onClick={closePartyModal} className="btn-ghost">Cancel</button>
+              <button
+                type="button"
+                onClick={createPartyQuick}
+                disabled={partyModal.saving}
+                className="btn-primary"
+              >
+                {partyModal.saving
+                  ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Saving...</>
+                  : <><span className="material-symbols-outlined text-sm">save</span> Create Party</>
+                }
+              </button>
+            </div>
+          </div>
         </div>
       )}
-
     </div>
   );
 }

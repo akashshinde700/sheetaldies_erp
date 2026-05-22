@@ -180,7 +180,7 @@ FRONTEND_URL=https://codeprana.com
 CORS_ORIGINS=https://codeprana.com,https://www.codeprana.com
 UPLOAD_DIR=uploads
 MAX_FILE_SIZE=5242880
-ADMIN_EMAIL=admin@sheetaldies.com
+ADMIN_EMAIL=admin@shitalvaccumtreat.com
 ADMIN_PASSWORD=Sh33t@lD!es#2026$Secure
 ADMIN_NAME=Administrator
 RATE_LIMIT_GENERAL=100
@@ -293,7 +293,7 @@ step "Phase 10: Setting up HTTPS (SSL)"
 
 ssh_run bash << 'REMOTE_SSL'
 certbot --nginx -d codeprana.com -d www.codeprana.com \
-  --non-interactive --agree-tos --email admin@sheetaldies.com \
+  --non-interactive --agree-tos --email admin@shitalvaccumtreat.com \
   --redirect 2>&1 || echo "SSL setup may need manual run: certbot --nginx -d codeprana.com -d www.codeprana.com"
 REMOTE_SSL
 
@@ -303,6 +303,6 @@ echo -e "${GREEN}╔════════════════════
 echo -e "${GREEN}║        DEPLOYMENT COMPLETE!                      ║${NC}"
 echo -e "${GREEN}╠══════════════════════════════════════════════════╣${NC}"
 echo -e "${GREEN}║  Site:     https://codeprana.com                 ║${NC}"
-echo -e "${GREEN}║  Login:    admin@sheetaldies.com                 ║${NC}"
+echo -e "${GREEN}║  Login:    admin@shitalvaccumtreat.com                 ║${NC}"
 echo -e "${GREEN}║  Password: Sh33t@lD!es#2026\$Secure               ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════════════════╝${NC}"

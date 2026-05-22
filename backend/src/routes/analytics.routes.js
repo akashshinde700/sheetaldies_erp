@@ -17,5 +17,6 @@ router.get('/payment-status',   ctrl.paymentStatus);
 router.get('/material-analytics', ctrl.materialAnalytics);
 router.get('/pending-reports',  ctrl.pendingReports);
 router.get('/pending-items',    ctrl.pendingItems);
+router.get('/overdue-invoices', ctrl.overdueInvoices);
 
 module.exports = router;

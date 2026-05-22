@@ -22,6 +22,10 @@ const { initializeSequenceManager } = require('./utils/sequenceManager');
 
 const app = express();
 
+// Trust Nginx reverse proxy — required for express-rate-limit to read real client IP
+// from X-Forwarded-For header instead of throwing ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+app.set('trust proxy', 1);
+
 // ── Middleware ────────────────────────────────────────────────
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
@@ -44,17 +48,9 @@ app.use(expressLogger);
 app.use(requestLogger);
 app.use(sanitizeMiddleware);
 
-// Serve uploaded files with basic token/session check
-const authMiddleware = require('./middleware/auth');
-app.use('/uploads', (req, res, next) => {
-  // In production, require auth. In dev, allow unauthenticated for convenience.
-  if (process.env.NODE_ENV === 'production') {
-    return authMiddleware(req, res, () => {
-      express.static(path.join(__dirname, '..', 'uploads'))(req, res, next);
-    });
-  }
-  express.static(path.join(__dirname, '..', 'uploads'))(req, res, next);
-});
+// Serve uploaded files publicly — these are part/job photos, not PII.
+// Auth on <img> src tags is not possible (browser won't send JWT headers).
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 // ── Rate Limiting ─────────────────────────────────────────────
 // General API limiter: 100 requests per 15 minutes (production), higher in dev
@@ -163,7 +159,6 @@ app.use('/api/furnace-planning', strictLimiter, require('./routes/furnacePlannin
 app.use('/api/analytics',  require('./routes/analytics.routes'));
 app.use('/api/audit',      require('./routes/audit.routes'));
 app.use('/api/upload',     uploadLimiter, require('./routes/upload.routes'));
-app.use('/api/quotes',          strictLimiter, require('./routes/quote.routes'));
 app.use('/api/customer-quotes', strictLimiter, require('./routes/customerQuote.routes'));
 app.use('/api/attachments', strictLimiter, require('./routes/attachment.routes'));
 app.use('/api/workflows',  strictLimiter, require('./routes/workflow.routes'));

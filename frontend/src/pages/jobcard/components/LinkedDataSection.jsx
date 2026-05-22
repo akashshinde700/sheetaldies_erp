@@ -4,6 +4,39 @@ import { useQueryClient } from '@tanstack/react-query';
 import api from '../../../utils/api';
 import toast from 'react-hot-toast';
 import { formatDate } from '../../../utils/formatters';
+import { useAuth } from '../../../context/AuthContext';
+
+function ItemEditRow({ item, onSaved }) {
+  const [desc,     setDesc]     = useState(item.description || '');
+  const [qty,      setQty]      = useState(item.quantity != null ? String(item.quantity) : '');
+  const [weight,   setWeight]   = useState(item.weight    != null ? String(item.weight)  : '');
+  const [material, setMaterial] = useState(item.material  || '');
+  const [saving,   setSaving]   = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await api.patch(`/jobwork/items/${item.id}`, { description: desc, quantity: qty, weight, material });
+      toast.success('Item updated');
+      onSaved?.();
+    } catch { toast.error('Failed to save'); }
+    finally { setSaving(false); }
+  };
+
+  const inp = 'border border-slate-200 rounded px-1.5 py-1 text-xs font-mono bg-white focus:border-indigo-400 outline-none';
+
+  return (
+    <div className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-2 items-center px-3 py-2 rounded-lg bg-slate-50 border border-slate-100 text-xs">
+      <input value={desc}     onChange={e => setDesc(e.target.value)}     className={inp} placeholder="Description" />
+      <input value={qty}      onChange={e => setQty(e.target.value)}      className={`${inp} text-right`} placeholder="Qty" type="number" step="0.001" />
+      <input value={weight}   onChange={e => setWeight(e.target.value)}   className={`${inp} text-right`} placeholder="Wt (kg)" type="number" step="0.001" />
+      <input value={material} onChange={e => setMaterial(e.target.value)} className={inp} placeholder="Material" />
+      <button onClick={save} disabled={saving} className="text-indigo-600 hover:text-indigo-800 font-bold text-xs px-2 py-1 rounded border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 whitespace-nowrap">
+        {saving ? '…' : 'Save'}
+      </button>
+    </div>
+  );
+}
 
 export default function LinkedDataSection({ isEdit, cardData, id }) {
   if (!isEdit || !cardData) return null;
@@ -11,6 +44,20 @@ export default function LinkedDataSection({ isEdit, cardData, id }) {
   const navigate     = useNavigate();
   const queryClient  = useQueryClient();
   const [creatingRS, setCreatingRS] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const { isManager } = useAuth();
+
+  const handleDelete = async () => {
+    if (!window.confirm('Delete this job card permanently?')) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/jobcards/${id}`);
+      toast.success('Job card deleted');
+      navigate('/jobcards');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete');
+    } finally { setDeleting(false); }
+  };
 
   const hasCert     = cardData.testCertificates?.length > 0;
   const hasRunsheet = cardData.runsheets?.length > 0;
@@ -31,6 +78,38 @@ export default function LinkedDataSection({ isEdit, cardData, id }) {
   return (
     <div className="space-y-4 mt-5">
 
+      {/* ── Delete button (manager/admin) ── */}
+      {isManager && (
+        <div className="flex justify-end">
+          <button onClick={handleDelete} disabled={deleting}
+            className="text-xs text-rose-600 border border-rose-200 rounded-lg px-3 py-1.5 hover:bg-rose-50 font-semibold">
+            {deleting ? 'Deleting…' : 'Delete Job Card'}
+          </button>
+        </div>
+      )}
+
+      {/* ── Challan Items with editable weight ── */}
+      {(() => {
+        const linkedItems = cardData.challanItemLinks || [];
+        const allItems = linkedItems.length > 0
+          ? linkedItems
+          : (cardData.challans?.flatMap(ch => ch.items || []) || []);
+        if (!allItems.length) return null;
+        return (
+          <div className="card p-5">
+            <h3 className="section-title mb-3">Items (from Inward) — {allItems.length} item{allItems.length !== 1 ? 's' : ''}</h3>
+            <div className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-2 px-3 mb-1 text-[10px] font-semibold uppercase text-slate-400">
+              <span>Description</span><span className="text-right">Qty</span><span className="text-right">Weight (kg)</span><span>Material</span><span></span>
+            </div>
+            <div className="space-y-1.5">
+              {allItems.map(item => (
+                <ItemEditRow key={item.id} item={item} onSaved={() => queryClient.invalidateQueries({ queryKey: ['jobcard', id] })} />
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── Next-step action bar ─────────────────────────── */}
       <div className="card p-4 bg-gradient-to-r from-slate-50 to-indigo-50/40 border border-indigo-100">
         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Next Step — Automation</p>
@@ -45,7 +124,7 @@ export default function LinkedDataSection({ isEdit, cardData, id }) {
             >
               {creatingRS
                 ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Creating...</>
-                : <><span className="material-symbols-outlined text-sm">thermostat</span> VHT Run Sheet Banao</>
+                : <><span className="material-symbols-outlined text-sm">thermostat</span> Create VHT Run Sheet</>
               }
             </button>
           ) : (
@@ -54,7 +133,7 @@ export default function LinkedDataSection({ isEdit, cardData, id }) {
               className="btn-outline border-sky-200 text-sky-700 hover:bg-sky-50 text-xs px-3 py-2 h-auto"
             >
               <span className="material-symbols-outlined text-sm">thermostat</span>
-              Run Sheet Dekho
+              View Run Sheet
             </Link>
           )}
 
@@ -65,7 +144,7 @@ export default function LinkedDataSection({ isEdit, cardData, id }) {
               className="btn-outline border-violet-300 text-violet-700 hover:bg-violet-50 text-xs px-3 py-2 h-auto"
             >
               <span className="material-symbols-outlined text-sm">verified</span>
-              Certificate Banao
+              Create Certificate
             </Link>
           ) : (
             <Link
@@ -73,7 +152,7 @@ export default function LinkedDataSection({ isEdit, cardData, id }) {
               className="btn-outline border-violet-200 text-violet-700 hover:bg-violet-50 text-xs px-3 py-2 h-auto"
             >
               <span className="material-symbols-outlined text-sm">verified</span>
-              Certificate Dekho
+              View Certificate
             </Link>
           )}
 
@@ -84,7 +163,7 @@ export default function LinkedDataSection({ isEdit, cardData, id }) {
               className="btn-outline border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-xs px-3 py-2 h-auto"
             >
               <span className="material-symbols-outlined text-sm">receipt_long</span>
-              Invoice Banao
+              Create Invoice
             </Link>
           )}
 
@@ -94,7 +173,7 @@ export default function LinkedDataSection({ isEdit, cardData, id }) {
             className="btn-outline border-amber-200 text-amber-700 hover:bg-amber-50 text-xs px-3 py-2 h-auto"
           >
             <span className="material-symbols-outlined text-sm">fact_check</span>
-            {cardData.inspection ? 'Inspection Edit' : 'Inspection Start'}
+            {cardData.inspection ? 'Edit Inspection' : 'Start Inspection'}
           </Link>
         </div>
       </div>

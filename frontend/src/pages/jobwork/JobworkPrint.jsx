@@ -1,16 +1,43 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
-import { formatDate, formatCurrency } from '../../utils/formatters';
-import PrintHeader from '../../components/PrintHeader';
+
+function SvtLogo({ size = 56 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 115" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <polygon points="50,2 95,27 95,77 50,102 5,77 5,27" fill="#1a1a1a" stroke="#000" strokeWidth="1.5"/>
+      <path d="M 38,28 C 22,28 20,38 30,43 L 40,48 C 54,53 54,65 38,66 C 28,66 24,62 24,62"
+        fill="none" stroke="white" strokeWidth="7" strokeLinecap="round"/>
+      <text x="60" y="70" textAnchor="middle" fill="white"
+        fontFamily="Arial Black, Arial, sans-serif" fontWeight="900" fontSize="28" letterSpacing="1">VT</text>
+      <text x="50" y="96" textAnchor="middle" fill="#aaa"
+        fontFamily="Arial, sans-serif" fontSize="6" letterSpacing="0.5">PUNE</text>
+    </svg>
+  );
+}
+
+function TuvLogo({ size = 52 }) {
+  return (
+    <svg width={size * 1.4} height={size} viewBox="0 0 72 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="1" y="1" width="70" height="50" rx="4" fill="white" stroke="#1e3a8a" strokeWidth="2" />
+      <text x="36" y="20" textAnchor="middle" fill="#1e3a8a"
+        fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="14" letterSpacing="1">TÜV</text>
+      <text x="36" y="33" textAnchor="middle" fill="#1e3a8a"
+        fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="9" letterSpacing="1">AUSTRIA</text>
+      <text x="36" y="44" textAnchor="middle" fill="#64748b"
+        fontFamily="Arial,sans-serif" fontSize="7">CERTIFIED</text>
+    </svg>
+  );
+}
+
+const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN') : '—');
+const toN = (v) => Number(v) || 0;
 
 export default function JobworkPrint() {
   const { id } = useParams();
   const [challan, setChallan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  const fmt = (v) => (v === null || v === undefined || v === '' ? '—' : v);
 
   useEffect(() => {
     api.get(`/jobwork/${id}`)
@@ -19,319 +46,178 @@ export default function JobworkPrint() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  if (loading) return <div className="p-10 text-slate-400">Loading challan details...</div>;
+  if (loading) return <div className="p-10 text-slate-400">Loading...</div>;
   if (error || !challan) return (
-    <div className="p-10 space-y-2 text-center">
+    <div className="p-10 text-center">
       <p className="text-rose-500 font-bold">{error || 'Challan not found.'}</p>
-      <Link to="/jobwork" className="btn-ghost">← Back to List</Link>
+      <Link to="/jobwork" className="text-indigo-600">← Back</Link>
     </div>
   );
 
   const items = challan.items || [];
-  const totalQty    = items.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
-  const totalWeight = items.reduce((s, it) => s + (Number(it.weight)   || 0), 0);
-  const totalAmount = items.reduce((s, it) => s + (Number(it.amount)   || 0), 0);
-  const cgst = Number(challan.cgstAmount)  || 0;
-  const sgst = Number(challan.sgstAmount)  || 0;
-  const igst = Number(challan.igstAmount)  || 0;
-  const freight = Number(challan.freightAmount) || 0;
-  const subtotal = challan.totalValue ? Number(challan.totalValue) : totalAmount;
-  const grandTotal = Number(challan.grandTotal) || (subtotal + cgst + sgst + igst + freight);
+  const monthYear = challan.challanDate
+    ? new Date(challan.challanDate)
+        .toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+        .toUpperCase()
+    : '—';
+  const materialInDate = challan.receivedDate || challan.challanDate;
+  const invoiceNos = (challan.taxInvoices || []).map(i => i.invoiceNo).join(', ') || '—';
+  const companyName = challan.fromParty?.name || '—';
+  const jobcardNo = challan.jobCard?.jobCardNo || '—';
+  const jobcardDate = challan.jobCard?.createdAt || null;
+
+  const rows = items.map((it, idx) => ({
+    srNo: idx + 1,
+    material: it.material || '—',
+    qty: toN(it.quantity),
+    weight: toN(it.weight).toFixed(3),
+  }));
 
   return (
-    <div className="bg-slate-50 min-h-screen py-10 print:bg-white print:py-0">
+    <div className="bg-slate-100 min-h-screen py-8 print:bg-white print:py-0">
       <style>{`
         @media print {
           .no-print { display: none !important; }
-          .page {
-            box-shadow: none !important;
-            margin: 0 !important;
-            border: none !important;
-            width: 100% !important;
-            max-width: 100% !important;
-          }
           body { background: white !important; }
-          @page { margin: 1cm; size: A4; }
+          @page { margin: 0.5cm; size: A4 landscape; }
         }
+        .reg-hdr { border-collapse: collapse; width: 100%; }
+        .reg-hdr td { border: 1px solid #1e293b; }
+        .reg-data { border-collapse: collapse; width: 100%; }
+        .reg-data th, .reg-data td {
+          border: 1px solid #374151;
+          padding: 3px 4px;
+          font-size: 8px;
+          text-align: center;
+          vertical-align: middle;
+        }
+        .reg-data th {
+          background: #f1f5f9;
+          font-weight: 900;
+          text-transform: uppercase;
+          font-size: 7px;
+          line-height: 1.2;
+        }
+        .reg-data td { font-size: 8px; }
       `}</style>
 
       {/* Toolbar */}
-      <div className="no-print max-w-[900px] mx-auto mb-6 flex items-center justify-between px-4">
-        <Link to={`/jobwork/${id}`} className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition-colors font-bold">
+      <div className="no-print max-w-[1200px] mx-auto mb-4 flex items-center justify-between px-4">
+        <Link to={`/jobwork/${id}`} className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 font-bold">
           <span className="material-symbols-outlined text-[20px]">arrow_back</span>
           Back to Detail
         </Link>
-        <button
-          onClick={() => window.print()}
-          className="btn-primary shadow-indigo-200/50"
-        >
+        <button onClick={() => window.print()} className="btn-primary">
           <span className="material-symbols-outlined text-[20px]">print</span>
-          Print Challan
+          Print Register
         </button>
       </div>
 
-      <div className="page max-w-[900px] mx-auto bg-white shadow-2xl border border-slate-200 print:shadow-none print:border-slate-300">
+      {/* Page */}
+      <div className="page max-w-[1200px] mx-auto bg-white shadow-xl border border-slate-200 p-3 print:shadow-none print:border-0 print:p-2">
 
-        {/* ── HEADER ── */}
-        <PrintHeader title="JOB WORK CHALLAN" showTuv={false} />
+        {/* ── REGISTER HEADER TABLE ── */}
+        <table className="reg-hdr mb-0">
+          <tbody>
+            <tr>
+              {/* SVT Logo */}
+              <td rowSpan={4} style={{width:'80px', textAlign:'center', padding:'6px'}}>
+                <SvtLogo size={64} />
+              </td>
+              {/* Company name + title: spans middle 2 cols, 4 rows */}
+              <td colSpan={2} rowSpan={4} style={{textAlign:'center', padding:'8px', verticalAlign:'middle'}}>
+                <div style={{fontWeight:900, fontSize:'15px', letterSpacing:'1px', color:'#0f172a'}}>
+                  SHITAL VACUUM TREAT PVT.LTD.
+                </div>
+                <div style={{fontWeight:700, fontSize:'11px', color:'#475569', marginTop:'4px'}}>
+                  TITLE:- INWARD/OUTWARD REGISTER
+                </div>
+              </td>
+              {/* Doc control labels */}
+              <td style={{padding:'4px 8px', fontSize:'9px', fontWeight:700, color:'#475569', textTransform:'uppercase', whiteSpace:'nowrap'}}>DOC NO</td>
+              <td style={{padding:'4px 8px', fontSize:'9px', fontFamily:'monospace', fontWeight:900, color:'#0f172a'}}>QF-ST-01</td>
+              {/* TÜV Logo */}
+              <td rowSpan={4} style={{width:'90px', textAlign:'center', padding:'6px'}}>
+                <TuvLogo size={52} />
+              </td>
+            </tr>
+            <tr>
+              <td style={{padding:'4px 8px', fontSize:'9px', fontWeight:700, color:'#475569', textTransform:'uppercase', whiteSpace:'nowrap'}}>REVISION NO</td>
+              <td style={{padding:'4px 8px', fontSize:'9px', fontFamily:'monospace', fontWeight:900, color:'#0f172a'}}>0</td>
+            </tr>
+            <tr>
+              <td style={{padding:'4px 8px', fontSize:'9px', fontWeight:700, color:'#475569', textTransform:'uppercase', whiteSpace:'nowrap'}}>REV. DATE</td>
+              <td style={{padding:'4px 8px'}}></td>
+            </tr>
+            <tr>
+              <td style={{padding:'4px 8px', fontSize:'9px', fontWeight:700, color:'#475569', textTransform:'uppercase', whiteSpace:'nowrap'}}>PAGE NO</td>
+              <td style={{padding:'4px 8px', fontSize:'9px', fontFamily:'monospace', fontWeight:900, color:'#0f172a'}}>1 Of 1</td>
+            </tr>
+            {/* Month subtitle row */}
+            <tr>
+              <td colSpan={6} style={{
+                borderTop:'1px solid #1e293b',
+                padding:'5px 12px',
+                textAlign:'center',
+                fontSize:'11px',
+                fontWeight:900,
+                letterSpacing:'1px',
+                color:'#0f172a',
+                textTransform:'uppercase',
+              }}>
+                FOR THE MONTH OF :- {monthYear}
+              </td>
+            </tr>
+          </tbody>
+        </table>
 
-        {/* ── CHALLAN REFERENCE ROW ── */}
-        <div className="border-b border-slate-900 px-4 py-2 grid grid-cols-4 gap-x-4 gap-y-1 text-[10px]">
-          <div>
-            <span className="font-black text-slate-500 uppercase">Challan No:</span>{' '}
-            <span className="font-mono font-black text-slate-900">{challan.challanNo}</span>
-          </div>
-          <div>
-            <span className="font-black text-slate-500 uppercase">Date:</span>{' '}
-            <span className="font-mono font-black text-slate-900">{formatDate(challan.challanDate)}</span>
-          </div>
-          <div>
-            <span className="font-black text-slate-500 uppercase">Cill No.:</span>{' '}
-            <span className="font-mono font-black text-slate-900">{fmt(challan.cillNo)}</span>
-          </div>
-          <div>
-            <span className="font-black text-slate-500 uppercase">Job Card:</span>{' '}
-            <span className="font-mono font-black text-indigo-800">{fmt(challan.jobCard?.jobCardNo)}</span>
-          </div>
-          <div>
-            <span className="font-black text-slate-500 uppercase">PO No.:</span>{' '}
-            <span className="font-mono font-black text-slate-900">{fmt(challan.poNo)}</span>
-          </div>
-          <div>
-            <span className="font-black text-slate-500 uppercase">PO Date:</span>{' '}
-            <span className="font-mono font-black text-slate-900">{challan.poDate ? formatDate(challan.poDate) : '—'}</span>
-          </div>
-          <div>
-            <span className="font-black text-slate-500 uppercase">Vehicle No.:</span>{' '}
-            <span className="font-mono font-black text-slate-900">{fmt(challan.vehicleNo)}</span>
-          </div>
-          <div>
-            <span className="font-black text-slate-500 uppercase">Vendor Code:</span>{' '}
-            <span className="font-mono font-black text-slate-900">{fmt(challan.toParty?.code)}</span>
-          </div>
-        </div>
-
-        {/* ── PARTY SECTION ── */}
-        <div className="grid grid-cols-2 border-b border-slate-900">
-          {/* Left: Customer (material owner) */}
-          <div className="p-4 border-r border-slate-900">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">CUSTOMER / MATERIAL OWNER</p>
-            <p className="text-sm font-black text-slate-900 uppercase">{challan.fromParty?.name || '—'}</p>
-            <p className="text-[10px] text-slate-600 leading-tight mt-1 uppercase">{challan.fromParty?.address || ''}</p>
-            {challan.fromParty?.gstin && (
-              <p className="text-[10px] font-bold text-slate-700 mt-1 uppercase">
-                GSTIN: <span className="font-mono text-slate-900">{challan.fromParty.gstin}</span>
-              </p>
-            )}
-          </div>
-          {/* Right: Job Worker / Processor */}
-          <div className="p-4">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">NAME & ADDRESS OF JOB WORKER</p>
-            <p className="text-sm font-black text-slate-900 uppercase">{challan.toParty?.name || '—'}</p>
-            <p className="text-[10px] text-slate-600 leading-tight mt-1 uppercase">{challan.toParty?.address || ''}</p>
-            {challan.toParty?.gstin && (
-              <p className="text-[10px] font-bold text-slate-700 mt-1 uppercase">
-                GSTIN: <span className="font-mono text-slate-900">{challan.toParty.gstin}</span>
-              </p>
-            )}
-            {challan.toParty?.stateName && (
-              <p className="text-[10px] font-bold text-slate-700 uppercase">
-                STATE: <span className="text-slate-900">{challan.toParty.stateName} ({challan.toParty.stateCode})</span>
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* ── ITEMS TABLE ── */}
-        <div className="min-h-[300px]">
-          <table className="w-full text-[10px]">
-            <thead>
-              <tr className="bg-slate-900 text-white font-black uppercase tracking-wider">
-                <th className="p-2 text-center w-8 border-r border-slate-700">SR</th>
-                <th className="p-2 text-left border-r border-slate-700" style={{minWidth:'120px'}}>DESCRIPTION</th>
-                <th className="p-2 text-center w-20 border-r border-slate-700">MATERIAL</th>
-                <th className="p-2 text-center w-14 border-r border-slate-700">HRC</th>
-                <th className="p-2 text-center w-20 border-r border-slate-700">WO NO</th>
-                <th className="p-2 text-center w-20 border-r border-slate-700">SAC NO</th>
-                <th className="p-2 text-center w-14 border-r border-slate-700">QTY</th>
-                <th className="p-2 text-center w-12 border-r border-slate-700">UOM</th>
-                <th className="p-2 text-right w-20 border-r border-slate-700">WT (KG)</th>
-                <th className="p-2 text-left w-24 border-r border-slate-700">PROCESS</th>
-                <th className="p-2 text-right w-20 border-r border-slate-700">RATE</th>
-                <th className="p-2 text-right w-24">AMOUNT</th>
+        {/* ── DATA TABLE ── */}
+        <table className="reg-data">
+          <thead>
+            <tr>
+              <th style={{width:'4%'}}>SR<br/>NO</th>
+              <th style={{width:'14%'}}>COMPANY NAME</th>
+              <th style={{width:'10%'}}>MATERIAL</th>
+              <th style={{width:'12%'}}>CHALLAN NO</th>
+              <th style={{width:'9%'}}>CHALLAN<br/>DATE</th>
+              <th style={{width:'9%'}}>MATERIAL<br/>IN DATE</th>
+              <th style={{width:'5%'}}>QTY</th>
+              <th style={{width:'8%'}}>WEIGHT</th>
+              <th style={{width:'12%'}}>JOBCARD NO</th>
+              <th style={{width:'9%'}}>JOBCARD<br/>DATE</th>
+              <th style={{width:'8%'}}>INVOICE</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={11} style={{padding:'16px', color:'#94a3b8'}}>No items.</td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {items.map((it, idx) => (
-                <tr key={it.id} className="border-b border-slate-200">
-                  <td className="p-2 text-center font-bold text-slate-400 border-r border-slate-200">{idx + 1}</td>
-                  <td className="p-2 border-r border-slate-200 font-bold text-slate-900 uppercase">
-                    {it.description || it.item?.description || '—'}
-                  </td>
-                  <td className="p-2 text-center border-r border-slate-200 text-slate-700 uppercase">{it.material || '—'}</td>
-                  <td className="p-2 text-center border-r border-slate-200 text-slate-700">{it.hrc || '—'}</td>
-                  <td className="p-2 text-center border-r border-slate-200 font-mono text-slate-700">{it.woNo || '—'}</td>
-                  <td className="p-2 text-center border-r border-slate-200 font-mono text-slate-600">{it.hsnCode || '—'}</td>
-                  <td className="p-2 text-center font-mono font-black border-r border-slate-200">{it.quantity || 0}</td>
-                  <td className="p-2 text-center font-bold border-r border-slate-200 uppercase">{it.uom || 'NOS'}</td>
-                  <td className="p-2 text-right font-mono font-black border-r border-slate-200">{(Number(it.weight) || 0).toFixed(3)}</td>
-                  <td className="p-2 border-r border-slate-200 uppercase text-slate-800 font-bold">
-                    {it.processType?.name || it.processName || '—'}
-                  </td>
-                  <td className="p-2 text-right font-mono border-r border-slate-200 text-slate-700">
-                    {it.rate ? Number(it.rate).toFixed(2) : '—'}
-                  </td>
-                  <td className="p-2 text-right font-mono font-black text-slate-900">
-                    {it.amount ? formatCurrency(it.amount) : '—'}
-                  </td>
-                </tr>
-              ))}
-              {/* Empty filler rows */}
-              {Array.from({ length: Math.max(0, 8 - items.length) }).map((_, i) => (
-                <tr key={`empty-${i}`} className="h-7 border-b border-slate-50">
-                  <td className="border-r border-slate-200" />
-                  <td className="border-r border-slate-200" />
-                  <td className="border-r border-slate-200" />
-                  <td className="border-r border-slate-200" />
-                  <td className="border-r border-slate-200" />
-                  <td className="border-r border-slate-200" />
-                  <td className="border-r border-slate-200" />
-                  <td className="border-r border-slate-200" />
-                  <td className="border-r border-slate-200" />
-                  <td className="border-r border-slate-200" />
-                  <td className="border-r border-slate-200" />
-                  <td />
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="bg-slate-50 font-black border-t-2 border-slate-900 text-[10px] uppercase">
-                <td colSpan={6} className="p-2 text-right border-r border-slate-200 text-slate-500">TOTAL</td>
-                <td className="p-2 text-center font-mono border-r border-slate-200 text-indigo-900">{totalQty}</td>
-                <td className="border-r border-slate-200" />
-                <td className="p-2 text-right font-mono border-r border-slate-200 text-indigo-900">{totalWeight.toFixed(3)}</td>
-                <td className="border-r border-slate-200" />
-                <td className="border-r border-slate-200" />
-                <td className="p-2 text-right font-mono text-indigo-900">{formatCurrency(subtotal)}</td>
+            ) : rows.map(r => (
+              <tr key={r.srNo}>
+                <td>{r.srNo}</td>
+                <td style={{textAlign:'left', fontWeight:700}}>{companyName}</td>
+                <td>{r.material}</td>
+                <td style={{fontFamily:'monospace', fontSize:'7px'}}>{challan.challanNo}</td>
+                <td>{fmtDate(challan.challanDate)}</td>
+                <td>{fmtDate(materialInDate)}</td>
+                <td style={{fontWeight:700}}>{r.qty}</td>
+                <td style={{fontFamily:'monospace'}}>{r.weight}</td>
+                <td style={{fontFamily:'monospace', fontSize:'7px'}}>{jobcardNo}</td>
+                <td>{fmtDate(jobcardDate)}</td>
+                <td style={{fontFamily:'monospace', fontSize:'7px'}}>{invoiceNos}</td>
               </tr>
+            ))}
+          </tbody>
+        </table>
 
-              {/* Tax & totals */}
-              {freight > 0 && (
-                <tr className="text-[10px] font-bold border-t border-slate-200">
-                  <td colSpan={11} className="p-2 text-right border-r border-slate-200 text-slate-500 uppercase">Transport / Freight</td>
-                  <td className="p-2 text-right font-mono">{formatCurrency(freight)}</td>
-                </tr>
-              )}
-              {cgst > 0 && (
-                <tr className="text-[10px] font-bold border-t border-slate-100">
-                  <td colSpan={11} className="p-2 text-right border-r border-slate-200 text-slate-500 uppercase">CGST @ 9%</td>
-                  <td className="p-2 text-right font-mono">{formatCurrency(cgst)}</td>
-                </tr>
-              )}
-              {sgst > 0 && (
-                <tr className="text-[10px] font-bold border-t border-slate-100">
-                  <td colSpan={11} className="p-2 text-right border-r border-slate-200 text-slate-500 uppercase">SGST @ 9%</td>
-                  <td className="p-2 text-right font-mono">{formatCurrency(sgst)}</td>
-                </tr>
-              )}
-              {igst > 0 && (
-                <tr className="text-[10px] font-bold border-t border-slate-100">
-                  <td colSpan={11} className="p-2 text-right border-r border-slate-200 text-slate-500 uppercase">IGST @ 18%</td>
-                  <td className="p-2 text-right font-mono">{formatCurrency(igst)}</td>
-                </tr>
-              )}
-              <tr className="text-[11px] font-black bg-slate-100 border-t-2 border-slate-900">
-                <td colSpan={11} className="p-3 text-right border-r border-slate-200 uppercase tracking-widest text-slate-900">GRAND TOTAL</td>
-                <td className="p-3 text-right font-mono text-sm text-indigo-900">{formatCurrency(grandTotal)}</td>
-              </tr>
-            </tfoot>
-          </table>
+        {/* Screen-only footer */}
+        <div className="no-print flex justify-between items-center mt-3 px-1">
+          <p className="text-[9px] text-slate-400 uppercase font-bold">Computer Generated · SVT ERP</p>
+          <p className="text-[9px] text-slate-400 uppercase font-mono">
+            Printed: {new Date().toLocaleDateString('en-IN')}
+          </p>
         </div>
-
-        {/* ── PART II + NOTES + SIGNATURES ── */}
-        <div className="grid grid-cols-2 border-t-2 border-slate-900">
-          {/* Left: Part II (Processor fill-in) + notes */}
-          <div className="p-4 border-r border-slate-900 space-y-4">
-            <div>
-              <h4 className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2 border-b border-slate-200 pb-1">
-                PART II — TO BE FILLED BY JOB WORKER
-              </h4>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[10px]">
-                <div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase">Entry No.</p>
-                  <p className="font-bold text-slate-900 border-b border-slate-300 min-h-[18px]">{fmt(challan.entryNo)}</p>
-                </div>
-                <div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase">Received Date</p>
-                  <p className="font-bold text-slate-900 border-b border-slate-300 min-h-[18px]">{challan.receivedDate ? formatDate(challan.receivedDate) : '—'}</p>
-                </div>
-                <div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase">Nature of Processing</p>
-                  <p className="font-bold text-slate-900 border-b border-slate-300 min-h-[18px]">{fmt(challan.natureOfProcess)}</p>
-                </div>
-                <div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase">Processed Qty Returned</p>
-                  <p className="font-bold text-slate-900 border-b border-slate-300 min-h-[18px]">{fmt(challan.qtyReturned)}</p>
-                </div>
-                <div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase">Rework Qty</p>
-                  <p className="font-bold text-slate-900 border-b border-slate-300 min-h-[18px]">{fmt(challan.reworkQty)}</p>
-                </div>
-                <div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase">Scrap Qty (kg)</p>
-                  <p className="font-bold text-slate-900 border-b border-slate-300 min-h-[18px]">{fmt(challan.scrapQtyKg)}</p>
-                </div>
-              </div>
-            </div>
-
-            {challan.processingNotes && (
-              <div>
-                <h4 className="text-[9px] font-black text-indigo-700 uppercase tracking-widest mb-1">PROCESSING INSTRUCTIONS</h4>
-                <div className="text-[10px] text-slate-700 font-bold bg-slate-50 p-2 border border-slate-200 leading-relaxed italic">
-                  {challan.processingNotes}
-                </div>
-              </div>
-            )}
-
-            <div>
-              <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">TERMS & CONDITIONS</h4>
-              <ul className="text-[8px] text-slate-500 font-bold space-y-0.5 list-disc pl-3">
-                <li>Goods once sent for jobwork remain company property.</li>
-                <li>Report any discrepancy within 24 hours of receipt.</li>
-                <li>Return material within specified duration.</li>
-              </ul>
-            </div>
-          </div>
-
-          {/* Right: Signatures */}
-          <div className="p-4 flex flex-col justify-between">
-            <div>
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">FOR OFFICE USE ONLY</p>
-              {challan.createdBy?.name && (
-                <p className="text-[10px] font-bold text-slate-600 mt-1 uppercase">Issued by: {challan.createdBy.name}</p>
-              )}
-            </div>
-            <div className="space-y-6 text-right">
-              <div>
-                <p className="text-[9px] font-black text-slate-400 uppercase">RECEIVER'S SIGNATURE</p>
-                <div className="h-12 border-b border-slate-400 mt-2" />
-                <p className="text-[9px] text-slate-400 mt-1 uppercase">Name & Date</p>
-              </div>
-              <div>
-                <p className="text-[9px] font-black text-slate-400 uppercase">FOR SHEETAL DIES & TOOLS PVT. LTD.</p>
-                <div className="h-12 border-b border-slate-400 mt-2" />
-                <p className="text-[9px] font-black text-slate-700 uppercase tracking-widest mt-1">AUTHORISED SIGNATORY</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ── FOOTER ── */}
-        <div className="p-3 bg-slate-50 border-t border-slate-200 flex justify-between items-center">
-          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Computer Generated Challan · SHEETAL DIES ERP · V2.0</p>
-          <p className="text-[8px] font-black text-slate-400 uppercase tabular-nums">Printed: {formatDate(new Date(), true)}</p>
-        </div>
-
       </div>
     </div>
   );

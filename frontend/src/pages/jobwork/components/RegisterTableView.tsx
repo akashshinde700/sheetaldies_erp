@@ -1,4 +1,3 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
 import type { RegisterRow } from '../InwardOutwardRegister';
 
@@ -51,33 +50,47 @@ export default function RegisterTableView({ loading, pagedRows }: RegisterTableV
                   >
                     <span className="material-symbols-outlined text-[18px]">edit</span>
                   </Link>
+                  <Link
+                    to={`/jobwork/${r.challanId}/print`}
+                    target="_blank"
+                    className="inline-flex items-center justify-center w-7 h-7 rounded-md text-emerald-600 hover:bg-emerald-50"
+                    title="Print Challan"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">print</span>
+                  </Link>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2">
-                  {[
-                    ['Company Name', r.companyName || '-'],
-                    ['Material', r.material || '-'],
-                    ['Challan No', r.challanNo || '-'],
-                    ['Challan Date', r.challanDate ? new Date(r.challanDate).toLocaleDateString('en-IN') : '-'],
-                    ['Material In Date', r.materialInDate ? new Date(r.materialInDate).toLocaleDateString('en-IN') : '-'],
-                    ['Qty', r.qty ?? 0],
-                    ['Weight', r.weight ?? 0],
-                    ['Jobcard No', r.jobcardNo || '-'],
-                  ].map(([label, value]) => (
+                  {([
+                    ['Company Name', r.companyName || '-', null],
+                    ['Material', r.material || '-', null],
+                    ['Inward No', r.inwardNo || '-', `/jobwork/${r.challanId}`],
+                    ['Challan No', r.challanNo || '-', null],
+                    ['Challan Date', r.challanDate ? new Date(r.challanDate).toLocaleDateString('en-IN') : '-', null],
+                    ['Material In Date', r.materialInDate ? new Date(r.materialInDate).toLocaleDateString('en-IN') : '-', null],
+                    ['Qty', String(r.qty ?? 0), null],
+                    ['Weight', String(r.weight ?? 0), null],
+                  ] as [string, string, string | null][]).map(([label, value, href]) => (
                     <div key={`${r.srNo}-${label}`} className="rounded-md bg-white border border-slate-200/90 px-2.5 py-2 shadow-sm">
                       <p className="text-[9px] font-extrabold uppercase tracking-widest text-indigo-700 border-b border-indigo-100 pb-1.5 mb-1.5">
                         {label}
                       </p>
-                      <p className="text-sm font-semibold text-slate-900 leading-snug break-words">{value}</p>
+                      {href ? (
+                        <Link to={href} className="text-sm font-extrabold text-indigo-600 hover:text-indigo-800 hover:underline leading-snug break-words font-mono">
+                          {value}
+                        </Link>
+                      ) : (
+                        <p className="text-sm font-semibold text-slate-900 leading-snug break-words">{value}</p>
+                      )}
                     </div>
                   ))}
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2 mt-2">
                   {[
+                    ['Jobcard No', r.jobcardNo || '-'],
                     ['Jobcard Date', r.jobcardDate ? new Date(r.jobcardDate).toLocaleDateString('en-IN') : '-'],
                     ['Invoice', r.invoiceNos || '-'],
-                    ['Dispatch Qty', r.dispatchQty ?? 0],
-                    ['Dispatch Date', r.dispatchDate ? new Date(r.dispatchDate).toLocaleDateString('en-IN') : '-'],
                     ['Bal Qty', r.balQty ?? 0],
+                    ['Dispatch Qty', r.dispatchQty ?? 0],
                     ['Velocity', r.velocity ?? 0],
                     ['Del Perf %', r.delPerfPct ?? 0],
                     ['Delivery %', r.deliveryPct ?? 0],
@@ -86,7 +99,7 @@ export default function RegisterTableView({ loading, pagedRows }: RegisterTableV
                       <p className="text-[9px] font-extrabold uppercase tracking-widest text-indigo-700 border-b border-indigo-100/80 pb-1.5 mb-1.5">
                         {label}
                       </p>
-                      <p className="text-sm font-semibold text-slate-900 leading-snug break-words tabular-nums">{value}</p>
+                      <p className="text-sm font-semibold text-slate-900 leading-snug break-words tabular-nums">{String(value)}</p>
                     </div>
                   ))}
                 </div>

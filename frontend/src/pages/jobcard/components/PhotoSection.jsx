@@ -1,16 +1,17 @@
 import React, { useRef, useState, useEffect } from 'react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
-function ImageSlot({ index, initialUrl, onChange }) {
+function ImageSlot({ index, initialUrl, onChange, saving }) {
   const inputRef = useRef();
   const [preview, setPreview] = useState(null);
 
   useEffect(() => {
     if (initialUrl) {
-      // If it's a relative path starting with /uploads, prepend the API base
       const fullUrl = initialUrl.startsWith('http') ? initialUrl : `${API_BASE}${initialUrl}`;
       setPreview(fullUrl);
+    } else {
+      setPreview(null);
     }
   }, [initialUrl]);
 
@@ -19,14 +20,25 @@ function ImageSlot({ index, initialUrl, onChange }) {
     if (!file) return;
     setPreview(URL.createObjectURL(file));
     onChange(index, file);
+    // Reset so same file can be re-selected
+    e.target.value = '';
+  };
+
+  const handleClear = () => {
+    setPreview(null);
+    onChange(index, null);
   };
 
   return (
     <div className="relative">
-      <button type="button" onClick={() => !preview && inputRef.current.click()}
+      <button
+        type="button"
+        onClick={() => inputRef.current.click()}
         className={`w-full aspect-square rounded-lg border-2 border-dashed flex items-center justify-center cursor-pointer transition-all overflow-hidden ${
-          preview ? 'border-sky-300 bg-sky-50' : 'border-slate-300 bg-slate-50 hover:border-indigo-300'
-        }`}>
+          preview ? 'border-sky-300 bg-sky-50 hover:opacity-80' : 'border-slate-300 bg-slate-50 hover:border-indigo-300'
+        }`}
+        title={preview ? 'Click to change image' : 'Click to upload image'}
+      >
         {preview ? (
           <img src={preview} alt={`Part ${index}`} className="w-full h-full object-cover rounded-md" />
         ) : (
@@ -36,19 +48,33 @@ function ImageSlot({ index, initialUrl, onChange }) {
           </div>
         )}
       </button>
-      <input ref={inputRef} type="file" onChange={handleFile} accept="image/*"
-        className="hidden" />
+      <input
+        ref={inputRef}
+        type="file"
+        onChange={handleFile}
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        className="hidden"
+      />
       {preview && (
-        <button type="button" onClick={() => { setPreview(null); onChange(index, null); }}
-          className="absolute top-1 right-1 bg-rose-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-rose-600 transition-colors shadow-sm">
+        <button
+          type="button"
+          onClick={handleClear}
+          className="absolute top-1 right-1 bg-rose-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-rose-600 transition-colors shadow-sm"
+          title="Remove image"
+        >
           <span className="material-symbols-outlined text-sm">close</span>
         </button>
+      )}
+      {saving && (
+        <div className="absolute inset-0 bg-white/70 rounded-lg flex items-center justify-center">
+          <span className="material-symbols-outlined text-sky-600 animate-spin text-2xl">progress_activity</span>
+        </div>
       )}
     </div>
   );
 }
 
-export default function PhotoSection({ handleImageChange, existingImages }) {
+export default function PhotoSection({ handleImageChange, existingImages, savingSlot }) {
   const images = existingImages || {};
 
   return (
@@ -58,20 +84,21 @@ export default function PhotoSection({ handleImageChange, existingImages }) {
           <span className="material-symbols-outlined text-violet-500 text-[15px]">add_photo_alternate</span>
         </div>
         <p className="section-title">Part Photos</p>
-        <span className="text-[10px] text-slate-400">visual documentation – up to 5 images</span>
+        <span className="text-[10px] text-slate-400">click any slot to upload or change — saves immediately</span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[1, 2, 3, 4, 5].map(i => (
-          <ImageSlot 
-            key={i} 
-            index={i} 
+          <ImageSlot
+            key={i}
+            index={i}
             initialUrl={images[`image${i}`]}
-            onChange={handleImageChange} 
+            onChange={handleImageChange}
+            saving={savingSlot === i}
           />
         ))}
       </div>
       <p className="text-[10px] text-slate-400 mt-3 italic">
-        * Uploaded photos appear in the printed job card to help shop-floor operators identify parts and orientations.
+        * Photos appear in the printed job card. Accepted: JPG, JPEG, PNG, WEBP (max 5 MB each).
       </p>
     </div>
   );

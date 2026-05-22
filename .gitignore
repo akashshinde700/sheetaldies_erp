@@ -57,3 +57,5 @@ backups/
 coverage/
 .nyc_output/
 
+# Added by code-review-graph
+.code-review-graph/

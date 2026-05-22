@@ -60,7 +60,7 @@ exports.getOne = async (req, res) => {
 // Create process type with pricing
 exports.create = async (req, res) => {
   try {
-    const { code, name, description, hsnSacCode, pricePerKg, pricePerPc, minCharge, gstRate } = req.body;
+    const { code, name, description, hsnSacCode, pricePerKg, pricePerPc, lotPrice, gstRate } = req.body;
 
     if (!code || !name) {
       return res.status(400).json({ success: false, message: 'Code and name are required.' });
@@ -79,7 +79,7 @@ exports.create = async (req, res) => {
         hsnSacCode: hsnSacCode || null,
         pricePerKg: pricePerKg ? toNum(pricePerKg, null) : null,
         pricePerPc: pricePerPc ? toNum(pricePerPc, null) : null,
-        minCharge: minCharge ? toNum(minCharge, null) : null,
+        lotPrice: lotPrice ? toNum(lotPrice, null) : null,
         gstRate: gstRate ? toNum(gstRate, 18) : 18.00,
         updatedById: req.user.id,
       },
@@ -97,7 +97,7 @@ exports.update = async (req, res) => {
   try {
     const id = toInt(req.params.id);
     if (Number.isNaN(id)) return res.status(400).json({ success: false, message: 'Invalid ID.' });
-    const { name, description, hsnSacCode, pricePerKg, pricePerPc, minCharge, gstRate, isActive } = req.body;
+    const { name, description, hsnSacCode, pricePerKg, pricePerPc, lotPrice, gstRate, isActive } = req.body;
 
     const pricing = await prisma.processType.update({
       where: { id },
@@ -107,7 +107,7 @@ exports.update = async (req, res) => {
         ...(hsnSacCode !== undefined && { hsnSacCode }),
         ...(pricePerKg !== undefined && { pricePerKg: pricePerKg ? toNum(pricePerKg, null) : null }),
         ...(pricePerPc !== undefined && { pricePerPc: pricePerPc ? toNum(pricePerPc, null) : null }),
-        ...(minCharge !== undefined && { minCharge: minCharge ? toNum(minCharge, null) : null }),
+        ...(lotPrice !== undefined && { lotPrice: lotPrice ? toNum(lotPrice, null) : null }),
         ...(gstRate !== undefined && { gstRate: toNum(gstRate, 18) }),
         ...(isActive !== undefined && { isActive: Boolean(isActive) }),
         updatedById: req.user.id,

@@ -115,13 +115,13 @@ export default function DispatchChallanList() {
           <div className="text-center py-12 text-slate-500 text-sm">No challans found</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
+            <table className="w-full text-sm text-left min-w-[420px]">
               <thead>
                 <tr className="border-b border-slate-200/80">
                   <th className="th text-left">Challan</th>
                   <th className="th text-left">From / To</th>
-                  <th className="th text-left">Items</th>
-                  <th className="th text-left">Dispatch</th>
+                  <th className="th text-left hidden sm:table-cell">Items</th>
+                  <th className="th text-left hidden sm:table-cell">Dispatch</th>
                   <th className="th text-left">Status</th>
                   <th className="th text-center">Actions</th>
                 </tr>
@@ -133,8 +133,8 @@ export default function DispatchChallanList() {
                     <td className="td">
                       {(challan.fromParty?.name || '—')} {'->'} {(challan.toParty?.name || '—')}
                     </td>
-                    <td className="td text-slate-600">{challan.itemCount || 0} items</td>
-                    <td className="td text-slate-600">
+                    <td className="td text-slate-600 hidden sm:table-cell">{challan.itemCount || 0} items</td>
+                    <td className="td text-slate-600 hidden sm:table-cell">
                       {formatDate(challan.challanDate)}
                     </td>
                     <td className="td">
