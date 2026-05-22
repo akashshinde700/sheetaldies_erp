@@ -221,8 +221,13 @@ export default function CertPrint() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/api$/, '');
-  const makeImgUrl = p => p ? (p.startsWith('http') ? p : `${API_BASE}${p}`) : null;
+  // Use relative path — nginx serves /uploads/* from backend on production
+  const makeImgUrl = p => {
+    if (!p) return null;
+    // Strip any localhost prefix stored from dev environment
+    const clean = p.replace(/^https?:\/\/localhost:\d+/, '');
+    return clean.startsWith('http') ? clean : clean;
+  };
 
   const derived = useMemo(() => {
     if (!cert) return {};
@@ -273,8 +278,12 @@ export default function CertPrint() {
   const material  = cert.dieMaterial || jc.dieMaterial || challanItems[0]?.material || '—';
   const htSpec    = cert.operatorMode || jc.hrcRange?.replace(/\d.*/, '').trim() || challanItems[0]?.processName || '—';
 
-  const distBefore = asArray(cert.distortionBefore);
-  const distAfter  = asArray(cert.distortionAfter);
+  // DB stores distortion as [{pt, val}, ...] — extract scalar values
+  const extractDist = arr => asArray(arr).map(v =>
+    v != null && typeof v === 'object' ? (v.val ?? v.value ?? '') : v
+  );
+  const distBefore = extractDist(cert.distortionBefore);
+  const distAfter  = extractDist(cert.distortionAfter);
 
   const ITEMS_8 = Array.from({ length: 8 }, (_, i) => i);
 
