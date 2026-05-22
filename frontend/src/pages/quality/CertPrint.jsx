@@ -44,7 +44,7 @@ function CB({ checked }) {
   );
 }
 
-// ── Temperature graph — staircase chart matching physical job card format ──────
+// ── Temperature graph — matches physical paper graph style ──────
 function TempGraph({ points }) {
   const rawPts = (() => {
     if (!points || points.length === 0) return [];
@@ -55,16 +55,15 @@ function TempGraph({ points }) {
       .sort((a, b) => a.x - b.x);
   })();
 
-  const W = 720; const H = 210; const PL = 52; const PR = 20; const PT = 18; const PB = 30;
+  const W = 720; const H = 260; const PL = 56; const PR = 24; const PT = 30; const PB = 38;
   const iW = W - PL - PR; const iH = H - PT - PB;
   const n = rawPts.length;
 
-  // Dynamic Y scale based on data
   const allY = rawPts.map(p => p.y);
   const dataMin = n > 0 ? Math.min(...allY) : 0;
   const dataMax = n > 0 ? Math.max(...allY) : 1000;
-  const Y_MIN = dataMin < 0 ? Math.floor(dataMin / 100) * 100 - 20 : 0;
-  const Y_MAX = Math.ceil((dataMax + 80) / 100) * 100;
+  const Y_MIN = dataMin < 0 ? Math.floor(dataMin / 100) * 100 - 50 : 0;
+  const Y_MAX = Math.ceil((dataMax + 100) / 100) * 100;
   const yStep = (Y_MAX - Y_MIN) <= 600 ? 100 : 200;
   const yTicks = [];
   for (let t = Math.ceil(Y_MIN / yStep) * yStep; t <= Y_MAX; t += yStep) yTicks.push(t);
@@ -73,110 +72,104 @@ function TempGraph({ points }) {
   const minX = n > 0 ? rawPts[0].x : 0;
   const maxX = n > 0 ? rawPts[n - 1].x : 1;
   const sx = x => PL + ((x - minX) / (maxX - minX || 1)) * iW;
-
   const zero_y = sy(0);
 
   if (n < 2) return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: H }}>
       <rect x="0" y="0" width={W} height={H} fill="white" />
-      <line x1={PL} y1={PT} x2={PL} y2={PT + iH} stroke="#999" strokeWidth="1" />
-      <line x1={PL} y1={zero_y} x2={PL + iW} y2={zero_y} stroke="#999" strokeWidth="1" />
+      <line x1={PL} y1={PT} x2={PL} y2={PT + iH} stroke="#888" strokeWidth="1" />
+      <line x1={PL} y1={zero_y} x2={PL + iW} y2={zero_y} stroke="#888" strokeWidth="1" />
       <text x={PL + iW / 2} y={PT + iH / 2 + 5} textAnchor="middle" fontSize="9" fill="#bbb">— No graph data —</text>
     </svg>
   );
 
-  // Build staircase: H first, then V (temperature holds before ramping)
+  // Staircase: H (hold at current temp) then V (instant step to new temp)
   let d = `M ${sx(rawPts[0].x).toFixed(1)} ${sy(rawPts[0].y).toFixed(1)}`;
   for (let i = 1; i < n; i++) {
     d += ` H ${sx(rawPts[i].x).toFixed(1)} V ${sy(rawPts[i].y).toFixed(1)}`;
+  }
+
+  // Physical graph label style: temp at step corner (bold), duration centered on flat
+  const labelEls = [];
+  for (let i = 0; i < n; i++) {
+    const p  = rawPts[i];
+    const cx = sx(p.x);
+    const cy = sy(p.y);
+    const above = p.y >= 0;
+
+    const prevY = i > 0 ? rawPts[i - 1].y : null;
+    const tempChanged = prevY === null || prevY !== p.y;
+
+    // Temperature label position: above line for positive, below for negative
+    const tempY = above
+      ? Math.max(cy - 8, PT + 10)   // above the line, clamp to chart top
+      : cy + 15;                     // below the line for sub-zero
+
+    if (tempChanged && p.y !== 0) {
+      labelEls.push(
+        <text key={`t${i}`} x={cx + 2} y={tempY}
+          textAnchor="start" fontSize="10" fontWeight="bold" fill="#000">
+          {p.y}
+        </text>
+      );
+    }
+
+    // Duration label: centered on horizontal segment to next point
+    if (i < n - 1) {
+      const next = rawPts[i + 1];
+      const dur  = next.x - p.x;
+      if (dur > 0) {
+        const midX = (cx + sx(next.x)) / 2;
+        // Stack below temp label if they overlap (same start point), else same height
+        const durY = above
+          ? (tempChanged && (midX - cx) < 25 ? tempY - 11 : Math.max(cy - 8, PT + 10))
+          : (tempChanged && (midX - cx) < 25 ? tempY + 11 : cy + 15);
+        labelEls.push(
+          <text key={`d${i}`} x={midX} y={durY}
+            textAnchor="middle" fontSize="9" fill="#222">
+            {dur}
+          </text>
+        );
+      }
+    }
   }
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: H, fontFamily: 'Arial, sans-serif' }}>
       <rect x="0" y="0" width={W} height={H} fill="white" />
 
-      {/* Subtle horizontal grid lines */}
-      {yTicks.map(t => (
-        <line key={t} x1={PL} y1={sy(t)} x2={PL + iW} y2={sy(t)}
-          stroke={t === 0 ? '#888' : '#ddd'}
-          strokeWidth={t === 0 ? '0.8' : '0.5'}
-          strokeDasharray={t === 0 ? '' : '4,3'} />
-      ))}
+      {/* Y axis */}
+      <line x1={PL} y1={PT - 4} x2={PL} y2={PT + iH + 2} stroke="#111" strokeWidth="1.5" />
+      <polygon points={`${PL},${PT - 12} ${PL - 4.5},${PT - 3} ${PL + 4.5},${PT - 3}`} fill="#111" />
 
-      {/* Y axis line + arrow */}
-      <line x1={PL} y1={PT - 2} x2={PL} y2={PT + iH + 2} stroke="#333" strokeWidth="1.2" />
-      <polygon points={`${PL},${PT - 9} ${PL - 4},${PT - 1} ${PL + 4},${PT - 1}`} fill="#333" />
+      {/* X axis at temperature = 0 */}
+      <line x1={PL} y1={zero_y} x2={PL + iW + 4} y2={zero_y} stroke="#111" strokeWidth="1.5" />
+      <polygon points={`${PL + iW + 13},${zero_y} ${PL + iW + 4},${zero_y - 4.5} ${PL + iW + 4},${zero_y + 4.5}`} fill="#111" />
 
-      {/* X axis line (at y=0) + arrow */}
-      <line x1={PL} y1={zero_y} x2={PL + iW + 2} y2={zero_y} stroke="#333" strokeWidth="1.2" />
-      <polygon points={`${PL + iW + 10},${zero_y} ${PL + iW + 2},${zero_y - 4} ${PL + iW + 2},${zero_y + 4}`} fill="#333" />
-
-      {/* Y axis labels */}
+      {/* Y axis tick marks + labels (no grid lines) */}
       {yTicks.filter(t => t !== 0).map(t => (
-        <text key={t} x={PL - 4} y={sy(t) + 3} textAnchor="end" fontSize="7.5" fill="#444">{t}</text>
+        <g key={t}>
+          <line x1={PL - 4} y1={sy(t)} x2={PL} y2={sy(t)} stroke="#555" strokeWidth="1" />
+          <text x={PL - 6} y={sy(t) + 3.5} textAnchor="end" fontSize="8" fill="#333">{t}</text>
+        </g>
       ))}
 
-      {/* Y axis title: rotated, stacked like physical form */}
+      {/* Y axis title — stacked letters like physical form */}
       {'TEMPERATURE'.split('').map((ch, i) => (
-        <text key={i} x={10} y={PT + 8 + i * 9} textAnchor="middle" fontSize="6.5" fontWeight="bold" fill="#555">{ch}</text>
+        <text key={i} x={13} y={PT + 4 + i * 9.5} textAnchor="middle" fontSize="7" fontWeight="bold" fill="#444">{ch}</text>
       ))}
-      <text x={10} y={PT + 8 + 11 * 9} textAnchor="middle" fontSize="6.5" fill="#555">°C</text>
+      <text x={13} y={PT + 4 + 11 * 9.5} textAnchor="middle" fontSize="7" fill="#444">°C</text>
 
-      {/* Staircase line */}
-      <path d={d} fill="none" stroke="#111" strokeWidth="2" strokeLinejoin="miter" strokeLinecap="square" />
+      {/* Staircase — thick bold line, no dots */}
+      <path d={d} fill="none" stroke="#000" strokeWidth="2.8" strokeLinejoin="miter" strokeLinecap="square" />
 
-      {/* Per-point: dot + temperature label on left of plateau + duration label on segment */}
-      {rawPts.map((p, i) => {
-        const cx = sx(p.x);
-        const cy = sy(p.y);
-        const above = p.y >= 0;
-
-        // Temperature label at start of this plateau (left side)
-        // Show if temperature changed from previous point
-        const prevTemp = i > 0 ? rawPts[i - 1].y : null;
-        const tempChanged = prevTemp === null || prevTemp !== p.y;
-        const tempLabelY = above
-          ? (cy - 7 < PT + 4 ? cy + 12 : cy - 7)
-          : cy + 12;
-
-        // Duration label: middle of horizontal segment FROM this point to next
-        let durEl = null;
-        if (i < n - 1) {
-          const dur = rawPts[i + 1].x - p.x;
-          if (dur > 0) {
-            const midX = (sx(p.x) + sx(rawPts[i + 1].x)) / 2;
-            const durY = above
-              ? (cy - 7 < PT + 14 ? cy + 12 : cy - 7)
-              : cy + 12;
-            // offset slightly from temp label when both show at same point
-            const durYFinal = tempChanged && Math.abs(durY - tempLabelY) < 8 ? durY - 9 : durY;
-            durEl = (
-              <text x={midX} y={durYFinal} textAnchor="middle" fontSize="7.5" fill="#555">{dur}</text>
-            );
-          }
-        }
-
-        return (
-          <g key={i}>
-            <circle cx={cx} cy={cy} r="2.5" fill="#111" />
-            {tempChanged && p.y !== 0 && (
-              <text x={cx + 3} y={tempLabelY} textAnchor="start" fontSize="8.5" fontWeight="bold" fill="#111">
-                {p.y}
-              </text>
-            )}
-            {durEl}
-          </g>
-        );
-      })}
+      {/* Temperature + duration labels */}
+      {labelEls}
 
       {/* X axis label */}
-      <text x={PL + iW / 2} y={H - 4} textAnchor="middle" fontSize="8" fill="#555">
+      <text x={PL + iW / 2} y={H - 5} textAnchor="middle" fontSize="9" fontWeight="bold" fill="#444">
         TIME (MINUTE)
       </text>
-      {/* Arrow label on X */}
-      <text x={PL + iW + 14} y={zero_y + 3} textAnchor="start" fontSize="8" fill="#333">→</text>
-      {/* Arrow label on Y */}
-      <text x={PL - 2} y={PT - 11} textAnchor="middle" fontSize="8" fill="#333">↑</text>
     </svg>
   );
 }
