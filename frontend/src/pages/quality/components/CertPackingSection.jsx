@@ -1,9 +1,14 @@
 import React from 'react';
 
-export default function CertPackingSection({ form, set }) {
+const JC = 'form-input bg-indigo-50 text-indigo-900 font-semibold cursor-not-allowed';
+
+export default function CertPackingSection({ form, set, jcData }) {
+  const locked = !!jcData;
   return (
     <div className="card p-5">
       <p className="section-title border-b border-slate-100 pb-2 mb-4">Packing & Approval</p>
+
+      {/* Cert-specific editable fields */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         <div>
           <label className="form-label">Packed Qty</label>
@@ -18,32 +23,45 @@ export default function CertPackingSection({ form, set }) {
           <input value={form.approvedBy} onChange={e => set('approvedBy', e.target.value)} className="form-input" />
         </div>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+
+      {/* Job-card-locked fields */}
+      <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-4 ${locked ? 'bg-indigo-50/40 rounded-xl p-3' : ''}`}>
+        {locked && (
+          <div className="col-span-full mb-1">
+            <span className="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full">from Job Card</span>
+          </div>
+        )}
         <div>
           <label className="form-label">Issued To</label>
-          <input value={form.issuedTo} onChange={e => set('issuedTo', e.target.value)} className="form-input" placeholder="Customer contact / name" />
+          <input value={form.issuedTo} disabled={locked} onChange={e => set('issuedTo', e.target.value)}
+            className={locked ? JC : 'form-input'} placeholder="Customer contact / name" />
         </div>
         <div>
           <label className="form-label">Heat No</label>
-          <input value={form.heatNo} onChange={e => set('heatNo', e.target.value)} className="form-input" placeholder="HT-001" />
+          <input value={form.heatNo} disabled={locked} onChange={e => set('heatNo', e.target.value)}
+            className={locked ? JC : 'form-input'} placeholder="HT-001" />
         </div>
         <div>
           <label className="form-label">Dispatch Mode</label>
-          <div className="flex flex-col gap-1.5 mt-1">
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" checked={!!form.dispatchByOurVehicle} onChange={e => set('dispatchByOurVehicle', e.target.checked)} className="accent-indigo-600" />
-              By Our Vehicle
-            </label>
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" checked={!!form.dispatchByCourier} onChange={e => set('dispatchByCourier', e.target.checked)} className="accent-indigo-600" />
-              By Courier
-            </label>
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" checked={!!form.collectedByCustomer} onChange={e => set('collectedByCustomer', e.target.checked)} className="accent-indigo-600" />
-              Collected by Customer
-            </label>
+          <div className={`flex flex-col gap-1.5 mt-1 ${locked ? 'pointer-events-none' : ''}`}>
+            {[
+              ['dispatchByOurVehicle', 'By Our Vehicle'],
+              ['dispatchByCourier',    'By Courier'],
+              ['collectedByCustomer',  'Collected by Customer'],
+            ].map(([field, label]) => (
+              <label key={field} className={`flex items-center gap-2 text-sm ${locked ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                <input type="checkbox" checked={!!form[field]} disabled={locked}
+                  onChange={e => set(field, e.target.checked)}
+                  className={`accent-indigo-600 ${locked ? 'opacity-60' : ''}`} />
+                <span className={locked ? 'text-indigo-700 font-semibold' : ''}>{label}</span>
+              </label>
+            ))}
           </div>
         </div>
+      </div>
+
+      {/* Dispatch details — always editable */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-4">
         <div>
           <label className="form-label">Dispatch Challan No</label>
           <input value={form.dispatchChallanNo} onChange={e => set('dispatchChallanNo', e.target.value)} className="form-input" placeholder="DC-001" />

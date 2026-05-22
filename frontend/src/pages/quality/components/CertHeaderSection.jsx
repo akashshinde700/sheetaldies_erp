@@ -8,7 +8,11 @@ const F = ({ label, children, className }) => (
   </div>
 );
 
-export default function CertHeaderSection({ form, set, parties, jobCards }) {
+const JC_INPUT = 'form-input bg-indigo-50 text-indigo-900 font-semibold cursor-not-allowed';
+
+export default function CertHeaderSection({ form, set, parties, jobCards, jcData }) {
+  const locked = !!jcData;
+
   const customerOptions = (parties || [])
     .filter(p => p.partyType === 'CUSTOMER' || p.partyType === 'BOTH')
     .map(p => ({ value: String(p.id), label: p.name }));
@@ -24,16 +28,27 @@ export default function CertHeaderSection({ form, set, parties, jobCards }) {
 
   return (
     <div className="card p-5 space-y-4">
-      <p className="section-title border-b border-slate-100 pb-2">Certificate Details</p>
+      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+        <p className="section-title">Certificate Details</p>
+        {locked && (
+          <span className="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+            Job Card: {jcData.jobCardNo}
+          </span>
+        )}
+      </div>
       <div className="grid grid-cols-2 gap-4">
-        <F label="Customer's">
-          <SearchSelect
-            value={String(form.customerId || '')}
-            onChange={v => set('customerId', v)}
-            options={customerOptions}
-            placeholder="— Select Customer —"
-            required
-          />
+        <F label="Customer">
+          {locked ? (
+            <input value={jcData.customer?.name || jcData.customerNameSnapshot || form.issuedTo || ''} disabled className={JC_INPUT} />
+          ) : (
+            <SearchSelect
+              value={String(form.customerId || '')}
+              onChange={v => set('customerId', v)}
+              options={customerOptions}
+              placeholder="— Select Customer —"
+              required
+            />
+          )}
         </F>
         <F label="Certificate No.">
           <div className="flex gap-1">
@@ -62,7 +77,8 @@ export default function CertHeaderSection({ form, set, parties, jobCards }) {
           />
         </F>
         <F label="Your PO No.">
-          <input value={form.yourPoNo} onChange={e => set('yourPoNo', e.target.value)} className="form-input" />
+          <input value={form.yourPoNo} disabled={locked} onChange={e => set('yourPoNo', e.target.value)}
+            className={locked ? JC_INPUT : 'form-input'} />
         </F>
       </div>
       <div className="grid grid-cols-2 gap-4">
@@ -76,9 +92,6 @@ export default function CertHeaderSection({ form, set, parties, jobCards }) {
       <div className="grid grid-cols-2 gap-4">
         <F label="Issue By">
           <input value={form.checkedBy} onChange={e => set('checkedBy', e.target.value)} className="form-input" placeholder="Inspector name" />
-        </F>
-        <F label="DISPATCH MODE:-">
-          <input value={form.dispatchMode} onChange={e => set('dispatchMode', e.target.value)} className="form-input" placeholder="DISPATCH MODE:-" />
         </F>
       </div>
     </div>
