@@ -74,7 +74,17 @@ function TempGraph({ points }) {
   const sx = x => PL + ((x - minX) / (maxX - minX || 1)) * iW;
   const zero_y = sy(0);
 
-  if (n < 2) return (
+  // Deduplicate: keep FIRST point at each unique time value so that
+  // instant-step data (same t, different temps) becomes flat→slope pattern.
+  const pts = [];
+  const seenX = new Set();
+  for (const p of rawPts) {
+    const key = String(p.x);
+    if (!seenX.has(key)) { seenX.add(key); pts.push(p); }
+  }
+  const m = pts.length;
+
+  if (m < 2) return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: H }}>
       <rect x="0" y="0" width={W} height={H} fill="white" />
       <line x1={PL} y1={PT} x2={PL} y2={PT + iH} stroke="#888" strokeWidth="1" />
@@ -83,29 +93,27 @@ function TempGraph({ points }) {
     </svg>
   );
 
-  // Staircase: H (hold at current temp) then V (instant step to new temp)
-  let d = `M ${sx(rawPts[0].x).toFixed(1)} ${sy(rawPts[0].y).toFixed(1)}`;
-  for (let i = 1; i < n; i++) {
-    d += ` H ${sx(rawPts[i].x).toFixed(1)} V ${sy(rawPts[i].y).toFixed(1)}`;
+  // Straight lines between each point → diagonal ramps like physical graph
+  let d = `M ${sx(pts[0].x).toFixed(1)} ${sy(pts[0].y).toFixed(1)}`;
+  for (let i = 1; i < m; i++) {
+    d += ` L ${sx(pts[i].x).toFixed(1)} ${sy(pts[i].y).toFixed(1)}`;
   }
 
-  // Physical graph label style: temp at step corner (bold), duration centered on flat
+  // Labels: temp at each new level (bold), duration centered on each segment
   const labelEls = [];
-  for (let i = 0; i < n; i++) {
-    const p  = rawPts[i];
+  for (let i = 0; i < m; i++) {
+    const p  = pts[i];
     const cx = sx(p.x);
     const cy = sy(p.y);
-    const above = p.y >= 0;
 
-    const prevY = i > 0 ? rawPts[i - 1].y : null;
+    const prevY = i > 0 ? pts[i - 1].y : null;
     const tempChanged = prevY === null || prevY !== p.y;
 
-    // Temperature label position: above line for positive, below for negative
-    const tempY = above
-      ? Math.max(cy - 8, PT + 10)   // above the line, clamp to chart top
-      : cy + 15;                     // below the line for sub-zero
-
+    // Temperature label: above line for positive temps, below for sub-zero
     if (tempChanged && p.y !== 0) {
+      const tempY = p.y > 0
+        ? Math.max(cy - 9, PT + 10)
+        : cy + 16;
       labelEls.push(
         <text key={`t${i}`} x={cx + 2} y={tempY}
           textAnchor="start" fontSize="10" fontWeight="bold" fill="#000">
@@ -114,18 +122,18 @@ function TempGraph({ points }) {
       );
     }
 
-    // Duration label: centered on horizontal segment to next point
-    if (i < n - 1) {
-      const next = rawPts[i + 1];
-      const dur  = next.x - p.x;
+    // Duration label: centered along each segment to next point
+    if (i < m - 1) {
+      const next  = pts[i + 1];
+      const dur   = next.x - p.x;
       if (dur > 0) {
-        const midX = (cx + sx(next.x)) / 2;
-        // Stack below temp label if they overlap (same start point), else same height
-        const durY = above
-          ? (tempChanged && (midX - cx) < 25 ? tempY - 11 : Math.max(cy - 8, PT + 10))
-          : (tempChanged && (midX - cx) < 25 ? tempY + 11 : cy + 15);
+        const mx  = (cx + sx(next.x)) / 2;
+        const my  = (cy + sy(next.y)) / 2;
+        // Place label above the midpoint for positive-temp segments, below for negative
+        const midTemp = (p.y + next.y) / 2;
+        const durY = midTemp >= 0 ? my - 10 : my + 16;
         labelEls.push(
-          <text key={`d${i}`} x={midX} y={durY}
+          <text key={`d${i}`} x={mx} y={durY}
             textAnchor="middle" fontSize="9" fill="#222">
             {dur}
           </text>
