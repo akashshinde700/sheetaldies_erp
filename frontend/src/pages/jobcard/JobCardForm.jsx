@@ -292,6 +292,8 @@ export default function JobCardForm() {
       if (isEdit) {
         await api.put(`/jobcards/${id}`, fd);
         toast.success('Job card updated.');
+        const refreshed = await api.get(`/jobcards/${id}`);
+        setCardData(refreshed.data.data);
       } else {
         const r = await api.post('/jobcards', fd);
         toast.success(`Job card ${r.data.data.jobCardNo} created!`);
@@ -357,28 +359,14 @@ export default function JobCardForm() {
     try {
       if (file === null) {
         // Remove image: delete file from disk + clear DB field
-        const res = await fetch(`/api/jobcards/${id}/image/${index}`, {
-          method: 'DELETE',
-          credentials: 'include',
-        });
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body.message || `Server error ${res.status}`);
-        }
+        await api.delete(`/jobcards/${id}/image/${index}`);
         toast.success(`Image ${index} removed.`);
       } else {
-        // Upload new image
+        // Upload new image — use api (axios) so X-Request-ID header is sent,
+        // which is required by the backend CSRF middleware for cookie-auth PUT requests.
         const fd = new FormData();
         fd.append(`image${index}`, file);
-        const res = await fetch(`/api/jobcards/${id}`, {
-          method: 'PUT',
-          body: fd,
-          credentials: 'include',
-        });
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body.message || `Server error ${res.status}`);
-        }
+        await api.put(`/jobcards/${id}`, fd);
         toast.success(`Image ${index} saved.`);
       }
       setImages(prev => ({ ...prev, [index]: null }));

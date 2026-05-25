@@ -27,8 +27,7 @@ module.exports = (req, res, next) => {
         // presence proves this is a same-origin (or CORS-allowed) request — not a CSRF form post.
         const hasCustomHeader = req.headers['x-request-id'];
 
-        // X-Request-ID proves legitimate JS request — custom headers can't be
-        // set via cross-origin form posts, so no origin check needed.
+        const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',').map(s => s.trim());
         if (!hasCustomHeader) {
           if (!origin) {
             return res.status(403).json({
@@ -36,13 +35,18 @@ module.exports = (req, res, next) => {
               message: 'CSRF validation failed: Origin header required for state-changing requests.'
             });
           }
-          const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',');
-          if (!allowedOrigins.some(ao => origin.includes(ao.trim()))) {
+          if (!allowedOrigins.some(ao => origin.includes(ao))) {
             return res.status(403).json({
               success: false,
               message: 'CSRF validation failed: Request origin not allowed.'
             });
           }
+        } else if (origin && !allowedOrigins.some(ao => origin.includes(ao))) {
+          // Defense-in-depth: reject mismatched origin even when X-Request-ID is present
+          return res.status(403).json({
+            success: false,
+            message: 'CSRF validation failed: Request origin not allowed.'
+          });
         }
       }
     }

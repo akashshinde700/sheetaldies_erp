@@ -6,33 +6,7 @@ const { exportInvoices } = require('../utils/export');
 const { toInt, toNum, asArray } = require('../utils/normalize');
 const { parsePagination, formatListResponse, formatErrorResponse, getStatusCode } = require('../utils/validation');
 
-const generateInvoiceNo = async (db = prisma) => {
-  const y      = new Date().getFullYear().toString().slice(-2);
-  const yn     = String(toInt(y, 0) + 1);
-  const prefix = `SVH/INV/${y}-${yn}/`;
-
-  const last = await db.taxInvoice.findFirst({
-    where:   { invoiceNo: { startsWith: prefix } },
-    orderBy: { invoiceNo: 'desc' },
-  });
-
-  let nextSerial = 1;
-  if (last) {
-    const parts = last.invoiceNo.split('/');
-    const lastSerial = toInt(parts[parts.length - 1], 0) || 0;
-    nextSerial = lastSerial + 1;
-  }
-
-  let invoiceNo;
-  do {
-    invoiceNo = `${prefix}${String(nextSerial).padStart(4, '0')}`;
-    const exists = await db.taxInvoice.findUnique({ where: { invoiceNo } });
-    if (!exists) break;
-    nextSerial++;
-  } while (nextSerial < 9999);
-
-  return invoiceNo;
-};
+const { generateInvoiceNoAtomic } = require('../utils/sequenceManager');
 
 const getChallanBillingStatusInternal = async (challanId, db = prisma) => {
   const challan = await db.jobworkChallan.findUnique({
@@ -359,7 +333,7 @@ exports.create = async (req, res) => {
               txBillingType = qtyAfter <= 0.00001 ? 'FINAL_DISPATCH' : 'PARTIAL_DISPATCH';
           }
 
-          invoiceNo = await generateInvoiceNo(tx);
+          invoiceNo = await generateInvoiceNoAtomic(tx);
           return tx.taxInvoice.create({
             data: {
               invoiceNo,
@@ -657,7 +631,7 @@ const pushXmlToTally = (xml, tallyUrl = 'http://localhost:9000') => {
 // ── Helper: fetch full invoice for XML ────────────────────────
 const fetchFullInvoice = (id) => prisma.taxInvoice.findUnique({
   where:   { id },
-  include: { fromParty: true, toParty: true, items: true },
+  include: { fromParty: true, toParty: true, items: { include: { processType: true } } },
 });
 
 // ── Option B: Download Tally XML ─────────────────────────────

@@ -134,8 +134,10 @@ export default function CertForm() {
       const jc = r.data.data;
       setJcData(jc);
 
-      const hardnessMin = jc.hrcRange ? jc.hrcRange.split(/[–\-]/)[0]?.trim() : '';
-      const hardnessMax = jc.hrcRange ? jc.hrcRange.split(/[–\-]/)[1]?.trim() : '';
+      // Parse "58-60 HRC" → ["58","60"] — strip non-numeric suffix from each part
+      const hrcMatch = (jc.hrcRange || '').match(/(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)/);
+      const hardnessMin = hrcMatch ? hrcMatch[1] : (jc.hrcRange ? jc.hrcRange.split(/[–\-]/)[0]?.replace(/[^\d.]/g, '').trim() : '');
+      const hardnessMax = hrcMatch ? hrcMatch[2] : (jc.hrcRange ? jc.hrcRange.split(/[–\-]/)[1]?.replace(/[^\d.]/g, '').trim() : '');
       const heatTreatment = jc.operationMode || 'HARDEN AND TEMPER';
       const insp = jc.inspection || {};
 
