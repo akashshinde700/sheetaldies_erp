@@ -2,6 +2,7 @@ const prisma = require('../utils/prisma');
 const { transaction } = require('../utils/transaction');
 const { toInt, toNum } = require('../utils/normalize');
 const { formatErrorResponse, getStatusCode, formatListResponse, parsePagination } = require('../utils/validation');
+const { log } = require('../utils/logger');
 
 function normalizeItems(rawItems) {
   if (!Array.isArray(rawItems) || rawItems.length === 0) return [];
@@ -58,18 +59,7 @@ exports.list = async (req, res, next) => {
     const finalLimit = exportAll ? Math.min(MAX_EXPORT_LIMIT, 5000) : toInt(limit, 20);
     const finalSkip = exportAll ? 0 : skip;
 
-    // DEBUG: Log export request details
-    console.log('[PURCHASE EXPORT DEBUG]', {
-      exportAll,
-      page,
-      limit,
-      skip,
-      status,
-      search,
-      fromDate,
-      toDate,
-      timestamp: new Date().toISOString(),
-    });
+    log.debug('[PURCHASE LIST]', { exportAll, page, limit, skip, status, search, fromDate, toDate });
 
     const where = {};
     if (status) where.status = status;
@@ -109,14 +99,7 @@ exports.list = async (req, res, next) => {
       prisma.purchaseOrder.count({ where }),
     ]);
 
-    // DEBUG: Log results
-    console.log('[PURCHASE RESULTS]', {
-      ordersReturned: orders.length,
-      totalInDB: total,
-      exportAll,
-      responseLimit: finalLimit,
-      timestamp: new Date().toISOString(),
-    });
+    log.debug('[PURCHASE RESULTS]', { ordersReturned: orders.length, totalInDB: total, exportAll });
 
     res.json({ success: true, data: orders, total, page: exportAll ? 1 : toInt(page, 1), limit: finalLimit });
   } catch (err) {
