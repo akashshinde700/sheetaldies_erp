@@ -2,14 +2,14 @@ const router = require('express').Router();
 const auth = require('../middleware/auth');
 const ctrl = require('../controllers/attachment.controller');
 const { requireRole } = require('../middleware/role');
-const { upload, validateUploadedFiles, uploadErrorHandler } = require('../middleware/fileUpload');
+const { uploadFiles, validateUploadedFiles, uploadErrorHandler } = require('../middleware/upload');
 
 // Upload (Operator+). Uses multipart/form-data with field name: files
 router.post(
   '/upload',
   auth,
   requireRole('OPERATOR'),
-  upload.array('files', 5),
+  uploadFiles('attachments'),
   validateUploadedFiles,
   uploadErrorHandler,
   ctrl.uploadAttachment
