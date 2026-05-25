@@ -1,6 +1,18 @@
 import React from 'react';
 import SearchSelect from '../../../components/SearchSelect';
 
+const HARDNESS_UNITS = ['HRC', 'HRB', 'HRA', 'HV', 'HVN', 'HS'];
+
+const parseHrc = (val = '') => {
+  const t = val.trim();
+  for (const u of HARDNESS_UNITS) {
+    if (t.toUpperCase().endsWith(u.toUpperCase())) {
+      return { range: t.slice(0, -u.length).trim(), unit: u };
+    }
+  }
+  return { range: t, unit: 'HRC' };
+};
+
 const F = ({ label, children, className = '' }) => (
   <div className={className}>
     <label className="form-label">{label}</label>
@@ -19,8 +31,31 @@ export default function ProductionSection({ form, setForm, machines }) {
         <F label="Total Weight (kg)">
           <input type="number" step="0.001" value={form.totalWeight} onChange={e => setForm(p => ({...p, totalWeight: e.target.value}))} className="form-input" placeholder="0.000" />
         </F>
-        <F label="HRC Range">
-          <input value={form.hrcRange} onChange={e => setForm(p => ({ ...p, hrcRange: e.target.value }))} className="form-input" placeholder="54-56 HRC" />
+        <F label="Hardness Range">
+          <div className="flex gap-1">
+            <input
+              value={parseHrc(form.hrcRange).range}
+              onChange={e => {
+                const unit = parseHrc(form.hrcRange).unit;
+                const range = e.target.value;
+                setForm(p => ({ ...p, hrcRange: range ? `${range} ${unit}` : '' }));
+              }}
+              className="form-input"
+              placeholder="54-56"
+              style={{ flex: 1 }}
+            />
+            <select
+              value={parseHrc(form.hrcRange).unit}
+              onChange={e => {
+                const range = parseHrc(form.hrcRange).range;
+                setForm(p => ({ ...p, hrcRange: range ? `${range} ${e.target.value}` : '' }));
+              }}
+              className="form-input"
+              style={{ width: 72 }}
+            >
+              {HARDNESS_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+            </select>
+          </div>
         </F>
         <F label="Operation No">
           <input value={form.operationNo} onChange={e => setForm(p => ({...p, operationNo: e.target.value}))} className="form-input" placeholder="OP-01" />

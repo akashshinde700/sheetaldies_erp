@@ -198,7 +198,11 @@ export default function JobCardPrint() {
   const totalWt  = items.reduce((s, it) => s + (Number(it.weight ?? it.totalWeight) || 0), 0);
 
   const htSpec = jc.hrcRange?.replace(/\d.*/, '').trim() || jc.operationMode || 'HARDEN AND TEMPER';
-  const hrc    = jc.hrcRange || '—';
+  const hrc    = (() => {
+    if (!jc.hrcRange) return '—';
+    const hasUnit = /[A-Za-z]/.test(jc.hrcRange.replace(/^\d[\d.\-–]+/, ''));
+    return hasUnit ? jc.hrcRange : `${jc.hrcRange} HRC`;
+  })();
 
   const distBefore = Array.isArray(insp.distortionBefore)
     ? insp.distortionBefore.map(v => (typeof v === 'object' ? v.val : v)) : [];
