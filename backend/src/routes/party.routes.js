@@ -2,7 +2,6 @@ const router = require('express').Router();
 const prisma = require('../utils/prisma');
 const auth   = require('../middleware/auth');
 const { requireRole, requireManager } = require('../middleware/role');
-const { requireManager: enforceManager, requireOperator, requireOwnership } = require('../middleware/authEnforcer');
 const ctrl = require('../controllers/party.controller');
 const { toInt, toNum } = require('../utils/normalize');
 const { parsePagination, formatListResponse, formatErrorResponse, getStatusCode } = require('../utils/validation');

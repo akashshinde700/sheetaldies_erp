@@ -4,7 +4,7 @@ const { findRunsheetGraphForJobCard } = require('../utils/runsheetGraph');
 const { toInt, toNum } = require('../utils/normalize');
 const { parseJsonIfString } = require('../utils/json');
 const { parsePagination, formatListResponse, formatErrorResponse, getStatusCode } = require('../utils/validation');
-const { canEditInspection, canViewInspection, hasRole } = require('../middleware/authorize');
+const { canEditInspection, canViewInspection, hasRole } = require('../middleware/role');
 
 // Auto-determine inspection status from hardness values and defect categories
 function autoCalcInspectionStatus(data) {

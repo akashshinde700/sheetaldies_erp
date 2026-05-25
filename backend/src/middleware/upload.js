@@ -117,4 +117,80 @@ const uploadFiveImages = (subDir = 'general') => (req, res, next) => {
   });
 };
 
-module.exports = { upload, uploadFiveImages };
+// ── Document / attachment uploads ─────────────────────────────
+// Extends image/pdf types with office docs and spreadsheets
+const DOC_MIME_TYPES = {
+  ...ALLOWED_MIME_TYPES,
+  'application/msword':     ['.doc'],
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+  'application/vnd.ms-excel': ['.xls'],
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+};
+
+const docFileFilter = (req, file, cb) => {
+  const allowedExts = DOC_MIME_TYPES[file.mimetype];
+  if (!allowedExts) {
+    return cb(new Error(`File type '${file.mimetype}' not allowed.`), false);
+  }
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (!allowedExts.includes(ext)) {
+    return cb(new Error(`Extension '${ext}' does not match type '${file.mimetype}'.`), false);
+  }
+  cb(null, true);
+};
+
+const uploadDoc = multer({
+  storage,
+  fileFilter: docFileFilter,
+  limits: { fileSize: 10 * 1024 * 1024, files: 5 },
+});
+
+/** Array-style upload for attachments (images + PDFs + office docs) */
+const uploadFiles = (subDir = 'attachments', maxFiles = 5) => (req, res, next) => {
+  req.uploadSubDir = subDir;
+  uploadDoc.array('files', maxFiles)(req, res, (err) => {
+    if (!err) return next();
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ success: false, code: 'ERR_FILE_TOO_LARGE', message: 'File exceeds 10MB limit.' });
+    }
+    if (err.code === 'LIMIT_FILE_COUNT') {
+      return res.status(400).json({ success: false, code: 'ERR_TOO_MANY_FILES', message: `Maximum ${maxFiles} files allowed.` });
+    }
+    return res.status(400).json({ success: false, code: 'ERR_FILE_UPLOAD', message: err.message });
+  });
+};
+
+/** Post-upload validation: size and extension double-check, clean up rejects */
+const validateUploadedFiles = (req, res, next) => {
+  if (!req.files || req.files.length === 0) return next();
+  const errors = [];
+  for (const file of req.files) {
+    const allowedExts = DOC_MIME_TYPES[file.mimetype] || [];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!allowedExts.includes(ext) || file.size > 10 * 1024 * 1024) {
+      fs.unlinkSync(file.path);
+      errors.push({ filename: file.originalname, error: !allowedExts.includes(ext) ? `Extension '${ext}' not allowed.` : 'Exceeds 10MB limit.' });
+    }
+  }
+  if (errors.length > 0) {
+    return res.status(400).json({ success: false, code: 'UPLOAD_VALIDATION_FAILED', errors });
+  }
+  next();
+};
+
+/** Error handler for multer errors — must have 4 params to be recognised as error middleware */
+const uploadErrorHandler = (err, req, res, next) => { // eslint-disable-line no-unused-vars
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'FILE_TOO_LARGE')    return res.status(413).json({ success: false, code: 'FILE_TOO_LARGE',   message: 'File exceeds maximum size limit.' });
+    if (err.code === 'LIMIT_FILE_COUNT')  return res.status(400).json({ success: false, code: 'TOO_MANY_FILES',   message: 'Maximum 5 files per upload.' });
+  }
+  if (err?.message?.includes('not allowed')) {
+    return res.status(415).json({ success: false, code: 'UNSUPPORTED_MEDIA_TYPE', message: err.message });
+  }
+  if (err) {
+    return res.status(500).json({ success: false, code: 'UPLOAD_ERROR', message: process.env.NODE_ENV === 'development' ? err.message : 'Failed to upload file.' });
+  }
+  next();
+};
+
+module.exports = { upload, uploadFiveImages, uploadFiles, validateUploadedFiles, uploadErrorHandler };
