@@ -109,32 +109,27 @@ function TempGraph({ points }) {
     const prevY = i > 0 ? pts[i - 1].y : null;
     const tempChanged = prevY === null || prevY !== p.y;
 
-    // Temperature label: above line for positive temps, below for sub-zero
+    // Temperature label: always above the point (bold)
     if (tempChanged && p.y !== 0) {
-      const tempY = p.y > 0
-        ? Math.max(cy - 9, PT + 10)
-        : cy + 16;
+      const tempY = Math.max(cy - 8, PT + 10);
       labelEls.push(
-        <text key={`t${i}`} x={cx + 2} y={tempY}
-          textAnchor="start" fontSize="10" fontWeight="bold" fill="#000">
+        <text key={`t${i}`} x={cx} y={tempY}
+          textAnchor="middle" fontSize="10" fontWeight="bold" fill="#000">
           {p.y}
         </text>
       );
     }
 
-    // Duration label: centered along each segment to next point
+    // Duration label: always BELOW the line midpoint
     if (i < m - 1) {
       const next  = pts[i + 1];
       const dur   = next.x - p.x;
       if (dur > 0) {
         const mx  = (cx + sx(next.x)) / 2;
         const my  = (cy + sy(next.y)) / 2;
-        // Place label above the midpoint for positive-temp segments, below for negative
-        const midTemp = (p.y + next.y) / 2;
-        const durY = midTemp >= 0 ? my - 10 : my + 16;
         labelEls.push(
-          <text key={`d${i}`} x={mx} y={durY}
-            textAnchor="middle" fontSize="9" fill="#222">
+          <text key={`d${i}`} x={mx} y={my + 16}
+            textAnchor="middle" fontSize="9" fill="#444">
             {dur}
           </text>
         );
@@ -236,16 +231,18 @@ export default function CertPrint() {
     const effectiveTempPoints = tempPoints.length >= 2 ? tempPoints : DEFAULT_TEMP_CYCLE;
     const insp = cert.jobCard?.inspection;
 
-    // Required hardness
-    const reqMin = num(insp?.requiredHardnessMin) ?? num(cert.hardnessMin);
-    const reqMax = num(insp?.requiredHardnessMax) ?? num(cert.hardnessMax);
-    const reqText = (reqMin != null && reqMax != null) ? `${reqMin}-${reqMax} ${cert.hardnessUnit || 'HRC'}` : cert.hrcRange || cert.jobCard?.hrcRange || '—';
+    // Required hardness — num(0)||null treats stored-zero as "not set", falls back to jc.hrcRange
+    const reqMin = num(insp?.requiredHardnessMin) ?? (num(cert.hardnessMin) || null);
+    const reqMax = num(insp?.requiredHardnessMax) ?? (num(cert.hardnessMax) || null);
+    const reqText = (reqMin != null && reqMax != null)
+      ? `${reqMin}-${reqMax} ${cert.hardnessUnit || 'HRC'}`
+      : cert.hrcRange || cert.jobCard?.hrcRange || '—';
 
     // Achieved hardness — from inspectionResults or cert inspection
     const achResult = (cert.inspectionResults || []).find(r => r.inspectionType === 'HARDNESS');
     const achText = achResult?.achievedValue || (insp?.achievedHardness != null ? `${insp.achievedHardness} ${cert.hardnessUnit || 'HRC'}` : '—');
 
-    // Challan items (for WM No, DRG No)
+    // Challan items (for WM No, DRG No + items fallback)
     const challanItems = cert.jobCard?.challans?.flatMap(ch => ch.items || []) || [];
 
     return { tempPoints, effectiveTempPoints, reqText, achText, challanItems };
@@ -261,10 +258,30 @@ export default function CertPrint() {
 
   const customer   = cert.customer || cert.jobCard?.customer;
   const jc         = cert.jobCard || {};
-  const items      = cert.items || [];
+  const challanItems = derived.challanItems || [];
+  const insp = jc.inspection || {};
+
+  // If cert was saved before categorization/process were populated, fall back to job card inspection
+  const hasCertCat  = cert.catNormal || cert.catWelded || cert.catCrackRisk || cert.catDistortionRisk ||
+                      cert.catCriticalFinishing || cert.catDentDamage || cert.catRusty || cert.catOthers;
+  const hasCertProc = cert.procStressRelieving || cert.procHardening || cert.procTempering || cert.procAnnealing ||
+                      cert.procBrazing || cert.procPlasmaNitriding || cert.procSubZero || cert.procSoakClean;
+  const cat  = (field) => hasCertCat  ? !!cert[field] : !!insp[field];
+  const proc = (field) => hasCertProc ? !!cert[field] : !!insp[field];
+
+  // If cert has no saved items, fall back to job card challan items so the table isn't blank
+  const certItemsSaved = cert.items || [];
+  const items = certItemsSaved.length > 0
+    ? certItemsSaved
+    : challanItems.map(it => ({
+        id:          it.id,
+        description: it.partName || it.description || '',
+        quantity:    it.qty ?? it.quantity ?? '',
+        totalWeight: it.weight ?? it.totalWeight ?? null,
+        remarks:     '',
+      }));
   const totalQty   = items.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
   const totalWt    = items.reduce((s, it) => s + (num(it.totalWeight) || 0), 0);
-  const challanItems = derived.challanItems || [];
 
   const dt = cert.dispatchedThrough || '';
   const byOurVehicle     = jc.dispatchByOurVehicle  || dt.toLowerCase().includes('vehicle');
@@ -477,7 +494,7 @@ export default function CertPrint() {
         <div style={{ borderBottom: '1px solid black' }}>
           <div className="px-2 py-1 font-bold flex gap-4" style={{ borderBottom: '1px solid black' }}>
             <span>FINAL INSPECTION</span>
-            <span><CB checked={cert.catNormal || (!cert.catCrackRisk && !cert.catDistortionRisk)} /> NORMAL</span>
+            <span><CB checked={cat('catNormal') || (!cat('catCrackRisk') && !cat('catDistortionRisk'))} /> NORMAL</span>
             <span><CB checked={false} /> SPECIAL</span>
           </div>
           <table className="w-full border-collapse">
@@ -486,27 +503,27 @@ export default function CertPrint() {
                 {/* Categorization */}
                 <td className="p-2 align-top" style={{ width: '22%', borderRight: '1px solid black' }}>
                   <div className="font-bold mb-1 text-[9px]">Categorization</div>
-                  <div><CB checked={cert.catNormal} /> NORMAL</div>
-                  <div><CB checked={cert.catWelded} /> WELDED</div>
-                  <div><CB checked={cert.catCrackRisk} /> CRACK OR CRACK RISK</div>
-                  <div><CB checked={cert.catDistortionRisk} /> DISTORTION RISK</div>
-                  <div><CB checked={cert.catCriticalFinishing} /> CRITCAL FINISHING</div>
-                  <div><CB checked={cert.catDentDamage} /> DENT/ DAMAGE</div>
-                  <div><CB checked={cert.catRusty} /> RUSTY</div>
-                  <div><CB checked={cert.catOthers} /> OTHERS</div>
+                  <div><CB checked={cat('catNormal')} /> NORMAL</div>
+                  <div><CB checked={cat('catWelded')} /> WELDED</div>
+                  <div><CB checked={cat('catCrackRisk')} /> CRACK OR CRACK RISK</div>
+                  <div><CB checked={cat('catDistortionRisk')} /> DISTORTION RISK</div>
+                  <div><CB checked={cat('catCriticalFinishing')} /> CRITCAL FINISHING</div>
+                  <div><CB checked={cat('catDentDamage')} /> DENT/ DAMAGE</div>
+                  <div><CB checked={cat('catRusty')} /> RUSTY</div>
+                  <div><CB checked={cat('catOthers')} /> OTHERS</div>
                 </td>
 
                 {/* Process */}
                 <td className="p-2 align-top" style={{ width: '22%', borderRight: '1px solid black' }}>
                   <div className="font-bold mb-1 text-[9px]">Process</div>
-                  <div><CB checked={cert.procStressRelieving} /> STRESS RELIVING</div>
-                  <div><CB checked={cert.procHardening} /> HARDENING</div>
-                  <div><CB checked={cert.procTempering} /> TEMPERING</div>
-                  <div><CB checked={cert.procAnnealing} /> ANNEALING</div>
-                  <div><CB checked={cert.procBrazing} /> BRAZING</div>
-                  <div><CB checked={cert.procPlasmaNitriding} /> PLASMA NITRIDING</div>
-                  <div><CB checked={cert.procSubZero} /> SUB ZERO</div>
-                  <div><CB checked={cert.procSoakClean} /> SOAK CLEAN</div>
+                  <div><CB checked={proc('procStressRelieving')} /> STRESS RELIVING</div>
+                  <div><CB checked={proc('procHardening')} /> HARDENING</div>
+                  <div><CB checked={proc('procTempering')} /> TEMPERING</div>
+                  <div><CB checked={proc('procAnnealing')} /> ANNEALING</div>
+                  <div><CB checked={proc('procBrazing')} /> BRAZING</div>
+                  <div><CB checked={proc('procPlasmaNitriding')} /> PLASMA NITRIDING</div>
+                  <div><CB checked={proc('procSubZero')} /> SUB ZERO</div>
+                  <div><CB checked={proc('procSoakClean')} /> SOAK CLEAN</div>
                 </td>
 
                 {/* Visual + MPI inspection */}
@@ -636,15 +653,12 @@ export default function CertPrint() {
         </div>
 
         {/* ── FOOTER ── */}
-        <div className="flex justify-between items-end px-2 py-1.5 text-[8.5px] text-slate-600">
-          <span>QF-QA-08 &nbsp;&nbsp; Effective Date: 10/05/2019 &nbsp;&nbsp; Revision: 00 &nbsp;&nbsp; Revision Date: 00 &nbsp;&nbsp; Page 1 of 1</span>
-        </div>
-        <div className="px-2 py-1 text-[8px] text-slate-600" style={{ borderTop: '1px solid #ccc' }}>
-          <span className="font-semibold">Color Code for Job Card —</span>
-          <span className="ml-2">WHITE – Regular,</span>
-          <span className="ml-2">RED – Rework,</span>
-          <span className="ml-2">BLUE – New Development,</span>
-          <span className="ml-2">YELLOW – Stress Relieving &amp; Other Process.</span>
+        <div className="flex justify-between items-center px-2 py-1.5 text-[8.5px] text-slate-600" style={{ borderTop: '1px solid #ccc' }}>
+          <span>QF-QA-08</span>
+          <span>Effective Date: 10/05/2019</span>
+          <span>Revision: 00</span>
+          <span>Revision Date: 00</span>
+          <span>Page 1 of 1</span>
         </div>
       </div>
     </div>

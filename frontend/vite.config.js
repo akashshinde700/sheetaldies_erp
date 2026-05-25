@@ -10,4 +10,17 @@ export default defineConfig({
       '/uploads': { target: 'http://localhost:5000', changeOrigin: true },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react':   ['react', 'react-dom', 'react-router-dom'],
+          'vendor-query':   ['@tanstack/react-query'],
+          'vendor-charts':  ['recharts'],
+          'vendor-xlsx':    ['xlsx'],
+          'vendor-lucide':  ['lucide-react'],
+        },
+      },
+    },
+  },
 });

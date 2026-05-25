@@ -59,3 +59,17 @@ coverage/
 
 # Added by code-review-graph
 .code-review-graph/
+
+# Deployment secrets — never commit
+.env.deploy
+DEPLOY-NOW.sh
+
+# Local DB dumps
+sheetal_dump.sql
+*.sql
+
+# Excel exports generated locally
+*.xlsx
+
+# Misc generated dirs
+caveman-main/
