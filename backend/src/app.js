@@ -8,6 +8,10 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerSpecs = require('./config/swagger');
 require('dotenv').config();
 
+if (process.env.NODE_ENV === 'production' && !process.env.ENCRYPTION_KEY) {
+  throw new Error('ENCRYPTION_KEY env var must be set in production');
+}
+
 const prisma = require('./utils/prisma');
 const { auditLog } = require('./controllers/audit.controller');
 const { errorHandler } = require('./middleware/errorHandler');

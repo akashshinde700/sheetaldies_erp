@@ -5,6 +5,7 @@ const { toInt, toNum } = require('../utils/normalize');
 const { parseJsonIfString } = require('../utils/json');
 const { parsePagination, formatListResponse, formatErrorResponse, getStatusCode } = require('../utils/validation');
 const { canEditInspection, canViewInspection, hasRole } = require('../middleware/role');
+const { log } = require('../utils/logger');
 
 // Auto-determine inspection status from hardness values and defect categories
 function autoCalcInspectionStatus(data) {
@@ -501,17 +502,7 @@ exports.listCertificates = async (req, res) => {
     const toDate = req.query.toDate;
     const search = req.query.search;
 
-    // DEBUG: Log export request details
-    console.log('[CERT EXPORT DEBUG]', {
-      exportAll,
-      page,
-      limit,
-      skip,
-      status,
-      fromDate,
-      toDate,
-      timestamp: new Date().toISOString(),
-    });
+    log.debug('[CERT LIST]', { exportAll, page, limit, skip, status, fromDate, toDate });
 
     if (status && status !== 'all') {
       where.status = status;
@@ -556,22 +547,14 @@ exports.listCertificates = async (req, res) => {
       ...(exportAll ? { skip: 0, take: 100000 } : { skip, take: limit }),
     };
 
-    // DEBUG: Log query config
-    console.log('[CERT QUERY CONFIG]', { queryConfig });
+    log.debug('[CERT QUERY]', { where: Object.keys(queryConfig.where || {}) });
 
     const [certs, total] = await Promise.all([
       prisma.testCertificate.findMany(queryConfig),
       prisma.testCertificate.count({ where }),
     ]);
 
-    // DEBUG: Log results
-    console.log('[CERT RESULTS]', {
-      certsReturned: certs.length,
-      totalInDB: total,
-      exportAll,
-      responseLimit: exportAll ? certs.length : limit,
-      timestamp: new Date().toISOString(),
-    });
+    log.debug('[CERT RESULTS]', { certsReturned: certs.length, totalInDB: total, exportAll });
     
     res.json(formatListResponse(certs, total, exportAll ? 1 : page, exportAll ? certs.length : limit));
   } catch (err) {

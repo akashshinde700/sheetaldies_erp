@@ -34,7 +34,7 @@ const createInvoiceSafely = async (invoiceData, challanId, db = prisma) => {
       async (tx) => {
         // Step 1: Generate atomic invoice number (fixes C1)
         const invoiceNo = await generateInvoiceNoAtomic(tx);
-        console.log(`[INVOICE] Generated invoice number: ${invoiceNo}`);
+        log.debug('[INVOICE] Generated invoice number', { invoiceNo });
 
         // Step 2: Validate against overbilling (fixes C2)
         const validation = await validateInvoiceAgainstChallan(invoiceData, challanId, tx);
@@ -43,12 +43,7 @@ const createInvoiceSafely = async (invoiceData, challanId, db = prisma) => {
           throw new Error(`Overbilling validation failed: ${JSON.stringify(validation)}`);
         }
 
-        console.log(`[INVOICE] Validation passed:`, {
-          challanTotal: validation.challanTotal,
-          alreadyInvoiced: validation.alreadyInvoiced,
-          newInvoiceQty: validation.newInvoiceQuantity,
-          wouldBeInvoiced: validation.wouldBeInvoiced
-        });
+        log.debug('[INVOICE] Validation passed', { challanTotal: validation.challanTotal, alreadyInvoiced: validation.alreadyInvoiced });
 
         // Step 3: Create invoice with atomic invoice number
         invoice = await tx.taxInvoice.create({

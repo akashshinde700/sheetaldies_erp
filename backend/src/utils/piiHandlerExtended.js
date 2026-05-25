@@ -41,7 +41,6 @@ const encryptPartyData = (partyData) => {
     if (encrypted[field]) {
       try {
         encrypted[field] = encrypt(encrypted[field]);
-        console.log(`[ENCRYPT] ${field} encrypted successfully`);
       } catch (err) {
         console.error(`[ENCRYPT_ERROR] Failed to encrypt ${field}:`, err.message);
         encrypted[`${field}__encrypt_failed`] = true;
