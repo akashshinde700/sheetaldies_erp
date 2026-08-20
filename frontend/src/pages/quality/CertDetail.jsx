@@ -5,7 +5,7 @@ import { formatDate } from '../../utils/formatters';
 
 const STATUS_COLOR = {
   DRAFT:    'bg-slate-100 text-slate-600',
-  ISSUED:   'bg-indigo-100 text-indigo-700',
+  ISSUED:   'bg-sky-100 text-sky-700',
   APPROVED: 'bg-emerald-100 text-emerald-700',
 };
 
@@ -41,7 +41,7 @@ export default function CertDetail() {
     <div className="flex flex-col items-center justify-center h-64 gap-3">
       <span className="material-symbols-outlined text-4xl text-slate-300">error</span>
       <p className="text-slate-400 text-sm">{error || 'Certificate not found.'}</p>
-      <Link to="/quality/certificates" className="text-indigo-600 text-sm hover:underline">← Back to Certificates</Link>
+      <Link to="/quality/certificates" className="text-sky-600 text-sm hover:underline">← Back to Certificates</Link>
     </div>
   );
 
@@ -56,36 +56,39 @@ export default function CertDetail() {
     <div className="page-stack w-full space-y-4 animate-slide-up">
 
       {/* Header */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <Link to="/quality/certificates"
-          className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-300 transition-colors shadow-sm">
-          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-        </Link>
-        <div className="flex-1">
-          <h2 className="text-xl font-extrabold text-slate-800 font-headline font-mono">{cert.certNo}</h2>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Test Certificate — {formatDate(cert.issueDate)}
-          </p>
-        </div>
-        <Link to={`/quality/certificates/${id}/print`} className="btn-outline">
-          <span className="material-symbols-outlined text-sm">print</span> Print / PDF
-        </Link>
-        {/* Auto-flow → Invoice */}
-        <Link
-          to={`/invoices/new?customerId=${cert.customerId}`}
-          className="btn-outline border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-        >
-          <span className="material-symbols-outlined text-sm">receipt_long</span> Create Invoice
-        </Link>
-        {cert.jobCardId && (
-          <Link
-            to={`/jobcards/${cert.jobCardId}`}
-            className="btn-outline border-indigo-200 text-indigo-700 hover:bg-indigo-50"
-          >
-            <span className="material-symbols-outlined text-sm">description</span> Job Card
+      <div className="page-header">
+        <div className="flex items-start gap-3 min-w-0 flex-1">
+          <Link to="/quality/certificates"
+            className="w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-colors shadow-sm">
+            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
           </Link>
-        )}
-        <span className={`badge ${STATUS_COLOR[cert.status] || STATUS_COLOR.DRAFT}`}>{cert.status}</span>
+          <div className="space-y-2 min-w-0">
+            <h1 className="page-title font-mono">{cert.certNo}</h1>
+            <p className="page-subtitle">Test Certificate • {formatDate(cert.issueDate)}</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link to={`/quality/certificates/${id}/print`} className="btn-outline">
+            <span className="material-symbols-outlined text-sm">print</span> Print / PDF
+          </Link>
+          <Link
+            to={cert.jobCardId
+              ? `/invoices/new?jobCardId=${cert.jobCardId}`
+              : `/invoices/new?customerId=${cert.customerId}`}
+            className="btn-outline border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+          >
+            <span className="material-symbols-outlined text-sm">receipt_long</span> Create Invoice
+          </Link>
+          {cert.jobCardId && (
+            <Link
+              to={`/jobcards/${cert.jobCardId}`}
+              className="btn-outline border-sky-200 text-sky-700 hover:bg-sky-50"
+            >
+              <span className="material-symbols-outlined text-sm">description</span> Job Card
+            </Link>
+          )}
+          <span className={`badge ${STATUS_COLOR[cert.status] || STATUS_COLOR.DRAFT}`}>{cert.status}</span>
+        </div>
       </div>
 
       {/* Customer + Issued By */}
@@ -105,7 +108,7 @@ export default function CertDetail() {
           {cert.jobCard?.jobCardNo && (
             <div>
               <span className="text-xs text-slate-400 block mb-0.5">Job Card</span>
-              <Link to={`/jobcards/${cert.jobCardId}`} className="font-semibold text-indigo-600 hover:underline">{cert.jobCard.jobCardNo}</Link>
+              <Link to={`/jobcards/${cert.jobCardId}`} className="font-semibold text-sky-600 hover:underline">{cert.jobCard.jobCardNo}</Link>
             </div>
           )}
           {cert.yourPoNo   && <div><span className="text-xs text-slate-400 block mb-0.5">Your PO No</span><span className="font-semibold">{cert.yourPoNo}</span></div>}
@@ -116,7 +119,7 @@ export default function CertDetail() {
           {cert.packedBy           && <div><span className="text-xs text-slate-400 block mb-0.5">Packed By</span><span className="font-semibold">{cert.packedBy}</span></div>}
           {cert.approvedBy         && <div><span className="text-xs text-slate-400 block mb-0.5">Approved By</span><span className="font-semibold">{cert.approvedBy}</span></div>}
           {cert.issuedTo           && <div><span className="text-xs text-slate-400 block mb-0.5">Issued To</span><span className="font-semibold">{cert.issuedTo}</span></div>}
-          {cert.heatNo             && <div><span className="text-xs text-slate-400 block mb-0.5">Heat No</span><span className="font-semibold font-mono">{cert.heatNo}</span></div>}
+          {cert.heatNo             && <div><span className="text-xs text-slate-400 block mb-0.5">Cycle No</span><span className="font-semibold font-mono">{cert.heatNo}</span></div>}
           {(() => {
             const jc = cert.jobCard || {};
             const byVehicle   = jc.dispatchByOurVehicle  || (cert.dispatchedThrough || '').includes('Our Vehicle');
@@ -178,7 +181,7 @@ export default function CertDetail() {
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Process</p>
                 <div className="flex flex-wrap gap-1.5">
                   {procs.map(([, label]) => (
-                    <span key={label} className="text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full px-2.5 py-0.5">{label}</span>
+                    <span key={label} className="text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200 rounded-full px-2.5 py-0.5">{label}</span>
                   ))}
                 </div>
               </div>
@@ -227,16 +230,16 @@ export default function CertDetail() {
         <div className="card p-5">
           <p className="section-title border-b border-slate-100 pb-2 mb-4">Hardness Requirement</p>
           <div className="flex items-center gap-6">
-            <div className="text-center bg-indigo-50 rounded-xl px-6 py-3">
-              <p className="text-[10px] text-indigo-400 uppercase font-bold">Min</p>
-              <p className="text-2xl font-extrabold text-indigo-800">{cert.hardnessMin ?? '—'}</p>
-              <p className="text-xs text-indigo-500">{cert.hardnessUnit}</p>
+            <div className="text-center bg-sky-50 rounded-xl px-6 py-3">
+              <p className="text-[10px] text-sky-400 uppercase font-bold">Min</p>
+              <p className="text-2xl font-extrabold text-sky-800">{cert.hardnessMin ?? '—'}</p>
+              <p className="text-xs text-sky-500">{cert.hardnessUnit}</p>
             </div>
             <span className="text-slate-300 text-2xl">—</span>
-            <div className="text-center bg-indigo-50 rounded-xl px-6 py-3">
-              <p className="text-[10px] text-indigo-400 uppercase font-bold">Max</p>
-              <p className="text-2xl font-extrabold text-indigo-800">{cert.hardnessMax ?? '—'}</p>
-              <p className="text-xs text-indigo-500">{cert.hardnessUnit}</p>
+            <div className="text-center bg-sky-50 rounded-xl px-6 py-3">
+              <p className="text-[10px] text-sky-400 uppercase font-bold">Max</p>
+              <p className="text-2xl font-extrabold text-sky-800">{cert.hardnessMax ?? '—'}</p>
+              <p className="text-xs text-sky-500">{cert.hardnessUnit}</p>
             </div>
           </div>
         </div>
@@ -246,9 +249,10 @@ export default function CertDetail() {
       {cert.items?.length > 0 && (
         <div className="card p-5">
           <p className="section-title border-b border-slate-100 pb-2 mb-4">Items / Parts</p>
-          <table className="w-full text-xs">
+          <div className="overflow-x-auto">
+          <table className="w-full text-xs min-w-[460px]">
             <thead>
-              <tr className="bg-gradient-to-r from-slate-50 to-indigo-50/30 border-b border-slate-100">
+              <tr className="bg-gradient-to-r from-slate-50 to-sky-50/30 border-b border-slate-100">
                 {['#', 'Description', 'Qty', 'Wt/Pc (kg)', 'Total Wt (kg)', 'Remarks'].map(h => (
                   <th key={h} className="px-3 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">{h}</th>
                 ))}
@@ -267,6 +271,7 @@ export default function CertDetail() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -284,9 +289,10 @@ export default function CertDetail() {
         return (
           <div className="card p-5">
             <p className="section-title border-b border-slate-100 pb-2 mb-4">Distortion Measurement</p>
-            <table className="w-full text-xs">
+            <div className="overflow-x-auto">
+            <table className="w-full text-xs min-w-[380px]">
               <thead>
-                <tr className="bg-gradient-to-r from-slate-50 to-indigo-50/30 border-b border-slate-100">
+                <tr className="bg-gradient-to-r from-slate-50 to-sky-50/30 border-b border-slate-100">
                   <th className="px-3 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">Point</th>
                   <th className="px-3 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">Before HT (mm)</th>
                   <th className="px-3 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">After HT (mm)</th>
@@ -302,6 +308,7 @@ export default function CertDetail() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         );
       })()}
@@ -310,9 +317,10 @@ export default function CertDetail() {
       {cert.inspectionResults?.length > 0 && (
         <div className="card p-5">
           <p className="section-title border-b border-slate-100 pb-2 mb-4">Inspection Results</p>
-          <table className="w-full text-xs">
+          <div className="overflow-x-auto">
+          <table className="w-full text-xs min-w-[520px]">
             <thead>
-              <tr className="bg-gradient-to-r from-slate-50 to-indigo-50/30 border-b border-slate-100">
+              <tr className="bg-gradient-to-r from-slate-50 to-sky-50/30 border-b border-slate-100">
                 {['Type', 'Parameter', 'Required', 'Achieved', 'Result', 'Final Inspection'].map(h => (
                   <th key={h} className="px-3 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">{h}</th>
                 ))}
@@ -331,6 +339,7 @@ export default function CertDetail() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -350,7 +359,7 @@ export default function CertDetail() {
                     {' '}
                     <Link
                       to={`/manufacturing/runsheet/${cert.graphFromRunsheet.id}`}
-                      className="underline text-indigo-600"
+                      className="underline text-sky-600"
                     >
                       Open
                     </Link>
@@ -396,7 +405,7 @@ export default function CertDetail() {
           <div className="flex gap-3 flex-wrap">
             {images.map((img, i) => (
               <a key={i} href={img} target="_blank" rel="noreferrer"
-                className="w-24 h-24 rounded-xl overflow-hidden border border-slate-200 hover:shadow-md hover:border-indigo-200 transition-all">
+                className="w-24 h-24 rounded-xl overflow-hidden border border-slate-200 hover:shadow-md hover:border-sky-200 transition-all">
                 <img src={img} alt={`Image ${i+1}`} className="w-full h-full object-cover" />
               </a>
             ))}

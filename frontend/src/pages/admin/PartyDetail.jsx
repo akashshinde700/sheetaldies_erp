@@ -4,11 +4,12 @@ import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { formatDate, formatCurrency } from '../../utils/formatters';
 import { useAuth } from '../../context/AuthContext';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 const PAGE_SIZE = 10;
 
 const TYPE_BADGE = {
-  CUSTOMER: 'bg-indigo-100 text-indigo-700',
+  CUSTOMER: 'bg-sky-100 text-sky-700',
   VENDOR: 'bg-violet-100 text-violet-700',
   BOTH: 'bg-emerald-100 text-emerald-700',
 };
@@ -47,7 +48,7 @@ const MiniPagination = ({ page, setPage, total }) => {
 export default function PartyDetail() {
   const { partyId } = useParams();
   const navigate = useNavigate();
-  const { isManager } = useAuth();
+  const { isManager, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [jobCardsPage, setJobCardsPage] = useState(1);
@@ -64,6 +65,9 @@ export default function PartyDetail() {
   const [editingRates, setEditingRates] = useState(false);
   const [ratesMap, setRatesMap] = useState({});
   const [savingRates, setSavingRates] = useState(false);
+  const [ratesSearch, setRatesSearch] = useState('');
+  const [showOnlyConfigured, setShowOnlyConfigured] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
   const loadRates = async () => {
     if (!isManager) return;
@@ -72,11 +76,11 @@ export default function PartyDetail() {
       api.get('/processes'),
     ]);
     const rates = ratesRes.data.data || [];
-    const procs = (procRes.data.data || procRes.data).filter(p => p.isActive !== false);
+    const procs = (procRes.data.data || procRes.data).filter(p => p.isActive !== false && p.showInPartyRates !== false);
     const unique = [];
     const seen = new Set();
     for (const p of procs) {
-      if (!seen.has(p.name)) { seen.add(p.name); unique.push(p); }
+      if (!seen.has(p.id)) { seen.add(p.id); unique.push(p); }
     }
     setAllProcesses(unique);
     setProcessRates(rates);
@@ -100,7 +104,10 @@ export default function PartyDetail() {
   const setRate = (ptId, field, val) =>
     setRatesMap(prev => ({ ...prev, [ptId]: { ...(prev[ptId] || {}), [field]: val } }));
 
-  const saveRates = async () => {
+  const resetToGlobal = (ptId) =>
+    setRatesMap(prev => { const next = { ...prev }; delete next[ptId]; return next; });
+
+  const doSaveRates = async () => {
     setSavingRates(true);
     try {
       const payload = Object.entries(ratesMap).map(([ptId, v]) => ({
@@ -118,6 +125,27 @@ export default function PartyDetail() {
     } finally {
       setSavingRates(false);
     }
+  };
+
+  const saveRates = () => {
+    // Confirm if any previously-saved rate is being cleared
+    const clearing = Object.entries(ratesMap).filter(([ptId, v]) => {
+      const was = processRates.find(r => r.processTypeId === Number(ptId));
+      const wasSet = was && (was.pricePerKg != null || was.pricePerPc != null || was.lotPrice != null);
+      return wasSet && v.pricePerKg === '' && v.pricePerPc === '' && v.lotPrice === '';
+    });
+    if (clearing.length > 0) {
+      const names = clearing.map(([ptId]) => allProcesses.find(p => p.id === Number(ptId))?.name || ptId).join(', ');
+      setConfirmDialog({
+        title: 'Remove custom rate?',
+        message: `This will remove the custom rate for:\n${names}\n\nFuture invoices will use the global rate.`,
+        confirmLabel: 'Remove & Save',
+        variant: 'danger',
+        onConfirm: async () => { await doSaveRates(); setConfirmDialog(null); },
+      });
+      return;
+    }
+    doSaveRates();
   };
 
   useEffect(() => {
@@ -162,7 +190,7 @@ export default function PartyDetail() {
     <div className="page-stack w-full space-y-6 animate-slide-up">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
-          <button type="button" onClick={() => navigate('/admin/parties')} className="text-xs font-semibold text-indigo-600 hover:underline mb-2">
+          <button type="button" onClick={() => navigate('/admin/parties')} className="text-xs font-semibold text-sky-600 hover:underline mb-2">
             ← Back to Parties
           </button>
           <h2 className="text-xl font-extrabold text-slate-800 font-headline">{party.name}</h2>
@@ -227,115 +255,237 @@ export default function PartyDetail() {
         </div>
       )}
 
-      {/* Process Rates Master Card — ADMIN / MANAGER only */}
-      {isManager && allProcesses.length > 0 && (
-        <div className="card overflow-hidden p-0">
-          <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-indigo-600 text-[20px]">price_change</span>
-              <p className="section-title">Process Rates (Party-Specific)</p>
-              <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Admin / Manager</span>
-            </div>
-            {!editingRates ? (
-              <button
-                type="button"
-                onClick={startEditRates}
-                className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 border border-indigo-200 hover:border-indigo-400 px-3 py-1.5 rounded-xl transition-colors"
-              >
-                <span className="material-symbols-outlined text-sm">edit</span> Edit Rates
-              </button>
-            ) : (
-              <div className="flex gap-2">
-                <button type="button" onClick={cancelEditRates} className="btn-ghost text-xs">Cancel</button>
-                <button
-                  type="button"
-                  onClick={saveRates}
-                  disabled={savingRates}
-                  className="flex items-center gap-1 text-xs btn-primary py-1.5 px-3"
-                >
-                  {savingRates
-                    ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Saving…</>
-                    : <><span className="material-symbols-outlined text-sm">save</span> Save</>}
-                </button>
+      {/* Process Rates Master Card — MANAGER/ADMIN view, ADMIN edit only */}
+      {isManager && allProcesses.length > 0 && (() => {
+        const configuredCount = allProcesses.filter(pt => {
+          const s = processRates.find(r => r.processTypeId === pt.id);
+          return s && (s.pricePerKg != null || s.pricePerPc != null || s.lotPrice != null);
+        }).length;
+
+        const filteredProcesses = allProcesses.filter(pt => {
+          if (ratesSearch && !pt.name.toLowerCase().includes(ratesSearch.toLowerCase())) return false;
+          if (showOnlyConfigured) {
+            const s = processRates.find(r => r.processTypeId === pt.id);
+            return !!(s && (s.pricePerKg != null || s.pricePerPc != null || s.lotPrice != null));
+          }
+          return true;
+        });
+
+        const getBillingType = (pt) => {
+          const flags = [pt.pricePerKg != null, pt.pricePerPc != null, pt.lotPrice != null];
+          const count = flags.filter(Boolean).length;
+          if (count === 0) return null;
+          if (count > 1) return 'MULTI';
+          if (pt.pricePerKg != null) return 'KG';
+          if (pt.pricePerPc != null) return 'PC';
+          return 'LOT';
+        };
+
+        const BILLING_BADGE = {
+          KG:    'bg-sky-100 text-sky-700',
+          PC:    'bg-violet-100 text-violet-700',
+          LOT:   'bg-amber-100 text-amber-700',
+          MULTI: 'bg-slate-100 text-slate-500',
+        };
+
+        return (
+          <div className="card overflow-hidden p-0">
+            {/* Header */}
+            <div className="flex flex-wrap items-center gap-3 justify-between px-5 pt-5 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-sky-600 text-[20px]">price_change</span>
+                <p className="section-title">Process Rates (Party-Specific)</p>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  configuredCount === allProcesses.length ? 'bg-emerald-100 text-emerald-700'
+                  : configuredCount > 0 ? 'bg-amber-100 text-amber-700'
+                  : 'bg-slate-100 text-slate-500'
+                }`}>
+                  {configuredCount} / {allProcesses.length} configured
+                </span>
               </div>
-            )}
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs min-w-[540px]">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-100 text-slate-500">
-                  <th className="th">Process</th>
-                  <th className="th">Rate/Kg (₹)</th>
-                  <th className="th">Rate/Pc (₹)</th>
-                  <th className="th">Lot Charge (₹)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {allProcesses.map(pt => {
-                  const saved = processRates.find(r => r.processTypeId === pt.id);
-                  return (
-                    <tr key={pt.id} className="tr">
-                      <td className="td font-medium text-slate-700">{pt.name}</td>
-                      {editingRates ? (
-                        <>
-                          <td className="td">
-                            <input
-                              type="number" step="0.01" min="0"
-                              value={ratesMap[pt.id]?.pricePerKg ?? ''}
-                              onChange={e => setRate(pt.id, 'pricePerKg', e.target.value)}
-                              className="form-input py-1 text-xs w-24"
-                              placeholder="0.00"
-                            />
-                          </td>
-                          <td className="td">
-                            <input
-                              type="number" step="0.01" min="0"
-                              value={ratesMap[pt.id]?.pricePerPc ?? ''}
-                              onChange={e => setRate(pt.id, 'pricePerPc', e.target.value)}
-                              className="form-input py-1 text-xs w-24"
-                              placeholder="0.00"
-                            />
-                          </td>
-                          <td className="td">
-                            <input
-                              type="number" step="0.01" min="0"
-                              value={ratesMap[pt.id]?.lotPrice ?? ''}
-                              onChange={e => setRate(pt.id, 'lotPrice', e.target.value)}
-                              className="form-input py-1 text-xs w-24"
-                              placeholder="0.00"
-                            />
-                          </td>
-                        </>
-                      ) : (
-                        <>
-                          <td className="td font-mono text-slate-700">
-                            {saved?.pricePerKg != null
-                              ? <span className="text-indigo-700 font-semibold">₹{Number(saved.pricePerKg).toFixed(2)}</span>
-                              : <span className="text-slate-300">—</span>}
-                          </td>
-                          <td className="td font-mono text-slate-700">
-                            {saved?.pricePerPc != null
-                              ? <span className="text-indigo-700 font-semibold">₹{Number(saved.pricePerPc).toFixed(2)}</span>
-                              : <span className="text-slate-300">—</span>}
-                          </td>
-                          <td className="td font-mono text-slate-700">
-                            {saved?.lotPrice != null
-                              ? <span className="text-indigo-700 font-semibold">₹{Number(saved.lotPrice).toFixed(2)}</span>
-                              : <span className="text-slate-300">—</span>}
-                          </td>
-                        </>
-                      )}
+              <div className="flex items-center gap-2">
+                {!editingRates ? (
+                  isAdmin && (
+                    <button
+                      type="button"
+                      onClick={startEditRates}
+                      className="flex items-center gap-1.5 text-xs font-semibold text-sky-600 hover:text-sky-700 border border-sky-200 hover:border-sky-400 px-3 py-1.5 rounded-xl transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-sm">edit</span> Edit Rates
+                    </button>
+                  )
+                ) : (
+                  <div className="flex gap-2">
+                    <button type="button" onClick={cancelEditRates} className="btn-ghost text-xs">Cancel</button>
+                    <button
+                      type="button"
+                      onClick={saveRates}
+                      disabled={savingRates}
+                      className="flex items-center gap-1 text-xs btn-primary py-1.5 px-3"
+                    >
+                      {savingRates
+                        ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Saving…</>
+                        : <><span className="material-symbols-outlined text-sm">save</span> Save</>}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Search + filter toolbar */}
+            <div className="px-5 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3 bg-slate-50/40">
+              <div className="relative">
+                <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[15px]">search</span>
+                <input
+                  type="text"
+                  value={ratesSearch}
+                  onChange={e => setRatesSearch(e.target.value)}
+                  placeholder="Search process…"
+                  className="form-input py-1 text-xs pl-7 w-44"
+                />
+              </div>
+              <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showOnlyConfigured}
+                  onChange={e => setShowOnlyConfigured(e.target.checked)}
+                  className="rounded"
+                />
+                Show only configured
+              </label>
+              {(ratesSearch || showOnlyConfigured) && (
+                <span className="text-xs text-slate-400">{filteredProcesses.length} shown</span>
+              )}
+            </div>
+
+            {/* Rates table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs min-w-[600px]">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100 text-slate-500">
+                    <th className="th w-48">Process</th>
+                    <th className="th">Rate/Kg (₹)</th>
+                    <th className="th">Rate/Pc (₹)</th>
+                    <th className="th">Lot Charge (₹)</th>
+                    {!editingRates
+                      ? <th className="th text-slate-400">Global Default</th>
+                      : <th className="th w-8"></th>
+                    }
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {filteredProcesses.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-5 py-6 text-center text-slate-400 text-xs">
+                        No processes match the filter.
+                      </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  ) : filteredProcesses.map(pt => {
+                    const saved = processRates.find(r => r.processTypeId === pt.id);
+                    const isConfigured = saved && (saved.pricePerKg != null || saved.pricePerPc != null || saved.lotPrice != null);
+                    const billingType = getBillingType(pt);
+
+                    const globalParts = [];
+                    if (pt.pricePerKg != null) globalParts.push(`₹${Number(pt.pricePerKg).toFixed(0)}/kg`);
+                    if (pt.pricePerPc != null) globalParts.push(`₹${Number(pt.pricePerPc).toFixed(0)}/pc`);
+                    if (pt.lotPrice  != null) globalParts.push(`₹${Number(pt.lotPrice).toFixed(0)} lot`);
+                    const globalStr = globalParts.join(' · ') || '—';
+
+                    const hasEditVal = ratesMap[pt.id] && (
+                      ratesMap[pt.id].pricePerKg !== '' ||
+                      ratesMap[pt.id].pricePerPc !== '' ||
+                      ratesMap[pt.id].lotPrice   !== ''
+                    );
+
+                    return (
+                      <tr key={pt.id} className={`tr ${!isConfigured && !editingRates ? 'opacity-50' : ''}`}>
+                        {/* Process name + billing type badge */}
+                        <td className="td font-medium text-slate-700">
+                          <span>{pt.name}</span>
+                          {billingType && (
+                            <span className={`ml-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded ${BILLING_BADGE[billingType]}`}>
+                              {billingType}
+                            </span>
+                          )}
+                        </td>
+
+                        {editingRates ? (
+                          <>
+                            <td className="td">
+                              <input
+                                type="number" step="0.01" min="0"
+                                value={ratesMap[pt.id]?.pricePerKg ?? ''}
+                                onChange={e => setRate(pt.id, 'pricePerKg', e.target.value)}
+                                className="form-input py-1 text-xs w-24"
+                                placeholder={pt.pricePerKg != null ? `${Number(pt.pricePerKg).toFixed(2)} (global)` : '—'}
+                              />
+                            </td>
+                            <td className="td">
+                              <input
+                                type="number" step="0.01" min="0"
+                                value={ratesMap[pt.id]?.pricePerPc ?? ''}
+                                onChange={e => setRate(pt.id, 'pricePerPc', e.target.value)}
+                                className="form-input py-1 text-xs w-24"
+                                placeholder={pt.pricePerPc != null ? `${Number(pt.pricePerPc).toFixed(2)} (global)` : '—'}
+                              />
+                            </td>
+                            <td className="td">
+                              <input
+                                type="number" step="0.01" min="0"
+                                value={ratesMap[pt.id]?.lotPrice ?? ''}
+                                onChange={e => setRate(pt.id, 'lotPrice', e.target.value)}
+                                className="form-input py-1 text-xs w-24"
+                                placeholder={pt.lotPrice != null ? `${Number(pt.lotPrice).toFixed(2)} (global)` : '—'}
+                              />
+                            </td>
+                            <td className="td text-center">
+                              {hasEditVal && (
+                                <button
+                                  type="button"
+                                  onClick={() => resetToGlobal(pt.id)}
+                                  title="Reset to global rate"
+                                  className="text-rose-400 hover:text-rose-600 transition-colors"
+                                >
+                                  <span className="material-symbols-outlined text-sm">restart_alt</span>
+                                </button>
+                              )}
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="td font-mono">
+                              {saved?.pricePerKg != null
+                                ? <span className="text-sky-700 font-semibold">₹{Number(saved.pricePerKg).toFixed(2)}</span>
+                                : <span className="text-slate-300">—</span>}
+                            </td>
+                            <td className="td font-mono">
+                              {saved?.pricePerPc != null
+                                ? <span className="text-sky-700 font-semibold">₹{Number(saved.pricePerPc).toFixed(2)}</span>
+                                : <span className="text-slate-300">—</span>}
+                            </td>
+                            <td className="td font-mono">
+                              {saved?.lotPrice != null
+                                ? <span className="text-sky-700 font-semibold">₹{Number(saved.lotPrice).toFixed(2)}</span>
+                                : <span className="text-slate-300">—</span>}
+                            </td>
+                            <td className="td text-slate-400 text-[10px]">{globalStr}</td>
+                          </>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-5 py-2.5 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between gap-3">
+              <p className="text-[10px] text-slate-400">
+                Party-specific rates apply during inward entry and invoicing. Leave blank to use global rate.
+                {!isAdmin && <span className="ml-1 text-amber-600 font-semibold">Read-only — contact Admin to change rates.</span>}
+              </p>
+            </div>
           </div>
-          <div className="px-5 py-2.5 border-t border-slate-100 bg-slate-50/50">
-            <p className="text-[10px] text-slate-400">Party-specific rates apply during inward entry and invoicing. Leave blank to skip.</p>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       <div className="card overflow-hidden p-0">
         <p className="section-title px-5 pt-5 pb-2">Job cards</p>
@@ -357,7 +507,7 @@ export default function PartyDetail() {
               ) : pagedJobCards.map((jc) => (
                 <tr key={jc.id} className="tr">
                   <td className="td">
-                    <Link className="font-semibold text-indigo-600 hover:underline" to={`/jobcards/${jc.id}`}>{jc.jobCardNo}</Link>
+                    <Link className="font-semibold text-sky-600 hover:underline" to={`/jobcards/${jc.id}`}>{jc.jobCardNo}</Link>
                   </td>
                   <td className="td text-xs">{jc.part?.partNo || '—'}{jc.part?.description ? ` · ${jc.part.description}` : ''}</td>
                   <td className="td text-xs">{jc.operationMode || '—'}</td>
@@ -390,7 +540,7 @@ export default function PartyDetail() {
               ) : pagedInvoices.map((inv) => (
                 <tr key={inv.id} className="tr">
                   <td className="td">
-                    <Link className="font-semibold text-indigo-600 hover:underline" to={`/invoices/${inv.id}`}>{inv.invoiceNo}</Link>
+                    <Link className="font-semibold text-sky-600 hover:underline" to={`/invoices/${inv.id}`}>{inv.invoiceNo}</Link>
                   </td>
                   <td className="td text-xs">{formatDate(inv.invoiceDate)}</td>
                   <td className="td">{formatCurrency(inv.grandTotal)}</td>
@@ -421,7 +571,7 @@ export default function PartyDetail() {
               ) : pagedCerts.map((c) => (
                 <tr key={c.id} className="tr">
                   <td className="td">
-                    <Link className="font-semibold text-indigo-600 hover:underline" to={`/quality/certificates/${c.id}`}>
+                    <Link className="font-semibold text-sky-600 hover:underline" to={`/quality/certificates/${c.id}`}>
                       {c.certNo}
                     </Link>
                   </td>
@@ -444,7 +594,7 @@ export default function PartyDetail() {
               <ul className="text-sm space-y-1">
                 {pagedJobworkFrom.map((ch) => (
                   <li key={ch.id}>
-                    <Link className="text-indigo-600 hover:underline" to={`/jobwork/${ch.id}`}>{ch.challanNo}</Link>
+                    <Link className="text-sky-600 hover:underline" to={`/jobwork/${ch.id}`}>{ch.challanNo}</Link>
                     <span className="text-slate-400 text-xs"> → {ch.toParty?.name}</span>
                   </li>
                 ))}
@@ -459,7 +609,7 @@ export default function PartyDetail() {
                 {pagedJobworkTo.map((ch) => (
                   <li key={ch.id}>
                     <span className="text-slate-400 text-xs">{ch.fromParty?.name} → </span>
-                    <Link className="text-indigo-600 hover:underline" to={`/jobwork/${ch.id}`}>{ch.challanNo}</Link>
+                    <Link className="text-sky-600 hover:underline" to={`/jobwork/${ch.id}`}>{ch.challanNo}</Link>
                   </li>
                 ))}
               </ul>
@@ -472,7 +622,7 @@ export default function PartyDetail() {
               <ul className="text-sm space-y-1">
                 {pagedDispatchTo.map((d) => (
                   <li key={d.id}>
-                    <Link className="text-indigo-600 hover:underline" to={`/dispatch/${d.id}`}>{d.challanNo}</Link>
+                    <Link className="text-sky-600 hover:underline" to={`/dispatch/${d.id}`}>{d.challanNo}</Link>
                     <span className="text-slate-400 text-xs"> {formatDate(d.challanDate)}</span>
                   </li>
                 ))}
@@ -486,7 +636,7 @@ export default function PartyDetail() {
               <ul className="text-sm space-y-1">
                 {pagedDispatchFrom.map((d) => (
                   <li key={d.id}>
-                    <Link className="text-indigo-600 hover:underline" to={`/dispatch/${d.id}`}>{d.challanNo}</Link>
+                    <Link className="text-sky-600 hover:underline" to={`/dispatch/${d.id}`}>{d.challanNo}</Link>
                   </li>
                 ))}
               </ul>
@@ -495,6 +645,8 @@ export default function PartyDetail() {
           )}
         </div>
       )}
+
+      {confirmDialog && <ConfirmDialog {...confirmDialog} onCancel={() => setConfirmDialog(null)} />}
     </div>
   );
 }

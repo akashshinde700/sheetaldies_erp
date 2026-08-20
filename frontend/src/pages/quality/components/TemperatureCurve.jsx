@@ -1,8 +1,14 @@
-import React from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import toast from 'react-hot-toast';
+import React, { useMemo } from 'react';
+import SearchSelect from '../../../components/SearchSelect';
+import HeatCycleStepGraph from '../../../components/HeatCycleStepGraph';
+import { tempRowsToSegments } from '../../../data/heatTreatmentCycles';
 
-export default function TemperatureCurve({ tempRows, setTempRows, form, loadTempCycleFromRunsheet }) {
+export default function TemperatureCurve({ tempRows, setTempRows, form, masterGraphs = [], selectGraph, selectedGraphId, noDefaultTemplate }) {
+  // Rebuild {tempC, holdMin} segments from the flat {time, temp} rows so the
+  // live graph renders identically to the VHT Run Sheet / certificate print
+  // (same blue Excel-style step curve, real elapsed-minute X-axis).
+  const segments = useMemo(() => tempRowsToSegments(tempRows), [tempRows]);
+
   return (
     <div className="card p-5">
       <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-4">
@@ -17,27 +23,30 @@ export default function TemperatureCurve({ tempRows, setTempRows, form, loadTemp
         </div>
         <div className="text-right flex flex-col gap-1 items-end">
           <div className="flex flex-wrap gap-1 justify-end">
-            <button
-              type="button"
-              disabled={!form.jobCardId}
-              onClick={async () => {
-                const ok = await loadTempCycleFromRunsheet(form.jobCardId);
-                if (!ok) toast.error('No VHT Run Sheet with graph found for this job card.');
-              }}
-              className="flex items-center gap-1 text-xs font-bold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors border border-amber-200"
-              title="Uses the latest VHT Run Sheet that includes this job card and has cycle segments"
-            >
-              <span className="material-symbols-outlined text-sm">thermostat</span> From VHT run sheet
-            </button>
+            <SearchSelect
+              value={selectedGraphId || ''}
+              onChange={selectGraph}
+              options={masterGraphs.map(g => ({ value: g.id, label: g.isDefault ? `${g.name} ★` : g.name }))}
+              placeholder="— Select Graph —"
+              useFixed
+              dense
+              className="w-44"
+            />
             <button type="button" onClick={() => setTempRows(p => [...p, { time: '', temp: '' }])}
-              className="flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors">
+              className="flex items-center gap-1 text-xs font-bold text-sky-600 hover:text-sky-700 bg-sky-50 hover:bg-sky-100 px-3 py-1.5 rounded-lg transition-colors">
               <span className="material-symbols-outlined text-sm">add</span> Add Point
             </button>
           </div>
           <p className="text-[9px] text-slate-500 italic">Current cycle: {form.operatorMode || 'Auto-loaded'}</p>
         </div>
       </div>
-      
+
+      {noDefaultTemplate && (
+        <div className="mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 font-medium">
+          No default Temperature Cycle Graph configured. Pick one from <strong>Select Graph</strong> above, or manage graphs under Admin → Temp Cycle Graphs.
+        </div>
+      )}
+
       {/* Editable Temperature Table */}
       <div className="overflow-x-auto mb-4">
         <table className="w-full text-xs">
@@ -56,7 +65,7 @@ export default function TemperatureCurve({ tempRows, setTempRows, form, loadTemp
                 <td className="px-2 py-2 text-center">
                   <input type="number" value={row.time}
                     onChange={e => { const a = [...tempRows]; a[i].time = e.target.value; setTempRows(a); }}
-                    className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-20 text-center focus:outline-none focus:border-indigo-300 focus:ring-1 focus:indigo-200 font-mono" 
+                    className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-20 text-center focus:outline-none focus:border-sky-300 focus:ring-1 focus:ring-sky-200 font-mono" 
                     placeholder="0" />
                 </td>
                 <td className="px-2 py-2 text-center">
@@ -77,53 +86,22 @@ export default function TemperatureCurve({ tempRows, setTempRows, form, loadTemp
             ))}
           </tbody>
         </table>
+        <button type="button" onClick={() => setTempRows(p => [...p, { time: '', temp: '' }])}
+          className="mt-2 w-full flex items-center justify-center gap-1 text-xs font-bold text-sky-600 hover:text-sky-700 bg-sky-50 hover:bg-sky-100 py-2 rounded-lg transition-colors border border-dashed border-sky-200">
+          <span className="material-symbols-outlined text-sm">add</span> Add Point
+        </button>
       </div>
 
-      {/* Temperature Graph Visualization - Live Update */}
-      {tempRows.length > 0 && (
+      {/* Temperature Graph Visualization - Live Update (matches print graph) */}
+      {segments.length > 0 && (
         <div className="p-3 bg-gradient-to-b from-slate-50 to-orange-50/30 rounded-lg border border-orange-100">
           <div className="flex items-center gap-2 mb-2">
             <span className="w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center text-white text-[10px] font-bold">↗</span>
             <p className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">Heat Treatment Curve (Real-time)</p>
           </div>
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={tempRows.map((r, i) => ({
-              index: i + 1,
-              time: r.time !== '' ? Number(r.time) : i,
-              temp: Number(r.temp) || 0,
-            }))}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis
-                dataKey="time"
-                stroke="#64748b"
-                tick={{ fontSize: 11 }}
-                label={{ value: 'Time (Minutes) →', position: 'insideBottomRight', offset: -5, fontSize: 11, fill: '#64748b' }}
-              />
-              <YAxis
-                stroke="#64748b"
-                tick={{ fontSize: 11 }}
-                label={{ value: 'Temp (°C)', angle: -90, position: 'insideLeft', fontSize: 11, fill: '#64748b' }}
-                domain={[0, 1300]}
-                ticks={[0, 200, 400, 600, 800, 1000, 1200]}
-              />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#f8fafc', border: '2px solid #fb923c', borderRadius: '6px', fontSize: '12px' }}
-                formatter={(value) => [`${value}°C`, 'Temperature']}
-                labelFormatter={(label) => `Time: ${label} min`}
-                labelStyle={{ color: '#0f172a' }}
-              />
-              <Line
-                type="stepAfter"
-                dataKey="temp"
-                stroke="#111"
-                strokeWidth={2}
-                dot={{ fill: '#111', r: 4 }}
-                activeDot={{ r: 6, fill: '#f97316' }}
-                name="Temperature"
-                isAnimationActive={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          <div className="bg-white rounded-lg border border-slate-200" style={{ height: 260 }}>
+            <HeatCycleStepGraph segments={segments} stroke="#000" viewW={900} />
+          </div>
         </div>
       )}
 

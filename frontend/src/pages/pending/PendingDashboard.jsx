@@ -19,11 +19,14 @@ function SectionHeader({ icon, iconBg, iconColor, title, count, countColor }) {
   );
 }
 
-function EmptyState({ message }) {
+function EmptyState({ message, hint }) {
   return (
-    <div className="flex flex-col items-center justify-center py-8 text-slate-300">
-      <span className="material-symbols-outlined text-4xl mb-2">check_circle</span>
-      <p className="text-xs font-semibold">{message}</p>
+    <div className="flex flex-col items-center justify-center py-8 text-center">
+      <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center mb-2">
+        <span className="material-symbols-outlined text-emerald-500 text-[22px]">check_circle</span>
+      </div>
+      <p className="text-sm font-bold text-emerald-700">{message}</p>
+      {hint && <p className="text-[10px] text-slate-400 mt-1 max-w-[240px]">{hint}</p>}
     </div>
   );
 }
@@ -147,7 +150,7 @@ export default function PendingDashboard() {
           countColor="bg-amber-100 text-amber-700"
         />
         {!data?.challansNeedJobCard?.length ? (
-          <EmptyState message="All challans have job cards!" />
+          <EmptyState message="All caught up!" hint="All inwards have job cards. Go to Job Cards → Certificates to continue." />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -162,7 +165,7 @@ export default function PendingDashboard() {
                 {data.challansNeedJobCard.map(ch => (
                   <tr key={ch.id} className="hover:bg-amber-50/30 transition-colors">
                     <td className="px-3 py-2.5">
-                      <Link to={`/jobwork/${ch.id}`} className="font-mono text-indigo-600 hover:underline font-semibold">
+                      <Link to={`/jobwork/${ch.id}`} className="font-mono text-sky-600 hover:underline font-semibold">
                         {ch.challanNo}
                       </Link>
                     </td>
@@ -206,7 +209,7 @@ export default function PendingDashboard() {
           countColor="bg-violet-100 text-violet-700"
         />
         {!data?.jobCardsNeedCert?.length ? (
-          <EmptyState message="All job cards have certificates!" />
+          <EmptyState message="All caught up!" hint="All job cards have certificates. Go to Invoices to bill completed work." />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -223,7 +226,7 @@ export default function PendingDashboard() {
                   return (
                     <tr key={jc.id} className="hover:bg-violet-50/30 transition-colors">
                       <td className="px-3 py-2.5">
-                        <Link to={`/jobcards/${jc.id}`} className="font-mono text-indigo-600 hover:underline font-semibold">
+                        <Link to={`/jobcards/${jc.id}`} className="font-mono text-sky-600 hover:underline font-semibold">
                           {jc.jobCardNo}
                         </Link>
                       </td>
@@ -273,7 +276,7 @@ export default function PendingDashboard() {
           countColor="bg-sky-100 text-sky-700"
         />
         {!data?.certsNeedInvoice?.length ? (
-          <EmptyState message="All approved certificates have invoices!" />
+          <EmptyState message="All billed!" hint="All approved certificates have invoices. Check Dispatch for pending deliveries." />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -288,7 +291,7 @@ export default function PendingDashboard() {
                 {data.certsNeedInvoice.map(cert => (
                   <tr key={cert.id} className="hover:bg-sky-50/30 transition-colors">
                     <td className="px-3 py-2.5">
-                      <Link to={`/quality/certificates/${cert.id}`} className="font-mono text-indigo-600 hover:underline font-semibold">
+                      <Link to={`/quality/certificates/${cert.id}`} className="font-mono text-sky-600 hover:underline font-semibold">
                         {cert.certNo}
                       </Link>
                     </td>
@@ -296,7 +299,7 @@ export default function PendingDashboard() {
                     <td className="px-3 py-2.5 font-medium text-slate-800">{cert.customer?.name || '—'}</td>
                     <td className="px-3 py-2.5">
                       {cert.jobCard ? (
-                        <Link to={`/jobcards/${cert.jobCard.id}`} className="font-mono text-indigo-500 hover:underline">
+                        <Link to={`/jobcards/${cert.jobCard.id}`} className="font-mono text-sky-500 hover:underline">
                           {cert.jobCard.jobCardNo}
                         </Link>
                       ) : '—'}
@@ -304,7 +307,9 @@ export default function PendingDashboard() {
                     <td className="px-3 py-2.5 text-slate-600">{cert.jobCard?.dieMaterial || '—'}</td>
                     <td className="px-3 py-2.5">
                       <Link
-                        to={`/invoices/new?customerId=${cert.customer?.id}`}
+                        to={cert.jobCard?.id
+                          ? `/invoices/new?jobCardId=${cert.jobCard.id}`
+                          : `/invoices/new?customerId=${cert.customer?.id}`}
                         className="btn-primary text-[11px] px-3 py-1.5 h-auto"
                       >
                         <span className="material-symbols-outlined text-sm">receipt_long</span>
@@ -330,7 +335,7 @@ export default function PendingDashboard() {
           countColor="bg-rose-100 text-rose-700"
         />
         {!data?.invoicesPendingPayment?.length ? (
-          <EmptyState message="No payment pending!" />
+          <EmptyState message="All payments received!" hint="No outstanding invoices. Great work!" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -345,7 +350,7 @@ export default function PendingDashboard() {
                 {data.invoicesPendingPayment.map(inv => (
                   <tr key={inv.id} className="hover:bg-rose-50/30 transition-colors">
                     <td className="px-3 py-2.5">
-                      <Link to={`/invoices/${inv.id}`} className="font-mono text-indigo-600 hover:underline font-semibold">
+                      <Link to={`/invoices/${inv.id}`} className="font-mono text-sky-600 hover:underline font-semibold">
                         {inv.invoiceNo}
                       </Link>
                     </td>

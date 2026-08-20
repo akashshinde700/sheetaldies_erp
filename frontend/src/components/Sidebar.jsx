@@ -29,18 +29,15 @@ const NAV_MAIN = [
 const NAV_OPERATIONS = [
   { label: 'Invoices',     icon: 'receipt_long', to: '/invoices' },
   { label: 'Analytics',    icon: 'analytics',    to: '/analytics' },
-  { label: 'Purchase Orders', icon: 'shopping_cart', to: '/purchase' },
-  { label: 'Goods Receipt (GRN)', icon: 'inbox', to: '/purchase/grn' },
   { label: 'Inventory', icon: 'warehouse', to: '/purchase/inventory' },
   { label: 'Customer Quotes', icon: 'request_quote', to: '/customer-quotes' },
   { label: 'Dispatch', icon: 'local_shipping', to: '/dispatch' },
-  { label: 'Manufacturing Batches', icon: 'precision_manufacturing', to: '/manufacturing/batches' },
-  { label: 'Daily Planning', icon: 'event_note', to: '/manufacturing/planning' },
-  { label: 'Mfg Reports', icon: 'assessment', to: '/manufacturing/reports' },
 ];
 
 const NAV_ADMIN = [
   { label: 'Processes',   icon: 'settings_suggest', to: '/admin/processes' },
+  { label: 'HT Specs',   icon: 'local_fire_department', to: '/admin/heat-treat-specs' },
+  { label: 'Temp Cycle Graphs', icon: 'show_chart', to: '/admin/temp-cycle-graphs' },
   { label: 'Party Rates', icon: 'price_check',      to: '/admin/party-rates' },
   { label: 'Items',       icon: 'inventory',         to: '/admin/items' },
   { label: 'Machines',    icon: 'precision_manufacturing', to: '/admin/machines' },
@@ -65,8 +62,8 @@ const NavItem = ({ item, onNavigate, pendingCount = 0 }) => {
        transition-all duration-200 ease-out
        ${
          active
-           ? 'bg-white text-slate-900 shadow-sm border border-slate-200/90 shadow-[inset_3px_0_0_0_rgb(2,132,199)]'
-           : 'text-slate-700 hover:text-slate-900 hover:bg-white/85 border border-transparent hover:border-slate-200/70 active:scale-[0.99]'
+           ? 'bg-white text-slate-900 shadow-sm border border-slate-200/90 border-l-[3px] !border-l-sky-600'
+           : 'text-slate-700 hover:text-slate-900 hover:bg-white/85 border border-transparent border-l-[3px] border-l-transparent hover:border-slate-200/70 active:scale-[0.99]'
        }`;
     }}
   >
@@ -80,7 +77,7 @@ const NavItem = ({ item, onNavigate, pendingCount = 0 }) => {
         </span>
         <span className="truncate flex-1 text-left">{item.label}</span>
         {item.badge && pendingCount > 0 && (
-          <span className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+          <span className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0 shadow-sm ring-1 ring-rose-400/50">
             {pendingCount > 99 ? '99+' : pendingCount}
           </span>
         )}
@@ -120,6 +117,8 @@ export default function Sidebar({ open, onClose }) {
       )}
 
       <aside
+        role="navigation"
+        aria-label="Main menu"
         className={`print:hidden h-dvh h-screen max-h-dvh fixed left-0 top-0 z-40 flex flex-col w-64 max-w-[min(16rem,calc(100vw-1.5rem))]
           border-r border-slate-200/90 shadow-[8px_0_30px_-10px_rgba(15,23,42,0.14)] lg:shadow-none lg:max-w-none
           transition-transform duration-300 ease-out will-change-transform
@@ -130,12 +129,11 @@ export default function Sidebar({ open, onClose }) {
 
         <div className="px-4 sm:px-5 py-4 sm:py-5 border-b border-sky-200/60 shrink-0">
           <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 shadow-md shadow-slate-900/15
-                bg-slate-900 text-white ring-2 ring-white/90 transition-transform duration-200 hover:scale-[1.02]"
-            >
-              <span className="material-symbols-outlined text-[20px]">precision_manufacturing</span>
-            </div>
+            <img
+              src="/logo.png"
+              alt="SVT"
+              className="h-10 w-auto flex-shrink-0 rounded transition-transform duration-200 hover:scale-[1.02]"
+            />
             <div className="min-w-0">
               <h1 className="text-slate-950 font-extrabold text-sm tracking-tight font-headline truncate">SVT ERP</h1>
               <p className="text-slate-600 text-[10px] tracking-widest uppercase font-semibold">Shital Vacuum Treat</p>
@@ -143,7 +141,7 @@ export default function Sidebar({ open, onClose }) {
           </div>
         </div>
 
-        <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-2 sm:px-3 overscroll-contain [scrollbar-width:thin]">
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-2 sm:px-3 overscroll-contain [scrollbar-width:thin]" aria-label="Primary navigation">
           <SectionLabel label="Main" />
           {NAV_MAIN.map(item => <NavItem key={item.to} item={item} onNavigate={onClose} pendingCount={pendingCount} />)}
 
@@ -164,7 +162,7 @@ export default function Sidebar({ open, onClose }) {
         </nav>
 
         <div className="px-2 sm:px-3 py-3 sm:py-4 border-t border-sky-200/60 space-y-1 shrink-0 safe-pb">
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white/80 border border-slate-200/80 shadow-sm hover:bg-white transition-colors">
+          <div className="flex items-center gap-3 px-3 py-2.5 rounded-2xl bg-white/90 border border-slate-200/80 shadow-sm hover:bg-white transition-colors">
             <div
               className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0
                 bg-slate-800 shadow-sm"
@@ -179,9 +177,9 @@ export default function Sidebar({ open, onClose }) {
           <button
             type="button"
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 min-h-[44px] px-3 rounded-lg text-slate-700
+            className="w-full flex items-center gap-3 min-h-[44px] px-3 rounded-2xl text-slate-700
               hover:text-rose-600 hover:bg-rose-50 active:scale-[0.99]
-              text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 rounded-lg"
+              text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
           >
             <span className="material-symbols-outlined text-[20px]">logout</span>
             Sign Out

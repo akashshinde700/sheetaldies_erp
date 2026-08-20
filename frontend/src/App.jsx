@@ -50,23 +50,18 @@ const UserManagement = lazy(() => import('./pages/admin/UserManagement'));
 const ItemList = lazy(() => import('./pages/admin/ItemList'));
 const MachineList = lazy(() => import('./pages/admin/MachineList'));
 const ProcessList = lazy(() => import('./pages/admin/ProcessList'));
+const HeatTreatSpecList = lazy(() => import('./pages/admin/HeatTreatSpecList'));
+const TempCycleGraphList = lazy(() => import('./pages/admin/TempCycleGraphList'));
 
 const DispatchList = lazy(() => import('./pages/dispatch/DispatchList'));
 const DispatchChallanForm = lazy(() => import('./pages/dispatch/DispatchChallanForm'));
 const DispatchChallanPrint = lazy(() => import('./pages/dispatch/DispatchChallanPrint'));
 
-const PurchaseOrderList = lazy(() => import('./pages/purchase/PurchaseOrderList'));
-const PurchaseOrderPrint = lazy(() => import('./pages/purchase/PurchaseOrderPrint'));
-const GoodsReceiptForm = lazy(() => import('./pages/purchase/GoodsReceiptForm'));
 const InventoryView = lazy(() => import('./pages/purchase/InventoryView'));
 
-const ManufacturingBatchList = lazy(() => import('./pages/manufacturing/ManufacturingBatchList'));
 const VHTRunsheetList = lazy(() => import('./pages/manufacturing/VHTRunsheetList'));
 const VHTRunsheetForm = lazy(() => import('./pages/manufacturing/VHTRunsheetForm'));
 const VHTRunsheetPrint = lazy(() => import('./pages/manufacturing/VHTRunsheetPrint'));
-const ManufacturingReports = lazy(() => import('./pages/manufacturing/ManufacturingReports'));
-const DailyFurnacePlanning = lazy(() => import('./pages/manufacturing/DailyFurnacePlanning'));
-const DailyFurnacePlanningPrint = lazy(() => import('./pages/manufacturing/DailyFurnacePlanningPrint'));
 
 const CustomerQuoteList   = lazy(() => import('./pages/quotes/CustomerQuoteList'));
 const CustomerQuoteForm   = lazy(() => import('./pages/quotes/CustomerQuoteForm'));
@@ -124,8 +119,9 @@ const AppRoutes = () => (
       <Route path="jobwork/:id"            element={<JobworkDetail />} />
       <Route path="jobwork/:id/print"       element={<JobworkPrint />} />
       <Route path="quality/certificates"       element={<CertList />} />
-      <Route path="quality/certificates/new"  element={<CertForm />} />
-      <Route path="quality/certificates/:id"  element={<CertDetail />} />
+      <Route path="quality/certificates/new"       element={<CertForm />} />
+      <Route path="quality/certificates/:id/edit" element={<CertForm />} />
+      <Route path="quality/certificates/:id"      element={<CertDetail />} />
       <Route path="quality/certificates/:id/print" element={<CertPrint />} />
       <Route path="invoices"               element={<InvoiceList />} />
       <Route path="invoices/new"           element={<InvoiceForm />} />
@@ -137,6 +133,8 @@ const AppRoutes = () => (
       <Route path="admin/parties"            element={<PrivateRoute role="MANAGER"><PartyList /></PrivateRoute>} />
       <Route path="admin/party-rates"        element={<PrivateRoute role="MANAGER"><PartyRatesMatrix /></PrivateRoute>} />
       <Route path="admin/processes"           element={<PrivateRoute role="MANAGER"><ProcessList /></PrivateRoute>} />
+      <Route path="admin/heat-treat-specs"    element={<PrivateRoute role="MANAGER"><HeatTreatSpecList /></PrivateRoute>} />
+      <Route path="admin/temp-cycle-graphs"   element={<PrivateRoute role="MANAGER"><TempCycleGraphList /></PrivateRoute>} />
       <Route path="admin/items"               element={<PrivateRoute role="MANAGER"><ItemList /></PrivateRoute>} />
       <Route path="admin/machines"            element={<PrivateRoute role="MANAGER"><MachineList /></PrivateRoute>} />
       <Route path="admin/users"             element={<PrivateRoute role="ADMIN"><UserManagement /></PrivateRoute>} />
@@ -145,28 +143,25 @@ const AppRoutes = () => (
       <Route path="dispatch/new"              element={<DispatchChallanForm />} />
       <Route path="dispatch/:id/print"        element={<DispatchChallanPrint />} />
       <Route path="dispatch/:id"              element={<DispatchChallanForm />} />
-      <Route path="purchase"                  element={<PrivateRoute role="MANAGER"><PurchaseOrderList /></PrivateRoute>} />
-      <Route path="purchase/:id/print"        element={<PrivateRoute role="MANAGER"><PurchaseOrderPrint /></PrivateRoute>} />
-      <Route path="purchase/grn"              element={<PrivateRoute role="MANAGER"><GoodsReceiptForm /></PrivateRoute>} />
       <Route path="purchase/inventory"        element={<PrivateRoute role="MANAGER"><InventoryView /></PrivateRoute>} />
       <Route path="customer-quotes"           element={<PrivateRoute role="OPERATOR"><CustomerQuoteList /></PrivateRoute>} />
       <Route path="customer-quotes/new"       element={<PrivateRoute role="OPERATOR"><CustomerQuoteForm /></PrivateRoute>} />
-      <Route path="customer-quotes/:id"       element={<PrivateRoute role="OPERATOR"><CustomerQuoteDetail /></PrivateRoute>} />
       <Route path="customer-quotes/:id/edit"  element={<PrivateRoute role="OPERATOR"><CustomerQuoteForm /></PrivateRoute>} />
+      <Route path="customer-quotes/:id"       element={<PrivateRoute role="OPERATOR"><CustomerQuoteDetail /></PrivateRoute>} />
       <Route path="customer-quotes/:id/print" element={<CustomerQuotePrint />} />
-      <Route path="manufacturing/batches"     element={<PrivateRoute role="MANAGER"><ManufacturingBatchList /></PrivateRoute>} />
       <Route path="manufacturing/runsheet"    element={<PrivateRoute role="MANAGER"><VHTRunsheetList /></PrivateRoute>} />
       <Route path="manufacturing/runsheet/new" element={<PrivateRoute role="MANAGER"><VHTRunsheetForm /></PrivateRoute>} />
       <Route path="manufacturing/runsheet/:id/print" element={<PrivateRoute role="MANAGER"><VHTRunsheetPrint /></PrivateRoute>} />
       <Route path="manufacturing/runsheet/:id" element={<PrivateRoute role="MANAGER"><VHTRunsheetForm /></PrivateRoute>} />
-      <Route path="manufacturing/reports"     element={<PrivateRoute role="MANAGER"><ManufacturingReports /></PrivateRoute>} />
-      <Route path="manufacturing/planning"    element={<PrivateRoute role="MANAGER"><DailyFurnacePlanning /></PrivateRoute>} />
-      <Route path="manufacturing/planning/print" element={<PrivateRoute role="MANAGER"><DailyFurnacePlanningPrint /></PrivateRoute>} />
     </Route>
     <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   </Suspense>
 );
+
+// App module executing means the current bundle loaded successfully — clear
+// the chunk-reload guard so a future deploy can trigger one reload again.
+sessionStorage.removeItem('chunk-reload-attempted');
 
 export default function App() {
   return (

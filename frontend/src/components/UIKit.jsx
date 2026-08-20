@@ -4,6 +4,7 @@
  */
 
 import { memo } from 'react';
+import { Link } from 'react-router-dom';
 
 export const Button = memo(({
   type = 'button',
@@ -208,12 +209,12 @@ export const Breadcrumb = memo(({ items, className = '' }) => {
         <div key={idx} className="flex items-center gap-2">
           {idx > 0 && <span className="text-slate-400">/</span>}
           {item.href ? (
-            <a
-              href={item.href}
+            <Link
+              to={item.href}
               className="text-sky-600 hover:text-sky-700 font-medium transition-colors"
             >
               {item.label}
-            </a>
+            </Link>
           ) : (
             <span className="text-slate-700">{item.label}</span>
           )}

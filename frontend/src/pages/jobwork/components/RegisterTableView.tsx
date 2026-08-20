@@ -4,9 +4,11 @@ import type { RegisterRow } from '../InwardOutwardRegister';
 interface RegisterTableViewProps {
   loading: boolean;
   pagedRows: RegisterRow[];
+  onDelete?: (challanId: number) => void;
+  deletingId?: number | null;
 }
 
-export default function RegisterTableView({ loading, pagedRows }: RegisterTableViewProps) {
+export default function RegisterTableView({ loading, pagedRows, onDelete, deletingId }: RegisterTableViewProps) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-xs">
@@ -58,6 +60,19 @@ export default function RegisterTableView({ loading, pagedRows }: RegisterTableV
                   >
                     <span className="material-symbols-outlined text-[18px]">print</span>
                   </Link>
+                  {onDelete && (
+                    <button
+                      type="button"
+                      onClick={() => onDelete(r.challanId)}
+                      disabled={deletingId === r.challanId}
+                      className="inline-flex items-center justify-center w-7 h-7 rounded-md text-rose-500 hover:bg-rose-50 disabled:opacity-50"
+                      title="Delete Inward"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">
+                        {deletingId === r.challanId ? 'progress_activity' : 'delete'}
+                      </span>
+                    </button>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2">
                   {([

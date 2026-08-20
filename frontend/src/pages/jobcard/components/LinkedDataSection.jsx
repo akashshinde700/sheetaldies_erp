@@ -1,79 +1,277 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState, useRef, useImperativeHandle, forwardRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../../utils/api';
 import toast from 'react-hot-toast';
-import { formatDate } from '../../../utils/formatters';
 import { useAuth } from '../../../context/AuthContext';
+import ConfirmDialog from '../../../components/ConfirmDialog';
 
-function ItemEditRow({ item, onSaved }) {
-  const [desc,     setDesc]     = useState(item.description || '');
-  const [qty,      setQty]      = useState(item.quantity != null ? String(item.quantity) : '');
-  const [weight,   setWeight]   = useState(item.weight    != null ? String(item.weight)  : '');
-  const [material, setMaterial] = useState(item.material  || '');
-  const [saving,   setSaving]   = useState(false);
+// Shared grid template — header, display row, edit row, and the total row
+// must all use the exact same grid-template-columns (with an empty
+// placeholder cell standing in for any column a given mode doesn't render)
+// so columns never shift when toggling between view/edit. The checkbox lives
+// inside the Description cell (as a tight flex row) rather than its own grid
+// track, so this one template covers both the checkbox and no-checkbox cases.
+//
+// NOTE: the trailing action column is a FIXED width (not `auto`). Each row is
+// its own independent CSS grid, so an `auto` last column resolved to a
+// different width per row (0px in header/total, ~40px for the display "Edit"
+// button, ~90px for the edit-mode "Save ✕" buttons). That made the remaining
+// `fr` columns compute differently in every row, so the DESCRIPTION / DRAWING
+// NO / QTY / WEIGHT / MATERIAL headers no longer lined up over their content.
+// A fixed 108px track guarantees identical column widths across all rows.
+const COLS = 'grid-cols-[minmax(180px,2.4fr)_minmax(110px,0.85fr)_minmax(60px,0.5fr)_minmax(90px,0.6fr)_minmax(110px,0.8fr)_96px]';
 
-  const save = async () => {
+function ItemEditRow({ item, selected, onToggle, onSaved, showCheckbox = true, registerFlush }) {
+  const [editing,   setEditing]   = useState(false);
+  const [desc,      setDesc]      = useState(() => {
+    let d = item.description || '';
+    const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (item.processName) d = d.replace(new RegExp('\\s*[-–]\\s*' + esc(item.processName) + '\\s*$', 'i'), '').trim();
+    if (item.material)    d = d.replace(new RegExp('\\s*[-–]\\s*' + esc(item.material)    + '\\s*$', 'i'), '').trim();
+    return d;
+  });
+  const [qty,       setQty]       = useState(item.quantity  != null ? String(item.quantity) : '');
+  const [weight,    setWeight]    = useState(item.weight     != null ? String(item.weight)  : '');
+  const [material,  setMaterial]  = useState(item.material   || '');
+  const [drawingNo, setDrawingNo] = useState(item.drawingNo  || '');
+  const [saving,    setSaving]    = useState(false);
+
+  const save = async ({ silent = false } = {}) => {
     setSaving(true);
     try {
-      await api.patch(`/jobwork/items/${item.id}`, { description: desc, quantity: qty, weight, material });
-      toast.success('Item updated');
+      await api.patch(`/jobwork/items/${item.id}`, { description: desc, quantity: qty, weight, material, drawingNo });
+      if (!silent) toast.success('Item updated');
+      setEditing(false);
       onSaved?.();
-    } catch { toast.error('Failed to save'); }
+      return true;
+    } catch { toast.error('Failed to save item'); return false; }
     finally { setSaving(false); }
   };
 
-  const inp = 'border border-slate-200 rounded px-1.5 py-1 text-xs font-mono bg-white focus:border-indigo-400 outline-none';
+  // Register a flush callback so the parent's main "Update" button can commit
+  // this row's edits even if the user never clicked the row-level Save. When
+  // the row isn't being edited the callback is a no-op.
+  useEffect(() => {
+    if (!registerFlush) return;
+    return registerFlush(item.id, () => (editing ? save({ silent: true }) : Promise.resolve(true)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing, desc, qty, weight, material, drawingNo]);
+
+  const inp = 'w-full border border-slate-200 rounded px-1.5 py-1 text-xs font-mono bg-white focus:border-sky-400 outline-none';
+
+  const dispDesc = (() => {
+    let d = item.description || '';
+    const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (item.processName) d = d.replace(new RegExp('\\s*[-–]\\s*' + esc(item.processName) + '\\s*$', 'i'), '').trim();
+    if (item.material)    d = d.replace(new RegExp('\\s*[-–]\\s*' + esc(item.material)    + '\\s*$', 'i'), '').trim();
+    return d || item.description || '—';
+  })();
+
+  if (editing) {
+    return (
+      <div className={`rounded-lg border-2 border-sky-300 bg-sky-50 px-3 py-2 ${selected ? 'opacity-60' : ''}`}>
+        <div className={`grid ${COLS} gap-3 items-center text-xs`}>
+          <input value={desc}      onChange={e => setDesc(e.target.value)}      className={inp} placeholder="Description" />
+          <input value={drawingNo} onChange={e => setDrawingNo(e.target.value)} className={inp} placeholder="Drawing No" />
+          <input value={qty}       onChange={e => setQty(e.target.value)}       className={`${inp} text-right`} placeholder="Qty" type="number" step="0.001" />
+          <input value={weight}    onChange={e => setWeight(e.target.value)}    className={`${inp} text-right`} placeholder="Wt (kg)" type="number" step="0.001" />
+          <input value={material}  onChange={e => setMaterial(e.target.value)}  className={`${inp} ml-2`} placeholder="Material" /> {/* ml-2 keeps input inset matching display row pl-2 */}
+          <div className="flex items-center gap-1 justify-end">
+            <button type="button" onClick={() => save()} disabled={saving} className="text-sky-600 hover:text-sky-800 font-bold text-xs px-2 py-1 rounded border border-sky-200 bg-white hover:bg-sky-50 whitespace-nowrap">
+              {saving ? '…' : 'Save'}
+            </button>
+            <button type="button" onClick={() => setEditing(false)} className="text-slate-400 hover:text-slate-600 text-xs px-2 py-1 rounded border border-slate-200 bg-white">✕</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-2 items-center px-3 py-2 rounded-lg bg-slate-50 border border-slate-100 text-xs">
-      <input value={desc}     onChange={e => setDesc(e.target.value)}     className={inp} placeholder="Description" />
-      <input value={qty}      onChange={e => setQty(e.target.value)}      className={`${inp} text-right`} placeholder="Qty" type="number" step="0.001" />
-      <input value={weight}   onChange={e => setWeight(e.target.value)}   className={`${inp} text-right`} placeholder="Wt (kg)" type="number" step="0.001" />
-      <input value={material} onChange={e => setMaterial(e.target.value)} className={inp} placeholder="Material" />
-      <button onClick={save} disabled={saving} className="text-indigo-600 hover:text-indigo-800 font-bold text-xs px-2 py-1 rounded border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 whitespace-nowrap">
-        {saving ? '…' : 'Save'}
-      </button>
+    <div
+      className={`grid ${COLS} gap-3 items-center px-3 py-2 rounded-lg border transition-colors cursor-pointer
+        ${selected
+          ? 'bg-rose-50 border-rose-300 border-l-4 border-l-rose-500'
+          : 'bg-slate-50 border-slate-100 hover:bg-slate-100'
+        }`}
+      onClick={() => onToggle(item.id)}
+    >
+      <span className="min-w-0 flex items-center gap-1.5">
+        {showCheckbox && (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => onToggle(item.id)}
+            onClick={e => e.stopPropagation()}
+            className="w-3.5 h-3.5 shrink-0 accent-rose-500 cursor-pointer"
+          />
+        )}
+        <span className="min-w-0 text-xs font-medium text-slate-800 truncate">{dispDesc}</span>
+      </span>
+      <span className="min-w-0 text-xs font-mono text-slate-500 truncate">{item.drawingNo || '—'}</span>
+      <span className="text-xs text-right tabular-nums font-semibold text-slate-700">{item.quantity ?? '—'}</span>
+      <span className="text-xs text-right tabular-nums text-amber-700 font-semibold">
+        {item.weight ? Number(item.weight).toFixed(3) : '—'}
+      </span>
+      <span className="min-w-0 text-xs text-slate-600 truncate pl-2">{item.material || '—'}</span>
+      <div className="flex items-center justify-end">
+        <button
+          onClick={e => { e.stopPropagation(); setEditing(true); }}
+          className="text-slate-400 hover:text-sky-600 text-xs px-2 py-1 rounded border border-slate-200 hover:border-sky-300 bg-white whitespace-nowrap leading-none"
+        >
+          Edit
+        </button>
+      </div>
     </div>
   );
 }
 
-export default function LinkedDataSection({ isEdit, cardData, id }) {
+const LinkedDataSection = forwardRef(function LinkedDataSection({ isEdit, cardData, id, onRefresh, onTotalWeightSaved }, ref) {
+  // NOTE: all hooks must run before any early return so the hook order stays
+  // stable across renders (cardData goes null → object on load). The
+  // `if (!isEdit || !cardData) return null;` guard lives *after* every hook.
+  const navigate     = useNavigate();
+  // Registry of open-row flush callbacks keyed by item id. The parent form's
+  // main "Update" button calls flushPendingEdits() (via ref) to persist any
+  // item row still open in edit mode before saving the job card header.
+  const flushRegistry = useRef(new Map());
+  const registerFlush = (itemId, fn) => {
+    flushRegistry.current.set(itemId, fn);
+    return () => { flushRegistry.current.delete(itemId); };
+  };
+  useImperativeHandle(ref, () => ({
+    // Returns { ok, totalWeight } where totalWeight is the value the parent's
+    // main "Update" button should send in its job-card header PUT. This avoids
+    // a race where the header PUT overwrites a freshly-flushed weight with the
+    // parent form's stale (async, not-yet-updated) totalWeight value.
+    flushPendingEdits: async () => {
+      // 1. Commit any open item-row edits.
+      const fns = [...flushRegistry.current.values()];
+      const results = await Promise.all(fns.map(fn => fn()));
+      // 2. Determine the current total-weight the user has entered here.
+      const typed = totalWtInput?.trim();
+      const validTyped = typed != null && typed !== '' && !Number.isNaN(Number(typed));
+      const differs = validTyped && (savedWt == null || Number(typed) !== Number(savedWt));
+      if (differs) {
+        const ok = await saveTotalWeight(totalWtInput, { silent: true });
+        results.push(ok);
+      }
+      // Hand back the effective weight so the header PUT stays consistent.
+      const effectiveWeight = validTyped ? typed : (savedWt != null ? String(savedWt) : null);
+      return { ok: results.every(Boolean), totalWeight: effectiveWeight };
+    },
+  }));
+  const [deleting,   setDeleting]   = useState(false);
+  const [removing,   setRemoving]   = useState(false);
+  const [selected,   setSelected]   = useState(new Set());
+  // cardData may be null on the first render (before the job card loads), so
+  // these initializers/effects must guard against it — the early return that
+  // bails out when cardData is missing lives *below* all hooks.
+  const [totalWtInput, setTotalWtInput] = useState(() => cardData?.totalWeight != null ? String(Number(cardData.totalWeight)) : '');
+  const [savingWt,   setSavingWt]   = useState(false);
+  const [savedWt,    setSavedWt]    = useState(cardData?.totalWeight != null ? Number(cardData.totalWeight) : null);
+  const { isManager } = useAuth();
+  const [confirmDialog, setConfirmDialog] = useState(null);
+
+  useEffect(() => {
+    const weight = cardData?.totalWeight != null ? Number(cardData.totalWeight) : null;
+    setTotalWtInput(weight != null ? String(weight) : '');
+    setSavedWt(weight);
+  }, [cardData?.totalWeight]);
+
+  // All hooks have run above; safe to bail out now.
   if (!isEdit || !cardData) return null;
 
-  const navigate     = useNavigate();
-  const queryClient  = useQueryClient();
-  const [creatingRS, setCreatingRS] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const { isManager } = useAuth();
-
-  const handleDelete = async () => {
-    if (!window.confirm('Delete this job card permanently?')) return;
-    setDeleting(true);
+  const saveTotalWeight = async (val, { silent = false } = {}) => {
+    if (val === undefined || val === null || val === '') {
+      if (!silent) toast.error('Enter a weight value first');
+      return false;
+    }
+    setSavingWt(true);
     try {
-      await api.delete(`/jobcards/${id}`);
-      toast.success('Job card deleted');
-      navigate('/jobcards');
+      const res = await api.put(`/jobcards/${id}`, { totalWeight: val });
+      const saved = res.data?.data?.totalWeight;
+      const savedWeight = saved != null ? Number(saved) : Number(val);
+      setSavedWt(savedWeight);
+      setTotalWtInput(String(savedWeight));
+      // Sync the just-saved weight back into the parent form so the main
+      // "Update" button (which submits the whole form) doesn't overwrite it
+      // with a stale/empty value and wipe it in the DB.
+      onTotalWeightSaved?.(savedWeight);
+      if (!silent) toast.success(`Total weight saved: ${savedWeight.toFixed(3)} kg`);
+      onRefresh?.();
+      return true;
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to delete');
-    } finally { setDeleting(false); }
+      if (!silent) toast.error(err?.message || 'Failed to save weight');
+      return false;
+    }
+    finally { setSavingWt(false); }
   };
 
-  const hasCert     = cardData.testCertificates?.length > 0;
-  const hasRunsheet = cardData.runsheets?.length > 0;
-
-  const handleCreateRunSheet = async () => {
-    setCreatingRS(true);
-    try {
-      const r  = await api.post('/jobwork/runsheet-from-jobcard', { jobCardId: Number(id) });
-      const rs = r.data.data?.runsheet;
-      toast.success(`VHT Run Sheet ${rs?.runsheetNumber} created!`);
-      queryClient.invalidateQueries({ queryKey: ['pending-items'] });
-      navigate(`/manufacturing/runsheet/${rs?.id}`);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Error creating run sheet');
-    } finally { setCreatingRS(false); }
+  const refresh = () => {
+    setSelected(new Set());
+    onRefresh?.();
   };
+
+  const handleDelete = () => {
+    setConfirmDialog({
+      title: 'Delete job card?',
+      message: 'Delete this job card permanently? This cannot be undone.',
+      confirmLabel: 'Delete',
+      variant: 'danger',
+      onConfirm: async () => {
+        setDeleting(true);
+        try {
+          await api.delete(`/jobcards/${id}`);
+          toast.success('Job card deleted');
+          navigate('/jobcards');
+        } catch (err) {
+          toast.error(err.response?.data?.message || 'Failed to delete');
+        } finally { setDeleting(false); setConfirmDialog(null); }
+      },
+    });
+  };
+
+  const handleRemoveItems = () => {
+    if (selected.size === 0) return;
+    const count = selected.size;
+    setConfirmDialog({
+      title: 'Remove items from job card?',
+      message: `Remove ${count} item${count > 1 ? 's' : ''} from this job card? They will return to Pending on the original Inward.`,
+      confirmLabel: 'Remove',
+      variant: 'danger',
+      onConfirm: async () => {
+        setRemoving(true);
+        try {
+          await api.post(`/jobwork/jobcards/${id}/remove-items`, { itemIds: [...selected] });
+          toast.success(`${count} item${count > 1 ? 's' : ''} returned to Inward (Pending)`);
+          refresh();
+        } catch (err) {
+          toast.error(err.response?.data?.message || 'Failed to remove items');
+        } finally { setRemoving(false); setConfirmDialog(null); }
+      },
+    });
+  };
+
+  const toggleItem  = (itemId) => setSelected(prev => {
+    const next = new Set(prev);
+    if (next.has(itemId)) next.delete(itemId); else next.add(itemId);
+    return next;
+  });
+
+  const toggleAll = (items) => {
+    if (selected.size === items.length) setSelected(new Set());
+    else setSelected(new Set(items.map(i => i.id)));
+  };
+
+  const linkedItems = cardData.challanItemLinks || [];
+
+  // Get the inward link for context. challanItemLinks reflects each item's
+  // actual current challan assignment; cardData.challans[0] is a direct
+  // relation that can point to a stale/wrong challan, so check it last.
+  const inwardNo = cardData.challanItemLinks?.[0]?.challan?.inwardNo
+    || cardData.challans?.[0]?.inwardNo
+    || null;
 
   return (
     <div className="space-y-4 mt-5">
@@ -88,217 +286,179 @@ export default function LinkedDataSection({ isEdit, cardData, id }) {
         </div>
       )}
 
-      {/* ── Challan Items with editable weight ── */}
-      {(() => {
-        const linkedItems = cardData.challanItemLinks || [];
-        const allItems = linkedItems.length > 0
-          ? linkedItems
-          : (cardData.challans?.flatMap(ch => ch.items || []) || []);
+      {/* ── Items with Remove capability ── */}
+      {linkedItems.length > 0 && (
+        <div className="card p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                Items ({linkedItems.length})
+                {inwardNo && <span className="ml-2 text-sky-500 normal-case">from {inwardNo}</span>}
+              </p>
+              {cardData.weightSummary?.inwardTotalWeight > 0 && (
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Inward Total Weight:
+                  <span className="ml-1 font-bold text-amber-700">
+                    {Number(cardData.weightSummary.inwardTotalWeight).toFixed(3)} kg
+                  </span>
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {selected.size > 0 && (
+                <>
+                  <span className="text-[11px] text-rose-600 font-bold">{selected.size} selected</span>
+                  <button
+                    type="button"
+                    onClick={handleRemoveItems}
+                    disabled={removing}
+                    className="text-xs font-bold text-white bg-rose-500 hover:bg-rose-600 px-3 py-1.5 rounded-lg disabled:opacity-50 flex items-center gap-1"
+                  >
+                    {removing
+                      ? <><span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Removing…</>
+                      : <>↩ Remove from Job Card</>
+                    }
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => toggleAll(linkedItems)}
+                className="text-[11px] text-slate-500 hover:text-sky-600 font-semibold"
+              >
+                {selected.size === linkedItems.length ? 'Deselect All' : 'Select All'}
+              </button>
+            </div>
+          </div>
+
+          {selected.size > 0 && (
+            <div className="mb-2 px-3 py-2 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700 font-medium">
+              Selected items will be removed from this Job Card and returned to <span className="font-bold">Pending</span> status on the original Inward{inwardNo ? ` (${inwardNo})` : ''}.
+            </div>
+          )}
+
+          <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-slate-50/70">
+            <div className="min-w-[820px]">
+              <div className={`grid ${COLS} gap-3 px-3 py-3 text-[10px] font-semibold uppercase text-slate-400`}>
+                <span>Description</span><span>Drawing No</span>
+                <span className="text-right">Qty</span><span className="text-right">Weight (kg)</span>
+                <span className="pl-2">Material</span><span></span>
+              </div>
+              <div className="space-y-1.5 px-3 pb-3">
+                {linkedItems.map(item => (
+                  <ItemEditRow
+                    key={item.id}
+                    item={item}
+                    selected={selected.has(item.id)}
+                    onToggle={toggleItem}
+                    onSaved={refresh}
+                    registerFlush={registerFlush}
+                    showCheckbox
+                  />
+                ))}
+              </div>
+              {(() => {
+                const totalQty = linkedItems.reduce((s, it) => s + Number(it.quantity || 0), 0);
+                const totalWt  = linkedItems.reduce((s, it) => s + Number(it.weight || 0), 0);
+                return (
+                  <div className={`grid ${COLS} gap-3 px-3 py-2.5 border-t-2 border-slate-200 bg-slate-100/70 rounded-b-3xl text-xs font-bold text-slate-700 items-center`}>
+                    <span>Total</span>
+                    <span></span>
+                    <span className="text-right tabular-nums">{totalQty % 1 === 0 ? totalQty : totalQty.toFixed(3)}</span>
+                    <span className="min-w-0 text-right tabular-nums">
+                      {totalWt > 0 ? (
+                        <span className="text-sky-700">{totalWt.toFixed(3)}</span>
+                      ) : (
+                        <div className="flex flex-col items-end gap-0.5 min-w-0">
+                          <div className="flex items-center justify-end gap-1 min-w-0">
+                            <input
+                              type="number"
+                              step="0.001"
+                              min="0"
+                              value={totalWtInput}
+                              onChange={e => setTotalWtInput(e.target.value)}
+                              placeholder="0.000"
+                              className="border border-sky-300 rounded px-1 py-0.5 text-[11px] font-mono text-right w-14 focus:outline-none focus:ring-1 focus:ring-sky-400 bg-sky-50"
+                            />
+                            <span className="text-slate-400 font-normal text-[10px]">kg</span>
+                            <button
+                              onClick={() => saveTotalWeight(totalWtInput)}
+                              disabled={savingWt}
+                              className="text-[10px] font-bold text-white bg-sky-600 hover:bg-sky-700 px-1.5 py-0.5 rounded disabled:opacity-50 whitespace-nowrap"
+                            >
+                              {savingWt ? '…' : 'Save'}
+                            </button>
+                          </div>
+                          {savedWt != null && (
+                            <span className="text-[9px] text-emerald-600 font-semibold whitespace-nowrap">✓ Saved: {savedWt.toFixed(3)} kg</span>
+                          )}
+                        </div>
+                      )}
+                    </span>
+                    <span></span><span></span>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Legacy: items from challans (no direct link) */}
+      {linkedItems.length === 0 && (() => {
+        const allItems = cardData.challans?.flatMap(ch => ch.items || []) || [];
         if (!allItems.length) return null;
         return (
-          <div className="card p-5">
-            <h3 className="section-title mb-3">Items (from Inward) — {allItems.length} item{allItems.length !== 1 ? 's' : ''}</h3>
-            <div className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-2 px-3 mb-1 text-[10px] font-semibold uppercase text-slate-400">
-              <span>Description</span><span className="text-right">Qty</span><span className="text-right">Weight (kg)</span><span>Material</span><span></span>
+          <div className="card overflow-hidden p-0">
+            <h3 className="section-title px-5 pt-5 mb-3">Items (from Inward) — {allItems.length} item{allItems.length !== 1 ? 's' : ''}</h3>
+            <div className={`grid ${COLS} gap-3 px-5 mb-1 text-[10px] font-semibold uppercase text-slate-400`}>
+              <span>Description</span><span>Drawing No</span><span className="text-right">Qty</span><span className="text-right">Weight (kg)</span><span className="pl-2">Material</span><span></span>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 px-5">
               {allItems.map(item => (
-                <ItemEditRow key={item.id} item={item} onSaved={() => queryClient.invalidateQueries({ queryKey: ['jobcard', id] })} />
+                <ItemEditRow key={item.id} item={item} selected={false} onToggle={() => {}} onSaved={refresh} registerFlush={registerFlush} showCheckbox={false} />
               ))}
             </div>
+            {allItems.length > 0 && (() => {
+              const totalQty = allItems.reduce((s, it) => s + Number(it.quantity || 0), 0);
+              const totalWt  = allItems.reduce((s, it) => s + Number(it.weight || 0), 0);
+              return (
+                <div className={`grid ${COLS} gap-3 px-5 py-2.5 mt-2 pb-5 border-t-2 border-slate-200 bg-slate-100/70 text-xs font-bold text-slate-700 items-center`}>
+                  <span>Total</span>
+                  <span></span>
+                  <span className="text-right tabular-nums">{totalQty % 1 === 0 ? totalQty : totalQty.toFixed(3)}</span>
+                  <span className="min-w-0 text-right tabular-nums">
+                    {totalWt > 0 ? (
+                      <span className="text-sky-700">{totalWt.toFixed(3)}</span>
+                    ) : (
+                      <div className="flex items-center justify-end gap-1 min-w-0">
+                        <input
+                          type="number"
+                          step="0.001"
+                          min="0"
+                          value={totalWtInput}
+                          onChange={e => setTotalWtInput(e.target.value)}
+                          onBlur={e => saveTotalWeight(e.target.value)}
+                          placeholder="0.000"
+                          className="border border-sky-300 rounded px-1 py-0.5 text-[11px] font-mono text-right w-14 focus:outline-none focus:ring-1 focus:ring-sky-400 bg-sky-50"
+                        />
+                        <span className="text-slate-400 font-normal text-[10px]">kg</span>
+                        {savingWt && <span className="text-[9px] text-sky-400">saving…</span>}
+                      </div>
+                    )}
+                  </span>
+                  <span></span>
+                  <span></span>
+                </div>
+              );
+            })()}
           </div>
         );
       })()}
 
-      {/* ── Next-step action bar ─────────────────────────── */}
-      <div className="card p-4 bg-gradient-to-r from-slate-50 to-indigo-50/40 border border-indigo-100">
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Next Step — Automation</p>
-        <div className="flex flex-wrap gap-2">
-
-          {/* Run Sheet */}
-          {!hasRunsheet ? (
-            <button
-              onClick={handleCreateRunSheet}
-              disabled={creatingRS}
-              className="btn-outline border-sky-300 text-sky-700 hover:bg-sky-50 text-xs px-3 py-2 h-auto"
-            >
-              {creatingRS
-                ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Creating...</>
-                : <><span className="material-symbols-outlined text-sm">thermostat</span> Create VHT Run Sheet</>
-              }
-            </button>
-          ) : (
-            <Link
-              to={`/manufacturing/runsheet/${cardData.runsheets[0].id}`}
-              className="btn-outline border-sky-200 text-sky-700 hover:bg-sky-50 text-xs px-3 py-2 h-auto"
-            >
-              <span className="material-symbols-outlined text-sm">thermostat</span>
-              View Run Sheet
-            </Link>
-          )}
-
-          {/* Certificate */}
-          {!hasCert ? (
-            <Link
-              to={`/quality/certificates/new?jobCardId=${id}`}
-              className="btn-outline border-violet-300 text-violet-700 hover:bg-violet-50 text-xs px-3 py-2 h-auto"
-            >
-              <span className="material-symbols-outlined text-sm">verified</span>
-              Create Certificate
-            </Link>
-          ) : (
-            <Link
-              to={`/quality/certificates/${cardData.testCertificates[0].id}`}
-              className="btn-outline border-violet-200 text-violet-700 hover:bg-violet-50 text-xs px-3 py-2 h-auto"
-            >
-              <span className="material-symbols-outlined text-sm">verified</span>
-              View Certificate
-            </Link>
-          )}
-
-          {/* Invoice — only show if cert exists */}
-          {hasCert && (
-            <Link
-              to={`/invoices/new?jobCardId=${id}`}
-              className="btn-outline border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-xs px-3 py-2 h-auto"
-            >
-              <span className="material-symbols-outlined text-sm">receipt_long</span>
-              Create Invoice
-            </Link>
-          )}
-
-          {/* Inspection */}
-          <Link
-            to={`/jobcards/${id}/inspection`}
-            className="btn-outline border-amber-200 text-amber-700 hover:bg-amber-50 text-xs px-3 py-2 h-auto"
-          >
-            <span className="material-symbols-outlined text-sm">fact_check</span>
-            {cardData.inspection ? 'Edit Inspection' : 'Start Inspection'}
-          </Link>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Inspection card */}
-        <div className="card p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center">
-              <span className="material-symbols-outlined text-violet-500 text-[15px]">fact_check</span>
-            </div>
-            <h3 className="section-title">Inspection</h3>
-          </div>
-          {cardData.inspection ? (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-400">Status</span>
-                <span className={`badge ${
-                  cardData.inspection.inspectionStatus === 'PASS'        ? 'bg-emerald-100 text-emerald-700' :
-                  cardData.inspection.inspectionStatus === 'FAIL'        ? 'bg-rose-100 text-rose-700' :
-                  cardData.inspection.inspectionStatus === 'CONDITIONAL' ? 'bg-amber-100 text-amber-700' :
-                  'bg-slate-100 text-slate-600'
-                }`}>{cardData.inspection.inspectionStatus}</span>
-              </div>
-              {cardData.inspection.achievedHardness && (
-                <div className="flex justify-between">
-                  <span className="text-xs text-slate-400">Achieved</span>
-                  <span className="text-xs font-bold text-slate-700">
-                    {cardData.inspection.achievedHardness} {cardData.inspection.hardnessUnit}
-                  </span>
-                </div>
-              )}
-              <Link
-                to={`/jobcards/${id}/inspection`}
-                className="block text-center text-xs text-indigo-600 font-semibold hover:underline mt-2 border border-indigo-100 rounded-xl py-1.5 bg-indigo-50/50 hover:bg-indigo-100/50 transition-colors"
-              >
-                Edit Inspection →
-              </Link>
-            </div>
-          ) : (
-            <div className="text-center py-3">
-              <p className="text-xs text-slate-400 mb-3">No inspection done yet.</p>
-              <Link to={`/jobcards/${id}/inspection`} className="btn-primary text-xs px-4 py-2">
-                <span className="material-symbols-outlined text-sm">add</span> Start Inspection
-              </Link>
-            </div>
-          )}
-        </div>
-
-        {/* Challans card */}
-        <div className="card p-5">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center">
-                <span className="material-symbols-outlined text-amber-500 text-[15px]">engineering</span>
-              </div>
-              <h3 className="section-title">Challans</h3>
-            </div>
-            <Link to="/jobwork/inward-entry" className="text-[10px] text-indigo-600 font-bold hover:underline">+ New</Link>
-          </div>
-          {cardData.challans?.length ? (
-            <div className="space-y-2">
-              {cardData.challans.map((ch) => (
-                <div key={ch.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100">
-                  <Link to={`/jobwork/${ch.id}`} className="text-xs font-mono text-indigo-600 hover:underline">{ch.challanNo}</Link>
-                  <span className="text-[10px] text-slate-400">{formatDate(ch.challanDate)}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-xs text-slate-400 text-center py-3">No jobwork challans linked.</p>
-          )}
-        </div>
-
-        {/* Test Certificates card */}
-        {hasCert && (
-          <div className="card p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center">
-                <span className="material-symbols-outlined text-emerald-500 text-[15px]">verified</span>
-              </div>
-              <h3 className="section-title">Test Certificates</h3>
-            </div>
-            <div className="space-y-2">
-              {cardData.testCertificates.map((cert) => (
-                <div key={cert.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100">
-                  <Link to={`/quality/certificates/${cert.id}`} className="text-xs font-mono text-indigo-600 hover:underline">
-                    {cert.certNo}
-                  </Link>
-                  <div className="flex items-center gap-2">
-                    <span className={`badge text-[10px] ${cert.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
-                      {cert.status}
-                    </span>
-                    <Link to={`/quality/certificates/${cert.id}/print`} className="text-[10px] text-slate-400 hover:text-indigo-600">
-                      <span className="material-symbols-outlined text-sm">print</span>
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Run Sheets card */}
-        {hasRunsheet && (
-          <div className="card p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-7 h-7 rounded-lg bg-sky-50 flex items-center justify-center">
-                <span className="material-symbols-outlined text-sky-500 text-[15px]">thermostat</span>
-              </div>
-              <h3 className="section-title">VHT Run Sheets</h3>
-            </div>
-            <div className="space-y-2">
-              {cardData.runsheets.map((rs) => (
-                <div key={rs.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100">
-                  <Link to={`/manufacturing/runsheet/${rs.id}`} className="text-xs font-mono text-indigo-600 hover:underline">
-                    {rs.runsheetNumber}
-                  </Link>
-                  <span className="text-[10px] text-slate-400">{formatDate(rs.runDate)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+      {confirmDialog && <ConfirmDialog {...confirmDialog} onCancel={() => setConfirmDialog(null)} />}
     </div>
   );
-}
+});
+
+export default LinkedDataSection;

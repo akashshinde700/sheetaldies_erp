@@ -4,78 +4,46 @@ import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { formatDate } from '../../utils/formatters';
 import { useAuth } from '../../context/AuthContext';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
-const inp = 'border border-slate-200 rounded px-1.5 py-1 text-xs font-mono bg-white focus:border-indigo-400 outline-none w-full';
+const stripDesc = (desc, mat, proc) => {
+  let d = desc || '';
+  const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (proc) d = d.replace(new RegExp('\\s*[-–]\\s*' + esc(proc) + '\\s*$', 'i'), '').trim();
+  if (mat)  d = d.replace(new RegExp('\\s*[-–]\\s*' + esc(mat)  + '\\s*$', 'i'), '').trim();
+  return d;
+};
 
-function ItemRow({ item, index, onSaved }) {
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    description: item.description || '',
-    drawingNo:   item.drawingNo   || '',
-    material:    item.material    || '',
-    processName: item.processName || '',
-    hrc:         item.hrc         || '',
-    quantity:    item.quantity != null ? String(item.quantity) : '',
-    weight:      item.weight    != null ? String(item.weight)  : '',
-  });
+const PROD_STATUS_COLOR = {
+  COMPLETED: 'bg-emerald-100 text-emerald-700',
+  PARTIAL:   'bg-amber-100 text-amber-700',
+  PENDING:   'bg-slate-100 text-slate-500',
+};
 
-  const save = async () => {
-    setSaving(true);
-    try {
-      await api.patch(`/jobwork/items/${item.id}`, form);
-      toast.success('Item updated');
-      setEditing(false);
-      onSaved?.();
-    } catch { toast.error('Failed to save'); }
-    finally { setSaving(false); }
-  };
-
-  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
-
-  if (editing) {
-    return (
-      <tr className="bg-indigo-50/40">
-        <td className="px-2 py-1.5 text-slate-400 text-center font-mono">{index + 1}</td>
-        <td className="px-1 py-1.5"><input value={form.description} onChange={e => set('description', e.target.value)} className={inp} placeholder="Description" /></td>
-        <td className="px-1 py-1.5"><input value={form.drawingNo}   onChange={e => set('drawingNo',   e.target.value)} className={inp} placeholder="DRG No" /></td>
-        <td className="px-1 py-1.5"><input value={form.material}    onChange={e => set('material',    e.target.value)} className={inp} placeholder="Material" /></td>
-        <td className="px-1 py-1.5"><input value={form.processName} onChange={e => set('processName', e.target.value)} className={inp} placeholder="Process" /></td>
-        <td className="px-1 py-1.5"><input value={form.hrc}         onChange={e => set('hrc',         e.target.value)} className={inp} placeholder="HRC" /></td>
-        <td className="px-1 py-1.5"><input value={form.quantity}    onChange={e => set('quantity',    e.target.value)} className={inp} placeholder="Qty" type="number" step="1" /></td>
-        <td className="px-1 py-1.5"><input value={form.weight}      onChange={e => set('weight',      e.target.value)} className={inp} placeholder="kg" type="number" step="0.001" /></td>
-        <td className="px-2 py-1.5">
-          {item.jobCard ? (
-            <Link to={`/jobcards/${item.jobCard.id}`} className="text-indigo-600 hover:underline font-mono text-[11px] font-semibold">
-              {item.jobCard.jobCardNo}
-            </Link>
-          ) : (
-            <span className="text-amber-600 text-[10px] font-bold">Pending</span>
-          )}
-        </td>
-        <td className="px-2 py-1.5 whitespace-nowrap">
-          <button onClick={save} disabled={saving} className="text-indigo-600 hover:text-indigo-800 font-bold text-xs px-2 py-1 rounded border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 mr-1">
-            {saving ? '…' : 'Save'}
-          </button>
-          <button onClick={() => setEditing(false)} className="text-slate-400 hover:text-slate-600 text-xs px-2 py-1 rounded border border-slate-200">✕</button>
-        </td>
-      </tr>
-    );
-  }
-
+function ItemRow({ item, index, challanId }) {
+  const prodStatus = item.itemStatus || 'PENDING';
   return (
     <tr className="hover:bg-slate-50/50 transition-colors group">
       <td className="px-2 py-2 text-slate-400 text-center font-mono">{index + 1}</td>
-      <td className="px-2 py-2 font-medium text-slate-800">{item.description || item.item?.description || '—'}</td>
+      <td className="px-2 py-2 font-medium text-slate-800">{stripDesc(item.description || item.item?.description, item.material, item.processName) || '—'}</td>
       <td className="px-2 py-2 text-slate-600 font-mono">{item.drawingNo || '—'}</td>
       <td className="px-2 py-2 text-slate-600 font-semibold">{item.material || '—'}</td>
       <td className="px-2 py-2 text-slate-600">{item.processName || '—'}</td>
       <td className="px-2 py-2 text-slate-600">{item.hrc || '—'}</td>
-      <td className="px-2 py-2 text-slate-600 text-right tabular-nums">{item.quantity}</td>
+      <td className="px-2 py-2 text-slate-700 text-right tabular-nums font-semibold">{item.quantity ?? '—'}</td>
       <td className="px-2 py-2 text-slate-600 text-right tabular-nums">{item.weight ? Number(item.weight).toFixed(3) : '—'}</td>
+      <td className="px-2 py-2 text-right tabular-nums font-semibold text-emerald-700">
+        {item.completedQty != null ? Number(item.completedQty).toFixed(3) : '0.000'}
+      </td>
+      <td className="px-2 py-2 text-right tabular-nums font-semibold text-amber-700">
+        {item.pendingQty != null ? Number(item.pendingQty).toFixed(3) : (item.quantity ?? '—')}
+      </td>
+      <td className="px-2 py-2">
+        <span className={`badge text-[10px] font-bold ${PROD_STATUS_COLOR[prodStatus]}`}>{prodStatus}</span>
+      </td>
       <td className="px-2 py-2">
         {item.jobCard ? (
-          <Link to={`/jobcards/${item.jobCard.id}`} className="text-indigo-600 hover:underline font-mono text-[11px] font-semibold">
+          <Link to={`/jobcards/${item.jobCard.id}`} className="text-sky-600 hover:underline font-mono text-[11px] font-semibold">
             {item.jobCard.jobCardNo}
           </Link>
         ) : (
@@ -85,10 +53,8 @@ function ItemRow({ item, index, onSaved }) {
           </span>
         )}
       </td>
-      <td className="px-2 py-2">
-        <button onClick={() => setEditing(true)} className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-indigo-600 text-xs px-2 py-1 rounded border border-slate-200 hover:border-indigo-300">
-          Edit
-        </button>
+      <td className="px-2 py-2 text-slate-400 text-[10px]">
+        <Link to={`/jobwork/${challanId}/edit`} className="hover:text-sky-600 hover:underline">Edit in Challan</Link>
       </td>
     </tr>
   );
@@ -125,17 +91,25 @@ export default function JobworkDetail() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [creatingJC, setCreatingJC] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
-  const handleDelete = async () => {
-    if (!window.confirm('Delete this inward permanently?')) return;
-    setDeleting(true);
-    try {
-      await api.delete(`/jobwork/${id}`);
-      toast.success('Inward deleted');
-      navigate('/jobwork');
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to delete');
-    } finally { setDeleting(false); }
+  const handleDelete = () => {
+    setConfirmDialog({
+      title: 'Delete inward?',
+      message: 'Delete this inward permanently? This cannot be undone.',
+      confirmLabel: 'Delete',
+      variant: 'danger',
+      onConfirm: async () => {
+        setDeleting(true);
+        try {
+          await api.delete(`/jobwork/${id}`);
+          toast.success('Inward deleted');
+          navigate('/jobwork');
+        } catch (err) {
+          toast.error(err.response?.data?.message || 'Failed to delete');
+        } finally { setDeleting(false); setConfirmDialog(null); }
+      },
+    });
   };
   const [selectedItems, setSelectedItems] = useState(new Set());
 
@@ -202,7 +176,7 @@ export default function JobworkDetail() {
     if (selectedItems.size === 0) { toast.error('Select at least one item.'); return; }
     setCreatingJC(true);
     try {
-      const r = await api.post(`/jobwork/${id}/create-jobcards`, { itemIds: [...selectedItems] });
+      const r = await api.post(`/jobwork/jobcard-from-items`, { itemIds: [...selectedItems] });
       toast.success(r.data.message || 'Job Card created!');
       load();
     } catch (err) {
@@ -227,21 +201,24 @@ export default function JobworkDetail() {
   return (
     <div className="page-stack w-full space-y-4 animate-slide-up">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Link to="/jobwork"
-          className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-300 transition-colors shadow-sm">
-          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-        </Link>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl font-extrabold text-slate-800 font-headline font-mono">{ch.inwardNo || ch.challanNo}</h2>
-            {ch.inwardNo && (
-              <span className="text-xs text-slate-400 font-mono">({ch.challanNo})</span>
-            )}
+      <div className="page-header">
+        <div className="flex items-start gap-3 min-w-0 flex-1">
+          <Link to="/jobwork"
+            className="w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-colors shadow-sm">
+            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+          </Link>
+          <div className="space-y-2 min-w-0">
+            <h1 className="page-title">{ch.inwardNo || ch.challanNo}</h1>
+            <p className="page-subtitle">Rule 45(1) CGST Rules, 2017 — Jobwork Challan</p>
           </div>
-          <p className="text-xs text-slate-400 mt-0.5">Rule 45(1) CGST Rules, 2017 — Jobwork Challan</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Most inwards are entered one after another, so the next one should
+              be reachable from here without going back to the list first. */}
+          <Link to="/jobwork/inward-entry" className="btn-primary">
+            <span className="material-symbols-outlined text-[20px]">add</span>
+            New Inward
+          </Link>
           <Link to={`/jobwork/${id}/edit`} className="btn-outline bg-white">
             <span className="material-symbols-outlined text-[20px]">edit</span>
             Edit
@@ -266,7 +243,7 @@ export default function JobworkDetail() {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-3 text-sm">
           <div>
             <span className="text-xs text-slate-400 block mb-0.5">Inward No</span>
-            <span className="font-bold text-indigo-700 font-mono">{ch.inwardNo || '—'}</span>
+            <span className="font-bold text-sky-700 font-mono">{ch.inwardNo || '—'}</span>
           </div>
           <div>
             <span className="text-xs text-slate-400 block mb-0.5">Challan No</span>
@@ -293,6 +270,10 @@ export default function JobworkDetail() {
             <span className="font-semibold text-slate-800">{ch.deliveryPerson || '—'}</span>
           </div>
           <div>
+            <span className="text-xs text-slate-400 block mb-0.5">Issued By</span>
+            <span className="font-semibold text-slate-800">{ch.issuedBy || '—'}</span>
+          </div>
+          <div>
             <span className="text-xs text-slate-400 block mb-0.5">PO No</span>
             <span className="font-semibold text-slate-800 font-mono">{ch.poNo || '—'}</span>
           </div>
@@ -305,36 +286,117 @@ export default function JobworkDetail() {
         </div>
       </div>
 
-      {/* All Items Table */}
+      {/* All Items Table (read-only — edit/add/remove items from the Edit Challan page) */}
       <div className="card p-5">
-        <p className="section-title border-b border-slate-100 pb-2 mb-4">Items Received</p>
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-4">
+          <p className="section-title border-0 pb-0 mb-0">Items Received</p>
+          <Link to={`/jobwork/${id}/edit`} className="text-xs font-bold text-sky-700 border border-sky-200 rounded-lg px-3 py-1.5 hover:bg-sky-50 inline-flex items-center gap-1">
+            <span className="material-symbols-outlined text-[16px]">edit</span> Edit Items
+          </Link>
+        </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="w-full text-xs table-fixed" style={{ minWidth: '1400px' }}>
+            <colgroup>
+              <col style={{ width: '48px' }} />
+              <col style={{ width: '220px' }} />
+              <col style={{ width: '120px' }} />
+              <col style={{ width: '110px' }} />
+              <col style={{ width: '140px' }} />
+              <col style={{ width: '64px' }} />
+              <col style={{ width: '96px' }} />
+              <col style={{ width: '96px' }} />
+              <col style={{ width: '96px' }} />
+              <col style={{ width: '96px' }} />
+              <col style={{ width: '110px' }} />
+              <col style={{ width: '120px' }} />
+              <col style={{ width: '72px' }} />
+            </colgroup>
             <thead>
-              <tr className="bg-gradient-to-r from-slate-50 to-indigo-50/30 border-b border-slate-100">
-                {['Sr.', 'Description', 'Drawing No', 'Material', 'Process', 'HRC', 'Qty', 'Weight (kg)', 'Job Card', ''].map(h => (
+              <tr className="bg-gradient-to-r from-slate-50 to-sky-50/30 border-b border-slate-100">
+                {['Sr.', 'Description', 'Drawing No', 'Material', 'Process', 'HRC', 'Assigned Qty', 'Weight (kg)', 'Completed', 'Pending', 'Status', 'Job Card', ''].map(h => (
                   <th key={h} className="px-2 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50/80">
               {ch.items?.map((it, i) => (
-                <ItemRow key={it.id} item={it} index={i} onSaved={load} />
+                <ItemRow key={it.id} item={it} index={i} challanId={id} />
               ))}
             </tbody>
           </table>
         </div>
       </div>
 
+      {/* Weight Summary */}
+      {ch.weightSummary && ch.weightSummary.inwardTotalWeight > 0 && (() => {
+        const ws = ch.weightSummary;
+        const pct = ws.consumptionPct ?? (ws.inwardTotalWeight > 0
+          ? Math.min(100, Number(((ws.consumedWeight / ws.inwardTotalWeight) * 100).toFixed(1)))
+          : 0);
+        const fully = ws.fullyConsumed ?? (ws.remainingWeight <= 0 && ws.inwardTotalWeight > 0);
+        return (
+          <div className="card p-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-amber-600 text-[15px]">scale</span>
+                </div>
+                <p className="section-title">Inward Weight Tracking</p>
+              </div>
+              {fully && (
+                <span className="badge bg-emerald-100 text-emerald-700 font-bold">Fully Consumed</span>
+              )}
+            </div>
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 text-center">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Total Weight</p>
+                <p className="text-2xl font-extrabold text-slate-800 tabular-nums">
+                  {Number(ws.inwardTotalWeight).toFixed(3)}
+                </p>
+                <p className="text-xs text-slate-400 mt-0.5">kg</p>
+              </div>
+              <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-center">
+                <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">Consumed</p>
+                <p className="text-2xl font-extrabold text-amber-700 tabular-nums">
+                  {Number(ws.consumedWeight).toFixed(3)}
+                </p>
+                <p className="text-xs text-amber-400 mt-0.5">kg used</p>
+              </div>
+              <div className={`rounded-xl border p-4 text-center ${fully ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                <p className={`text-[10px] font-bold uppercase tracking-wide mb-1 ${fully ? 'text-rose-600' : 'text-emerald-600'}`}>
+                  {fully ? 'Exhausted' : 'Remaining'}
+                </p>
+                <p className={`text-2xl font-extrabold tabular-nums ${fully ? 'text-rose-700' : 'text-emerald-700'}`}>
+                  {Number(ws.remainingWeight).toFixed(3)}
+                </p>
+                <p className={`text-xs mt-0.5 ${fully ? 'text-rose-400' : 'text-emerald-400'}`}>kg available</p>
+              </div>
+            </div>
+            <div>
+              <div className="flex justify-between text-[10px] text-slate-500 mb-1">
+                <span>Consumption</span>
+                <span className="font-bold">{pct}%</span>
+              </div>
+              <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                <div
+                  className={`h-2.5 rounded-full transition-all ${pct >= 100 ? 'bg-rose-500' : pct >= 80 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                  style={{ width: `${Math.min(100, pct)}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── Job Cards Section ── */}
       <div className="card p-5 space-y-5">
         <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-          <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center">
-            <span className="material-symbols-outlined text-indigo-500 text-[15px]">assignment</span>
+          <div className="w-7 h-7 rounded-lg bg-sky-50 flex items-center justify-center">
+            <span className="material-symbols-outlined text-sky-500 text-[15px]">assignment</span>
           </div>
           <p className="section-title">Job Cards</p>
           {relatedJobCards.length > 0 && (
-            <span className="text-[11px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold ml-1">
+            <span className="text-[11px] bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full font-bold ml-1">
               {relatedJobCards.length} created
             </span>
           )}
@@ -349,13 +411,14 @@ export default function JobworkDetail() {
         {relatedJobCards.length > 0 && (
           <div>
             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Related Job Cards</p>
-            <div className="rounded-xl border border-slate-200 overflow-hidden">
+            <div className="rounded-xl border border-slate-200 overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
                     <th className="text-left px-4 py-2.5 font-bold text-[11px] uppercase tracking-wide text-slate-600">Job Card No</th>
                     <th className="text-left px-4 py-2.5 font-bold text-[11px] uppercase tracking-wide text-slate-600">Inward No</th>
-                    <th className="text-center px-4 py-2.5 font-bold text-[11px] uppercase tracking-wide text-slate-600">Total Items</th>
+                    <th className="text-center px-4 py-2.5 font-bold text-[11px] uppercase tracking-wide text-slate-600">Items</th>
+                    <th className="text-right px-4 py-2.5 font-bold text-[11px] uppercase tracking-wide text-slate-600">Weight Used (kg)</th>
                     <th className="text-left px-4 py-2.5 font-bold text-[11px] uppercase tracking-wide text-slate-600">Status</th>
                     <th className="px-4 py-2.5"></th>
                   </tr>
@@ -364,15 +427,18 @@ export default function JobworkDetail() {
                   {relatedJobCards.map(jc => (
                     <tr key={jc.id} className="hover:bg-slate-50">
                       <td className="px-4 py-2.5 font-mono font-bold text-slate-800">{jc.jobCardNo}</td>
-                      <td className="px-4 py-2.5 font-mono text-indigo-600 font-semibold">{ch.inwardNo || ch.challanNo}</td>
+                      <td className="px-4 py-2.5 font-mono text-sky-600 font-semibold">{ch.inwardNo || ch.challanNo}</td>
                       <td className="px-4 py-2.5 text-center font-bold text-slate-700 tabular-nums">{jc.itemCount}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-amber-700">
+                        {jc.totalWeight ? Number(jc.totalWeight).toFixed(3) : <span className="text-slate-400">—</span>}
+                      </td>
                       <td className="px-4 py-2.5">
                         <span className={`badge text-[10px] ${JC_STATUS_COLOR[jc.status] || 'bg-slate-100 text-slate-600'}`}>
                           {jc.status?.replace(/_/g, ' ') || '—'}
                         </span>
                       </td>
                       <td className="px-4 py-2.5 text-right">
-                        <Link to={`/jobcards/${jc.id}`} className="text-indigo-600 hover:underline font-semibold">
+                        <Link to={`/jobcards/${jc.id}`} className="text-sky-600 hover:underline font-semibold">
                           View →
                         </Link>
                       </td>
@@ -391,12 +457,12 @@ export default function JobworkDetail() {
               <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
                 Pending Items — Select to Create Job Card
               </p>
-              <button type="button" onClick={toggleAll} className="text-xs text-indigo-600 hover:underline font-semibold">
+              <button type="button" onClick={toggleAll} className="text-xs text-sky-600 hover:underline font-semibold">
                 {allSelected ? 'Deselect All' : 'Select All'}
               </button>
             </div>
 
-            <div className="rounded-xl border border-amber-200 overflow-hidden">
+            <div className="rounded-xl border border-amber-200 overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-amber-50 border-b border-amber-200">
@@ -423,7 +489,11 @@ export default function JobworkDetail() {
                       <tr
                         key={it.id}
                         onClick={() => toggleItem(it.id)}
-                        className={`cursor-pointer transition-colors ${checked ? 'bg-indigo-50 hover:bg-indigo-100' : 'bg-white hover:bg-amber-50/50'}`}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleItem(it.id); } }}
+                        tabIndex={0}
+                        role="checkbox"
+                        aria-checked={checked}
+                        className={`cursor-pointer transition-colors border-l-4 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-sky-300 ${checked ? 'bg-sky-50 hover:bg-sky-100 border-l-sky-500' : 'bg-white hover:bg-amber-50/50 border-l-transparent'}`}
                       >
                         <td className="px-3 py-2.5 text-center" onClick={e => e.stopPropagation()}>
                           <input
@@ -433,11 +503,11 @@ export default function JobworkDetail() {
                             className="rounded"
                           />
                         </td>
-                        <td className="px-3 py-2.5 font-medium text-slate-800">{it.description || '—'}</td>
+                        <td className="px-3 py-2.5 font-medium text-slate-800">{stripDesc(it.description, it.material, it.processName) || '—'}</td>
                         <td className="px-3 py-2.5 font-semibold text-slate-700">{it.material || '—'}</td>
                         <td className="px-3 py-2.5 text-slate-600">{it.processName || '—'}</td>
                         <td className="px-3 py-2.5 font-mono text-slate-500 text-[11px]">{it.drawingNo || '—'}</td>
-                        <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-indigo-700">{it.quantity ?? '—'}</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-sky-700">{it.quantity ?? '—'}</td>
                         <td className="px-3 py-2.5 text-right tabular-nums text-amber-700 font-semibold">
                           {it.weight ? Number(it.weight).toFixed(3) : '—'}
                         </td>
@@ -446,12 +516,12 @@ export default function JobworkDetail() {
                   })}
                 </tbody>
                 {selectedItems.size > 0 && (
-                  <tfoot className="bg-indigo-50 border-t border-indigo-200">
+                  <tfoot className="bg-sky-50 border-t border-sky-200">
                     <tr>
-                      <td colSpan={5} className="px-3 py-2 text-xs font-bold text-indigo-700">
+                      <td colSpan={5} className="px-3 py-2 text-xs font-bold text-sky-700">
                         {selectedItems.size} item{selectedItems.size > 1 ? 's' : ''} selected
                       </td>
-                      <td className="px-3 py-2 text-right tabular-nums font-black text-indigo-700">
+                      <td className="px-3 py-2 text-right tabular-nums font-black text-sky-700">
                         {pendingItems.filter(it => selectedItems.has(it.id)).reduce((s, it) => s + (Number(it.quantity) || 0), 0)}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums font-black text-amber-700">
@@ -490,56 +560,12 @@ export default function JobworkDetail() {
         )}
       </div>
 
-      {/* Part 2: Processor fills */}
-      <div className="card p-5">
-        <p className="section-title border-b border-slate-100 pb-2 mb-4">Part 2 — To Be Filled by Processor</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          <F label="Status">
-            <select value={part2.status} onChange={e => setPart2(p => ({ ...p, status: e.target.value }))} className="form-input">
-              {['DRAFT', 'SENT', 'RECEIVED', 'COMPLETED', 'CANCELLED'].map(s => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </F>
-          <F label="Received Date">
-            <input type="date" value={part2.receivedDate} onChange={e => setPart2(p => ({ ...p, receivedDate: e.target.value }))} className="form-input" />
-          </F>
-          <F label="Qty Returned">
-            <input type="number" value={part2.qtyReturned} onChange={e => setPart2(p => ({ ...p, qtyReturned: e.target.value }))} className="form-input" placeholder="0" />
-          </F>
-          <F label="Rework Qty">
-            <input type="number" value={part2.reworkQty} onChange={e => setPart2(p => ({ ...p, reworkQty: e.target.value }))} className="form-input" placeholder="0" />
-          </F>
-          <F label="Nature of Process">
-            <input value={part2.natureOfProcess} onChange={e => setPart2(p => ({ ...p, natureOfProcess: e.target.value }))} className="form-input" placeholder="Vacuum Hardening + Tempering" />
-          </F>
-          <F label="Scrap Qty (kg)">
-            <input type="number" step="0.001" value={part2.scrapQtyKg} onChange={e => setPart2(p => ({ ...p, scrapQtyKg: e.target.value }))} className="form-input" placeholder="0.000" />
-          </F>
-          <F label="Scrap Details">
-            <input value={part2.scrapDetails} onChange={e => setPart2(p => ({ ...p, scrapDetails: e.target.value }))} className="form-input" placeholder="Nature of scrap..." />
-          </F>
-        </div>
-        <div className="flex gap-3 mt-5">
-          <button onClick={handleStatusSave} disabled={saving} className="btn-primary">
-            {saving
-              ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Saving...</>
-              : <><span className="material-symbols-outlined text-sm">save</span> Update Challan</>
-            }
-          </button>
-          {relatedJobCards.length > 0 && (
-            <Link to={`/jobcards/${relatedJobCards[0].id}/inspection`}
-              className="btn-ghost" style={{ background: 'linear-gradient(135deg,#7c3aed,#6366f1)', color: 'white', border: 'none' }}>
-              <span className="material-symbols-outlined text-sm">fact_check</span> Go to Inspection
-            </Link>
-          )}
-        </div>
-      </div>
-
       {/* Footer */}
       <p className="text-[11px] text-slate-400 text-right pb-2">
         Created by {ch.createdBy?.name} · {formatDate(ch.createdAt, true)}
       </p>
+
+      {confirmDialog && <ConfirmDialog {...confirmDialog} onCancel={() => setConfirmDialog(null)} />}
     </div>
   );
 }

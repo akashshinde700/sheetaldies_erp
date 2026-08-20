@@ -120,6 +120,7 @@ model User {
   taxInvoices         TaxInvoice[]
   processTypeUpdates  ProcessType[]
   auditLogs           AuditLog[]
+  errorLogs           ErrorLog[]
   purchaseOrdersCreated PurchaseOrder[] @relation("PurchaseOrderCreatedBy")
   grnsCreated         GRN[] @relation("GRNCreatedBy")
   manufacturingBatchesCreated ManufacturingBatch[] @relation("ManufacturingBatchCreatedBy")
@@ -135,6 +136,8 @@ model User {
   workflowStepExecutions JobStepTracking[] @relation("JobStepExecutedBy")
   customerQuotesCreated CustomerQuote[]
   attachmentsUploadedBy Attachment[] @relation("AttachmentUploadedBy")
+  productionEntries     ProductionEntry[]
+  tempCycleTemplatesCreated TempCycleTemplate[]
 
   @@map("users")
 }
@@ -159,6 +162,11 @@ model Party {
   email       String?   @db.VarChar(500)
   partyType   PartyType @map("party_type") @default(CUSTOMER)
   isActive    Boolean   @default(true) @map("is_active")
+  // The ledger this party is called in Tally, when that differs from the name
+  // used here. Tally matches ledgers by exact name and creates nothing on
+  // import, so without this a party named even slightly differently in the two
+  // systems fails every invoice with "Ledger not found". Blank = use `name`.
+  tallyLedgerName String? @map("tally_ledger_name") @db.VarChar(200)
   // Bank Details
   bankAccountHolder String? @map("bank_account_holder") @db.VarChar(500)
   bankName          String? @map("bank_name")           @db.VarChar(500)
@@ -232,6 +240,18 @@ model Machine {
   @@map("machines")
 }
 
+// Admin-manageable Heat Treatment Specification options
+model HeatTreatSpec {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(100)
+  isActive  Boolean  @default(true) @map("is_active")
+  sortOrder Int      @default(0)    @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt      @map("updated_at")
+
+  @@map("heat_treat_specs")
+}
+
 // Process Types with Admin-manageable prices
 model ProcessType {
   id           Int      @id @default(autoincrement())
@@ -244,6 +264,12 @@ model ProcessType {
   lotPrice     Decimal? @map("lot_price")    @db.Decimal(10, 2)
   gstRate      Decimal  @map("gst_rate")     @db.Decimal(5, 2) @default(18.00)
   isActive     Boolean  @default(true)       @map("is_active")
+  showInPartyRates Boolean @default(true)    @map("show_in_party_rates")
+  // The Tally stock item this process is billed under, when that differs from
+  // the process name. Tally matches stock items by exact name and creates
+  // nothing on import, so a process with no matching item there fails the
+  // whole voucher. Blank = use `name`.
+  tallyStockItem String? @map("tally_stock_item") @db.VarChar(150)
   updatedById  Int?     @map("updated_by")
   updatedBy    User?    @relation(fields: [updatedById], references: [id])
   createdAt    DateTime @default(now())  @map("created_at")
@@ -256,6 +282,7 @@ model ProcessType {
   challanItems      ChallanItem[]
   customerQuoteItems CustomerQuoteItem[]
   partyRates        PartyProcessRate[]
+  tempCycleTemplates TempCycleTemplate[]
 
   @@map("process_types")
 }
@@ -270,18 +297,21 @@ model JobCard {
   yourNo       String?       @map("your_no")       @db.VarChar(50)
   heatNo       String?       @map("heat_no")       @db.VarChar(50)
   dieMaterial  String?       @map("die_material")  @db.VarChar(100)
-  partId       Int           @map("part_id")
-  part         Item          @relation(fields: [partId], references: [id])
+  partId       Int?          @map("part_id")
+  part         Item?         @relation(fields: [partId], references: [id])
   customerId   Int?          @map("customer_id")
   customer     Party?        @relation("JobCardCustomer", fields: [customerId], references: [id])
   operationNo  String?       @map("operation_no")  @db.VarChar(50)
   drawingNo    String?       @map("drawing_no")    @db.VarChar(100)
+  showDrawingNoInPrint Boolean @default(true)     @map("show_drawing_no_in_print")
+  showDrawingNoLabelInPrint Boolean @default(true) @map("show_drawing_no_label_in_print")
   woNo         String?       @map("wo_no")          @db.VarChar(100)
   machineId    Int?          @map("machine_id")
   machine      Machine?      @relation(fields: [machineId], references: [id])
   operatorName String?       @map("operator_name") @db.VarChar(100)
   quantity     Int
-  totalWeight  Decimal?      @map("total_weight")  @db.Decimal(10, 3)
+  totalWeight      Decimal?      @map("total_weight")       @db.Decimal(10, 3)
+  actualWeightUsed Decimal?      @map("actual_weight_used")  @db.Decimal(10, 3)
   timeTaken    Decimal?      @map("time_taken")    @db.Decimal(8, 2)
   startDate    DateTime?     @map("start_date")    @db.Date
   receivedDate DateTime?     @map("received_date") @db.Date
@@ -297,6 +327,9 @@ model JobCard {
   contactEmail String?       @map("contact_email") @db.VarChar(150)
   dispatchByOurVehicle Boolean @default(false) @map("dispatch_by_our_vehicle")
   dispatchByCourier Boolean   @default(false) @map("dispatch_by_courier")
+  // The printed job card has always offered three dispatch modes, but only two
+  // were stored — so "COLLECTED BY CUSTOMER" could never be ticked, and courier
+  // had to stand in for customer pickup.
   collectedByCustomer Boolean @default(false) @map("collected_by_customer")
   hrcRange     String?       @map("hrc_range") @db.VarChar(50)
   specialRequirements String? @map("special_requirements") @db.Text
@@ -346,6 +379,8 @@ model JobCard {
   @@index([partId])
   @@index([machineId])
   @@index([parentJobCardId])
+  @@index([createdAt])              // date-range queries
+  @@index([status, createdAt])      // filtered date-range queries
   @@map("job_cards")
 }
 
@@ -531,12 +566,12 @@ model IncomingInspection {
   // Hardness
   requiredHardnessMin Decimal?         @map("required_hardness_min") @db.Decimal(6, 2)
   requiredHardnessMax Decimal?         @map("required_hardness_max") @db.Decimal(6, 2)
-  hardnessUnit        String           @default("HRC") @map("hardness_unit") @db.VarChar(10)
-  achievedHardness    Decimal?         @map("achieved_hardness") @db.Decimal(6, 2)
-  hardnessAfter1      Decimal?         @map("hardness_after_1") @db.Decimal(6, 2)
-  hardnessAfter2      Decimal?         @map("hardness_after_2") @db.Decimal(6, 2)
-  hardnessAfter3      Decimal?         @map("hardness_after_3") @db.Decimal(6, 2)
-  hardnessAfter4      Decimal?         @map("hardness_after_4") @db.Decimal(6, 2)
+  hardnessUnit        String           @default("HRC") @map("hardness_unit") @db.VarChar(20)
+  achievedHardness    String?          @map("achieved_hardness") @db.VarChar(50)
+  hardnessAfter1      String?          @map("hardness_after_1") @db.VarChar(50)
+  hardnessAfter2      String?          @map("hardness_after_2") @db.VarChar(50)
+  hardnessAfter3      String?          @map("hardness_after_3") @db.VarChar(50)
+  hardnessAfter4      String?          @map("hardness_after_4") @db.VarChar(50)
 
   // Distortion (JSON array of {pt, val} objects)
   distortionBefore    Json?            @map("distortion_points_before")
@@ -805,9 +840,11 @@ model JobworkChallan {
   vehicleNo        String?       @map("vehicle_no")      @db.VarChar(30)
   dispatchDate     DateTime?     @map("dispatch_date")   @db.Date
   dueDate          DateTime?     @map("due_date")        @db.Date
-  processingNotes  String?       @map("processing_notes") @db.Text
+  processingNotes   String?       @map("processing_notes") @db.Text
+  totalInwardWeight Decimal?      @map("total_inward_weight") @db.Decimal(10, 3)
 
   deliveryPerson   String?       @map("delivery_person") @db.VarChar(100)
+  issuedBy         String?       @map("issued_by")       @db.VarChar(100)
 
   poNo             String?       @map("po_no")           @db.VarChar(100)
   poDate           DateTime?     @map("po_date")         @db.Date
@@ -848,6 +885,8 @@ model JobworkChallan {
   @@index([fromPartyId])
   @@index([toPartyId])
   @@index([status])
+  @@index([challanDate])              // date-range queries
+  @@index([fromPartyId, status])      // customer-filtered queries
   @@map("jobwork_challans")
 }
 
@@ -859,6 +898,7 @@ model ChallanItem {
   item        Item?          @relation(fields: [itemId], references: [id])
   description String?        @db.VarChar(300)
   drawingNo   String?        @map("drawing_no") @db.VarChar(50)
+  drawingNoLabel String?     @map("drawing_no_label") @db.VarChar(50)
   material    String?        @db.VarChar(100)
   hrc         String?        @db.VarChar(30)
   woNo        String?        @map("wo_no")    @db.VarChar(50)
@@ -871,19 +911,48 @@ model ChallanItem {
   weight        Decimal?       @db.Decimal(12, 3)
   rate          Decimal        @db.Decimal(12, 2)
   amount        Decimal        @db.Decimal(12, 2)
+  pcQty         Decimal?       @map("pc_qty")  @db.Decimal(12, 3)
+  lotQty        Decimal?       @map("lot_qty") @db.Decimal(12, 3)
   processTypeId Int?           @map("process_type_id")
   processType   ProcessType?   @relation(fields: [processTypeId], references: [id])
   processName   String?        @map("process_name")  @db.VarChar(150)
   jobCardId     Int?           @map("job_card_id")
   jobCard       JobCard?       @relation("ChallanItemJobCard", fields: [jobCardId], references: [id], onDelete: SetNull)
-  invoiceItems  InvoiceItem[]
-  dispatchItems DispatchChallanItem[]
+  itemStatus    String         @default("PENDING") @map("item_status") @db.VarChar(20)
+  certStatus    String         @default("PENDING_CERT") @map("cert_status") @db.VarChar(20)
+  invoiceItems       InvoiceItem[]
+  dispatchItems      DispatchChallanItem[]
+  productionEntries  ProductionEntry[]
+  certItems          CertItem[]
 
   @@index([challanId])
   @@index([itemId])
   @@index([processTypeId])
   @@index([jobCardId])
+  @@index([itemStatus])
+  @@index([certStatus])
+  @@index([challanId, itemStatus])
+  @@index([challanId, jobCardId])   // pending-items queries
   @@map("challan_items")
+}
+
+// ============================================================
+// 5B. PRODUCTION ENTRIES (item-level completion tracking)
+// ============================================================
+model ProductionEntry {
+  id                Int         @id @default(autoincrement())
+  challanItemId     Int         @map("challan_item_id")
+  challanItem       ChallanItem @relation(fields: [challanItemId], references: [id], onDelete: Cascade)
+  completedQty      Decimal     @map("completed_qty")        @db.Decimal(12, 3)
+  completedWeightKg Decimal?    @map("completed_weight_kg")  @db.Decimal(10, 3)
+  remarks           String?     @db.VarChar(500)
+  createdById       Int?        @map("created_by")
+  createdBy         User?       @relation(fields: [createdById], references: [id])
+  createdAt         DateTime    @default(now()) @map("created_at")
+
+  @@index([challanItemId])
+  @@index([challanItemId, createdAt])  // time-series history queries
+  @@map("production_entries")
 }
 
 // ============================================================
@@ -948,6 +1017,11 @@ model TestCertificate {
   operatorMode      String?    @map("operator_mode")         @db.VarChar(100)
   // Categorization (mirrors IncomingInspection)
   catNormal            Boolean @default(false) @map("cat_normal")
+  // The certificate form and its print both offer Welded and Rusty, and the
+  // job card's inspection records them — but the certificate had no column for
+  // either, so ticking them here was silently discarded on save.
+  catWelded            Boolean @default(false) @map("cat_welded")
+  catRusty             Boolean @default(false) @map("cat_rusty")
   catCrackRisk         Boolean @default(false) @map("cat_crack_risk")
   catDistortionRisk    Boolean @default(false) @map("cat_distortion_risk")
   catCriticalFinishing Boolean @default(false) @map("cat_critical_finishing")
@@ -963,6 +1037,12 @@ model TestCertificate {
   procPlasmaNitriding  Boolean @default(false) @map("proc_plasma_nitriding")
   procSubZero          Boolean @default(false) @map("proc_sub_zero")
   procSoakClean        Boolean @default(false) @map("proc_soak_clean")
+  // Visual / MPI inspection
+  visualBefore         Boolean @default(false) @map("visual_before")
+  visualAfter          Boolean @default(true)  @map("visual_after")
+  mpiBefore            Boolean @default(false) @map("mpi_before")
+  mpiAfter             Boolean @default(false) @map("mpi_after")
+  mpiNil               Boolean @default(true)  @map("mpi_nil")
   jobCardId         Int?       @map("job_card_id")
   jobCard           JobCard?   @relation(fields: [jobCardId], references: [id])
   yourPoNo          String?    @map("your_po_no")            @db.VarChar(100)
@@ -983,12 +1063,20 @@ model TestCertificate {
   issuedByPartyId   Int?       @map("issued_by_party_id")
   issuedByParty     Party?     @relation("CertIssuedBy",  fields: [issuedByPartyId],  references: [id])
 
-  hardnessMin       Decimal?   @map("hardness_min") @db.Decimal(6, 2)
-  hardnessMax       Decimal?   @map("hardness_max") @db.Decimal(6, 2)
-  hardnessUnit      String     @default("HRC") @map("hardness_unit") @db.VarChar(10)
+  hardnessMin       Decimal?   @map("hardness_min")      @db.Decimal(6, 2)
+  hardnessMax       Decimal?   @map("hardness_max")      @db.Decimal(6, 2)
+  hardnessUnit      String     @default("HRC") @map("hardness_unit") @db.VarChar(20)
+  achievedHardness  String?    @map("achieved_hardness") @db.VarChar(50)
+  hardnessAfter1    String?    @map("hardness_after_1")  @db.VarChar(50)
+  hardnessAfter2    String?    @map("hardness_after_2")  @db.VarChar(50)
+  hardnessAfter3    String?    @map("hardness_after_3")  @db.VarChar(50)
+  hardnessAfter4    String?    @map("hardness_after_4")  @db.VarChar(50)
 
   // Heat treatment graph data JSON [{time, temp}]
   tempCycleData     Json?      @map("temp_cycle_data")
+  // The master Temp Cycle Graph selected in the form — persisted so the
+  // dropdown stays selected on re-edit (the actual curve lives in tempCycleData).
+  tempCycleTemplateId Int?     @map("temp_cycle_template_id")
   // Heat treatment process log JSON [{equipment, process, ...}]
   heatProcessData   Json?      @map("heat_process_data")
   // Distortion measurements before/after heat treatment (JSON array)
@@ -1009,8 +1097,9 @@ model TestCertificate {
   dispatchChallanDate DateTime? @map("dispatch_challan_date") @db.Date
   dispatchedThrough String?    @map("dispatched_through") @db.VarChar(100)
   packedQty         Int?       @map("packed_qty")
-  packedBy          String?    @map("packed_by")  @db.VarChar(100)
-  approvedBy        String?    @map("approved_by") @db.VarChar(100)
+  packedBy          String?    @map("packed_by")          @db.VarChar(100)
+  approvedBy        String?    @map("approved_by")        @db.VarChar(100)
+  finalInspectionBy String?    @map("final_inspection_by") @db.VarChar(100)
   status            CertStatus @default(DRAFT)
 
   createdById       Int        @map("created_by")
@@ -1040,7 +1129,10 @@ model CertItem {
   totalWeight   Decimal?        @map("total_weight")    @db.Decimal(10, 3)
   samplingPlan  String?         @map("sampling_plan")   @db.VarChar(100)
   remarks       String?         @db.VarChar(300)
+  sourceChallanItemId Int?      @map("source_challan_item_id")
+  sourceChallanItem   ChallanItem? @relation(fields: [sourceChallanItemId], references: [id], onDelete: SetNull)
 
+  @@index([sourceChallanItemId])
   @@map("cert_items")
 }
 
@@ -1080,6 +1172,17 @@ model TaxInvoice {
   challanId       Int?          @map("challan_id")
   challan         JobworkChallan? @relation(fields: [challanId], references: [id], onDelete: SetNull)
 
+  invoiceSeriesId Int?          @map("invoice_series_id")
+  invoiceSeries   InvoiceSeries? @relation(fields: [invoiceSeriesId], references: [id])
+  // Bumped each time the invoice is printed/downloaded so the print page can
+  // label successive copies ORIGINAL → DUPLICATE → EXTRA, matching how a
+  // physical multi-copy invoice book is used.
+  printCount      Int           @default(0) @map("print_count")
+  // The print page bills the process as the service and repeats the customer's
+  // part name under it. Some customers want only the process on the bill, so
+  // the choice is made per invoice at creation time.
+  showPartName    Boolean       @default(true) @map("show_part_name")
+
   subtotal          Decimal       @default(0)            @db.Decimal(12, 2)
   cgstRate          Decimal       @default(9.00)         @map("cgst_rate")         @db.Decimal(5, 2)
   cgstAmount        Decimal       @default(0)            @map("cgst_amount")       @db.Decimal(12, 2)
@@ -1098,12 +1201,22 @@ model TaxInvoice {
 
   dispatchDocNo   String?       @map("dispatch_doc_no")  @db.VarChar(100)
   eWayBillNo      String?       @map("e_way_bill_no")    @db.VarChar(50)
+
+  // GST e-invoice (IRP) details — this ERP has no direct IRP integration, so
+  // these are filled in manually after the invoice is submitted to the
+  // government e-invoice portal outside this system; the print page's QR
+  // code is generated from whatever is entered here.
+  irnNo           String?       @map("irn_no")          @db.VarChar(100)
+  ackNo           String?       @map("ack_no")          @db.VarChar(50)
+  ackDate         DateTime?     @map("ack_date")
+
   paymentStatus   PaymentStatus @default(PENDING)      @map("payment_status")
   paidDate        DateTime?     @map("paid_date")      @db.Date
   paymentRef      String?       @map("payment_ref")    @db.VarChar(100)
 
   sentToTally     Boolean       @default(false)        @map("sent_to_tally")
   sentToTallyAt   DateTime?     @map("sent_to_tally_at")
+  xmlDownloadedAt DateTime?     @map("xml_downloaded_at")
 
   createdById     Int           @map("created_by")
   createdBy       User          @relation(fields: [createdById], references: [id])
@@ -1116,7 +1229,30 @@ model TaxInvoice {
   @@index([toPartyId])
   @@index([invoiceNo])
   @@index([paymentStatus])
+  @@index([paymentStatus, createdAt])  // invoice aging queries
   @@map("tax_invoices")
+}
+
+// Invoice numbering series — each series (e.g. "SVT", "SVT/AB") gets its own
+// independent running number per financial year: full prefix is computed as
+// `${code}/${fyStart}-${fyEnd}/`, reusing the same atomic NumberSequence
+// counter infrastructure the rest of the app's document numbers use, so a
+// new series (e.g. for a new branch/company) is just a new row here — no
+// code change needed.
+model InvoiceSeries {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique @db.VarChar(30)
+  label     String   @db.VarChar(100)
+  isActive  Boolean  @default(true) @map("is_active")
+  // Zero-padded digit width for this series' running number (e.g. 4 →
+  // "0002"). Each series can differ — set per business preference.
+  padWidth  Int      @default(4) @map("pad_width")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt      @map("updated_at")
+
+  invoices  TaxInvoice[]
+
+  @@map("invoice_series")
 }
 
 model InvoiceItem {
@@ -1165,6 +1301,17 @@ model AuditLog {
   @@index([userId])
   @@index([tableName, createdAt])
   @@map("audit_logs")
+}
+
+// Atomic monotonic counters (invoice numbers, job card numbers, ...) — keyed
+// by an arbitrary string so deleting the underlying record (invoice, job
+// card) can never rewind or reissue a previously-used number.
+model NumberSequence {
+  key       String   @id @db.VarChar(80)
+  nextValue Int      @default(1) @map("next_value")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("number_sequences")
 }
 
 // ============================================================
@@ -1384,6 +1531,7 @@ model VHTRunsheet {
 
   /// Run date (same as paper "Date")
   runDate           DateTime              @map("run_date") @db.Date
+  cycleStartTime    String?               @map("cycle_start_time") @db.VarChar(10) // "09:10"
   cycleEndTime      String?               @map("cycle_end_time") @db.VarChar(10) // "17:10"
   totalTimeDisplay  String?               @map("total_time_display") @db.VarChar(20) // "8:00" hours
   mrStart           Int?                  @map("mr_start")
@@ -1408,6 +1556,14 @@ model VHTRunsheet {
   supervisorSign    String?               @map("supervisor_sign") @db.VarChar(150)
   supervisorVerifiedAt DateTime?            @map("supervisor_verified_at")
   verificationNote  String?               @map("verification_note") @db.Text
+
+  /// Check Points section (paper form) — filled in as the cycle actually runs.
+  gasPressure           String?  @map("gas_pressure")            @db.VarChar(50)
+  waterCirculationFrom  String?  @map("water_circulation_from")  @db.VarChar(20)
+  waterCirculationTo    String?  @map("water_circulation_to")    @db.VarChar(20)
+  powerFailureFrom      String?  @map("power_failure_from")      @db.VarChar(20)
+  powerFailureTo        String?  @map("power_failure_to")        @db.VarChar(20)
+  otherCheckpoint       String?  @map("other_checkpoint")        @db.Text
 
   status            RunsheetStatus        @default(PLANNED)
   actualOutput      Int?                  @map("actual_output")
@@ -1444,6 +1600,12 @@ model VHTRunsheetItem {
   quantity          Int
   weightKg          Decimal?       @map("weight_kg") @db.Decimal(10, 3)
   plannedSlot       String?        @map("planned_slot") @db.VarChar(20)
+
+  /// Per-item paper-form columns — fixture used, thermocouple position, and
+  /// any per-piece loading instruction.
+  fixtures          String?        @db.VarChar(150)
+  tcPosition        String?        @map("tc_position") @db.VarChar(100)
+  instruction       String?        @db.VarChar(300)
 
   @@index([jobCardId])
   @@map("vht_runsheet_items")
@@ -1512,6 +1674,22 @@ model CustomerQuote {
   totalAmount  Decimal             @default(0) @map("total_amount") @db.Decimal(12, 2)
   notes        String?             @db.Text
   paymentTerms String?             @map("payment_terms") @db.VarChar(300)
+  kindAttn     String?             @map("kind_attn") @db.VarChar(150)
+
+  // Print's "TERMS & CONDITION" table — editable per quote, defaults match
+  // the original QF-MKT-03 paper form wording.
+  termsTransport String @default("BOTH SIDE AT YOUR END") @map("terms_transport") @db.VarChar(300)
+  termsPayment   String @default("60 DAYS.") @map("terms_payment") @db.VarChar(300)
+  termsDelivery  String @default("4-5 DAYS AFTER RECEPIT OF MATERIAL AT OUR END") @map("terms_delivery") @db.VarChar(300)
+  termsTax       String @default("AS PER GOVERMENT RULES") @map("terms_tax") @db.VarChar(300)
+
+  // Print's "COMMERCIAL DETAILS" table — editable per quote (defaults are
+  // Shital Vacuum Treat's own registration details).
+  commercialPan          String @default("AATCS0577L")     @map("commercial_pan") @db.VarChar(100)
+  commercialGst          String @default("27AATCS0577L1ZK") @map("commercial_gst") @db.VarChar(100)
+  commercialServicesCode String @default("998873 ( 18% )")  @map("commercial_services_code") @db.VarChar(100)
+  commercialIso          String @default("ISO 9001 -2015")  @map("commercial_iso") @db.VarChar(100)
+
   createdById  Int                 @map("created_by")
   createdBy    User                @relation(fields: [createdById], references: [id])
   createdAt    DateTime            @default(now()) @map("created_at")
@@ -1532,6 +1710,11 @@ model CustomerQuoteItem {
   material      String?        @db.VarChar(100)
   qty           Int            @default(1)
   weight        Decimal?       @db.Decimal(12, 3)
+  // Which of the three rate types this line is quoted at — mirrors the
+  // KGS/PCS/LOT choice already used on invoice line items, so the form can
+  // show a single "Rate" dropdown instead of separate Rate/Kg, Rate/Pc and
+  // Lot Charge fields all at once.
+  unit          String         @default("KGS") @db.VarChar(10)
   rate          Decimal        @db.Decimal(12, 2)
   amount        Decimal        @db.Decimal(12, 2)
   hsnCode       String?        @map("hsn_code") @db.VarChar(20)
@@ -1617,4 +1800,68 @@ model Attachment {
   @@index([purchaseOrderId])
   @@index([entityType, entityId])
   @@map("attachments")
+}
+
+// ============================================================
+// TEMPERATURE CYCLE GRAPHS — reusable master "graph" presets shared
+// by Test Certificates and VHT Run Sheets. `data` stores ordered
+// segments [{ tempC, holdMin, label }], the same shape already used
+// by heatTreatmentCycles.js presets and VHTRunsheet.tempGraphPoints —
+// Certificates convert segments -> flat {time,temp} rows on load via
+// segmentsToTempCycleData(); VHT Run Sheets consume segments directly.
+// At most one graph may be isDefault per processTypeId (NULL process
+// forms its own shared "general default" bucket).
+// ============================================================
+model TempCycleTemplate {
+  id            Int      @id @default(autoincrement())
+  name          String   @db.VarChar(150)
+  material      String?  @db.VarChar(100)
+  processTypeId Int?     @map("process_type_id")
+  processType   ProcessType? @relation(fields: [processTypeId], references: [id])
+  description   String?  @db.Text
+  data          Json     // [{ tempC, holdMin, label }, ...]
+  isDefault     Boolean  @default(false) @map("is_default")
+  isActive      Boolean  @default(true)  @map("is_active")
+  createdById   Int?     @map("created_by")
+  createdBy     User?    @relation(fields: [createdById], references: [id])
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt       @map("updated_at")
+
+  @@index([isDefault])
+  @@index([processTypeId])
+  @@map("temp_cycle_templates")
+}
+
+// ============================================================
+// 11. ERROR LOG
+// ============================================================
+// Until this existed, a production 500 left no trace anywhere: the error
+// handler only logged in development, so the only signal was a user saying
+// "it didn't work". Browser-side crashes were invisible too.
+model ErrorLog {
+  id         Int      @id @default(autoincrement())
+  source     String   @db.VarChar(20)          // 'backend' | 'frontend'
+  level      String   @default("error") @db.VarChar(20)
+  message    String   @db.Text
+  stack      String?  @db.Text
+  code       String?  @db.VarChar(60)
+  statusCode Int?     @map("status_code")
+  method     String?  @db.VarChar(10)
+  url        String?  @db.VarChar(500)
+  userAgent  String?  @map("user_agent") @db.VarChar(400)
+  userId     Int?     @map("user_id")
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  meta       Json?
+  // Same error hitting repeatedly should not drown the table — a matching
+  // recent row gets its count bumped instead of a new insert.
+  fingerprint String  @db.VarChar(64)
+  count      Int      @default(1)
+  lastSeenAt DateTime @default(now()) @map("last_seen_at")
+  resolved   Boolean  @default(false)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([fingerprint])
+  @@index([source, resolved])
+  @@index([lastSeenAt])
+  @@map("error_logs")
 }

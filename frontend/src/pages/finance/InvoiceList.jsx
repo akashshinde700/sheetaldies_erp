@@ -1,10 +1,14 @@
 import { useEffect, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { exportToExcel } from '../../utils/export';
+import KpiCard from '../../components/KpiCard';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import ListSearchInput from '../../components/ListSearchInput';
+import PageNav from '../../components/PageNav';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 const PAY_STYLE = {
   PENDING: 'bg-orange-100 text-orange-700',
@@ -16,29 +20,10 @@ const PAGE_LIMIT = 10;
 
 const SkeletonRow = () => (
   <tr className="animate-pulse">
-    {[1,2,3,4,5,6,7,8,9,10].map(i => (
+    {Array.from({ length: 11 }, (_, i) => i).map(i => (
       <td key={i} className="px-4 py-3.5"><div className="h-3 bg-slate-100 rounded w-full" /></td>
     ))}
   </tr>
-);
-
-const Pagination = ({ page, totalPages, total, limit, setPage }) => (
-  <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/50">
-    <span className="text-xs text-slate-400">
-      {(page-1)*limit+1}–{Math.min(page*limit, total)} of <span className="font-semibold">{total}</span>
-    </span>
-    <div className="flex items-center gap-1.5">
-      <button onClick={() => setPage(p => Math.max(1,p-1))} disabled={page===1}
-        className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600 transition-colors">
-        <span className="material-symbols-outlined text-sm">chevron_left</span> Prev
-      </button>
-      <span className="text-xs font-semibold text-slate-500 px-2">{page} / {totalPages}</span>
-      <button onClick={() => setPage(p => Math.min(totalPages,p+1))} disabled={page===totalPages}
-        className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600 transition-colors">
-        Next <span className="material-symbols-outlined text-sm">chevron_right</span>
-      </button>
-    </div>
-  </div>
 );
 
 export default function InvoiceList() {
@@ -53,10 +38,13 @@ export default function InvoiceList() {
   const [total,    setTotal]    = useState(0);
   const [paidModal, setPaidModal] = useState(null); // { id, invoiceNo }
   const [paidDate,  setPaidDate]  = useState(() => new Date().toISOString().split('T')[0]);
+  const [confirmDialog, setConfirmDialog] = useState(null);
+  const [showTallySetup, setShowTallySetup] = useState(false);
 
-  const fetchData = useCallback(() => {
+  const fetchData = useCallback((signal) => {
     setLoading(true); setError(null);
     api.get('/invoices', {
+      signal,
       params: {
         paymentStatus: filter || undefined,
         search: search.trim() || undefined,
@@ -67,12 +55,16 @@ export default function InvoiceList() {
       },
     })
       .then(r => { setInvoices(r.data.data || []); setTotal(r.data.pagination?.total || 0); })
-      .catch(() => setError('Failed to load invoices.'))
+      .catch(err => { if (err?.name !== 'CanceledError') setError('Failed to load invoices.'); })
       .finally(() => setLoading(false));
   }, [filter, search, fromDate, toDate, page]);
 
   useEffect(() => { setPage(1); }, [filter, search, fromDate, toDate]);
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchData(controller.signal);
+    return () => controller.abort();
+  }, [fetchData]);
 
   const confirmMarkPaid = async () => {
     if (!paidModal) return;
@@ -82,6 +74,55 @@ export default function InvoiceList() {
       setInvoices(p => p.map(inv => inv.id === paidModal.id ? { ...inv, paymentStatus: 'PAID', paidDate } : inv));
       setPaidModal(null);
     } catch { toast.error('Error updating payment.'); }
+  };
+
+  const doDownloadXml = async (inv) => {
+    try {
+      const r = await api.get(`/invoices/${inv.id}/tally-xml`, { responseType: 'blob' });
+      const filename  = `${inv.invoiceNo.replace(/\//g, '-')}_tally.xml`;
+      const blobUrl   = URL.createObjectURL(new Blob([r.data], { type: 'application/xml' }));
+      const a         = document.createElement('a');
+      a.href          = blobUrl;
+      a.download      = filename;
+      a.click();
+      URL.revokeObjectURL(blobUrl);
+      setInvoices(p => p.map(i => i.id === inv.id ? { ...i, xmlDownloadedAt: new Date().toISOString() } : i));
+    } catch {
+      toast.error('Error generating XML.');
+    }
+  };
+
+  const handleDownloadXml = (inv) => {
+    if (inv.xmlDownloadedAt) {
+      setConfirmDialog({
+        title: 'Download Tally XML again?',
+        message: `This invoice's Tally XML was already downloaded on ${formatDate(inv.xmlDownloadedAt, true)}.\n\nImporting it into Tally a second time may create a duplicate voucher.`,
+        confirmLabel: 'Download Again',
+        variant: 'danger',
+        onConfirm: async () => { await doDownloadXml(inv); setConfirmDialog(null); },
+      });
+      return;
+    }
+    doDownloadXml(inv);
+  };
+
+  const handleDeleteInvoice = (inv) => {
+    setConfirmDialog({
+      title: 'Delete invoice?',
+      message: `Delete invoice ${inv.invoiceNo} permanently? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          await api.delete(`/invoices/${inv.id}`);
+          toast.success(`Invoice ${inv.invoiceNo} deleted.`);
+          setInvoices(p => p.filter(i => i.id !== inv.id));
+          setTotal(t => Math.max(0, t - 1));
+        } catch (err) {
+          toast.error(err.response?.data?.message || 'Failed to delete invoice.');
+        } finally { setConfirmDialog(null); }
+      },
+    });
   };
 
   const exportInvoices = async () => {
@@ -112,6 +153,7 @@ export default function InvoiceList() {
         'Invoice Date': formatDate(inv.invoiceDate),
         'Customer': inv.toParty?.name || inv.toPartyName || '',
         'Challan': inv.challan?.challanNo || inv.challanRef || '',
+        'Job Card': inv.jobCardRef || '',
         'Subtotal': inv.subtotal,
         'CGST': inv.cgstAmount,
         'SGST': inv.sgstAmount,
@@ -172,7 +214,7 @@ export default function InvoiceList() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="page-header">
         <div>
           <h2 className="text-xl font-extrabold text-slate-800 font-headline">Tax Invoices</h2>
           <p className="text-xs text-slate-400 mt-0.5">
@@ -181,6 +223,12 @@ export default function InvoiceList() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* Setup files belong here, not on one invoice: they are needed once
+              per machine, and an invoice locked after Tally hides its own box. */}
+          <button type="button" onClick={() => setShowTallySetup(p => !p)}
+            className={`btn-outline ${showTallySetup ? 'border-violet-300 text-violet-700 bg-violet-50' : ''}`}>
+            <span className="material-symbols-outlined text-sm">download_for_offline</span> Tally Setup
+          </button>
           <button onClick={exportInvoices} className="btn-outline">
             <span className="material-symbols-outlined text-sm">file_download</span> Export Excel
           </button>
@@ -188,6 +236,77 @@ export default function InvoiceList() {
             <span className="material-symbols-outlined text-sm">add</span> New Invoice
           </Link>
         </div>
+      </div>
+
+      {showTallySetup && (
+        <div className="card p-4 sm:p-5 border border-violet-200 bg-violet-50/40 space-y-3">
+          <div className="flex items-start gap-2">
+            <span className="material-symbols-outlined text-violet-500 text-[18px]">handyman</span>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-violet-800">Tally Setup — ek baar ka kaam</p>
+              <p className="text-[11px] text-violet-600 mt-0.5">
+                Har naye computer par ek baar. Roz ki invoice ke liye ye zaroori nahi.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <a href="/Tally-Import.bat" download
+              className="flex items-start gap-3 bg-white border border-slate-200 rounded-xl p-3 hover:border-violet-300 transition-colors">
+              <span className="material-symbols-outlined text-violet-500">bolt</span>
+              <span className="min-w-0">
+                <span className="block text-xs font-bold text-slate-700">Tally Importer (.bat)</span>
+                <span className="block text-[10px] text-slate-500 mt-0.5">
+                  Desktop pe rakho. Invoice ka XML ispe <strong>drag</strong> karo — seedha Tally me chala jayega.
+                </span>
+              </span>
+            </a>
+
+            <a href="/tally-masters-setup.xml" download
+              className="flex items-start gap-3 bg-white border border-slate-200 rounded-xl p-3 hover:border-violet-300 transition-colors">
+              <span className="material-symbols-outlined text-violet-500">list_alt</span>
+              <span className="min-w-0">
+                <span className="block text-xs font-bold text-slate-700">Masters XML</span>
+                <span className="block text-[10px] text-slate-500 mt-0.5">
+                  Tally me <span className="font-mono">O: Import → Masters</span> — ledgers, <span className="font-mono">Kgs</span> unit
+                  aur stock item ban jayenge.
+                </span>
+              </span>
+            </a>
+          </div>
+
+          <p className="text-[10px] text-slate-500 bg-white border border-slate-200 rounded-lg px-3 py-2">
+            <strong>Dhyan do:</strong> agar tumhare Tally me sales/tax ledgers <em>pehle se</em> kisi aur naam se hain
+            (jaise <span className="font-mono">Output CGST</span>), to Masters XML mat daalo — warna duplicate ledger ban jayenge.
+            Us case me party ke form me <strong>Tally Ledger Name</strong> bhar do.
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <KpiCard
+          label="Total invoices"
+          value={total}
+          sub="All invoices"
+          icon="receipt_long"
+          iconBg="bg-sky-100 text-sky-700"
+        />
+        <KpiCard
+          label="Paid invoices"
+          value={invoices.filter(inv => inv.paymentStatus === 'PAID').length}
+          sub="Marked paid on page"
+          icon="paid"
+          iconBg="bg-emerald-100 text-emerald-700"
+        />
+        <KpiCard
+          label="Pending payment"
+          value={pendingCount}
+          sub="Needs follow-up"
+          badge={pendingCount > 0 ? 'Pending' : 'Clear'}
+          badgeColor={pendingCount > 0 ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'}
+          icon="schedule"
+          iconBg="bg-amber-100 text-amber-700"
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto_auto_auto] items-end">
@@ -241,11 +360,12 @@ export default function InvoiceList() {
         <div className="overflow-x-auto">
           <table className="w-full text-left min-w-[520px]">
             <thead>
-              <tr className="bg-gradient-to-r from-slate-50 to-indigo-50/30 border-b border-slate-100">
+              <tr className="bg-gradient-to-r from-slate-50 to-sky-50/30 border-b border-slate-100">
                 <th className="th">Invoice No</th>
                 <th className="th">Date</th>
                 <th className="th">To Party</th>
                 <th className="th hidden sm:table-cell">Challan</th>
+                <th className="th hidden sm:table-cell">Job Card</th>
                 <th className="th hidden md:table-cell">Subtotal</th>
                 <th className="th hidden md:table-cell">GST</th>
                 <th className="th">Total</th>
@@ -259,15 +379,24 @@ export default function InvoiceList() {
                 Array.from({length: 5}).map((_, i) => <SkeletonRow key={i} />)
               ) : invoices.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-5 py-16 text-center">
-                    <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center mx-auto mb-3">
-                      <span className="material-symbols-outlined text-2xl text-indigo-300">receipt_long</span>
+                  <td colSpan={11} className="px-5 py-16 text-center">
+                    <div className="w-14 h-14 rounded-2xl bg-sky-50 flex items-center justify-center mx-auto mb-3">
+                      <span className="material-symbols-outlined text-2xl text-sky-300">receipt_long</span>
                     </div>
                     <p className="text-sm text-slate-400 mb-2">
-                      {filter ? `No ${filter.toLowerCase()} invoices.` : 'No invoices yet.'}
+                      {search.trim()
+                        ? `No invoices found for "${search.trim()}".`
+                        : filter ? `No ${filter.toLowerCase()} invoices.` : 'No invoices yet.'}
                     </p>
-                    {!filter && (
-                      <Link to="/invoices/new" className="inline-flex items-center gap-1 text-xs text-indigo-600 font-semibold hover:underline">
+                    {search.trim() ? (
+                      <Link
+                        to={`/invoices/new?ref=${encodeURIComponent(search.trim())}`}
+                        className="inline-flex items-center gap-1 text-xs text-sky-600 font-semibold hover:underline"
+                      >
+                        <span className="material-symbols-outlined text-sm">add</span> Create invoice for "{search.trim()}"
+                      </Link>
+                    ) : !filter && (
+                      <Link to="/invoices/new" className="inline-flex items-center gap-1 text-xs text-sky-600 font-semibold hover:underline">
                         <span className="material-symbols-outlined text-sm">add</span> Create first invoice
                       </Link>
                     )}
@@ -277,7 +406,7 @@ export default function InvoiceList() {
                 <tr key={inv.id} className="tr">
                   <td className="td">
                     <Link to={`/invoices/${inv.id}`}
-                      className="text-xs font-bold text-indigo-600 hover:underline font-mono">
+                      className="text-xs font-bold text-sky-600 hover:underline font-mono">
                       {inv.invoiceNo}
                     </Link>
                   </td>
@@ -287,6 +416,9 @@ export default function InvoiceList() {
                   <td className="td font-medium text-slate-700 truncate max-w-[150px]">{inv.toParty?.name}</td>
                   <td className="td text-slate-500 font-mono text-[11px] hidden sm:table-cell">
                     {inv.challan?.challanNo || inv.challanRef || '—'}
+                  </td>
+                  <td className="td text-slate-500 font-mono text-[11px] hidden sm:table-cell">
+                    {inv.jobCardRef || '—'}
                   </td>
                   <td className="td text-slate-600 hidden md:table-cell">{formatCurrency(inv.subtotal)}</td>
                   <td className="td text-slate-500 hidden md:table-cell">
@@ -299,29 +431,59 @@ export default function InvoiceList() {
                     </span>
                   </td>
                   <td className="td hidden sm:table-cell">
-                    {inv.sentToTally
-                      ? <span className="badge bg-violet-100 text-violet-700">
-                          <span className="material-symbols-outlined text-[12px]">lock</span> Sent
-                        </span>
-                      : <span className="text-slate-300 text-xs">—</span>
-                    }
+                    {inv.sentToTally ? (
+                      <span className="badge bg-violet-100 text-violet-700">
+                        <span className="material-symbols-outlined text-[12px]">lock</span> Sent
+                      </span>
+                    ) : inv.xmlDownloadedAt ? (
+                      <span
+                        className="badge bg-amber-100 text-amber-700 whitespace-nowrap"
+                        title={`Option B — Download XML & Import Manually. Last downloaded ${formatDate(inv.xmlDownloadedAt, true)}.`}
+                      >
+                        <span className="material-symbols-outlined text-[12px]">download_done</span> XML Downloaded
+                      </span>
+                    ) : (
+                      <span className="text-slate-300 text-xs">—</span>
+                    )}
                   </td>
                   <td className="td">
                     <div className="flex gap-2 items-center">
                       <Link to={`/invoices/${inv.id}/print`}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-all"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-600 hover:bg-slate-100 transition-all"
                         title="Print Invoice">
                         <span className="material-symbols-outlined text-[18px]">print</span>
                       </Link>
                       <Link to={`/invoices/${inv.id}`}
-                        className="text-xs font-semibold text-indigo-600 hover:underline">View</Link>
+                        title="View"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-600 hover:bg-slate-100 transition-all">
+                        <span className="material-symbols-outlined text-[18px]">visibility</span>
+                      </Link>
+                      <button
+                        onClick={() => handleDownloadXml(inv)}
+                        title={inv.xmlDownloadedAt
+                          ? `Already downloaded on ${formatDate(inv.xmlDownloadedAt, true)} — click to download again`
+                          : 'Download Tally XML — Option B: Download XML & Import Manually'}
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all hover:bg-slate-100 ${
+                          inv.xmlDownloadedAt ? 'text-amber-500 hover:text-amber-600' : 'text-slate-400 hover:text-violet-600'
+                        }`}>
+                        <span className="material-symbols-outlined text-[18px]">
+                          {inv.xmlDownloadedAt ? 'download_done' : 'download'}
+                        </span>
+                      </button>
                       {inv.paymentStatus !== 'PAID' && !inv.sentToTally && (
-                        <>
-                          <span className="text-slate-200">·</span>
-                          <button
-                            onClick={() => { setPaidDate(new Date().toISOString().split('T')[0]); setPaidModal({ id: inv.id, invoiceNo: inv.invoiceNo }); }}
-                            className="text-xs font-semibold text-emerald-600 hover:underline">Paid</button>
-                        </>
+                        <button
+                          onClick={() => { setPaidDate(new Date().toISOString().split('T')[0]); setPaidModal({ id: inv.id, invoiceNo: inv.invoiceNo }); }}
+                          className="px-2 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors">
+                          Mark Paid
+                        </button>
+                      )}
+                      {!inv.sentToTally && (
+                        <button
+                          onClick={() => handleDeleteInvoice(inv)}
+                          title="Delete Invoice"
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all">
+                          <span className="material-symbols-outlined text-[18px]">delete</span>
+                        </button>
                       )}
                     </div>
                   </td>
@@ -331,9 +493,11 @@ export default function InvoiceList() {
           </table>
         </div>
         {!loading && total > 0 && (
-          <Pagination page={page} totalPages={totalPages} total={total} limit={PAGE_LIMIT} setPage={setPage} />
+          <PageNav page={page} totalPages={totalPages} total={total} limit={PAGE_LIMIT} setPage={setPage} />
         )}
       </div>
+
+      {confirmDialog && <ConfirmDialog {...confirmDialog} onCancel={() => setConfirmDialog(null)} />}
     </div>
   );
 }

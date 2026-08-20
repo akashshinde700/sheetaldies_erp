@@ -4,6 +4,9 @@ import { BrowserRouter } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import App from './App';
 import './index.css';
+import { initErrorReporting } from './utils/errorReporter';
+
+initErrorReporting();
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

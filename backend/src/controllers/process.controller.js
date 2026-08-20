@@ -9,16 +9,22 @@ exports.list = async (req, res) => {
     const { page, limit, skip } = parsePagination(req);
     const showAll = req.query.all === 'true' && ['ADMIN', 'MANAGER'].includes(req.user?.role);
     const where = showAll ? {} : { isActive: true };
-    const [data, total] = await Promise.all([
-      prisma.processType.findMany({
-        where,
-        orderBy: { name: 'asc' },
-        include: { updatedBy: { select: { name: true } } },
-        skip,
-        take: limit,
-      }),
-      prisma.processType.count({ where }),
-    ]);
+    // `code` is a string (serial number entered as text), so DB-level
+    // ordering would sort lexicographically ("1","10","11"..."2"). Fetch all
+    // matching rows (this list is always small) and sort numerically by code
+    // in JS instead, falling back to string comparison for non-numeric codes.
+    const all = await prisma.processType.findMany({
+      where,
+      include: { updatedBy: { select: { name: true } } },
+    });
+    all.sort((a, b) => {
+      const na = Number(a.code);
+      const nb = Number(b.code);
+      if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+      return String(a.code).localeCompare(String(b.code));
+    });
+    const total = all.length;
+    const data = all.slice(skip, skip + limit);
     res.json(formatListResponse(data, total, page, limit));
   } catch (err) {
     res.status(getStatusCode('ERR_INTERNAL')).json(formatErrorResponse('ERR_INTERNAL', 'Server error.'));
@@ -41,7 +47,7 @@ exports.getOne = async (req, res) => {
 // ── Create new process type (Admin only) ──────────────────────
 exports.create = async (req, res) => {
   try {
-    const { code, name, description, hsnSacCode, pricePerKg, pricePerPc, lotPrice, gstRate } = req.body;
+    const { code, name, description, hsnSacCode, pricePerKg, pricePerPc, lotPrice, gstRate, tallyStockItem } = req.body;
     if (!code || !name)
       return res.status(400).json({ success: false, message: 'Code and name are required.' });
 
@@ -55,6 +61,8 @@ exports.create = async (req, res) => {
         name,
         description: description || null,
         hsnSacCode:  hsnSacCode  || null,
+        // Tally matches stock items by exact name, so trim before storing.
+        tallyStockItem: (tallyStockItem || '').trim() || null,
         pricePerKg:  pricePerKg  ? toNum(pricePerKg, null)  : null,
         pricePerPc:  pricePerPc  ? toNum(pricePerPc, null)  : null,
         lotPrice:   lotPrice   ? toNum(lotPrice, null)   : null,
@@ -73,14 +81,24 @@ exports.create = async (req, res) => {
 exports.update = async (req, res) => {
   try {
     const id = toInt(req.params.id);
-    const { name, description, hsnSacCode, pricePerKg, pricePerPc, lotPrice, gstRate, isActive } = req.body;
+    const { name, code, description, hsnSacCode, pricePerKg, pricePerPc, lotPrice, gstRate, isActive, tallyStockItem } = req.body;
+
+    if (code !== undefined && code.trim()) {
+      const newCode = code.trim().toUpperCase();
+      const existing = await prisma.processType.findUnique({ where: { code: newCode } });
+      if (existing && existing.id !== id) {
+        return res.status(409).json({ success: false, message: `Code "${newCode}" is already used by another process.` });
+      }
+    }
 
     const pt = await prisma.processType.update({
       where: { id },
       data: {
+        ...(code        !== undefined && code.trim() && { code: code.trim().toUpperCase() }),
         ...(name        !== undefined && { name }),
         ...(description !== undefined && { description }),
         ...(hsnSacCode  !== undefined && { hsnSacCode }),
+        ...(tallyStockItem !== undefined && { tallyStockItem: (tallyStockItem || '').trim() || null }),
         ...(pricePerKg  !== undefined && { pricePerKg: pricePerKg  ? toNum(pricePerKg, null)  : null }),
         ...(pricePerPc  !== undefined && { pricePerPc: pricePerPc  ? toNum(pricePerPc, null)  : null }),
         ...(lotPrice   !== undefined && { lotPrice:  lotPrice   ? toNum(lotPrice, null)   : null }),

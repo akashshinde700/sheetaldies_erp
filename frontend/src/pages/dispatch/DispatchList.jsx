@@ -2,58 +2,70 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import KpiCard from '../../components/KpiCard';
 import { formatDate } from '../../utils/formatters';
 import ListSearchInput from '../../components/ListSearchInput';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 export default function DispatchChallanList() {
   const [challans, setChallans] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ status: 'all' });
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
   useEffect(() => {
+    const controller = new AbortController();
+    const fetchChallans = async () => {
+      try {
+        setLoading(true);
+        const response = await api.get('/dispatch-challans', {
+          signal: controller.signal,
+          params: {
+            ...(filters.status !== 'all' ? { status: filters.status } : {}),
+            ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}),
+          }
+        });
+        setChallans(response.data.data || []);
+      } catch (error) {
+        if (error?.name !== 'CanceledError') toast.error('Failed to load dispatch challans.');
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchChallans();
+    return () => controller.abort();
   }, [filters, searchTerm]);
 
-  const fetchChallans = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get('/dispatch-challans', {
-        params: {
-          ...(filters.status !== 'all' ? { status: filters.status } : {}),
-          ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}),
+  const handleDelete = (id) => {
+    setConfirmDialog({
+      title: 'Delete dispatch challan?',
+      message: 'This will permanently delete this dispatch challan.',
+      confirmLabel: 'Delete',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          await api.delete(`/dispatch-challans/${id}`);
+          toast.success('Dispatch challan deleted.');
+          setChallans(prev => prev.filter(c => c.id !== id));
+        } catch (error) {
+          toast.error(error?.response?.data?.message || 'Failed to delete dispatch challan.');
+        } finally {
+          setConfirmDialog(null);
         }
-      });
-      setChallans(response.data.data || []);
-    } catch (error) {
-      console.error('Error fetching challans:', error);
-      toast.error('Failed to load dispatch challans.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this?')) return;
-    try {
-      await api.delete(`/dispatch-challans/${id}`);
-      toast.success('Dispatch challan deleted.');
-      fetchChallans();
-    } catch (error) {
-      console.error('Error deleting:', error);
-      toast.error(error?.response?.data?.message || 'Failed to delete dispatch challan.');
-    }
+      },
+    });
   };
 
   const getStatusColor = (status) => {
     const colors = {
-      DRAFT: 'bg-slate-100 text-slate-800',
-      SENT: 'bg-sky-100 text-sky-900',
-      RECEIVED: 'bg-emerald-100 text-emerald-900',
-      COMPLETED: 'bg-violet-100 text-violet-900',
+      DRAFT:     'bg-slate-100 text-slate-700',
+      SENT:      'bg-blue-100 text-blue-800',
+      RECEIVED:  'bg-amber-100 text-amber-800',
+      COMPLETED: 'bg-emerald-100 text-emerald-800',
       CANCELLED: 'bg-rose-100 text-rose-800',
     };
-    return colors[status] || 'bg-slate-100 text-slate-800';
+    return colors[status] || 'bg-slate-100 text-slate-700';
   };
 
   return (
@@ -66,6 +78,30 @@ export default function DispatchChallanList() {
         <Link to="/dispatch/new" className="btn-primary shrink-0 inline-flex items-center justify-center gap-2">
           <span className="material-symbols-outlined text-[18px]">add</span> New Challan
         </Link>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <KpiCard
+          label="Dispatch challans"
+          value={challans.length}
+          sub="Loaded records"
+          icon="local_shipping"
+          iconBg="bg-amber-100 text-amber-700"
+        />
+        <KpiCard
+          label="Completed"
+          value={challans.filter(c => c.status === 'COMPLETED').length}
+          sub="Finished deliveries"
+          icon="task_alt"
+          iconBg="bg-emerald-100 text-emerald-700"
+        />
+        <KpiCard
+          label="Sent"
+          value={challans.filter(c => c.status === 'SENT').length}
+          sub="Outbound challans"
+          icon="schedule"
+          iconBg="bg-blue-100 text-blue-700"
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto] items-end">
@@ -130,29 +166,33 @@ export default function DispatchChallanList() {
                 {challans.map((challan) => (
                   <tr key={challan.id} className="tr">
                     <td className="td font-semibold text-slate-800">{challan.challanNo}</td>
-                    <td className="td">
-                      {(challan.fromParty?.name || '—')} {'->'} {(challan.toParty?.name || '—')}
+                    <td className="td text-xs">
+                      <div className="font-semibold text-slate-800 truncate max-w-[120px]">{challan.fromParty?.name || '—'}</div>
+                      <div className="text-slate-400 text-[10px] mt-0.5">↓ to: {challan.toParty?.name || '—'}</div>
                     </td>
                     <td className="td text-slate-600 hidden sm:table-cell">{challan.itemCount || 0} items</td>
-                    <td className="td text-slate-600 hidden sm:table-cell">
+                    <td className="td text-slate-500">
                       {formatDate(challan.challanDate)}
                     </td>
                     <td className="td">
                       <span className={`badge ${getStatusColor(challan.status)}`}>{challan.status}</span>
                     </td>
                     <td className="td">
-                      <div className="flex justify-center gap-1">
-                        <Link to={`/dispatch/${challan.id}`} className="p-2 rounded-lg text-sky-800 hover:bg-sky-50" aria-label="View">
-                          <span className="material-symbols-outlined text-[18px]">visibility</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        <Link to={`/dispatch/${challan.id}`}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-sky-800 bg-sky-50 hover:bg-sky-100">
+                          <span className="material-symbols-outlined text-[14px]">visibility</span>
+                          View
                         </Link>
-                        <Link to={`/dispatch/${challan.id}/print`} className="p-2 rounded-lg text-indigo-700 hover:bg-indigo-50" aria-label="Print">
-                          <span className="material-symbols-outlined text-[18px]">print</span>
+                        <Link to={`/dispatch/${challan.id}/print`} target="_blank"
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-sky-700 bg-sky-50 hover:bg-sky-100">
+                          <span className="material-symbols-outlined text-[14px]">print</span>
+                          Print
                         </Link>
-                        <Link to={`/dispatch/${challan.id}`} className="p-2 rounded-lg text-amber-700 hover:bg-amber-50" aria-label="Edit">
-                          <span className="material-symbols-outlined text-[18px]">edit</span>
-                        </Link>
-                        <button type="button" onClick={() => handleDelete(challan.id)} className="p-2 rounded-lg text-rose-600 hover:bg-rose-50" aria-label="Delete">
-                          <span className="material-symbols-outlined text-[18px]">delete</span>
+                        <button type="button" onClick={() => handleDelete(challan.id)}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100">
+                          <span className="material-symbols-outlined text-[14px]">delete</span>
+                          Delete
                         </button>
                       </div>
                     </td>
@@ -163,6 +203,8 @@ export default function DispatchChallanList() {
           </div>
         )}
       </div>
+
+      {confirmDialog && <ConfirmDialog {...confirmDialog} onCancel={() => setConfirmDialog(null)} />}
     </div>
   );
 }

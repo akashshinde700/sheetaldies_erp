@@ -3,7 +3,7 @@ import { useNavigate, Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { toInt, toNum } from '../../utils/normalize';
-import { useParties, useItems, useMasterJobCards } from '../../hooks/useMasterData';
+import { useParties, useItems, useMasterJobCards, useProcesses } from '../../hooks/useMasterData';
 
 // Subcomponents
 import ChallanDetailsSection from './components/ChallanDetailsSection';
@@ -25,6 +25,7 @@ export default function JobworkForm() {
   // Use global cached hooks
   const { data: parties = [] } = useParties();
   const { data: items = [] } = useItems();
+  const { data: processes = [] } = useProcesses();
   // We'll fetch jobcards locally or use a custom hook. 
   // Let's assume we use a hook for jobcards as well.
   const { data: jobCards = [] } = useMasterJobCards ? useMasterJobCards() : { data: [] };
@@ -52,25 +53,17 @@ export default function JobworkForm() {
   const [manualChallanNo, setManualChallanNo] = useState(true);
   const [challanNoInput, setChallanNoInput] = useState('');
 
-  const PROCESSES = [
-    'Stress Relieving', 'Hardening', 'Tempering', 'Annealing',
-    'Brazing', 'Plasma Nitriding', 'Sub Zero', 'Soak Clean',
-  ];
-  const EMPTY_ROW = { itemId: '', description: '', drawingNo: '', material: '', hrc: '', woNo: '', hsnCode: '', quantity: '', qtyOut: '', uom: 'KGS', weight: '', rate: '', amount: '', _processKey: '' };
+  const EMPTY_ROW = { id: null, itemId: '', description: '', drawingNo: '', material: '', hrc: '', woNo: '', hsnCode: '', quantity: '', qtyOut: '', uom: 'KGS', weight: '', rate: '', amount: '', processTypeId: '', processName: '', _processKey: '' };
   const [lineItems, setLineItems] = useState([{ ...EMPTY_ROW }]);
-  const [selectedProcesses, setSelectedProcesses] = useState(new Set());
+  const [deletedItemIds, setDeletedItemIds] = useState([]);
 
-  const toggleProcess = (proc) => {
-    const isSelected = selectedProcesses.has(proc);
-    if (isSelected) {
-      setSelectedProcesses(prev => { const n = new Set(prev); n.delete(proc); return n; });
-      setLineItems(prev => prev.filter(it => it._processKey !== proc));
-    } else {
-      setSelectedProcesses(prev => new Set([...prev, proc]));
-      setLineItems(prev => [...prev, { ...EMPTY_ROW, description: proc, _processKey: proc }]);
-    }
+  const removeLineItem = (i) => {
+    setLineItems((prev) => {
+      const row = prev[i];
+      if (row?.id) setDeletedItemIds((ids) => [...ids, row.id]);
+      return prev.filter((_, idx) => idx !== i);
+    });
   };
-
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -107,6 +100,7 @@ export default function JobworkForm() {
           setManualChallanNo(false);
 
           const mappedItems = (challan.items || []).map((it) => ({
+            id: it.id,
             itemId: it.itemId ? String(it.itemId) : '',
             description: it.description || '',
             drawingNo: it.drawingNo || '',
@@ -120,14 +114,12 @@ export default function JobworkForm() {
             weight: String(it.weight ?? ''),
             rate: String(it.rate ?? ''),
             amount: String(it.amount ?? ''),
+            processTypeId: it.processTypeId ? String(it.processTypeId) : '',
+            processName: it.processName || '',
             _processKey: '',
           }));
           if (mappedItems.length) {
             setLineItems(mappedItems);
-            const selected = mappedItems
-              .map((it) => it.description)
-              .filter((desc) => PROCESSES.includes(desc));
-            setSelectedProcesses(new Set(selected));
           }
         }
       } catch (err) {
@@ -152,6 +144,10 @@ export default function JobworkForm() {
       if (field === 'itemId') {
         const item = items.find(it => it.id === toInt(val));
         if (item) { arr[i].description = item.description || item.partNo || ''; arr[i].hsnCode = item.hsnCode || ''; }
+      }
+      if (field === 'processTypeId') {
+        const proc = processes.find(p => p.id === toInt(val));
+        arr[i].processName = proc?.name || '';
       }
       return arr;
     });
@@ -204,10 +200,37 @@ export default function JobworkForm() {
       amount: item.amount ? String(item.amount) : '0',
     }]);
 
-    setSelectedProcesses(new Set(jobCard.processes || []));
     setManualChallanNo(false);
     setChallanNoInput('');
     toast.success('Jobwork values loaded from DB-backed sample.');
+  };
+
+  // Re-fetch items from the server and reset local item state to match —
+  // used after a partial save failure so the UI never shows a different
+  // state than what's actually persisted.
+  const syncItemsFromServer = async () => {
+    const jr = await api.get(`/jobwork/${id}`);
+    const mapped = (jr.data.data.items || []).map((it) => ({
+      id: it.id,
+      itemId: it.itemId ? String(it.itemId) : '',
+      description: it.description || '',
+      drawingNo: it.drawingNo || '',
+      material: it.material || '',
+      hrc: it.hrc || '',
+      woNo: it.woNo || '',
+      hsnCode: it.hsnCode || '',
+      quantity: String(it.quantity ?? ''),
+      qtyOut: String(it.qtyOut ?? ''),
+      uom: it.uom || 'KGS',
+      weight: String(it.weight ?? ''),
+      rate: String(it.rate ?? ''),
+      amount: String(it.amount ?? ''),
+      processTypeId: it.processTypeId ? String(it.processTypeId) : '',
+      processName: it.processName || '',
+      _processKey: '',
+    }));
+    setLineItems(mapped.length ? mapped : [{ ...EMPTY_ROW }]);
+    setDeletedItemIds([]);
   };
 
   const handleSubmit = async (e) => {
@@ -227,12 +250,43 @@ export default function JobworkForm() {
     }
     setLoading(true);
     try {
-      const payload = { ...form, items: lineItems, manualChallanNo: manualChallanNo ? challanNoInput.trim() : '' };
-      const r = isEdit
-        ? await api.put(`/jobwork/${id}`, payload)
-        : await api.post('/jobwork', payload);
-      toast.success(isEdit ? 'Challan updated successfully!' : `Challan ${r.data.data.challanNo} created!`);
-      navigate('/jobwork');
+      if (isEdit) {
+        // Header update uses the safe PUT (no items[] in the payload — that path
+        // wipes jobCardId/processTypeId/itemStatus on every item, see below).
+        // Item add/edit/remove go through the per-item endpoints instead, which
+        // already guard against destructive changes (e.g. removing an item still
+        // linked to a job card).
+        const { handlingCharges, cgstRate, sgstRate, igstRate, ...headerFields } = form;
+        await api.put(`/jobwork/${id}`, { ...headerFields, challanNo: challanNoInput.trim() });
+
+        const existingRows = validItems.filter(it => it.id);
+        const newRows      = validItems.filter(it => !it.id);
+
+        const results = await Promise.allSettled([
+          ...existingRows.map(row => api.patch(`/jobwork/items/${row.id}`, {
+            description: row.description, drawingNo: row.drawingNo, material: row.material,
+            hrc: row.hrc, quantity: row.quantity, weight: row.weight,
+            processTypeId: row.processTypeId || null, processName: row.processName || null,
+          })),
+          ...newRows.map(row => api.post(`/jobwork/${id}/items`, row)),
+          ...deletedItemIds.map(itemId => api.delete(`/jobwork/items/${itemId}`)),
+        ]);
+
+        const failed = results.filter(r => r.status === 'rejected');
+        if (failed.length) {
+          failed.forEach(f => toast.error(f.reason?.response?.data?.message || 'One item action failed.'));
+          await syncItemsFromServer();
+          return;
+        }
+
+        toast.success('Challan updated successfully!');
+        navigate(`/jobwork/${id}`);
+      } else {
+        const payload = { ...form, items: validItems, manualChallanNo: manualChallanNo ? challanNoInput.trim() : '' };
+        const r = await api.post('/jobwork', payload);
+        toast.success(`Challan ${r.data.data.challanNo} created!`);
+        navigate('/jobwork');
+      }
     } catch (err) {
       toast.error(err.response?.data?.message || (isEdit ? 'Error updating challan.' : 'Error creating challan.'));
     } finally {
@@ -254,28 +308,32 @@ export default function JobworkForm() {
   return (
     <div className="page-stack w-full animate-slide-up">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <Link to="/jobwork"
-          className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-300 transition-colors shadow-sm">
-          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-        </Link>
-        <div>
-          <h2 className="text-xl font-extrabold text-slate-800 font-headline">{isEdit ? 'Edit Jobwork Challan' : 'New Jobwork Challan'}</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Rule 45(1) CGST Rules, 2017</p>
-          {isEdit ? (
-            <p className="text-xs text-slate-500 mt-1">Editing: <span className="font-mono">{challanNoInput || `#${id}`}</span></p>
-          ) : (
-            <p className="text-xs text-slate-500 mt-1">Flow ref: 1 (Jobwork). Related image: <span className="font-mono">all\\1.jpeg</span></p>
-          )}
+      <div className="page-header">
+        <div className="flex items-start gap-3 min-w-0 flex-1">
+          <Link to="/jobwork"
+            className="w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-colors shadow-sm">
+            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+          </Link>
+          <div className="space-y-2 min-w-0">
+            <h1 className="page-title">{isEdit ? 'Edit Inward Challan' : 'New Inward Challan'}</h1>
+            <p className="page-subtitle max-w-2xl">Manage inward challans with a cleaner header and consistent page spacing.</p>
+            {isEdit ? (
+              <p className="text-xs text-slate-500">Editing: <span className="font-mono">{challanNoInput || `#${id}`}</span></p>
+            ) : (
+              <p className="text-xs text-slate-500">Rule 45(1) CGST Rules, 2017</p>
+            )}
+          </div>
         </div>
-        {!isEdit && (
-          <button type="button" onClick={fillFromImage} className="btn-outline ml-auto">
-            <span className="material-symbols-outlined text-sm">file_upload</span> Load sample data
-          </button>
-        )}
-        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
-          Challan for Job Work
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          {!isEdit && (
+            <button type="button" onClick={fillFromImage} className="btn-outline">
+              <span className="material-symbols-outlined text-sm">file_upload</span> Load sample data
+            </button>
+          )}
+          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
+            Challan for Job Work
+          </span>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -300,24 +358,6 @@ export default function JobworkForm() {
           </F>
         </div>
 
-        {/* Process Selection */}
-        <div className="card p-5">
-          <p className="section-title border-b border-slate-100 pb-2 mb-3">Process</p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-2">
-            {PROCESSES.map(proc => {
-              const checked = selectedProcesses.has(proc);
-              return (
-                <label key={proc}
-                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer transition-all select-none
-                    ${checked ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-200'}`}>
-                  <input type="checkbox" checked={checked} onChange={() => toggleProcess(proc)} className="accent-indigo-600 w-3.5 h-3.5" />
-                  <span className="text-xs font-medium">{proc}</span>
-                </label>
-              );
-            })}
-          </div>
-        </div>
-
         <datalist id="challan-desc-suggestions">
           <option value="Vacuum Hardening" />
           <option value="Vacuum Hardening + Tempering" />
@@ -330,23 +370,27 @@ export default function JobworkForm() {
           <option value="M2 Tool" />
         </datalist>
 
-        <LineItemsSection 
-          lineItems={lineItems} 
-          setLineItems={setLineItems} 
-          items={items} 
-          updateLineItem={updateLineItem} 
-          EMPTY_ROW={EMPTY_ROW} 
+        <LineItemsSection
+          lineItems={lineItems}
+          setLineItems={setLineItems}
+          items={items}
+          updateLineItem={updateLineItem}
+          EMPTY_ROW={EMPTY_ROW}
+          onRemoveRow={isEdit ? removeLineItem : undefined}
+          processes={processes}
         />
 
-        <TaxTotalsSection 
-          form={form} 
-          setForm={setForm} 
-          subtotal={subtotal} 
-          cgstAmt={cgstAmt} 
-          sgstAmt={sgstAmt} 
-          igstAmt={igstAmt} 
-          grandTotal={grandTotal} 
-        />
+        {!isEdit && (
+          <TaxTotalsSection
+            form={form}
+            setForm={setForm}
+            subtotal={subtotal}
+            cgstAmt={cgstAmt}
+            sgstAmt={sgstAmt}
+            igstAmt={igstAmt}
+            grandTotal={grandTotal}
+          />
+        )}
 
         {/* Actions */}
         <div className="flex gap-3 pt-1">

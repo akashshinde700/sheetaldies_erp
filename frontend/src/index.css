@@ -160,6 +160,14 @@ input[type=number] { -moz-appearance: textfield; }
            transition-all duration-200 ease-out;
   }
 
+  .btn-sm {
+    @apply px-3 py-2 rounded-lg text-xs font-semibold;
+  }
+
+  .btn-lg {
+    @apply px-6 py-3 rounded-xl text-base font-semibold;
+  }
+
   .form-input {
     @apply w-full min-h-[44px] sm:min-h-0 border border-slate-200/90 rounded-lg px-3.5 py-2.5 text-sm
            bg-white text-slate-800 placeholder-slate-400
@@ -213,6 +221,27 @@ input[type=number] { -moz-appearance: textfield; }
   .table-responsive {
     @apply w-full overflow-x-auto overscroll-x-contain -mx-0 rounded-xl;
     -webkit-overflow-scrolling: touch;
+  }
+
+  .table-responsive table {
+    @apply w-full border-separate border-spacing-0;
+  }
+
+  .table-responsive thead th {
+    @apply sticky top-0 bg-slate-100/95 z-20 border-b border-slate-200 text-slate-600;
+    backdrop-filter: blur(10px);
+  }
+
+  .table-responsive tbody tr:nth-child(odd) td {
+    @apply bg-white;
+  }
+
+  .table-responsive tbody tr:nth-child(even) td {
+    @apply bg-slate-50/80;
+  }
+
+  .table-responsive tbody tr:hover td {
+    @apply bg-slate-100/90;
   }
 
   .page-container {
@@ -394,12 +423,12 @@ input[type=number] { -moz-appearance: textfield; }
 
   /* ✅ NEW: Loading states */
   .btn-loading {
-    @apply opacity-70 cursor-wait pointer-events-none;
+    @apply opacity-70 cursor-wait pointer-events-none relative;
   }
 
-  .btn.loading::after {
+  .btn-loading::after {
     content: '';
-    @apply inline-block w-4 h-4 ml-2 border-2 border-current border-t-transparent rounded-full animate-spin;
+    @apply inline-block w-4 h-4 ml-2 border-2 border-current border-t-transparent rounded-full animate-spin absolute right-4 top-1/2 -translate-y-1/2;
   }
 
   /* Standard section split inside cards */

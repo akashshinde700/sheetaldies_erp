@@ -2,123 +2,71 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
 import { formatDate } from '../../utils/formatters';
+import HeatCycleStepGraph from '../../components/HeatCycleStepGraph';
 
-const DEFAULT_GRAPH = [
-  { tempC: 550,  holdMin: 30,  label: 'Preheat 1' },
-  { tempC: 850,  holdMin: 45,  label: 'Preheat 2' },
-  { tempC: 1030, holdMin: 60,  label: 'Austenitizing' },
+// Returns null when the run sheet genuinely has no saved graph — the paper
+// form's GRAPH box stays blank in that case, it is not defaulted to a preset.
+function asGraph(v) {
+  if (!v) return null;
+  if (Array.isArray(v)) return v.length ? v : null;
+  try { const p = JSON.parse(v); return Array.isArray(p) && p.length ? p : null; } catch { return null; }
+}
+
+function SvtLogo({ mm = 13 }) {
+  return <img src="/logo.png" alt="SVT" style={{ width: `${mm}mm`, height: `${mm}mm`, objectFit: 'contain', display: 'block' }} />;
+}
+
+const BO = '0.6mm solid black';
+const B = '0.2mm solid black';
+const FONT = 'Arial, Helvetica, sans-serif';
+
+const ROW_H = '6.2mm';
+
+// Item table columns as % of the 76%-wide left column, matching the
+// reference layout's proportions.
+const COLUMNS = [
+  { label: 'SR NO',          w: '5.5%' },
+  { label: 'CUSTOMERS',      w: '33.5%' },
+  { label: 'JOB CARD NO',    w: '13%' },
+  { label: 'JOB DESCRIPTION',w: '17%' },
+  { label: 'MTRL',           w: '7%' },
+  { label: 'HRC REQ',        w: '8%' },
+  { label: 'QTY',            w: '8%' },
+  { label: 'W.T',            w: '8%' },
 ];
 
-function asGraph(v) {
-  if (!v) return DEFAULT_GRAPH;
-  if (Array.isArray(v)) return v.length ? v : DEFAULT_GRAPH;
-  try { const p = JSON.parse(v); return Array.isArray(p) && p.length ? p : DEFAULT_GRAPH; } catch { return DEFAULT_GRAPH; }
-}
+const flex = { display: 'flex' };
+const lbl  = { fontWeight: 700 };
 
-function expandToPlot(points) {
-  if (!points?.length) return [];
-  let t = 0;
-  const out = [{ t: 0, temp: Number(points[0].tempC) }];
-  for (let i = 0; i < points.length; i++) {
-    const temp = Number(points[i].tempC);
-    const hold = Number(points[i].holdMin) || 0;
-    if (i > 0) {
-      const prev = out[out.length - 1];
-      if (prev.temp !== temp) out.push({ t, temp });
-    }
-    t += hold;
-    out.push({ t, temp });
-  }
-  out.push({ t: t + 8, temp: 80 });
-  return out;
-}
-
-function StepGraph({ graph }) {
-  const pts = useMemo(() => expandToPlot(graph), [graph]);
-  if (pts.length < 2) {
-    return (
-      <svg viewBox="0 0 300 120" style={{ width: '100%', height: 100 }}>
-        <rect x="0" y="0" width="300" height="120" fill="white" />
-        <line x1="24" y1="10" x2="24" y2="96" stroke="#999" strokeWidth="0.8" />
-        <line x1="24" y1="96" x2="290" y2="96" stroke="#999" strokeWidth="0.8" />
-        {[0, 400, 800, 1200].map((v, i) => {
-          const y = 96 - (v / 1200) * 86;
-          return <g key={i}>
-            <line x1="22" y1={y} x2="290" y2={y} stroke="#eee" strokeWidth="0.5" />
-            <text x="20" y={y + 3} textAnchor="end" fontSize="6" fill="#aaa">{v}</text>
-          </g>;
-        })}
-        <text x="157" y="58" textAnchor="middle" fontSize="8" fill="#bbb">— No graph —</text>
-      </svg>
-    );
-  }
-  const w = 300; const h = 120; const pl = 24; const pb = 20; const pt = 8;
-  const iW = w - pl - 8; const iH = h - pt - pb;
-  const minX = Math.min(...pts.map(p => p.t));
-  const maxX = Math.max(...pts.map(p => p.t));
-  const maxY = Math.max(...pts.map(p => p.temp), 100);
-  const sx = x => pl + ((x - minX) / (maxX - minX || 1)) * iW;
-  const sy = y => pt + iH - (y / (maxY * 1.05)) * iH;
-  const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${sx(p.t).toFixed(1)} ${sy(p.temp).toFixed(1)}`).join(' ');
-  const yTicks = [0, Math.round(maxY * 0.33), Math.round(maxY * 0.67), Math.round(maxY)];
+function Row({ children, h, border = true, last = false }) {
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 100 }}>
-      <rect x="0" y="0" width={w} height={h} fill="white" />
-      {yTicks.map((v, i) => {
-        const yy = sy(v);
-        return <g key={i}>
-          <line x1={pl} y1={yy} x2={pl + iW} y2={yy} stroke="#ddd" strokeWidth="0.5" strokeDasharray="2,2" />
-          <text x={pl - 2} y={yy + 2.5} textAnchor="end" fontSize="6" fill="#666">{v}</text>
-        </g>;
-      })}
-      <line x1={pl} y1={pt} x2={pl} y2={pt + iH} stroke="#555" strokeWidth="0.8" />
-      <line x1={pl} y1={pt + iH} x2={pl + iW} y2={pt + iH} stroke="#555" strokeWidth="0.8" />
-      <path d={d} fill="none" stroke="#111" strokeWidth="1.5" />
-      {pts.map((p, i) => (
-        <circle key={i} cx={sx(p.t)} cy={sy(p.temp)} r="1.8" fill="#111" />
-      ))}
-      <text x={pl + iW / 2} y={h - 4} textAnchor="middle" fontSize="6" fill="#666">TIME (min) →</text>
-    </svg>
+    <div style={{ ...flex, flexShrink: 0, height: h, borderBottom: last ? 'none' : (border ? B : 'none') }}>
+      {children}
+    </div>
   );
 }
 
-function SvtLogo({ size = 44 }) {
+function Cell({ w, bold, last, children, style }) {
   return (
-    <svg width={size} height={size * 1.15} viewBox="0 0 100 115" fill="none">
-      <polygon points="50,2 95,27 95,77 50,102 5,77 5,27" fill="#1a1a1a" stroke="#000" strokeWidth="1.5" />
-      <path d="M 38,28 C 22,28 20,38 30,43 L 40,48 C 54,53 54,65 38,66 C 28,66 24,62 24,62"
-        fill="none" stroke="white" strokeWidth="7" strokeLinecap="round" />
-      <text x="60" y="70" textAnchor="middle" fill="white"
-        fontFamily="Arial Black, Arial, sans-serif" fontWeight="900" fontSize="28" letterSpacing="1">VT</text>
-      <text x="50" y="96" textAnchor="middle" fill="#aaa"
-        fontFamily="Arial, sans-serif" fontSize="6" letterSpacing="0.5">PUNE</text>
-    </svg>
+    <div style={{
+      width: w, display: 'flex', alignItems: 'center',
+      borderRight: last ? 'none' : B,
+      padding: '0 1mm',
+      fontWeight: bold ? 700 : 400,
+      overflow: 'hidden',
+      ...style,
+    }}>
+      {children}
+    </div>
   );
 }
-
-function TuvLogo({ size = 40 }) {
-  return (
-    <svg width={size * 1.4} height={size} viewBox="0 0 72 52" fill="none">
-      <rect x="1" y="1" width="70" height="50" rx="4" fill="white" stroke="#1e3a8a" strokeWidth="2" />
-      <text x="36" y="20" textAnchor="middle" fill="#1e3a8a"
-        fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="14" letterSpacing="1">TÜV</text>
-      <text x="36" y="33" textAnchor="middle" fill="#1e3a8a"
-        fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="9" letterSpacing="1">AUSTRIA</text>
-      <text x="36" y="44" textAnchor="middle" fill="#64748b"
-        fontFamily="Arial,sans-serif" fontSize="7">CERTIFIED</text>
-    </svg>
-  );
-}
-
-const B = '1px solid black';
-const cell = { border: B, padding: '3px 5px', fontSize: '9px', verticalAlign: 'middle' };
-const label = { ...cell, color: '#555', whiteSpace: 'nowrap', fontWeight: 600 };
-const val = { ...cell, fontWeight: 700 };
 
 export default function VHTRunsheetPrint() {
   const { id } = useParams();
   const [row, setRow] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => { const p = document.title; document.title = ' '; return () => { document.title = p; }; }, []);
 
   useEffect(() => {
     api.get(`/manufacturing/runsheets/${id}`)
@@ -140,15 +88,24 @@ export default function VHTRunsheetPrint() {
   );
 
   const items = row.items || [];
-  const EMPTY_ROWS = Math.max(0, 10 - items.length);
+  const DATA_ROWS = Math.max(16, items.length);
+  // The right column (FIXTURES/T.C./INSTRUCTION) stays a fixed 9 rows,
+  // independent of the left item table's row count — matching the paper
+  // form — so CYCLE PARAMETERS + GRAPH below it keep enough height. A row
+  // count tied to DATA_ROWS (up to 16+) would crush the graph down to a
+  // sliver.
+  const RIGHT_ROWS = 9;
 
   return (
-    <div className="min-h-screen bg-white print:p-0 p-4" style={{ fontFamily: 'Arial, sans-serif' }}>
+    <div className="min-h-screen bg-white print:p-0 p-4" style={{ fontFamily: FONT }}>
       <style>{`
+        @page { size: A4 landscape; margin: 5mm; }
+        * , *::before, *::after { box-sizing: border-box; }
         @media print {
           .no-print { display: none !important; }
-          @page { size: A4 portrait; margin: 8mm; }
+          html, body { margin: 0 !important; padding: 0 !important; overflow: visible !important; }
           body { background: white !important; }
+          .print-scale { zoom: 0.97; }
         }
       `}</style>
 
@@ -161,226 +118,202 @@ export default function VHTRunsheetPrint() {
         <Link to="/manufacturing/runsheet" className="px-4 py-2 rounded-lg border border-slate-200 text-sm">List</Link>
       </div>
 
-      <div className="max-w-[210mm] mx-auto" style={{ border: B }}>
+      <div className="print-scale" style={{
+        width: '285mm', height: '198mm', margin: '0 auto', border: BO, fontFamily: FONT,
+        fontSize: '2.6mm', lineHeight: 1.2, display: 'flex', flexDirection: 'column',
+      }}>
 
-        {/* ── HEADER ── */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', borderBottom: B }}>
-          <tbody>
-            <tr>
-              <td style={{ ...cell, width: '60px', textAlign: 'center', borderRight: B }} rowSpan={2}>
-                <SvtLogo size={44} />
-              </td>
-              <td style={{ ...cell, textAlign: 'center', borderRight: B }} rowSpan={2}>
-                <div style={{ fontSize: '11px', fontWeight: 900, letterSpacing: '1px' }}>SHITAL VACUUM TREAT PVT. LTD.</div>
-                <div style={{ fontSize: '8px', color: '#555', marginTop: '2px' }}>Plot No. 84/1, Sector 10, PCNTDA, Bhosari, Pune</div>
-                <div style={{ fontSize: '14px', fontWeight: 900, letterSpacing: '2px', marginTop: '4px' }}>VHT RUN SHEET</div>
-              </td>
-              <td style={{ ...label, borderRight: B, borderBottom: B }}>DOC NO</td>
-              <td style={{ ...val, borderRight: B, borderBottom: B }}>QF-PD-03</td>
-              <td style={{ width: '70px', textAlign: 'center', borderLeft: B }} rowSpan={4}>
-                <TuvLogo size={40} />
-              </td>
-            </tr>
-            <tr>
-              <td style={{ ...label, borderRight: B, borderBottom: B }}>REV NO</td>
-              <td style={{ ...val, borderRight: B, borderBottom: B }}>00</td>
-            </tr>
-            <tr>
-              <td style={{ ...cell, borderRight: B }}></td>
-              <td style={{ ...cell, borderRight: B }}></td>
-              <td style={{ ...label, borderRight: B, borderBottom: B }}>REV. DATE</td>
-              <td style={{ ...val, borderRight: B, borderBottom: B }}></td>
-            </tr>
-            <tr>
-              <td style={{ ...cell, borderRight: B }}></td>
-              <td style={{ ...cell, borderRight: B }}></td>
-              <td style={{ ...label, borderRight: B }}>PAGE NO</td>
-              <td style={{ ...val, borderRight: B }}>{row.docPageOf || '1 OF 2'}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* ── BODY: Left (items) + Right (info panel) ── */}
-        <div style={{ display: 'flex', borderBottom: B }}>
-
-          {/* LEFT COLUMN */}
-          <div style={{ flex: 1, borderRight: B }}>
-
-            {/* Date / Cycle / MR row */}
-            <table style={{ width: '100%', borderCollapse: 'collapse', borderBottom: B }}>
-              <tbody>
-                <tr>
-                  <td style={label}>DATE:</td>
-                  <td style={{ ...val, borderRight: B }}>{formatDate(row.runDate)}</td>
-                  <td style={label}>CYCLE END TIME:</td>
-                  <td style={val}>{row.cycleEndTime || '—'}</td>
-                </tr>
-                <tr>
-                  <td style={{ ...label, borderTop: B }}>M.R END:</td>
-                  <td style={{ ...val, borderRight: B, borderTop: B }}>{row.mrEnd ?? '—'}</td>
-                  <td style={{ ...label, borderTop: B }}></td>
-                  <td style={{ ...val, borderTop: B }}></td>
-                </tr>
-              </tbody>
-            </table>
-
-            {/* Items table */}
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: '#f8fafc' }}>
-                  {['CUSTOMERS', 'JOB CARD NO', 'JOB DESCRIPTION', 'MTRL', 'HRC REQ', 'QTY', 'W.T'].map((h, i) => (
-                    <th key={i} style={{ ...cell, borderBottom: B, borderRight: i < 6 ? B : 'none', fontWeight: 900, fontSize: '8px', textAlign: 'center' }}>
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((it, i) => (
-                  <tr key={i}>
-                    <td style={{ ...cell, borderBottom: B, borderRight: B, fontSize: '8px' }}>{it.customerName || '—'}</td>
-                    <td style={{ ...cell, borderBottom: B, borderRight: B, fontSize: '7px', fontFamily: 'monospace' }}>{it.jobCard?.jobCardNo || '—'}</td>
-                    <td style={{ ...cell, borderBottom: B, borderRight: B, fontSize: '8px' }}>{it.jobDescription || it.item?.description || '—'}</td>
-                    <td style={{ ...cell, borderBottom: B, borderRight: B, fontSize: '8px', textAlign: 'center' }}>{it.materialGrade || '—'}</td>
-                    <td style={{ ...cell, borderBottom: B, borderRight: B, fontSize: '8px', textAlign: 'center' }}>{it.hrcRequired || '—'}</td>
-                    <td style={{ ...cell, borderBottom: B, borderRight: B, fontSize: '8px', textAlign: 'center' }}>{it.quantity}</td>
-                    <td style={{ ...cell, borderBottom: B, fontSize: '8px', textAlign: 'right', fontFamily: 'monospace' }}>
-                      {it.weightKg != null ? Number(it.weightKg).toFixed(2) : '—'}
-                    </td>
-                  </tr>
-                ))}
-                {/* Empty filler rows */}
-                {Array.from({ length: EMPTY_ROWS }).map((_, i) => (
-                  <tr key={`e${i}`} style={{ height: '18px' }}>
-                    {[...Array(7)].map((_, j) => (
-                      <td key={j} style={{ ...cell, borderBottom: B, borderRight: j < 6 ? B : 'none' }}></td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr style={{ background: '#f1f5f9' }}>
-                  <td style={{ ...cell, borderTop: B, borderRight: B, fontWeight: 900, fontSize: '8px' }}>VFT</td>
-                  <td colSpan={4} style={{ ...cell, borderTop: B, borderRight: B, fontSize: '8px', textAlign: 'right', fontWeight: 700 }}>TOTAL</td>
-                  <td style={{ ...cell, borderTop: B, borderRight: B, fontWeight: 900, textAlign: 'center', fontSize: '8px' }}>{totalQty}</td>
-                  <td style={{ ...cell, borderTop: B, fontWeight: 900, textAlign: 'right', fontSize: '8px', fontFamily: 'monospace' }}>{totalWt.toFixed(2)}</td>
-                </tr>
-              </tfoot>
-            </table>
+        {/* ================= HEADER ================= */}
+        {/* Logo column width = 14% of the 76% left container (30.3mm) — the
+            same as the HT CYCLE NO label cell below, so the divider right
+            after the logo continues straight down as the label/value divider
+            in the info block, instead of landing at an unrelated position. */}
+        <div style={{ ...flex, flexShrink: 0, height: '16mm', borderBottom: BO }}>
+          <div style={{ ...flex, width: '30.3mm', alignItems: 'center', justifyContent: 'center', borderRight: B }}>
+            <SvtLogo mm={13} />
           </div>
+          <div style={{ ...flex, flex: 1, alignItems: 'center', justifyContent: 'center', borderRight: B }}>
+            <h1 style={{ fontSize: '6.5mm', fontWeight: 700, letterSpacing: '0.3mm', margin: 0 }}>VHT RUN SHEET</h1>
+          </div>
+          <div style={{ ...flex, width: '24%', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '0 1mm' }}>
+            <span style={{ fontSize: '4.2mm', fontWeight: 700, lineHeight: 1.25 }}>SHITAL VACUUM</span>
+            <span style={{ fontSize: '4.2mm', fontWeight: 700, lineHeight: 1.25 }}>TREAT PVT. LTD.</span>
+          </div>
+        </div>
 
-          {/* RIGHT PANEL */}
-          <div style={{ width: '34%', fontSize: '9px' }}>
-
-            {/* Runsheet info fields */}
-            <table style={{ width: '100%', borderCollapse: 'collapse', borderBottom: B }}>
-              <tbody>
-                {[
-                  ['JOB CARD NO', row.items?.[0]?.jobCard?.jobCardNo || '—'],
-                  ['FURNACE', row.furnace?.name || row.furnace?.code || '—'],
-                  ['TOTAL TIME', row.totalTimeDisplay || '—'],
-                  ['TOTAL M.R', row.totalMr != null ? `${row.mrStart ?? ''} – ${row.mrEnd ?? ''}` : '—'],
-                  ['LOADING OPERATOR NAME', row.loadingOperatorName || '—'],
-                  ['FIXTURES', row.fixturesPosition || '—'],
-                  ['T.C. POSITION', ''],
-                  ['INSTRUCTION', ''],
-                ].map(([lbl, v], i) => (
-                  <tr key={i}>
-                    <td style={{ ...label, borderBottom: B, borderRight: B, width: '45%' }}>{lbl}</td>
-                    <td style={{ ...val, borderBottom: B }}>{v}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {/* Cycle Parameters */}
-            <div style={{ borderBottom: B, padding: '3px 5px' }}>
-              <div style={{ fontWeight: 900, fontSize: '9px', borderBottom: B, marginBottom: '4px', paddingBottom: '2px' }}>
-                CYCLE PARAMETERS
-              </div>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <tbody>
-                  <tr>
-                    <td style={{ ...label }}>Type Of Hardening:-</td>
-                  </tr>
-                  <tr>
-                    <td style={{ ...val, fontSize: '8px', paddingBottom: '4px' }}>{row.hardeningType || row.tempProfile || '—'}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ ...label }}>Quenching Pressure:-</td>
-                    <td style={{ ...val }}>{row.quenchPressureBar != null ? `${row.quenchPressureBar} bar` : ''}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ ...label }}>Fan Speed in:-</td>
-                    <td style={{ ...val }}>{row.fanRpm != null ? `${row.fanRpm} RPM` : ''}</td>
-                  </tr>
-                </tbody>
-              </table>
+        {/* ================= INFO BLOCK ================= */}
+        {/* Column widths (14/25/13/17/11/20 = 100%) are chosen so the three
+            label|value pairs' group boundaries land at 39% and 69% of this
+            76% container — exactly where JOB CARD NO and MTRL start in the
+            item table below — keeping every vertical divider continuous
+            from the header down through the body. */}
+        <div style={{ ...flex, flexShrink: 0, height: '21mm', borderBottom: BO }}>
+          <div style={{ ...flex, width: '76%', flexDirection: 'column', borderRight: B }}>
+            <div style={{ ...flex, flex: 1 }}>
+              <Cell w="14%" bold>HT CYCLE NO :</Cell>
+              <Cell w="25%">{row.runsheetNumber}</Cell>
+              <Cell w="13%" bold>DATE:-</Cell>
+              <Cell w="17%">{formatDate(row.runDate)}</Cell>
+              <Cell w="11%" bold>FURNACE:-</Cell>
+              <Cell w="20%" last>{row.furnace?.name || row.furnace?.code || ''}</Cell>
             </div>
-
-            {/* Graph */}
-            <div style={{ padding: '4px', borderBottom: B }}>
-              <div style={{ fontWeight: 900, fontSize: '9px', textAlign: 'center', borderBottom: B, marginBottom: '4px', paddingBottom: '2px' }}>
-                GRAPH
-              </div>
-              <StepGraph graph={graph} />
+            <div style={{ ...flex, flex: 1, borderTop: B }}>
+              <Cell w="14%" bold>CYCLE START TIME:</Cell>
+              <Cell w="25%">{row.cycleStartTime || ''}</Cell>
+              <Cell w="13%" bold>CYCLE END TIME:-</Cell>
+              <Cell w="17%">{row.cycleEndTime || ''}</Cell>
+              <Cell w="11%" bold>TOTAL TIME:-</Cell>
+              <Cell w="20%" last>{row.totalTimeDisplay || ''}</Cell>
+            </div>
+            <div style={{ ...flex, flex: 1, borderTop: B }}>
+              <Cell w="14%" bold>M.R START:-</Cell>
+              <Cell w="25%">{row.mrStart ?? ''}</Cell>
+              <Cell w="13%" bold>M.R END :-</Cell>
+              <Cell w="17%">{row.mrEnd ?? ''}</Cell>
+              <Cell w="11%" bold>TOTAL M.R</Cell>
+              <Cell w="20%" last>{row.totalMr ?? ''}</Cell>
+            </div>
+          </div>
+          <div style={{ ...flex, width: '24%', flexDirection: 'column' }}>
+            <div style={{ ...flex, height: '7mm', alignItems: 'center', justifyContent: 'center', borderBottom: B, textAlign: 'center', fontWeight: 700, padding: '0 1mm' }}>
+              LOADING OPERATOR NAME:-
+            </div>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+              {row.loadingOperatorName || ''}
             </div>
           </div>
         </div>
 
-        {/* ── WATER CIRCULATION ── */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', borderBottom: B }}>
-          <tbody>
-            <tr>
-              <td style={{ ...label, borderRight: B, width: '25%' }}>WATER CIRCULATION:</td>
-              <td style={{ ...label, borderRight: B, width: '25%' }}>FROM:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td>
-              <td style={{ ...label, width: '50%' }}>TO:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td>
-            </tr>
-          </tbody>
-        </table>
+        {/* ================= MAIN BODY ================= */}
+        <div style={{ ...flex, flex: 1, minHeight: 0, borderBottom: BO }}>
 
-        {/* ── FAILURE / ISSUE / NTS ── */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', borderBottom: B }}>
-          <tbody>
-            <tr>
-              <td style={{ ...label, borderRight: B }}>FAILURE:</td>
-              <td style={{ ...cell, borderRight: B, width: '30%' }}></td>
-              <td style={{ ...label, borderRight: B }}>ISSUE:</td>
-              <td style={{ ...cell, borderRight: B, width: '20%' }}></td>
-              <td style={{ ...label, borderRight: B }}>NTS:</td>
-              <td style={{ ...cell, width: '20%' }}></td>
-            </tr>
-          </tbody>
-        </table>
+          {/* -------- LEFT (76%): item table + check points + signatures -------- */}
+          <div style={{ ...flex, width: '76%', flexDirection: 'column', borderRight: B }}>
 
-        {/* ── NOTE + SIGNATURES ── */}
-        <div style={{ padding: '5px 6px', borderBottom: B, fontSize: '8px', color: '#444' }}>
-          After processing within 24 hrs, Supervisor shall verify process parameter (graph) &amp; sign below.
+            {/* column headers */}
+            <div style={{ ...flex, flexShrink: 0, height: '8mm', background: '#f2f2f2', borderBottom: B }}>
+              {COLUMNS.map((col, i) => (
+                <Cell key={col.label} w={col.w} bold last={i === COLUMNS.length - 1}
+                  style={{ justifyContent: 'center', textAlign: 'center', fontSize: '2.3mm' }}>
+                  {col.label}
+                </Cell>
+              ))}
+            </div>
+
+            {/* data rows */}
+            {Array.from({ length: DATA_ROWS }).map((_, i) => {
+              const it = items[i];
+              return (
+                <div key={i} style={{ ...flex, flexShrink: 0, height: ROW_H, borderBottom: B }}>
+                  <Cell w={COLUMNS[0].w} style={{ justifyContent: 'center', fontSize: '2.3mm' }}>{it ? i + 1 : ''}</Cell>
+                  <Cell w={COLUMNS[1].w} style={{ fontSize: '2.3mm' }}>{it ? (it.customerName || it.jobCard?.customer?.name || '') : ''}</Cell>
+                  <Cell w={COLUMNS[2].w} style={{ fontSize: '2.1mm', fontFamily: 'monospace' }}>{it ? (it.jobCard?.jobCardNo || '') : ''}</Cell>
+                  <Cell w={COLUMNS[3].w} style={{ fontSize: '2.3mm' }}>{it ? (it.jobDescription || it.item?.description || '') : ''}</Cell>
+                  <Cell w={COLUMNS[4].w} style={{ justifyContent: 'center', fontSize: '2.3mm' }}>{it ? (it.materialGrade || '') : ''}</Cell>
+                  <Cell w={COLUMNS[5].w} style={{ justifyContent: 'center', fontSize: '2.3mm' }}>{it ? (it.hrcRequired || '') : ''}</Cell>
+                  <Cell w={COLUMNS[6].w} style={{ justifyContent: 'center', fontSize: '2.3mm' }}>{it ? it.quantity : ''}</Cell>
+                  <Cell w={COLUMNS[7].w} last style={{ justifyContent: 'flex-end', fontSize: '2.3mm', fontFamily: 'monospace' }}>
+                    {it?.weightKg != null ? Number(it.weightKg).toFixed(3) : ''}
+                  </Cell>
+                </div>
+              );
+            })}
+
+            {/* check points block header — reuses QTY/W.T column widths to show totals */}
+            <div style={{ ...flex, flexShrink: 0, height: '6.6mm', borderBottom: B, background: '#f2f2f2' }}>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', borderRight: B, paddingLeft: '1mm', fontWeight: 700 }}>
+                CHECK POINTS:-
+              </div>
+              <Cell w="8%" bold style={{ justifyContent: 'center', textAlign: 'center' }}>{totalQty || ''}</Cell>
+              <Cell w="8%" last style={{ justifyContent: 'flex-end', fontFamily: 'monospace', fontWeight: 700 }}>
+                {totalWt > 0 ? totalWt.toFixed(3) : ''}
+              </Cell>
+            </div>
+
+            <Row h="6.6mm">
+              <Cell w="42%" bold pad>1) GAS PRESSURE:- <span style={{ fontWeight: 400, marginLeft: '1mm' }}>{row.gasPressure || ''}</span></Cell>
+              <Cell w="28%" bold pad>WATER CIRCULATION:-</Cell>
+              <Cell w="30%" last>{row.waterCirculationFrom || ''}</Cell>
+            </Row>
+            <Row h="6.6mm">
+              <Cell w="25%" bold pad>2) POWER FAILURE:-</Cell>
+              <Cell w="8%" bold pad>FROM:-</Cell>
+              <Cell w="14%">{row.powerFailureFrom || ''}</Cell>
+              <Cell w="8%" bold pad>TO :-</Cell>
+              <Cell w="18%">{row.powerFailureTo || ''}</Cell>
+              <Cell w="27%" last />
+            </Row>
+            <Row h="6.6mm">
+              <Cell w="100%" bold pad last>3) OTHER :- <span style={{ fontWeight: 400, marginLeft: '1mm' }}>{row.otherCheckpoint || ''}</span></Cell>
+            </Row>
+            <Row h="6.6mm">
+              <Cell w="100%" pad last style={{ fontSize: '2.4mm' }}>
+                4) After processing within 24 hrs, Supervisor shall verify process parameter (graph) &amp; sign below.
+                {row.verificationNote && <span style={{ fontWeight: 700, marginLeft: '2mm' }}>{row.verificationNote}</span>}
+              </Cell>
+            </Row>
+            <Row h="6.6mm">
+              <Cell w="100%" bold pad last>Remark:- <span style={{ fontWeight: 400, marginLeft: '1mm' }}>{row.remarks || ''}</span></Cell>
+            </Row>
+
+            <div style={{ ...flex, flex: 1, minHeight: 0 }}>
+              <Cell w="16%" bold pad>OPERATORS SIGN:-</Cell>
+              <Cell w="26%">{row.operatorSign || ''}</Cell>
+              <Cell w="26%" bold pad>PROD. SUPERVISOR SIGN:-</Cell>
+              <Cell w="32%" last>{row.supervisorSign || ''}</Cell>
+            </div>
+          </div>
+
+          {/* -------- RIGHT (24%): fixtures / cycle parameters / graph -------- */}
+          <div style={{ ...flex, width: '24%', flexDirection: 'column' }}>
+            <div style={{ ...flex, flexShrink: 0, height: '8mm', borderBottom: B, background: '#f2f2f2' }}>
+              <Cell w="32%" bold style={{ justifyContent: 'center', textAlign: 'center', fontSize: '2.3mm' }}>FIXTURES</Cell>
+              <Cell w="36%" bold style={{ justifyContent: 'center', textAlign: 'center', fontSize: '2.3mm' }}>T.C. POSITION</Cell>
+              <Cell w="32%" bold last style={{ justifyContent: 'center', textAlign: 'center', fontSize: '2.3mm' }}>INSTRUCTION</Cell>
+            </div>
+
+            <div style={{ flexShrink: 0, height: `calc(${ROW_H} * ${RIGHT_ROWS})`, borderBottom: B, display: 'flex', flexDirection: 'column' }}>
+              {Array.from({ length: RIGHT_ROWS }).map((_, i) => {
+                const it = items[i];
+                return (
+                  <div key={i} style={{ ...flex, flexShrink: 0, height: ROW_H }}>
+                    <Cell w="32%" last style={{ border: 'none', fontSize: '2.2mm', alignItems: 'flex-start', paddingTop: '0.6mm' }}>{it?.fixtures || ''}</Cell>
+                    <Cell w="36%" last style={{ border: 'none', fontSize: '2.2mm', alignItems: 'flex-start', paddingTop: '0.6mm' }}>{it?.tcPosition || ''}</Cell>
+                    <Cell w="32%" last style={{ border: 'none', fontSize: '2.2mm', alignItems: 'flex-start', paddingTop: '0.6mm' }}>{it?.instruction || ''}</Cell>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{ flexShrink: 0, height: '6.6mm', display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: B, fontWeight: 700, fontSize: '2.5mm' }}>
+              CYCLE PARAMETERS
+            </div>
+            <div style={{ flexShrink: 0, height: '7mm', display: 'flex', alignItems: 'center', borderBottom: B, paddingLeft: '1mm', fontWeight: 700, fontSize: '2.3mm' }}>
+              Type Of Hardening:- <span style={{ fontWeight: 400, marginLeft: '1mm' }}>{row.hardeningType || row.tempProfile || ''}</span>
+            </div>
+            <div style={{ flexShrink: 0, height: '7mm', display: 'flex', alignItems: 'center', borderBottom: B, paddingLeft: '1mm', fontWeight: 700, fontSize: '2.3mm' }}>
+              Quenching Pressure:- <span style={{ fontWeight: 400, marginLeft: '1mm' }}>{row.quenchPressureBar != null ? `${row.quenchPressureBar} bar` : ''}</span>
+            </div>
+            <div style={{ flexShrink: 0, height: '7mm', display: 'flex', alignItems: 'center', paddingLeft: '1mm', fontWeight: 700, fontSize: '2.3mm' }}>
+              Fan Speed in :- <span style={{ fontWeight: 400, marginLeft: '1mm' }}>{row.fanRpm != null ? `${row.fanRpm} RPM` : ''}</span>
+            </div>
+
+            <div style={{ flex: 1, minHeight: '30mm', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderTop: B }}>
+              <div style={{ fontWeight: 700, fontSize: '2.5mm', textAlign: 'center', padding: '1mm 0 0.5mm', flexShrink: 0 }}>GRAPH</div>
+              <div style={{ flex: 1, minHeight: 0, padding: '0 1mm 1mm' }}>
+                <HeatCycleStepGraph segments={graph} stroke="#000" viewW={280} viewH={320} />
+              </div>
+            </div>
+          </div>
         </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse', borderBottom: B }}>
-          <tbody>
-            <tr>
-              <td style={{ ...label, borderRight: B, width: '15%' }}>S SIGN:-</td>
-              <td style={{ ...cell, borderRight: B, width: '35%', height: '30px' }}>{row.operatorSign || ''}</td>
-              <td style={{ ...label, borderRight: B, width: '25%' }}>PROD. SUPERVISOR SIGN:-</td>
-              <td style={{ ...cell, width: '25%' }}>{row.supervisorSign || ''}</td>
-            </tr>
-          </tbody>
-        </table>
 
-        {/* ── FOOTER ── */}
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <tbody>
-            <tr>
-              <td style={{ ...cell, borderRight: B }}>REV. NO:- {row.docRevNo || '01'}</td>
-              <td style={{ ...cell, borderRight: B }}>
-                EFFECTIVE DATE: {row.docEffectiveDate ? formatDate(row.docEffectiveDate) : '01/04/2019'}
-              </td>
-              <td style={{ ...cell, textAlign: 'right' }}>PAGE {row.docPageOf || '1 OF 2'}</td>
-            </tr>
-          </tbody>
-        </table>
-
+        {/* ================= FOOTER ================= */}
+        <div style={{ ...flex, flexShrink: 0, height: '7mm', alignItems: 'center', fontWeight: 700, fontSize: '2.4mm' }}>
+          <span style={{ width: '14%', paddingLeft: '1mm' }}>QF/PD/02</span>
+          <span style={{ width: '24%' }}>REV. NO:- {row.docRevNo || '01'}</span>
+          <span style={{ width: '34%' }}>EFFECTIVE DATE: {row.docEffectiveDate ? formatDate(row.docEffectiveDate) : '01/08/2021'}</span>
+          <span style={{ width: '28%', textAlign: 'right', paddingRight: '2mm' }}>PAGE {row.docPageOf || '1 OF 2'}</span>
+        </div>
       </div>
     </div>
   );

@@ -1,0 +1,66 @@
+Ab actual error mil gaya. 👍
+
+**Error: `Voucher Date is missing`**
+
+Lekin maine jo XML dekha tha usme date present hai:
+
+```xml
+<DATE>20260802</DATE>
+```
+
+
+
+Iska matlab Tally **is DATE tag ko read nahi kar pa raha hai**. Ye usually 3 reasons se hota hai:
+
+### 1. DATE galat jagah par hai (Sabse common)
+
+Tally ko `DATE` tag specific order me chahiye hota hai. Sirf `<DATE>` hone se kaam nahi chalta.
+
+### 2. XML structure incomplete hai
+
+Aapke XML me bahut saare mandatory voucher tags missing lag rahe hain, jaise:
+
+```xml
+<PERSISTEDVIEW>Invoice Voucher View</PERSISTEDVIEW>
+<ISOPTIONAL>No</ISOPTIONAL>
+<EFFECTIVEDATE>20260802</EFFECTIVEDATE>
+```
+
+Aur kuch cases me:
+
+```xml
+<ALTERID>
+<MASTERID>
+```
+
+### 3. Voucher import format Tally ke standard export jaisa nahi hai
+
+---
+
+## Main suggest karta hoon:
+
+### Step 1
+
+Tally me manually **ek Sales Voucher** banao.
+
+### Step 2
+
+Usi voucher ko **Export → XML** karo.
+
+### Step 3
+
+Wo exported XML mujhe bhejo.
+
+Main:
+
+* uska structure analyze karunga,
+* tumhare Node.js se generate hone wale XML se compare karunga,
+* aur **100% Tally-compatible XML generator** bana dunga.
+
+Ye sabse fast aur correct solution hoga.
+
+### Mujhe lag raha hai
+
+Problem **DATE me nahi hai**, problem **poore Voucher XML structure** me hai. Tally pehla missing mandatory field detect karke "Voucher Date is missing" dikha raha hai.
+
+➡️ **Tally se ek working Sales Voucher ka XML export karke bhejo.** Main uske hisaab se tumhara generator modify kar dunga. Iske baad har invoice direct import ho jayega.

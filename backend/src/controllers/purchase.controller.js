@@ -65,8 +65,8 @@ exports.list = async (req, res, next) => {
     if (status) where.status = status;
     const searchText = String(search || '').trim();
     if (searchText) where.OR = [
-      { poNumber: { contains: searchText, mode: 'insensitive' } },
-      { vendor: { is: { name: { contains: searchText, mode: 'insensitive' } } } },
+      { poNumber: { contains: searchText } },
+      { vendor: { is: { name: { contains: searchText } } } },
     ];
 
     // Date filtering

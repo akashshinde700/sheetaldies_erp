@@ -1,0 +1,44 @@
+/* @import url() FONT IMPORTS MUST ALWAYS BE AT THE VERY TOP OF THIS FILE, ABOVE THE TAILWIND IMPORTS — DO NOT DELETE THIS COMMENT */
+@import url('https://fonts.googleapis.com/css2?family=Carlito:wght@400;700&display=swap');
+
+/* CRITICAL: THE FOLLOWING TAILWIND IMPORTS MUST NEVER BE DELETED OR REORDERED — DO NOT DELETE THIS COMMENT */
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* END TAILWIND IMPORTS — ALL OTHER CSS MUST GO BELOW THIS LINE */
+
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  font-family: 'Carlito', Calibri, Arial, sans-serif;
+}
+@page {
+  size: A4 landscape;
+  margin: 6mm;
+}
+@media print {
+  html,
+  body,
+  #root {
+    height: auto;
+    background: #fff !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-page {
+    width: 285mm !important;
+    height: 198mm !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    page-break-after: avoid;
+  }
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

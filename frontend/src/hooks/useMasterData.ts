@@ -52,11 +52,33 @@ export function useProcesses(): UseQueryResult<BaseEntity[], Error> {
   });
 }
 
+export function useHeatTreatSpecs(): UseQueryResult<BaseEntity[], Error> {
+  return useQuery({
+    queryKey: ['heat-treat-specs'],
+    queryFn: async (): Promise<BaseEntity[]> => {
+      const { data } = await api.get('/heat-treat-specs');
+      return data.data || [];
+    },
+    staleTime: MASTER_STALE,
+  });
+}
+
 export function useMasterJobCards(): UseQueryResult<BaseEntity[], Error> {
   return useQuery({
     queryKey: ['jobcards'],
     queryFn: async (): Promise<BaseEntity[]> => {
       const { data } = await api.get('/jobcards?limit=200');
+      return data.data || [];
+    },
+    staleTime: MASTER_STALE,
+  });
+}
+
+export function useChallans(): UseQueryResult<BaseEntity[], Error> {
+  return useQuery({
+    queryKey: ['challans'],
+    queryFn: async (): Promise<BaseEntity[]> => {
+      const { data } = await api.get('/jobwork?limit=200');
       return data.data || [];
     },
     staleTime: MASTER_STALE,

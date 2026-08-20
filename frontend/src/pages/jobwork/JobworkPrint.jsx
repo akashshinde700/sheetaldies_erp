@@ -39,6 +39,8 @@ export default function JobworkPrint() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  useEffect(() => { const p = document.title; document.title = ' '; return () => { document.title = p; }; }, []);
+
   useEffect(() => {
     api.get(`/jobwork/${id}`)
       .then(r => setChallan(r.data.data))
@@ -63,23 +65,39 @@ export default function JobworkPrint() {
   const materialInDate = challan.receivedDate || challan.challanDate;
   const invoiceNos = (challan.taxInvoices || []).map(i => i.invoiceNo).join(', ') || '—';
   const companyName = challan.fromParty?.name || '—';
-  const jobcardNo = challan.jobCard?.jobCardNo || '—';
-  const jobcardDate = challan.jobCard?.createdAt || null;
+  // A challan's items can be split across several job cards, so the link lives
+  // on the items — challan.jobCard is only set in the older one-card-per-challan
+  // case and is usually null. Collect whatever is actually attached.
+  const jobCards = challan.relatedJobCards?.length
+    ? challan.relatedJobCards
+    : [...new Map(
+        items.filter(it => it.jobCard?.jobCardNo)
+             .map(it => [it.jobCard.jobCardNo, it.jobCard])
+      ).values()];
+  const jobcardNo = jobCards.length
+    ? jobCards.map(jc => jc.jobCardNo).join(', ')
+    : (challan.jobCard?.jobCardNo || '—');
+  const jobcardDate = challan.jobCard?.createdAt || jobCards[0]?.createdAt || null;
 
   const rows = items.map((it, idx) => ({
     srNo: idx + 1,
     material: it.material || '—',
     qty: toN(it.quantity),
     weight: toN(it.weight).toFixed(3),
+    // Each line carries its own job card when the challan was split across
+    // several; fall back to the challan-wide value for older single-card data.
+    jobCardNo: it.jobCard?.jobCardNo || jobcardNo,
+    jobCardDate: it.jobCard?.createdAt || jobcardDate,
   }));
 
   return (
     <div className="bg-slate-100 min-h-screen py-8 print:bg-white print:py-0">
       <style>{`
+        @page { margin: 0mm; size: A4 landscape; }
         @media print {
           .no-print { display: none !important; }
+          html, body { margin: 0 !important; padding: 5mm 8mm !important; }
           body { background: white !important; }
-          @page { margin: 0.5cm; size: A4 landscape; }
         }
         .reg-hdr { border-collapse: collapse; width: 100%; }
         .reg-hdr td { border: 1px solid #1e293b; }
@@ -203,8 +221,8 @@ export default function JobworkPrint() {
                 <td>{fmtDate(materialInDate)}</td>
                 <td style={{fontWeight:700}}>{r.qty}</td>
                 <td style={{fontFamily:'monospace'}}>{r.weight}</td>
-                <td style={{fontFamily:'monospace', fontSize:'7px'}}>{jobcardNo}</td>
-                <td>{fmtDate(jobcardDate)}</td>
+                <td style={{fontFamily:'monospace', fontSize:'7px'}}>{r.jobCardNo}</td>
+                <td>{fmtDate(r.jobCardDate)}</td>
                 <td style={{fontFamily:'monospace', fontSize:'7px'}}>{invoiceNos}</td>
               </tr>
             ))}

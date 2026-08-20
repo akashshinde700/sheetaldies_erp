@@ -13,12 +13,13 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react':   ['react', 'react-dom', 'react-router-dom'],
-          'vendor-query':   ['@tanstack/react-query'],
-          'vendor-charts':  ['recharts'],
-          'vendor-xlsx':    ['xlsx'],
-          'vendor-lucide':  ['lucide-react'],
+        manualChunks(id) {
+          if (id.includes('react-dom') || id.includes('react-router-dom') || (id.includes('node_modules/react') && !id.includes('react-query'))) return 'vendor-react';
+          if (id.includes('@tanstack/react-query')) return 'vendor-query';
+          if (id.includes('recharts')) return 'vendor-charts';
+          if (id.includes('xlsx')) return 'vendor-xlsx';
+          if (id.includes('lucide-react')) return 'vendor-lucide';
+          if (id.includes('hooks/useMasterData')) return 'useMasterData';
         },
       },
     },

@@ -5,7 +5,7 @@ const { requireRole, requireManager } = require('../middleware/role');
 const ctrl = require('../controllers/party.controller');
 const { toInt, toNum } = require('../utils/normalize');
 const { parsePagination, formatListResponse, formatErrorResponse, getStatusCode } = require('../utils/validation');
-const { encryptPartyData, decryptPartyData, maskSensitiveFields } = require('../utils/piiHandlerExtended');
+const { encryptPartyData, maskSensitiveFields } = require('../utils/piiHandlerExtended');
 const { hash } = require('../utils/encryption');
 const { withTransaction } = require('../utils/transactionHandler');
 const { log } = require('../utils/logger');
@@ -28,7 +28,7 @@ router.get('/', auth, requireRole('OPERATOR'), async (req, res) => {
     ]);
     
     const decrypted = parties.map(p => {
-      const d = decryptPartyData(p);
+      const d = { ...p };
       delete d.gstinHash;
       delete d.panHash;
       return maskSensitiveFields(d);
@@ -58,14 +58,22 @@ router.get('/process-rates/matrix', auth, requireRole('MANAGER'), async (req, re
         orderBy: { name: 'asc' },
       }),
       prisma.processType.findMany({
-        where: { isActive: true },
+        where: { isActive: true, showInPartyRates: true },
         select: { id: true, name: true, code: true, pricePerKg: true, pricePerPc: true, lotPrice: true },
-        orderBy: { name: 'asc' },
       }),
       prisma.partyProcessRate.findMany({
         select: { partyId: true, processTypeId: true, pricePerKg: true, pricePerPc: true, lotPrice: true },
       }),
     ]);
+
+    // `code` is a string (serial number entered as text), so DB-level ordering
+    // would sort lexicographically ("1","10","11"..."2"). Sort numerically here.
+    processes.sort((a, b) => {
+      const na = Number(a.code);
+      const nb = Number(b.code);
+      if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+      return String(a.code).localeCompare(String(b.code));
+    });
 
     const rateMap = {};
     for (const r of rates) {
@@ -82,6 +90,44 @@ router.get('/process-rates/matrix', auth, requireRole('MANAGER'), async (req, re
   }
 });
 
+// City / state / PIN jo pehle se saved parties me hain — form me dropdown me
+// dikhane ke liye. Ek hi shehar baar-baar alag-alag spelling me na likha jaye.
+// '/:id' se PEHLE rehna zaroori hai, warna 'location-suggestions' ko id samajh
+// liya jayega.
+router.get('/location-suggestions', auth, requireRole('OPERATOR'), async (req, res) => {
+  try {
+    const rows = await prisma.party.findMany({
+      where: { isActive: true },
+      select: { city: true, state: true, pinCode: true },
+    });
+
+    const clean = (v) => (v || '').trim();
+    const cities = new Map();   // city -> uska sabse aam state/pin
+    const states = new Set();
+    const pins   = new Set();
+
+    for (const r of rows) {
+      const city = clean(r.city), state = clean(r.state), pin = clean(r.pinCode);
+      if (state) states.add(state);
+      if (pin)   pins.add(pin);
+      if (city && !cities.has(city.toLowerCase())) {
+        cities.set(city.toLowerCase(), { city, state: state || null, pinCode: pin || null });
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        cities: [...cities.values()].sort((a, b) => a.city.localeCompare(b.city)),
+        states: [...states].sort(),
+        pinCodes: [...pins].sort(),
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 router.get('/:id', auth, async (req, res) => {
   try {
     const partyId = toInt(req.params.id);
@@ -93,8 +139,8 @@ router.get('/:id', auth, async (req, res) => {
       where: { id: partyId },
     });
     if (!p) return res.status(404).json({ success: false, message: 'Party not found.' });
-    
-    const decrypted = decryptPartyData(p);
+
+    const decrypted = { ...p };
     delete decrypted.gstinHash;
     delete decrypted.panHash;
     res.json({ success: true, data: decrypted });
@@ -155,6 +201,9 @@ const partyFields = (body) => {
     accountNo:          body.accountNo          || null,
     ifscCode:           body.ifscCode           || null,
     swiftCode:          body.swiftCode          || null,
+    // Trimmed because Tally matches ledger names exactly — a stray trailing
+    // space here would fail every invoice for this party.
+    tallyLedgerName:    (body.tallyLedgerName || '').trim() || null,
   };
 };
 
@@ -172,8 +221,8 @@ router.post('/', auth, requireRole('MANAGER'), async (req, res) => {
       return await tx.party.create({ data: encryptedData });
     });
     
-    // Return decrypted data to user (strip internal hash fields)
-    const decrypted = decryptPartyData(party);
+    // Strip internal hash fields before returning to the user
+    const decrypted = { ...party };
     delete decrypted.gstinHash;
     delete decrypted.panHash;
 
@@ -264,8 +313,8 @@ router.put('/:id', auth, requireRole('MANAGER'), async (req, res) => {
       });
     });
     
-    // Return decrypted data to user (strip internal hash fields)
-    const decrypted = decryptPartyData(party);
+    // Strip internal hash fields before returning to the user
+    const decrypted = { ...party };
     delete decrypted.gstinHash;
     delete decrypted.panHash;
     res.json({ success: true, data: decrypted });

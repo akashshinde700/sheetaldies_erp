@@ -96,12 +96,8 @@ export default function Login() {
 
       <div className="w-full max-w-sm relative z-10 animate-scale-in">
         <div className="text-center mb-6 sm:mb-8">
-          <div
-            className="w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem] rounded-2xl mx-auto flex items-center justify-center mb-4
-              shadow-lg shadow-slate-900/15 bg-slate-900
-              transition-transform duration-300 hover:scale-[1.02]"
-          >
-            <span className="material-symbols-outlined text-white text-3xl sm:text-4xl">precision_manufacturing</span>
+          <div className="mx-auto mb-4 inline-flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-100 shadow-sm shadow-slate-900/5 transition-transform duration-300 hover:scale-[1.02]">
+            <img src="/logo.png" alt="SVT" className="h-10 w-10 object-contain" />
           </div>
           <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight font-headline">SVT ERP</h1>
           <p className="text-slate-500 text-xs mt-1.5 px-2">Shital Vacuum Treat Pvt. Ltd.</p>
@@ -198,7 +194,7 @@ export default function Login() {
                   )}
                 </div>
                 {!otpSent ? (
-                  <button type="button" onClick={handleSendOtp} disabled={isSubmitting || Boolean(errors.email)} className="w-full btn-primary !justify-center">
+                  <button type="button" onClick={handleSendOtp} disabled={isSubmitting || Boolean(errors.email)} className="w-full btn-primary justify-center">
                     {isSubmitting
                       ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Sending...</>
                       : <><span className="material-symbols-outlined text-sm">send</span> Send OTP</>
@@ -228,7 +224,7 @@ export default function Login() {
                       </p>
                     </div>
                     {submitError && <p className="text-sm text-red-600">{submitError}</p>}
-                    <button type="submit" disabled={isSubmitting || Boolean(errors.otp)} className="w-full btn-primary !justify-center">
+                    <button type="submit" disabled={isSubmitting || Boolean(errors.otp)} className="w-full btn-primary justify-center">
                       {isSubmitting
                         ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Verifying...</>
                         : <><span className="material-symbols-outlined text-sm">verified</span> Verify & Login</>

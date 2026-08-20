@@ -1,14 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../utils/api';
 import { exportToExcel } from '../../utils/export';
+import toast from 'react-hot-toast';
 
 // Subcomponents
 import RegisterFilters from './components/RegisterFilters';
 import RegisterTableView from './components/RegisterTableView';
 import RegisterCardView from './components/RegisterCardView';
 import RegisterPagination from './components/RegisterPagination';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 export interface RegisterRow {
   srNo: number;
@@ -39,7 +41,32 @@ export default function InwardOutwardRegister() {
   const [toDate, setToDate] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
   const [page, setPage] = useState(1);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<any>(null);
   const PAGE_SIZE = 10;
+  const queryClient = useQueryClient();
+
+  const handleDelete = (challanId: number) => {
+    setConfirmDialog({
+      title: 'Delete inward?',
+      message: 'Delete this inward permanently? This cannot be undone.',
+      confirmLabel: 'Delete',
+      variant: 'danger',
+      onConfirm: async () => {
+        setDeletingId(challanId);
+        try {
+          await api.delete(`/jobwork/${challanId}`);
+          toast.success('Inward deleted');
+          queryClient.invalidateQueries({ queryKey: ['jobwork-register'] });
+        } catch (err: any) {
+          toast.error(err.response?.data?.message || 'Failed to delete');
+        } finally {
+          setDeletingId(null);
+          setConfirmDialog(null);
+        }
+      },
+    });
+  };
 
   const { data: rows = [], isLoading: loading } = useQuery<RegisterRow[]>({
     queryKey: ['jobwork-register'],
@@ -149,7 +176,7 @@ export default function InwardOutwardRegister() {
 
       <div className="card overflow-hidden">
         {viewMode === 'table' ? (
-          <RegisterTableView loading={loading} pagedRows={pagedRows} />
+          <RegisterTableView loading={loading} pagedRows={pagedRows} onDelete={handleDelete} deletingId={deletingId} />
         ) : (
           <RegisterCardView loading={loading} pagedRows={pagedRows} />
         )}
@@ -164,6 +191,8 @@ export default function InwardOutwardRegister() {
           pageSize={PAGE_SIZE} 
         />
       )}
+
+      {confirmDialog && <ConfirmDialog {...confirmDialog} onCancel={() => setConfirmDialog(null)} />}
     </div>
   );
 }

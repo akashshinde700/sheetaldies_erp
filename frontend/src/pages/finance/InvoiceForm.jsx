@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { toInt, toNum } from '../../utils/normalize';
-import { useParties, useProcesses, useMasterJobCards } from '../../hooks/useMasterData';
+import { useParties, useProcesses, useChallans } from '../../hooks/useMasterData';
 
 // Subcomponents
 import ChallanSelectionSection from './components/ChallanSelectionSection';
@@ -11,38 +11,69 @@ import InvoiceDetailsSection from './components/InvoiceDetailsSection';
 import InvoicedItemsSection from './components/InvoicedItemsSection';
 import InvoiceTaxTotalsSection from './components/InvoiceTaxTotalsSection';
 
-const newEmptyLine = () => ({ _id: Math.random(), description:'', material:'', hrc:'', woNo:'', hsnSac:'998898', quantity:'', unit:'KGS', weight:'', rate:'', amount:'', processTypeId:'', sourceChallanItemId:'' });
+const newEmptyLine = () => ({ _id: Math.random(), description:'', material:'', hrc:'', woNo:'', hsnSac:'998898', quantity:'', unit:'KGS', billingType:'KGS', weight:'', rate:'', amount:'', processTypeId:'', sourceChallanItemId:'' });
+
+// Billing-type helpers — a process can be priced per Kg, per Pc, or per Lot.
+// Auto-detect the type from whichever rate is set (prefer Kg → Pc → Lot),
+// and read the matching rate value for a chosen type.
+const UNIT_FOR_TYPE = { KGS: 'KGS', PCS: 'PCS', LOT: 'LOT' };
+const detectBillingType = (rateObj) => {
+  if (!rateObj) return 'KGS';
+  if (rateObj.pricePerKg != null) return 'KGS';
+  if (rateObj.pricePerPc != null) return 'PCS';
+  if (rateObj.lotPrice   != null) return 'LOT';
+  return 'KGS';
+};
+const rateForType = (rateObj, type) => {
+  if (!rateObj) return null;
+  if (type === 'KGS') return rateObj.pricePerKg;
+  if (type === 'PCS') return rateObj.pricePerPc;
+  if (type === 'LOT') return rateObj.lotPrice;
+  return null;
+};
 
 export default function InvoiceForm() {
   const navigate    = useNavigate();
   const [searchParams] = useSearchParams();
   const { data: parties = [] } = useParties();
   const { data: processes = [] } = useProcesses();
-  const { data: challans = [] } = useMasterJobCards();
+  const { data: challans = [], isSuccess: challansLoaded } = useChallans();
 
   const [challanInfo,    setChallanInfo]    = useState(null);
   const [challanHistory, setChallanHistory] = useState([]);
   const [billingStatus,  setBillingStatus]  = useState(null);
   const [loadingChallan, setLoadingChallan] = useState(false);
   const [loading,        setLoading]        = useState(false);
+  const [invoiceSeries,  setInvoiceSeries]  = useState([]);
+
+  useEffect(() => {
+    api.get('/invoices/series').then(r => {
+      const list = r.data.data || [];
+      setInvoiceSeries(list);
+      if (list.length === 1) setForm(p => ({ ...p, invoiceSeriesId: p.invoiceSeriesId || String(list[0].id) }));
+    }).catch(() => setInvoiceSeries([]));
+  }, []);
 
   const today = new Date().toISOString().split('T')[0];
   const [form, setForm] = useState({
     invoiceDate: today,
     dispatchDate: '',
     fromPartyId: '', toPartyId: '',
+    invoiceSeriesId: '',
     challanId: '',
     challanRef: '', poRef: '', jobCardRef: '', otherReferences: '',
     dispatchDocNo: '', eWayBillNo: '',
     cgstRate: '9', sgstRate: '9', igstRate: '0',
     transportFreight: '0', tcsRate: '0', extraAmt: '0',
+    // Print the customer's part name under the process on the invoice.
+    showPartName: true,
   });
 
   const [lineItems, setLineItems] = useState([newEmptyLine()]);
   const [partyRates, setPartyRates] = useState({}); // { [processTypeId]: { pricePerKg, pricePerPc, lotPrice } }
-  const [runsheetNumber, setRunsheetNumber] = useState('');
-  const [runsheetLookupLoading, setRunsheetLookupLoading] = useState(false);
-  const [runsheetLookupMessage, setRunsheetLookupMessage] = useState('');
+  const [jobCardNoInput, setJobCardNoInput] = useState('');
+  const [jobCardLookupLoading, setJobCardLookupLoading] = useState(false);
+  const [jobCardLookupMessage, setJobCardLookupMessage] = useState('');
 
   useEffect(() => {
     if (parties.length > 0 && !form.fromPartyId) {
@@ -52,7 +83,9 @@ export default function InvoiceForm() {
       setForm(p => ({
         ...p,
         fromPartyId: ourCompany   ? String(ourCompany.id)    : String(parties[0].id),
-        toPartyId:   firstCustomer ? String(firstCustomer.id) : '',
+        // Don't clobber a toParty already set from a ?customerId= prefill or an
+        // in-flight challan load — only default it when still empty.
+        toPartyId:   p.toPartyId || (firstCustomer ? String(firstCustomer.id) : ''),
       }));
     }
   }, [parties, form.fromPartyId]);
@@ -64,22 +97,9 @@ export default function InvoiceForm() {
       for (const row of r.data.data || []) m[String(row.processTypeId)] = row;
       setPartyRates(m);
     }).catch(() => setPartyRates({}));
-
-    // Auto-detect IGST vs CGST+SGST based on customer state code
-    const toParty = parties.find(p => String(p.id) === String(form.toPartyId));
-    const fromParty = parties.find(p => String(p.id) === String(form.fromPartyId));
-    if (toParty && fromParty) {
-      const custStateCode = toParty.stateCode || '';
-      const ourStateCode  = fromParty.stateCode || '27'; // default Maharashtra
-      if (custStateCode && custStateCode !== ourStateCode) {
-        // Interstate: apply IGST at 18%, zero CGST/SGST
-        setForm(p => ({ ...p, cgstRate: '0', sgstRate: '0', igstRate: '18' }));
-        toast('Interstate customer detected — IGST 18% applied.', { icon: 'ℹ️' });
-      } else {
-        // Intra-state: apply CGST+SGST
-        setForm(p => ({ ...p, cgstRate: '9', sgstRate: '9', igstRate: '0' }));
-      }
-    }
+    // CGST/SGST default to 9%/9% (set in initial form state) and stay there
+    // regardless of customer — no automatic switch to IGST. Switch manually
+    // for interstate customers; the rate fields are always editable.
   }, [form.toPartyId]);
 
   // Auto-load challan when navigated from a job card link
@@ -88,13 +108,50 @@ export default function InvoiceForm() {
     if (!jcId) return;
     api.get(`/jobcards/${jcId}`).then(r => {
       const jc = r.data.data;
-      const challanId = jc.challans?.[0]?.id;
+      // Always carry the job card number into the invoice's Job Card Ref,
+      // even when no challan is linked (e.g. invoicing straight off a cert).
+      if (jc.jobCardNo) {
+        setForm(p => ({ ...p, jobCardRef: jc.jobCardNo }));
+        // Show it in the lookup box too, so arriving from a job card or a
+        // certificate looks the same as typing the number in by hand — an
+        // empty box next to an already-loaded challan reads like nothing
+        // was picked up.
+        setJobCardNoInput(jc.jobCardNo);
+      }
+      // challanItemLinks reflects each item's actual current challan
+      // assignment; jc.challans[0] is a direct relation that can be empty
+      // or point to a stale/wrong challan, so it's the last resort.
+      const challanId = jc.challanItemLinks?.[0]?.challan?.id || jc.challans?.[0]?.id;
       if (challanId) handleChallanChange(String(challanId));
     }).catch(() => {});
   }, []);
 
+  // When navigated from a certificate with no linked job card, at least
+  // pre-select the customer as the invoice's To Party.
+  useEffect(() => {
+    const customerId = searchParams.get('customerId');
+    if (!customerId) return;
+    setForm(p => ({ ...p, toPartyId: String(customerId) }));
+  }, []);
+
+  // Auto-load when navigated from the invoice list's "no results" search
+  // (the search text could be a challan no or a job card no — try challan first)
+  const refLookupDone = useRef(false);
+  useEffect(() => {
+    const ref = searchParams.get('ref');
+    if (!ref || refLookupDone.current || !challansLoaded) return;
+    refLookupDone.current = true;
+    const matchedChallan = challans.find(c => String(c.challanNo).toLowerCase() === ref.toLowerCase());
+    if (matchedChallan) {
+      handleChallanChange(String(matchedChallan.id));
+    } else {
+      setJobCardNoInput(ref);
+      lookupByJobCardNo(ref);
+    }
+  }, [challansLoaded]);
+
   const handleChallanChange = async (val) => {
-    setRunsheetLookupMessage('');
+    setJobCardLookupMessage('');
     setChallanInfo(null);
     setChallanHistory([]);
     setBillingStatus(null);
@@ -114,30 +171,70 @@ export default function InvoiceForm() {
       setBillingStatus(billRes.data.data || null);
       // Challan: fromParty=customer, toParty=processor
       // Invoice: fromParty=processor (bills), toParty=customer (pays) — reversed
+      const invoiceToPartyId = String(ch.fromPartyId || form.toPartyId);
       setForm(p => ({
         ...p,
         challanId:   val,
         challanRef:  ch.challanNo,
         fromPartyId: String(ch.toPartyId   || p.fromPartyId),
-        toPartyId:   String(ch.fromPartyId || p.toPartyId),
+        toPartyId:   invoiceToPartyId || p.toPartyId,
       }));
+
+      // Fetch this customer's per-process rates directly — don't rely on the
+      // toPartyId-driven effect, which fires after this async load and would
+      // still be holding rates for the previous party.
+      let rateMap = {};
+      if (invoiceToPartyId) {
+        try {
+          const rateRes = await api.get(`/parties/${invoiceToPartyId}/process-rates`);
+          for (const row of rateRes.data.data || []) rateMap[String(row.processTypeId)] = row;
+          setPartyRates(rateMap);
+        } catch { /* keep rates empty, fall back to challan item rate */ }
+      }
+
       if (ch.items?.length > 0) {
         setLineItems(ch.items.map(it => {
           const line = (billRes.data.data?.lineStatus || []).find(x => x.challanItemId === it.id);
-          const dispatchQty = line ? line.remainingQty : toNum(it.quantity, 0);
+          const origQty = toNum(it.quantity, 0);
+          const dispatchQty = line ? line.remainingQty : origQty;
+          // Resolve the customer's effective rate for this process (party
+          // override → process master) and auto-detect its billing type.
+          const partyRate = it.processTypeId ? rateMap[String(it.processTypeId)] : null;
+          const procMaster = it.processTypeId ? processes.find(p => p.id === toInt(it.processTypeId)) : null;
+          const pick = (a, b) => (a != null ? a : (b != null ? b : null));
+          const eff = (partyRate || procMaster) ? {
+            pricePerKg: pick(partyRate?.pricePerKg, procMaster?.pricePerKg),
+            pricePerPc: pick(partyRate?.pricePerPc, procMaster?.pricePerPc),
+            lotPrice:   pick(partyRate?.lotPrice,   procMaster?.lotPrice),
+          } : null;
+          const billingType = eff ? detectBillingType(eff) : (it.uom && UNIT_FOR_TYPE[it.uom] ? it.uom : 'KGS');
+          const typedRate = eff ? rateForType(eff, billingType) : null;
+          const rate = typedRate != null ? String(typedRate) : String(it.rate);
+          const unit = UNIT_FOR_TYPE[billingType] || it.uom || 'KGS';
+          // LOT is a flat charge — default to 1 lot so a 250-piece challan line
+          // bills 1 × lotPrice, not 250 × lotPrice. Kg/Pc lines bill the actual
+          // dispatched quantity.
+          const lineQty = billingType === 'LOT' ? 1 : dispatchQty;
+          // Prorate weight to the quantity actually being invoiced (dispatchQty
+          // may be less than the challan item's original qty on a partial bill).
+          const origWeight = toNum(it.weight, 0);
+          const proratedWeight = (billingType === 'KGS' && origQty > 0 && origWeight > 0)
+            ? (origWeight * dispatchQty / origQty)
+            : origWeight;
           return {
             _id:           it.id ?? Math.random(),
-            description:   it.description || it.item?.name || '',
+            description:   it.partName || it.description || it.item?.name || '',
             material:      it.material    || '',
             hrc:           it.hrc         || '',
             woNo:          it.woNo        || '',
-            hsnSac:        it.hsnCode     || it.item?.hsnSacCode || '998898',
-            quantity:      String(dispatchQty),
-            unit:          it.uom         || 'KGS',
-            weight:        it.weight      ? String(it.weight) : '',
-            rate:          String(it.rate),
-            amount:        String((dispatchQty * toNum(it.rate, 0)).toFixed(2)),
-            processTypeId: '',
+            hsnSac:        it.processType?.hsnSacCode || it.hsnCode || it.item?.hsnSacCode || '998898',
+            quantity:      String(lineQty),
+            unit,
+            billingType,
+            weight:        proratedWeight ? String(proratedWeight.toFixed(3)) : '',
+            rate,
+            amount:        calcLineAmount({ unit, billingType, quantity: lineQty, rate, weight: proratedWeight }),
+            processTypeId: it.processTypeId ? String(it.processTypeId) : '',
             sourceChallanItemId: String(it.id),
           }
         }));
@@ -152,40 +249,38 @@ export default function InvoiceForm() {
     }
   };
 
-  const lookupRunsheetByNumber = async () => {
-    const number = runsheetNumber.trim();
+  const lookupByJobCardNo = async (numberOverride) => {
+    const number = (numberOverride ?? jobCardNoInput).trim();
     if (!number) {
-      toast.error('Enter a VHT run sheet number to lookup.');
+      toast.error('Enter a job card number to lookup.');
       return;
     }
-    setRunsheetLookupLoading(true);
-    setRunsheetLookupMessage('');
+    setJobCardLookupLoading(true);
+    setJobCardLookupMessage('');
     try {
-      const res = await api.get('/manufacturing/runsheets', { params: { search: number, limit: 10 } });
+      const res = await api.get('/jobcards', { params: { search: number, limit: 10 } });
       const rows = res.data.data || [];
       if (!rows.length) {
-        toast.error('Run sheet not found.');
+        toast.error('Job card not found.');
         return;
       }
-      const found = rows.find(r => String(r.runsheetNumber).toLowerCase() === number.toLowerCase()) || rows[0];
-      const item = found.items?.[0];
-      if (!item?.jobCardId) {
-        toast.error('Run sheet is not linked to a job card.');
-        return;
-      }
-      const cardRes = await api.get(`/jobcards/${item.jobCardId}`);
+      const found = rows.find(r => String(r.jobCardNo).toLowerCase() === number.toLowerCase()) || rows[0];
+      const cardRes = await api.get(`/jobcards/${found.id}`);
       const jobCard = cardRes.data.data;
-      const challan = jobCard.challans?.[0];
+      // challanItemLinks reflects each item's actual current challan assignment;
+      // jobCard.challans is a direct relation that can be empty or point to a
+      // stale/wrong challan, so it's only used as a last-resort fallback.
+      const challan = jobCard.challanItemLinks?.[0]?.challan || jobCard.challans?.[0];
       if (!challan) {
         toast.error('No challan linked to this job card.');
         return;
       }
       handleChallanChange(String(challan.id));
-      setRunsheetLookupMessage(`Run sheet ${found.runsheetNumber} mapped to challan ${challan.challanNo}.`);
+      setJobCardLookupMessage(`Job card ${jobCard.jobCardNo} mapped to challan ${challan.challanNo}.`);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to lookup run sheet.');
+      toast.error(err.response?.data?.message || 'Failed to lookup job card.');
     } finally {
-      setRunsheetLookupLoading(false);
+      setJobCardLookupLoading(false);
     }
   };
 
@@ -234,24 +329,107 @@ export default function InvoiceForm() {
     toast.success('Invoice values loaded from DB-backed sample.');
   };
 
+  // Effective per-process rate for the currently selected customer: prefer the
+  // party-specific override, then fall back to the process master's own rate.
+  // Returns { pricePerKg, pricePerPc, lotPrice } (any may be null).
+  const effectiveRateFor = (processTypeId) => {
+    if (!processTypeId) return null;
+    const party = partyRates[String(processTypeId)] || {};
+    const proc  = processes.find(p => p.id === toInt(processTypeId)) || {};
+    const pick = (a, b) => (a != null ? a : (b != null ? b : null));
+    return {
+      pricePerKg: pick(party.pricePerKg, proc.pricePerKg),
+      pricePerPc: pick(party.pricePerPc, proc.pricePerPc),
+      lotPrice:   pick(party.lotPrice,   proc.lotPrice),
+    };
+  };
+
+  // Amount basis follows the line's billingType — KGS bills by weight,
+  // PCS/NOS by pieces (quantity), LOT by number of lots (quantity). This
+  // matches how the challan item itself was priced at inward time, so a
+  // full-quantity invoice reproduces the challan's own subtotal.
+  const calcLineAmount = (it) => {
+    const qty    = toNum(it.quantity, 0);
+    const rate   = toNum(it.rate, 0);
+    const weight = toNum(it.weight, 0);
+    const type   = it.billingType || it.unit || 'KGS';
+    const base = (type === 'KGS') ? (weight > 0 ? weight : qty) : qty;
+    return (base * rate).toFixed(2);
+  };
+
   const updateLine = (i, field, val) => {
     setLineItems(prev => {
       const arr = [...prev];
       arr[i] = { ...arr[i], [field]: val };
-      if (field === 'quantity' || field === 'rate') {
-        const q = toNum(field === 'quantity' ? val : arr[i].quantity, 0);
-        const r = toNum(field === 'rate' ? val : arr[i].rate, 0);
-        arr[i].amount = (q * r).toFixed(2);
+      if (field === 'quantity' || field === 'rate' || field === 'weight') {
+        arr[i].amount = calcLineAmount(arr[i]);
       }
+      // Selecting a process auto-fills description, SAC, and — crucially —
+      // auto-detects the billing type (Kg→Pc→Lot) from the customer's rate
+      // and fills the matching rate + unit. User can still switch billing type.
       if (field === 'processTypeId' && val) {
         const proc = processes.find(p => p.id === toInt(val));
         if (proc) {
           arr[i].description = proc.name;
           arr[i].hsnSac      = proc.hsnSacCode || '998898';
-          const partyRate = partyRates[String(val)];
-          arr[i].rate = partyRate?.pricePerKg != null ? String(partyRate.pricePerKg) : '';
-          arr[i].amount = (toNum(arr[i].quantity, 0) * toNum(arr[i].rate, 0)).toFixed(2);
+          const eff  = effectiveRateFor(val);
+          const type = detectBillingType(eff);
+          const rate = rateForType(eff, type);
+          arr[i].billingType = type;
+          arr[i].unit        = UNIT_FOR_TYPE[type] || 'KGS';
+          arr[i].rate        = rate != null ? String(rate) : '';
+          if (type === 'LOT' && (!arr[i].quantity || toNum(arr[i].quantity, 0) === 0)) arr[i].quantity = '1';
+          arr[i].amount = calcLineAmount(arr[i]);
         }
+      }
+      // Switching billing type re-picks the matching rate for this process and
+      // keeps the display unit in sync, then recomputes the amount.
+      if (field === 'billingType') {
+        arr[i].unit = UNIT_FOR_TYPE[val] || arr[i].unit;
+        const eff  = effectiveRateFor(arr[i].processTypeId);
+        const rate = rateForType(eff, val);
+        if (rate != null) arr[i].rate = String(rate);
+        if (val === 'LOT' && (!arr[i].quantity || toNum(arr[i].quantity, 0) === 0)) arr[i].quantity = '1';
+        arr[i].amount = calcLineAmount(arr[i]);
+      }
+      // Changing the unit dropdown keeps billingType aligned (KGS/PCS/LOT).
+      if (field === 'unit' && UNIT_FOR_TYPE[val]) {
+        arr[i].billingType = val;
+        arr[i].amount = calcLineAmount(arr[i]);
+      }
+      return arr;
+    });
+  };
+
+  // Process Summary: when several invoice lines share the same process (e.g.
+  // 5 challan items all "Hardening & Tempering"), let the user type ONE
+  // combined weight/qty for the whole group instead of editing every line —
+  // the total is redistributed across the group's lines proportional to
+  // their current share, so each line's own amount (and the existing
+  // per-challan-item remaining-qty validation) keeps working unchanged.
+  const applyGroupTotal = (processTypeId, newTotal) => {
+    setLineItems(prev => {
+      const idxs = prev
+        .map((it, i) => ({ it, i }))
+        .filter(x => x.it.processTypeId && String(x.it.processTypeId) === String(processTypeId));
+      if (!idxs.length) return prev;
+      const type  = idxs[0].it.billingType || 'KGS';
+      const field = type === 'KGS' ? 'weight' : 'quantity';
+      const currentTotal = idxs.reduce((s, x) => s + toNum(x.it[field], 0), 0);
+      const newTotalNum = toNum(newTotal, 0);
+      const arr = [...prev];
+      if (currentTotal > 0) {
+        idxs.forEach(({ it, i }) => {
+          const share = toNum(it[field], 0) / currentTotal;
+          arr[i] = { ...arr[i], [field]: (newTotalNum * share).toFixed(3) };
+          arr[i].amount = calcLineAmount(arr[i]);
+        });
+      } else {
+        // No existing basis to split proportionally (all zero) — put the
+        // whole total on the first line in the group.
+        const { i } = idxs[0];
+        arr[i] = { ...arr[i], [field]: newTotalNum.toFixed(3) };
+        arr[i].amount = calcLineAmount(arr[i]);
       }
       return arr;
     });
@@ -270,7 +448,13 @@ export default function InvoiceForm() {
   const alreadyInvoiced = challanHistory.reduce((s, inv) => s + toNum(inv.subtotal, 0), 0);
   const challanSubtotal = challanInfo ? toNum(challanInfo.subtotal, 0) : 0;
   const remaining       = challanSubtotal - alreadyInvoiced;
-  const fullyInvoiced   = challanInfo && remaining <= 0.01;
+  // Billing is gated by remaining QUANTITY (billingStatus, checked per-line
+  // below), not by rupee amount — a line's rate can legitimately differ from
+  // what was recorded on the challan (e.g. the party's per-process rate was
+  // updated after the inward challan was created), so an amount-based
+  // "exceeds remaining" check would incorrectly block a valid re-priced
+  // invoice. `remaining`/`wouldExceed` below are informational only now.
+  const fullyInvoiced   = challanInfo && (billingStatus ? billingStatus.isFullyInvoiced : remaining <= 0.01);
   const wouldExceed     = challanInfo && subtotal > remaining + 0.01;
 
   const remainingByChallanItem = new Map((billingStatus?.lineStatus || []).map(x => [String(x.challanItemId), x]));
@@ -278,6 +462,7 @@ export default function InvoiceForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.fromPartyId || !form.toPartyId) { toast.error('From and To party are required.'); return; }
+    if (!form.invoiceSeriesId) { toast.error('Invoice series is required.'); return; }
     if (!lineItems.length || !lineItems.some(it => it.description && toNum(it.quantity, 0) > 0 && toNum(it.rate, 0) > 0)) {
       toast.error('At least one line item with description, quantity and rate is required.'); return;
     }
@@ -292,7 +477,6 @@ export default function InvoiceForm() {
       }
     }
     if (fullyInvoiced) { toast.error('This challan is already fully invoiced.'); return; }
-    if (wouldExceed)   { toast.error(`Invoice exceeds remaining ₹${remaining.toFixed(2)} for this challan.`); return; }
     setLoading(true);
     try {
       const payload = { ...form, items: lineItems };
@@ -310,16 +494,15 @@ export default function InvoiceForm() {
   return (
     <div className="page-stack w-full min-w-0 max-w-5xl 3xl:max-w-6xl mx-auto animate-slide-up">
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6 min-w-0">
+      <div className="page-header">
         <div className="flex items-start gap-3 min-w-0 flex-1">
           <Link to="/invoices"
-            className="w-9 h-9 shrink-0 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-300 transition-colors shadow-sm">
-            <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+            className="w-11 h-11 shrink-0 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-colors shadow-sm">
+            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
           </Link>
-          <div className="min-w-0">
-            <h2 className="text-lg sm:text-xl font-extrabold text-slate-800 font-headline">New Tax Invoice</h2>
-            <p className="text-xs text-slate-400 mt-0.5">GST Invoice under CGST Act</p>
-            <p className="text-xs text-slate-500 mt-1 break-words">Flow ref: 5 (Tax Invoice). Related image: <span className="font-mono">all\\5.jpeg</span></p>
+          <div className="space-y-2 min-w-0">
+            <h1 className="page-title">Create Tax Invoice</h1>
+            <p className="page-subtitle max-w-2xl">Generate a GST invoice linked to challans, job cards, and customer parties.</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:justify-end shrink-0">
@@ -335,32 +518,32 @@ export default function InvoiceForm() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="card p-4 sm:p-5 space-y-3">
           <div className="flex items-center justify-between gap-3 mb-3">
-            <p className="section-title">Lookup by Run Sheet</p>
+            <p className="section-title">Lookup by Job Card No</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="sm:col-span-2">
-              <label className="form-label">VHT Run Sheet No</label>
+              <label className="form-label">Job Card No</label>
               <input
                 type="text"
-                value={runsheetNumber}
-                onChange={(e) => setRunsheetNumber(e.target.value)}
-                placeholder="Enter VHT run sheet number"
+                value={jobCardNoInput}
+                onChange={(e) => setJobCardNoInput(e.target.value)}
+                placeholder="Enter job card number"
                 className="form-input"
               />
             </div>
             <div className="sm:col-span-1 flex items-end">
               <button
                 type="button"
-                onClick={lookupRunsheetByNumber}
-                disabled={runsheetLookupLoading}
+                onClick={() => lookupByJobCardNo()}
+                disabled={jobCardLookupLoading}
                 className="btn-secondary w-full"
               >
-                {runsheetLookupLoading ? 'Looking up…' : 'Find Challan'}
+                {jobCardLookupLoading ? 'Looking up…' : 'Lookup Job Card'}
               </button>
             </div>
           </div>
-          {runsheetLookupMessage && (
-            <p className="text-sm text-slate-600">{runsheetLookupMessage}</p>
+          {jobCardLookupMessage && (
+            <p className="text-sm text-slate-600">{jobCardLookupMessage}</p>
           )}
         </div>
 
@@ -380,16 +563,19 @@ export default function InvoiceForm() {
           PAY_BADGE={PAY_BADGE} 
         />
 
-        <InvoiceDetailsSection form={form} setForm={setForm} parties={parties} />
+        <InvoiceDetailsSection form={form} setForm={setForm} parties={parties} invoiceSeries={invoiceSeries} />
 
-        <InvoicedItemsSection 
-          lineItems={lineItems} 
-          setLineItems={setLineItems} 
-          processes={processes} 
-          updateLine={updateLine} 
-          challanInfo={challanInfo} 
+        <InvoicedItemsSection
+          lineItems={lineItems}
+          setLineItems={setLineItems}
+          processes={processes}
+          updateLine={updateLine}
+          challanInfo={challanInfo}
           newEmptyLine={newEmptyLine}
-          remainingByChallanItem={remainingByChallanItem} 
+          remainingByChallanItem={remainingByChallanItem}
+          applyGroupTotal={applyGroupTotal}
+          showPartName={form.showPartName}
+          setShowPartName={v => setForm(f => ({ ...f, showPartName: v }))}
         />
 
         <InvoiceTaxTotalsSection 

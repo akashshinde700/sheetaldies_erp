@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ENVELOPE>
+  <HEADER>
+    <TALLYREQUEST>Import Data</TALLYREQUEST>
+  </HEADER>
+  <BODY>
+    <IMPORTDATA>
+      <REQUESTDESC>
+        <REPORTNAME>Vouchers</REPORTNAME>
+      </REQUESTDESC>
+      <REQUESTDATA>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <VOUCHER VCHTYPE="Sales" ACTION="Create" OBJVIEW="Invoice Voucher View">
+            <DATE>20260802</DATE>
+            <VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>
+            <VOUCHERNUMBER>SVT/AB/26-27/00002</VOUCHERNUMBER>
+            <REFERENCE>SVT/AB/26-27/00002</REFERENCE>
+            <NARRATION>Invoice: SVT/AB/26-27/00002 | Challan: 2548 | Job Card: 26081005 | Items: 587060 x12 KGS @ ₹110; 587060 x3 KGS @ ₹140</NARRATION>
+            <PARTYLEDGERNAME>SHREE SAI TOOLS</PARTYLEDGERNAME>
+            <ISINVOICE>Yes</ISINVOICE>
+            <!-- Debit: Party (Customer receivable) -->
+            <ALLLEDGERENTRIES.LIST>
+              <LEDGERNAME>SHREE SAI TOOLS</LEDGERNAME>
+              <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+              <AMOUNT>-2879.20</AMOUNT>
+            </ALLLEDGERENTRIES.LIST>
+            <!-- Credits: Sales + GST -->
+            
+          <ALLLEDGERENTRIES.LIST>
+            <LEDGERNAME>Job Work Service Sales</LEDGERNAME>
+            <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+            <AMOUNT>2440.00</AMOUNT>
+          </ALLLEDGERENTRIES.LIST>
+          <ALLLEDGERENTRIES.LIST>
+            <LEDGERNAME>Output CGST</LEDGERNAME>
+            <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+            <AMOUNT>219.60</AMOUNT>
+          </ALLLEDGERENTRIES.LIST>
+          <ALLLEDGERENTRIES.LIST>
+            <LEDGERNAME>Output SGST</LEDGERNAME>
+            <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+            <AMOUNT>219.60</AMOUNT>
+          </ALLLEDGERENTRIES.LIST>
+          </VOUCHER>
+        </TALLYMESSAGE>
+      </REQUESTDATA>
+    </IMPORTDATA>
+  </BODY>
+</ENVELOPE>

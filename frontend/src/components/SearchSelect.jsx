@@ -1,5 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 
+// Fixed-position dropdown floor width — keeps long option labels (e.g. long
+// process names) readable even when the trigger itself is a narrow table cell.
+const MIN_MENU_WIDTH = 260;
+
 /**
  * SearchSelect — searchable combobox replacing <select>
  *
@@ -12,10 +16,11 @@ import { useState, useRef, useEffect, useCallback } from 'react';
  *   disabled    — boolean
  *   className   — extra classes on the wrapper
  *   useFixed    — use position:fixed for dropdown (needed inside overflow:hidden/auto containers like tables)
+ *   dense       — smaller text/row-height for cramped table cells (e.g. process columns)
  */
 export default function SearchSelect({
   value, onChange, options = [], placeholder = '— Select —',
-  required = false, disabled = false, className = '', useFixed = false,
+  required = false, disabled = false, className = '', useFixed = false, dense = false,
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -39,18 +44,26 @@ export default function SearchSelect({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Reposition fixed menu on scroll/resize
-  const updateMenuPosition = useCallback(() => {
-    if (!useFixed || !buttonRef.current) return;
-    const rect = buttonRef.current.getBoundingClientRect();
-    setMenuStyle({
+  // Reposition fixed menu on scroll/resize. The menu is at least
+  // MIN_MENU_WIDTH wide regardless of the trigger's own width — a narrow
+  // table-cell trigger (e.g. a compact "Process" column) would otherwise
+  // force long option labels to wrap illegibly inside a tiny popup.
+  const computeMenuStyle = useCallback((rect) => {
+    const width = Math.max(rect.width, MIN_MENU_WIDTH);
+    const left = Math.min(rect.left, window.innerWidth - width - 8);
+    return {
       position: 'fixed',
       top: rect.bottom + 4,
-      left: rect.left,
-      width: rect.width,
+      left: Math.max(8, left),
+      width,
       zIndex: 9999,
-    });
-  }, [useFixed]);
+    };
+  }, []);
+
+  const updateMenuPosition = useCallback(() => {
+    if (!useFixed || !buttonRef.current) return;
+    setMenuStyle(computeMenuStyle(buttonRef.current.getBoundingClientRect()));
+  }, [useFixed, computeMenuStyle]);
 
   useEffect(() => {
     if (!open || !useFixed) return;
@@ -72,14 +85,7 @@ export default function SearchSelect({
   const handleOpen = () => {
     if (disabled) return;
     if (useFixed && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      setMenuStyle({
-        position: 'fixed',
-        top: rect.bottom + 4,
-        left: rect.left,
-        width: rect.width,
-        zIndex: 9999,
-      });
+      setMenuStyle(computeMenuStyle(buttonRef.current.getBoundingClientRect()));
     }
     setOpen(true);
     setQuery('');
@@ -125,7 +131,8 @@ export default function SearchSelect({
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => handleSelect(opt)}
-                className={`w-full text-left min-h-[44px] px-4 py-2.5 text-sm flex items-center gap-2 transition-colors duration-150
+                className={`w-full text-left flex items-center gap-2 transition-colors duration-150
+                  ${dense ? 'min-h-[28px] px-2.5 py-1 text-xs' : 'min-h-[44px] px-4 py-2.5 text-sm'}
                   active:bg-brand-100/80
                   ${index === highlightedIndex ? 'bg-slate-100' : ''}
                   ${String(opt.value) === String(value)
@@ -133,9 +140,9 @@ export default function SearchSelect({
                     : 'text-slate-800 hover:bg-brand-50/80 hover:text-brand-900'}`}
               >
                 {String(opt.value) === String(value) && (
-                  <span className="material-symbols-outlined text-[14px] text-brand-600 flex-shrink-0">check</span>
+                  <span className={`material-symbols-outlined text-brand-600 flex-shrink-0 ${dense ? 'text-[11px]' : 'text-[14px]'}`}>check</span>
                 )}
-                <span className={String(opt.value) === String(value) ? '' : 'ml-[22px]'}>{opt.label}</span>
+                <span className={String(opt.value) === String(value) ? '' : (dense ? 'ml-[15px]' : 'ml-[22px]')}>{opt.label}</span>
               </button>
             ))
           )}
@@ -153,10 +160,11 @@ export default function SearchSelect({
           onClick={handleOpen}
           disabled={disabled}
           className={`form-input w-full text-left flex items-center justify-between gap-2
+            ${dense ? 'py-1 px-2 text-xs' : ''}
             ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
             ${!value ? 'text-slate-500' : 'text-slate-900'}`}
         >
-          <span className="truncate text-sm">{value ? selectedLabel : placeholder}</span>
+          <span className={`truncate ${dense ? 'text-xs' : 'text-sm'}`}>{value ? selectedLabel : placeholder}</span>
           <div className="flex items-center gap-1 flex-shrink-0">
             {value && !disabled && (
               <span
@@ -164,24 +172,24 @@ export default function SearchSelect({
                 tabIndex={0}
                 onClick={handleClear}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClear(e); } }}
-                className="material-symbols-outlined text-[16px] text-slate-400 hover:text-rose-500 transition-colors"
+                className={`material-symbols-outlined text-slate-400 hover:text-rose-500 transition-colors ${dense ? 'text-[13px]' : 'text-[16px]'}`}
               >
                 close
               </span>
             )}
-            <span className="material-symbols-outlined text-[16px] text-slate-500">expand_more</span>
+            <span className={`material-symbols-outlined text-slate-500 ${dense ? 'text-[13px]' : 'text-[16px]'}`}>expand_more</span>
           </div>
         </button>
       ) : (
-        <div className="form-input flex items-center gap-2 p-0 overflow-hidden">
-          <span className="material-symbols-outlined text-slate-500 text-[16px] ml-3 flex-shrink-0">search</span>
+        <div className={`form-input flex items-center gap-2 p-0 overflow-hidden ${dense ? 'py-0' : ''}`}>
+          <span className={`material-symbols-outlined text-slate-500 ml-3 flex-shrink-0 ${dense ? 'text-[13px]' : 'text-[16px]'}`}>search</span>
           <input
             ref={inputRef}
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Type to search..."
             autoComplete="off"
-            className="flex-1 py-2 pr-3 text-sm bg-transparent outline-none text-slate-900 placeholder-slate-400"
+            className={`flex-1 pr-3 bg-transparent outline-none text-slate-900 placeholder-slate-400 ${dense ? 'py-1 text-xs' : 'py-2 text-sm'}`}
             onKeyDown={handleInputKeyDown}
           />
         </div>

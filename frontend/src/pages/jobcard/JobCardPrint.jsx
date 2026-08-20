@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
 import { formatDate } from '../../utils/formatters';
+import { useProcesses, useMachines } from '../../hooks/useMasterData';
+import SearchSelect from '../../components/SearchSelect';
 
 const SVT = {
   name:  'SHITAL VACUUM TREAT PVT LTD.',
@@ -47,35 +49,26 @@ const getImageUrl = (src) => {
 };
 
 function SvtLogo({ size = 44 }) {
-  return (
-    <svg width={size} height={size * 1.15} viewBox="0 0 100 115" fill="none" style={{ flexShrink: 0 }}>
-      <polygon points="50,2 95,27 95,77 50,102 5,77 5,27" fill="#1a1a1a" stroke="#000" strokeWidth="1.5"/>
-      <path d="M 38,28 C 22,28 20,38 30,43 L 40,48 C 54,53 54,65 38,66 C 28,66 24,62 24,62"
-        fill="none" stroke="white" strokeWidth="7" strokeLinecap="round"/>
-      <text x="60" y="70" textAnchor="middle" fill="white" fontFamily="Arial Black,Arial,sans-serif" fontWeight="900" fontSize="28" letterSpacing="1">VT</text>
-      <text x="50" y="96" textAnchor="middle" fill="#aaa" fontFamily="Arial,sans-serif" fontSize="6" letterSpacing="0.5">PUNE</text>
-    </svg>
-  );
+  return <img src="/logo.png" alt="SVT" style={{ height: size, width: 'auto', flexShrink: 0, display: 'block' }} />;
 }
 
 function TuvLogo({ size = 38 }) {
-  return (
-    <svg width={size * 1.4} height={size} viewBox="0 0 72 52" fill="none">
-      <rect x="1" y="1" width="70" height="50" rx="4" fill="white" stroke="#1e3a8a" strokeWidth="2"/>
-      <text x="36" y="20" textAnchor="middle" fill="#1e3a8a" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="14" letterSpacing="1">TÜV</text>
-      <text x="36" y="33" textAnchor="middle" fill="#1e3a8a" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="9" letterSpacing="1">AUSTRIA</text>
-      <text x="36" y="44" textAnchor="middle" fill="#64748b" fontFamily="Arial,sans-serif" fontSize="7">CERTIFIED</text>
-    </svg>
-  );
+  return <img src="/tuv.png" alt="TÜV Austria" style={{ height: size, width: 'auto', display: 'block' }} />;
 }
 
 const HT_ROWS = 9;
 
 export default function JobCardPrint() {
   const { id } = useParams();
+  const { data: processes = [] } = useProcesses();
+  const { data: machines = [] } = useMachines();
   const [jc, setJc] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [heatProcessRows, setHeatProcessRows] = useState(
+    Array.from({ length: HT_ROWS }, () => ({ equipment: '', processTypeId: '' }))
+  );
   // Page 1 inline-editable fields (still editable in print preview)
   const [controlPlanNo, setControlPlanNo] = useState('');
   const [specification, setSpecification] = useState('');
@@ -89,6 +82,11 @@ export default function JobCardPrint() {
   const [specInstrCert, setSpecInstrCert] = useState(false);
   const [specInstrMPIRep, setSpecInstrMPIRep] = useState(false);
   const [specInstrGraph, setSpecInstrGraph] = useState(false);
+  const [showDrawingNoInPrint, setShowDrawingNoInPrint] = useState(true);
+  const [showDrawingNoLabelInPrint, setShowDrawingNoLabelInPrint] = useState(true);
+  // Per-item DRG NO label overrides, keyed by challan item id (each item can
+  // rename its own "DRG NO" label independently).
+  const [itemLabels, setItemLabels] = useState({});
 
   // Page 2 inspection state (read-only on print page — edit via job card form)
   const [inspState, setInspState] = useState({
@@ -101,10 +99,15 @@ export default function JobCardPrint() {
     achievedHardness: '',
     hardnessAfter1: '', hardnessAfter2: '', hardnessAfter3: '', hardnessAfter4: '',
     packedQty: '',
+    incomingInspectionBy: '',
   });
 
   const saveField = (field, value) => {
     api.put(`/jobcards/${id}`, { [field]: value }).catch(() => {});
+  };
+
+  const saveItemLabel = (itemId, value) => {
+    api.patch(`/jobwork/items/${itemId}`, { drawingNoLabel: value }).catch(() => {});
   };
 
   const saveInsp = (updates) => {
@@ -113,62 +116,94 @@ export default function JobCardPrint() {
     api.put(`/quality/${id}/inspection`, next).catch(() => {});
   };
 
+  const updateHeatProcessRow = (idx, field, value) => {
+    const rows = heatProcessRows.map((r, i) => (i === idx ? { ...r, [field]: value } : r));
+    setHeatProcessRows(rows);
+    // The inspection endpoint replaces the full heatProcesses set on every save,
+    // so send the whole current inspState alongside it (skip fully-blank rows).
+    api.put(`/quality/${id}/inspection`, {
+      ...inspState,
+      heatProcesses: rows.filter(r => r.equipment || r.processTypeId),
+    }).catch(() => {});
+  };
+
   useEffect(() => {
-    api.get(`/jobcards/${id}`)
-      .then(async (r) => {
-        let d = r.data.data;
-        if (!d.certificateNo) {
-          try {
-            const cr = await api.post(`/jobcards/${id}/assign-certificate-no`);
-            d = { ...d, certificateNo: cr.data.data.certificateNo };
-          } catch (_) {}
-        }
-        setJc(d);
-        setControlPlanNo(d.controlPlanNo || '');
-        setSpecification(d.specification || '');
-        const linked = d.challanItemLinks || [];
-        setDieMaterial(d.dieMaterial || linked[0]?.material || '');
-        if (d.dueDate) {
-          setDueDate(d.dueDate.slice(0, 10));
-        } else if (d.issueDate) {
-          const base = new Date(d.issueDate);
-          base.setDate(base.getDate() + 4);
-          const computed = base.toISOString().slice(0, 10);
-          setDueDate(computed);
-          api.put(`/jobcards/${id}`, { dueDate: computed }).catch(() => {});
-        } else {
-          setDueDate('');
-        }
-        setSpecialRequirements(d.specialRequirements || '');
-        setPrecautions(d.precautions || '');
-        setDispatchByOurVehicle(!!d.dispatchByOurVehicle);
-        setDispatchByCourier(!!d.dispatchByCourier);
-        setCollectedByCustomer(!!d.collectedByCustomer);
-        setSpecInstrCert(!!d.specInstrCert);
-        setSpecInstrMPIRep(!!d.specInstrMPIRep);
-        setSpecInstrGraph(!!d.specInstrGraph);
-        const i = d.inspection || {};
-        setInspState({
-          catNormal: !!i.catNormal, catWelded: !!i.catWelded, catCrackRisk: !!i.catCrackRisk,
-          catDistortionRisk: !!i.catDistortionRisk, catCriticalFinishing: !!i.catCriticalFinishing,
-          catDentDamage: !!i.catDentDamage, catRusty: !!i.catRusty, catOthers: !!i.catOthers,
-          procStressRelieving: !!i.procStressRelieving, procHardening: !!i.procHardening,
-          procTempering: !!i.procTempering, procAnnealing: !!i.procAnnealing,
-          procBrazing: !!i.procBrazing, procPlasmaNitriding: !!i.procPlasmaNitriding,
-          procSubZero: !!i.procSubZero, procSoakClean: !!i.procSoakClean,
-          visualBefore: !!i.visualBefore, visualAfter: i.visualAfter !== false,
-          mpiBefore: !!i.mpiBefore, mpiAfter: !!i.mpiAfter, mpiNil: i.mpiNil !== false && !i.mpiAfter,
-          requiredHardnessMin: i.requiredHardnessMin || '', requiredHardnessMax: i.requiredHardnessMax || '',
-          hardnessUnit: i.hardnessUnit || 'HRC',
-          achievedHardness: i.achievedHardness || '',
-          hardnessAfter1: i.hardnessAfter1 || '', hardnessAfter2: i.hardnessAfter2 || '',
-          hardnessAfter3: i.hardnessAfter3 || '', hardnessAfter4: i.hardnessAfter4 || '',
-          packedQty: i.packedQty || '',
-        });
-      })
-      .catch(() => setError('Job Card not found.'))
-      .finally(() => setLoading(false));
-  }, [id]);
+    const prev = document.title;
+    document.title = ' ';
+    return () => { document.title = prev; };
+  }, []);
+
+  const fetchData = async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true); else setLoading(true);
+    try {
+      const r = await api.get(`/jobcards/${id}`);
+      const d = r.data.data;
+      setJc(d);
+      setControlPlanNo(d.controlPlanNo || '');
+      setSpecification(d.specification || '');
+      const linked = d.challanItemLinks || [];
+      setDieMaterial(d.dieMaterial || linked[0]?.material || '');
+      if (d.dueDate) {
+        setDueDate(d.dueDate.slice(0, 10));
+      } else if (d.issueDate) {
+        const base = new Date(d.issueDate);
+        base.setDate(base.getDate() + 4);
+        const computed = base.toISOString().slice(0, 10);
+        setDueDate(computed);
+        api.put(`/jobcards/${id}`, { dueDate: computed }).catch(() => {});
+      } else {
+        setDueDate('');
+      }
+      setSpecialRequirements(d.specialRequirements || '');
+      setPrecautions(d.precautions || '');
+      setDispatchByOurVehicle(!!d.dispatchByOurVehicle);
+      setDispatchByCourier(!!d.dispatchByCourier);
+      setCollectedByCustomer(!!d.collectedByCustomer);
+      setSpecInstrCert(!!d.specInstrCert);
+      setSpecInstrMPIRep(!!d.specInstrMPIRep);
+      setSpecInstrGraph(!!d.specInstrGraph);
+      setShowDrawingNoInPrint(d.showDrawingNoInPrint !== false);
+      setShowDrawingNoLabelInPrint(d.showDrawingNoLabelInPrint !== false);
+      const i = d.inspection || {};
+      setInspState({
+        catNormal: !!i.catNormal, catWelded: !!i.catWelded, catCrackRisk: !!i.catCrackRisk,
+        catDistortionRisk: !!i.catDistortionRisk, catCriticalFinishing: !!i.catCriticalFinishing,
+        catDentDamage: !!i.catDentDamage, catRusty: !!i.catRusty, catOthers: !!i.catOthers,
+        procStressRelieving: !!i.procStressRelieving, procHardening: !!i.procHardening,
+        procTempering: !!i.procTempering, procAnnealing: !!i.procAnnealing,
+        procBrazing: !!i.procBrazing, procPlasmaNitriding: !!i.procPlasmaNitriding,
+        procSubZero: !!i.procSubZero, procSoakClean: !!i.procSoakClean,
+        visualBefore: !!i.visualBefore, visualAfter: i.visualAfter !== false,
+        mpiBefore: !!i.mpiBefore, mpiAfter: !!i.mpiAfter, mpiNil: i.mpiNil !== false && !i.mpiAfter,
+        requiredHardnessMin: i.requiredHardnessMin || '', requiredHardnessMax: i.requiredHardnessMax || '',
+        hardnessUnit: i.hardnessUnit || 'HRC',
+        achievedHardness: i.achievedHardness || '',
+        hardnessAfter1: i.hardnessAfter1 != null ? String(i.hardnessAfter1) : '',
+        hardnessAfter2: i.hardnessAfter2 != null ? String(i.hardnessAfter2) : '',
+        hardnessAfter3: i.hardnessAfter3 != null ? String(i.hardnessAfter3) : '',
+        hardnessAfter4: i.hardnessAfter4 != null ? String(i.hardnessAfter4) : '',
+        packedQty: i.packedQty || '',
+        incomingInspectionBy: i.incomingInspectionBy || '',
+      });
+      const existingRows = i.heatProcesses || [];
+      setHeatProcessRows(
+        Array.from({ length: HT_ROWS }, (_, idx) => {
+          const hp = existingRows[idx];
+          return {
+            equipment: hp?.equipment || '',
+            processTypeId: hp?.processTypeId ? String(hp.processTypeId) : '',
+          };
+        })
+      );
+      setError(null);
+    } catch {
+      if (!isRefresh) setError('Job Card not found.');
+    } finally {
+      if (isRefresh) setRefreshing(false); else setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchData(); }, [id]);
 
   if (loading) return <div className="p-10 text-slate-400">Loading…</div>;
   if (error || !jc) return (
@@ -187,8 +222,27 @@ export default function JobCardPrint() {
   const challanItemLinks     = jc.challanItemLinks || [];
   const challanItemsFromChallans = jc.challans?.flatMap(ch => ch.items || []) || [];
   const challanItems         = challanItemLinks.length > 0 ? challanItemLinks : challanItemsFromChallans;
-  const dcNo      = challan?.challanNo  || challanItemLinks[0]?.challan?.challanNo  || '—';
-  const inwardNo  = challan?.inwardNo   || challanItemLinks[0]?.challan?.inwardNo   || '—';
+  const fixNo     = (s) => s ? s.replace(/\bSDT\b/g, 'SVT') : s;
+  // challanItemLinks reflects each item's actual current challan assignment;
+  // jc.challans[0] is a direct relation that can point to a stale/wrong
+  // challan, so prefer the per-item link when one exists.
+  const inwardNo  = fixNo(challanItemLinks[0]?.challan?.inwardNo || challan?.inwardNo || '—');
+  const challanNo = fixNo(challanItemLinks[0]?.challan?.challanNo || challan?.challanNo || '');
+  // Use challanDate from the linked inward — never current date or job card date
+  const challanDate = challanItemLinks[0]?.challan?.challanDate || challan?.challanDate;
+  const challanDateStr = challanDate
+    ? (() => {
+        const d = new Date(challanDate);
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        return `${dd}.${mm}.${yyyy}`;
+      })()
+    : null;
+  const dcBase = challanNo || inwardNo;
+  const dcNo = dcBase && dcBase !== '—'
+    ? (challanDateStr ? `${dcBase}/${challanDateStr}` : dcBase)
+    : '—';
 
   const items = challanItems.length > 0
     ? challanItems
@@ -225,21 +279,34 @@ export default function JobCardPrint() {
   return (
     <div className="bg-slate-100 py-4 print:bg-white print:py-0" style={{ fontFamily: 'Arial, sans-serif' }}>
       <style>{`
+        @page { margin: 0mm; size: A4 landscape; }
         @media print {
+          html, body { width: 100% !important; margin: 0 !important; padding: 3mm 4mm !important; }
           .no-print { display: none !important; }
-          .page { box-shadow: none !important; margin: 0 !important; max-width: 100% !important; }
+          .page {
+            box-shadow: none !important;
+            margin: 0 !important;
+            max-width: 100% !important;
+            width: 100% !important;
+          }
           body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          @page { margin: 4mm; size: A4 landscape; }
           .no-print-border { border: none !important; padding-left: 0 !important; background: transparent !important; }
-          body.print-p1-only #page2 { display: none !important; }
+          #page2 { display: none !important; }
+          body.print-both #page2 { display: block !important; }
+          body.print-both #page1 { page-break-after: always; break-after: page; }
           body.print-p2-only #page1 { display: none !important; }
+          body.print-p2-only #page2 { display: block !important; }
           body * { font-weight: bold !important; color: #000 !important; }
-          #page1 { font-size: 11px !important; }
-          #page1 td, #page1 th { font-size: 11px !important; }
-          #page2 { break-before: page; page-break-before: always; font-size: 10px !important; }
-          #page2 td, #page2 th { padding: 2px 5px !important; font-size: 10px !important; }
+          #page1 { font-size: 10px !important; }
+          #page1 td, #page1 th { font-size: 10px !important; }
+          #page2 { font-size: 9px !important; margin-top: 0 !important; }
+          #page2 td, #page2 th { padding: 2px 4px !important; font-size: 9px !important; }
           #page2 div[style] { font-size: inherit; }
-          #page2 img { max-height: 120px !important; }
+          #page2 img { width: 100% !important; height: 100% !important; object-fit: cover !important; }
+          table { width: 100% !important; table-layout: auto; }
+          input, textarea { border: none !important; background: transparent !important; outline: none !important; }
+          #page2 button { border: none !important; background: transparent !important; padding: 0 !important; box-shadow: none !important; }
+          #page2 button .material-symbols-outlined { display: none !important; }
         }
         * { box-sizing: border-box; }
       `}</style>
@@ -248,9 +315,18 @@ export default function JobCardPrint() {
       <div className="no-print max-w-[1150px] mx-auto mb-4 px-2">
         <div className="flex items-center gap-2">
           <Link to={`/jobcards/${id}`} className="btn-ghost text-sm">← Back</Link>
-          <button className="btn-ghost text-xs" onClick={() => { document.body.classList.add('print-p1-only'); window.print(); document.body.classList.remove('print-p1-only'); }}>Print Page 1</button>
+          <button
+            className="btn-ghost text-xs flex items-center gap-1"
+            onClick={() => fetchData(true)}
+            disabled={refreshing}
+            title="Reload latest data from server"
+          >
+            <span className={`material-symbols-outlined text-[14px] ${refreshing ? 'animate-spin' : ''}`}>refresh</span>
+            {refreshing ? 'Loading…' : 'Refresh'}
+          </button>
+          <button className="btn-ghost text-xs" onClick={() => window.print()}>Print Page 1</button>
           <button className="btn-ghost text-xs" onClick={() => { document.body.classList.add('print-p2-only'); window.print(); document.body.classList.remove('print-p2-only'); }}>Print Page 2</button>
-          <button className="btn-primary text-sm ml-auto" onClick={() => window.print()}>Print Both</button>
+          <button className="btn-primary text-sm ml-auto" onClick={() => { document.body.classList.add('print-both'); window.print(); document.body.classList.remove('print-both'); }}>Print Both</button>
         </div>
       </div>
 
@@ -263,20 +339,33 @@ export default function JobCardPrint() {
         <table style={{ width: '100%', borderCollapse: 'collapse', borderBottom: B2 }}>
           <tbody>
             <tr>
-              {/* Left — logo + company */}
-              <td style={{ width: '38%', borderRight: B2, padding: '6px 10px', verticalAlign: 'middle' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <SvtLogo size={46} />
+              {/* SVT logo — left corner */}
+              <td style={{ width: 120, padding: '8px 12px', verticalAlign: 'middle', textAlign: 'center' }}>
+                <SvtLogo size={96} />
+              </td>
+              {/* Title + company info */}
+              <td style={{ padding: '6px 16px', verticalAlign: 'middle' }}>
+                <div style={{ textAlign: 'center', fontWeight: 900, fontSize: 20, letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: 8 }}>
+                  JOB CARD
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-around' }}>
                   <div>
-                    <div style={{ fontWeight: 900, fontSize: 12, letterSpacing: '0.02em' }}>{SVT.name}</div>
-                    <div style={{ fontSize: 10, color: '#000', fontWeight: 600, marginTop: 2 }}>{SVT.addr1}</div>
-                    <div style={{ fontSize: 10, color: '#000', fontWeight: 600 }}>{SVT.email}</div>
+                    <div style={{ fontWeight: 700, fontSize: 9, color: '#555', marginBottom: 2 }}>Factory:</div>
+                    <div style={{ fontWeight: 900, fontSize: 13 }}>{SVT.name}</div>
+                    <div style={{ fontSize: 9 }}>{SVT.addr1}</div>
+                    <div style={{ fontSize: 9 }}>{SVT.email}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 9, color: '#555', marginBottom: 2 }}>Registered Office:</div>
+                    <div style={{ fontWeight: 900, fontSize: 13 }}>{SVT.name}</div>
+                    <div style={{ fontSize: 9 }}>{SVT.addr1}</div>
+                    <div style={{ fontSize: 9 }}>{SVT.email}</div>
                   </div>
                 </div>
               </td>
-              {/* Center — title */}
-              <td style={{ textAlign: 'center', verticalAlign: 'middle', padding: '6px 10px', borderRight: B2 }}>
-                <div style={{ fontWeight: 900, fontSize: 22, letterSpacing: '0.25em', textTransform: 'uppercase' }}>JOB CARD</div>
+              {/* TÜV logo — right corner */}
+              <td style={{ width: 120, padding: '8px 12px', verticalAlign: 'middle', textAlign: 'center' }}>
+                <TuvLogo size={82} />
               </td>
             </tr>
           </tbody>
@@ -287,7 +376,7 @@ export default function JobCardPrint() {
           <tbody>
             <tr>
               {/* Customer */}
-              <td style={{ width: '52%', borderRight: B, padding: '6px 10px', verticalAlign: 'top' }}>
+              <td style={{ width: '52%', padding: '6px 10px', verticalAlign: 'top' }}>
                 <div style={labelStyle()}>Customer</div>
                 <div style={{ fontWeight: 800, fontSize: 11, marginBottom: 2 }}>{custName}</div>
                 <div style={{ fontSize: 10, color: '#000', fontWeight: 600, lineHeight: 1.55 }}>
@@ -301,21 +390,21 @@ export default function JobCardPrint() {
                 </div>
               </td>
               {/* Job meta */}
-              <td style={{ padding: '6px 10px', verticalAlign: 'top' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <td style={{ padding: '4px 6px 4px 20px', verticalAlign: 'top' }}>
+                <table style={{ borderCollapse: 'collapse' }}>
                   <tbody>
                     {[
-                      ['Certificate No.', jc.certificateNo || '—', true],
+                      ['Certificate No.', jc.testCertificates?.[0]?.certNo || jc.certificateNo || '', true],
                       ['Job Card No.',    jc.jobCardNo || '—', false],
-                      ['Inward No.',      inwardNo, false],
                       ['Your PO No.',     jc.yourNo || '—', false],
                       ['Your DC No.',     dcNo, false],
                       ['Issue Date',      formatDate(jc.issueDate) || '—', false],
                       ['Issue By',        jc.issueBy || jc.createdBy?.name || '—', false],
                     ].map(([lbl, val, bold]) => (
                       <tr key={lbl}>
-                        <td style={{ paddingRight: 8, paddingBottom: 3, fontSize: 10, color: '#000', whiteSpace: 'nowrap', fontWeight: 700 }}>{lbl}</td>
-                        <td style={{ paddingBottom: 3, fontSize: 11, fontWeight: bold ? 900 : 700, fontFamily: 'monospace', color: '#000' }}>: {val}</td>
+                        <td style={{ paddingRight: 6, paddingBottom: 2, fontSize: 10, color: '#000', whiteSpace: 'nowrap', fontWeight: 700 }}>{lbl}</td>
+                        <td style={{ paddingRight: 4, paddingBottom: 2, fontSize: 10, fontWeight: 700, color: '#000' }}>:</td>
+                        <td style={{ paddingBottom: 2, fontSize: 10, fontWeight: bold ? 900 : 700, color: '#000', whiteSpace: 'nowrap' }}>{val}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -374,7 +463,7 @@ export default function JobCardPrint() {
                     onChange={e => setDieMaterial(e.target.value)}
                     onBlur={e => saveField('dieMaterial', e.target.value)}
                     placeholder="—"
-                    style={{ fontWeight: 800, fontSize: 12, border: '1px dashed #bbb', borderRadius: 2, padding: '1px 6px', outline: 'none', background: 'transparent', width: 80, textAlign: 'center' }}
+                    style={{ fontWeight: 800, fontSize: 12, border: '1px dashed #bbb', borderRadius: 2, padding: '1px 6px', outline: 'none', background: 'transparent', width: 140, textAlign: 'center' }}
                   />
                 </div>
               </td>
@@ -412,32 +501,50 @@ export default function JobCardPrint() {
                   <tr key={i} style={{ borderBottom: '1px solid #ddd' }}>
                     <td style={cellStyle({ textAlign: 'center', fontWeight: 600 })}>{i + 1}</td>
                     <td style={cellStyle()}>
-                      <div style={{ fontWeight: 700, fontSize: 10 }}>
-                        {(() => {
-                          let name = it.partName || it.description || '—';
-                          if (it.processName && name.includes(it.processName)) {
-                            name = name.replace(new RegExp('\\s*[-–]\\s*' + it.processName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), '').trim();
-                          }
-                          return name;
+                      <div style={{ fontWeight: 700, fontSize: 10, display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
+                        <span>
+                          {(() => {
+                            let name = it.partName || it.description || '—';
+                            const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                            if (it.processName) name = name.replace(new RegExp('\\s*[-–]\\s*' + esc(it.processName) + '\\s*$', 'i'), '').trim();
+                            if (it.material)    name = name.replace(new RegExp('\\s*[-–]\\s*' + esc(it.material)    + '\\s*$', 'i'), '').trim();
+                            return name || '—';
+                          })()}
+                        </span>
+                        {showDrawingNoInPrint && (it.drawingNo || jc.drawingNo) && (() => {
+                          const rowLabel = itemLabels[it.id] ?? it.drawingNoLabel ?? 'DRG NO';
+                          return (
+                            <span style={{ fontSize: 8, fontWeight: 400, color: '#444', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                              {showDrawingNoLabelInPrint && (
+                                it.id ? (
+                                  <input
+                                    className="no-print-border"
+                                    value={rowLabel}
+                                    onChange={e => setItemLabels(prev => ({ ...prev, [it.id]: e.target.value }))}
+                                    onBlur={e => saveItemLabel(it.id, e.target.value)}
+                                    style={{ width: 50, fontSize: 8, fontWeight: 400, border: '1px dashed #bbb', borderRadius: 2, padding: '0 2px', outline: 'none', background: 'transparent', fontFamily: 'Arial, sans-serif', color: '#444' }}
+                                  />
+                                ) : <span>{rowLabel}</span>
+                              )}
+                              <span>{showDrawingNoLabelInPrint && rowLabel.trim() ? '- ' : ''}{it.drawingNo || jc.drawingNo}</span>
+                            </span>
+                          );
                         })()}
                       </div>
                       {jc.woNo && (
                         <div style={{ fontSize: 8, color: '#444', marginTop: 1 }}>WM NO - {jc.woNo}</div>
                       )}
-                      {(it.drawingNo || jc.drawingNo) && (
-                        <div className="no-print" style={{ fontSize: 8, color: '#444' }}>DRG NO. - {it.drawingNo || jc.drawingNo}</div>
-                      )}
                     </td>
                     <td style={cellStyle({ textAlign: 'center', fontFamily: 'monospace', fontSize: 10 })}>{it.qty ?? it.quantity ?? '—'}</td>
                     <td style={cellStyle({ textAlign: 'center', fontFamily: 'monospace', fontSize: 10 })}>
-                      {it.weight != null ? Number(it.weight).toFixed(2) : (it.totalWeight != null ? Number(it.totalWeight).toFixed(2) : '—')}
+                      {it.weight != null ? Number(it.weight).toFixed(3) : (it.totalWeight != null ? Number(it.totalWeight).toFixed(3) : '—')}
                     </td>
                   </tr>
                 ))}
                 <tr style={{ borderTop: B2, background: '#f8f8f8' }}>
                   <td colSpan={2} style={{ border: B, padding: '3px 6px', fontWeight: 700, textAlign: 'right', fontSize: 9 }}>TOTAL</td>
                   <td style={{ border: B, padding: '3px 6px', fontWeight: 700, textAlign: 'center', fontFamily: 'monospace' }}>{totalQty || '—'}</td>
-                  <td style={{ border: B, padding: '3px 6px', fontWeight: 700, textAlign: 'center', fontFamily: 'monospace' }}>{totalWt ? totalWt.toFixed(2) : '—'}</td>
+                  <td style={{ border: B, padding: '3px 6px', fontWeight: 700, textAlign: 'center', fontFamily: 'monospace' }}>{jc.totalWeight ? Number(jc.totalWeight).toFixed(3) : (totalWt ? totalWt.toFixed(3) : '—')}</td>
                 </tr>
               </tbody>
             </table>
@@ -494,7 +601,7 @@ export default function JobCardPrint() {
       {/* ══════════════════════════════════════════
           PAGE 2 — INCOMING INSPECTION
       ══════════════════════════════════════════ */}
-      <div id="page2" className="page max-w-[1150px] mx-auto bg-white shadow-lg mt-4 print:mt-0" style={{ border: B2, fontSize: 10, pageBreakBefore: 'always' }}>
+      <div id="page2" className="page max-w-[1150px] mx-auto bg-white shadow-lg mt-4 print:mt-0" style={{ border: B2, fontSize: 10 }}>
 
         {/* ── CATEGORIZATION | PROCESS | INSPECTION ── */}
         <table style={{ width: '100%', borderCollapse: 'collapse', borderBottom: B }}>
@@ -563,8 +670,13 @@ export default function JobCardPrint() {
               </td>
               {/* Incoming Inspection By */}
               <td style={{ border: B, padding: '5px 10px', verticalAlign: 'top', width: '20%' }}>
-                <div style={labelStyle({ marginBottom: 4 })}>Incoming Inspection By</div>
-                <div style={{ ...sigLine, marginTop: 70 }}>Signature &amp; Date</div>
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 150 }}>
+                  <div style={labelStyle({ marginBottom: 4 })}>Incoming Inspection By</div>
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12, textAlign: 'center' }}>
+                    {inspState.incomingInspectionBy || '—'}
+                  </div>
+                  <div style={{ ...sigLine, marginTop: 0 }}>Signature</div>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -575,21 +687,46 @@ export default function JobCardPrint() {
           HEAT TREATMENT PROCESS &nbsp;&nbsp;
           <span style={{ fontWeight: 400, fontSize: 9 }}>Cycle No: <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{jc.heatNo || '—'}</span></span>
         </SectionBar>
-        <table style={{ width: '100%', borderCollapse: 'collapse', borderBottom: B }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', borderBottom: B, tableLayout: 'fixed' }}>
           <thead>
             <tr>
-              {['Equipment','Process','Temp / Time','Start Time','End Time','Date','Loading By','Result','Sign'].map(h => (
-                <th key={h} style={headStyle({ textAlign: 'center', fontSize: 10, padding: '3px 4px' })}>{h}</th>
+              {[
+                ['Equipment', '16%'], ['Process', '20%'], ['Temp / Time', '11%'],
+                ['Start Time', '9%'], ['End Time', '9%'], ['Date', '10%'],
+                ['Loading By', '10%'], ['Result', '6%'], ['Sign', '9%'],
+              ].map(([h, w]) => (
+                <th key={h} style={headStyle({ textAlign: 'center', fontSize: 10, padding: '3px 4px', width: w })}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {Array.from({ length: HT_ROWS }, (_, i) => {
               const hp = insp.heatProcesses?.[i] || {};
+              const row = heatProcessRows[i] || { equipment: '', processTypeId: '' };
               return (
-                <tr key={i} style={{ height: 26 }}>
-                  <td style={cellStyle({ textAlign: 'center' })}>{hp.equipment || ''}</td>
-                  <td style={cellStyle({ fontWeight: 700, textAlign: 'center' })}>{hp.process || ''}</td>
+                <tr key={i} style={{ height: 24 }}>
+                  <td style={cellStyle({ textAlign: 'center', padding: '1px 2px' })}>
+                    <SearchSelect
+                      value={row.equipment}
+                      onChange={v => updateHeatProcessRow(i, 'equipment', v)}
+                      options={machines.map(m => ({ value: m.name, label: m.name }))}
+                      placeholder="—"
+                      useFixed
+                      dense
+                      className="no-print-border"
+                    />
+                  </td>
+                  <td style={cellStyle({ fontWeight: 700, textAlign: 'center', padding: '1px 2px' })}>
+                    <SearchSelect
+                      value={row.processTypeId}
+                      onChange={v => updateHeatProcessRow(i, 'processTypeId', v)}
+                      options={processes.map(p => ({ value: p.id, label: p.name }))}
+                      placeholder="—"
+                      useFixed
+                      dense
+                      className="no-print-border"
+                    />
+                  </td>
                   <td style={cellStyle({ textAlign: 'center' })}>{hp.tempTime || ''}</td>
                   <td style={cellStyle({ textAlign: 'center' })}>{hp.startTime ? new Date(hp.startTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}</td>
                   <td style={cellStyle({ textAlign: 'center' })}>{hp.endTime ? new Date(hp.endTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}</td>
@@ -656,9 +793,9 @@ export default function JobCardPrint() {
           {/* Images — larger, take most of the width */}
           <div style={{ flex: 1, borderRight: B }}>
             <SectionBar>JOB IMAGES</SectionBar>
-            <div style={{ display: 'flex', gap: 8, padding: '6px 10px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, padding: '6px 10px' }}>
               {[0, 1, 2, 3, 4].map(n => (
-                <div key={n} style={{ border: B, width: 160, height: 115, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafafa', flexShrink: 0 }}>
+                <div key={n} style={{ border: B, aspectRatio: '13 / 10', minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafafa', overflow: 'hidden' }}>
                   {imageUrls[n]
                     ? <img src={imageUrls[n]} alt={`Job ${n+1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     : <span style={{ fontSize: 8, color: '#bbb' }}>Image {n + 1}</span>}
@@ -675,22 +812,29 @@ export default function JobCardPrint() {
             </div>
             <div style={{ padding: '6px 10px', flex: 1 }}>
               <div style={labelStyle()}>Quality Approved By</div>
-              <div style={sigLine}>Signature &amp; Date</div>
+              <div style={sigLine}>Signature</div>
             </div>
           </div>
         </div>
 
         {/* ── PAGE 2 FOOTER ── */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', borderTop: B2 }}>
-          <tbody><tr style={{ fontSize: 8, color: '#000', fontWeight: 700 }}>
-            <td style={{ padding: '4px 10px', textAlign: 'left', width: '75%', whiteSpace: 'nowrap', fontSize: 7 }}>
-              Color Code — WHITE: Regular &nbsp;|&nbsp; RED: Rework &nbsp;|&nbsp; BLUE: New Development &nbsp;|&nbsp; YELLOW: Stress Relieving &amp; Other &nbsp;|&nbsp; QF-PD-01 &nbsp;|&nbsp; Effective Date: 01/04/2019 &nbsp;|&nbsp; Revision: 00
-            </td>
-            <td style={{ padding: '4px 10px', textAlign: 'right', width: '25%', whiteSpace: 'nowrap' }}>
-              Page 2 of 2
-            </td>
-          </tr></tbody>
-        </table>
+        <div style={{
+          display: 'flex', alignItems: 'center', width: '100%', borderTop: B2,
+          fontSize: 8, color: '#000', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'clip',
+        }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 10px', borderRight: B2, flexShrink: 0 }}>
+            <span>Color Code — WHITE: Regular |</span>
+            <span>RED: Rework |</span>
+            <span>BLUE: New Development |</span>
+            <span>YELLOW: Stress Relieving &amp; Other</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flex: 1, padding: '4px 10px' }}>
+            <span>QF-PD-01</span>
+            <span>Effective Date: 01/04/2019</span>
+            <span>Revision: 00</span>
+            <span>Page 2 of 2</span>
+          </div>
+        </div>
       </div>
     </div>
   );

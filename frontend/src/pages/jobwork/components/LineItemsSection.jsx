@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { Fragment } from 'react';
 import SearchSelect from '../../../components/SearchSelect';
 
-export default function LineItemsSection({ lineItems, setLineItems, items, updateLineItem, EMPTY_ROW }) {
+export default function LineItemsSection({ lineItems, setLineItems, items, updateLineItem, EMPTY_ROW, onRemoveRow, processes }) {
+  const remove = (i) => (onRemoveRow ? onRemoveRow(i) : setLineItems(prev => prev.filter((_, idx) => idx !== i)));
+
   return (
     <div className="card p-5 space-y-4">
       <div className="flex items-center justify-between border-b border-slate-100 pb-2">
@@ -11,61 +13,78 @@ export default function LineItemsSection({ lineItems, setLineItems, items, updat
           <span className="material-symbols-outlined text-sm">add</span> Add Row
         </button>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-100">
-              <th className="th">Item</th>
-              <th className="th">Description</th>
-              <th className="th">Drawing No</th>
-              <th className="th">Material</th>
-              <th className="th">HRC</th>
-              <th className="th">HSN</th>
-              <th className="th">Qty</th>
-              <th className="th">Qty Out</th>
-              <th className="th">UOM</th>
-              <th className="th">Weight</th>
-              <th className="th"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-50">
-            {lineItems.map((row, i) => (
-              <tr key={i}>
-                <td className="td">
-                  <SearchSelect
-                    value={String(row.itemId || '')}
-                    onChange={v => updateLineItem(i, 'itemId', v)}
-                    options={(items || []).map(it => ({ value: it.id, label: it.partNo || it.description || String(it.id) }))}
-                    placeholder="—"
-                    useFixed
-                    className="w-28"
-                  />
-                </td>
-                <td className="td"><input list="challan-desc-suggestions" value={row.description} onChange={e => updateLineItem(i, 'description', e.target.value)} className="form-input text-xs py-1 w-36" /></td>
-                <td className="td"><input value={row.drawingNo} onChange={e => updateLineItem(i, 'drawingNo', e.target.value)} className="form-input text-xs py-1 w-20" /></td>
-                <td className="td"><input value={row.material} onChange={e => updateLineItem(i, 'material', e.target.value)} className="form-input text-xs py-1 w-16" /></td>
-                <td className="td"><input value={row.hrc} onChange={e => updateLineItem(i, 'hrc', e.target.value)} className="form-input text-xs py-1 w-14" /></td>
-                <td className="td"><input value={row.hsnCode} onChange={e => updateLineItem(i, 'hsnCode', e.target.value)} className="form-input text-xs py-1 w-20" /></td>
-                <td className="td"><input type="number" min="0" value={row.quantity} onChange={e => updateLineItem(i, 'quantity', e.target.value)} className="form-input text-xs py-1 w-16 tabular-nums" /></td>
-                <td className="td"><input type="number" min="0" value={row.qtyOut} onChange={e => updateLineItem(i, 'qtyOut', e.target.value)} className="form-input text-xs py-1 w-16 tabular-nums" /></td>
-                <td className="td">
-                  <select value={row.uom} onChange={e => updateLineItem(i, 'uom', e.target.value)} className="form-input text-xs py-1 w-16">
+      <div className="space-y-4">
+        {lineItems.map((row, i) => (
+          <div key={i} className="card p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-md bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold">{i + 1}</div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-3">
+                    {processes && (
+                      <div className="w-40">
+                        <SearchSelect
+                          value={String(row.processTypeId || '')}
+                          onChange={v => updateLineItem(i, 'processTypeId', v)}
+                          options={processes.map(p => ({ value: p.id, label: p.name }))}
+                          placeholder="— Process —"
+                          useFixed
+                          dense
+                          className="w-full"
+                        />
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <input list="challan-desc-suggestions" value={row.description} onChange={e => updateLineItem(i, 'description', e.target.value)} placeholder="Part name..." className="w-full form-input text-sm font-semibold" />
+                    </div>
+                    <div className="w-44">
+                      <input value={row.material} onChange={e => updateLineItem(i, 'material', e.target.value)} placeholder="D2, H13..." className="w-full form-input text-sm" />
+                    </div>
+                    <div className="w-24">
+                      <input value={row.hrc} onChange={e => updateLineItem(i, 'hrc', e.target.value)} placeholder="54-5" className="w-full form-input text-sm" />
+                    </div>
+                    <div className="w-20">
+                      <input type="number" min="0" value={row.quantity} onChange={e => updateLineItem(i, 'quantity', e.target.value)} placeholder="0" className="w-full form-input text-sm text-right tabular-nums" />
+                    </div>
+                    <div className="w-28">
+                      <input type="number" step="0.001" min="0" value={row.weight} onChange={e => updateLineItem(i, 'weight', e.target.value)} placeholder="0.00" className="w-full form-input text-sm text-right tabular-nums" />
+                    </div>
+                    <div className="flex items-center">
+                      {lineItems.length > 1 && (
+                        <button type="button" onClick={() => remove(i)} className="p-2 rounded text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors">
+                          <span className="material-symbols-outlined text-[18px]">close</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-3 bg-slate-50 rounded-md p-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div>
+                  <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Drawing No</label>
+                  <input value={row.drawingNo} onChange={e => updateLineItem(i, 'drawingNo', e.target.value)} placeholder="Optional" className="form-input text-sm" />
+                </div>
+                <div>
+                  <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">WO / Ref No</label>
+                  <input value={row.woNo} onChange={e => updateLineItem(i, 'woNo', e.target.value)} placeholder="Optional" className="form-input text-sm" />
+                </div>
+                <div>
+                  <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">HSN Code</label>
+                  <input value={row.hsnCode} onChange={e => updateLineItem(i, 'hsnCode', e.target.value)} placeholder="Optional" className="form-input text-sm" />
+                </div>
+                <div>
+                  <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">UOM</label>
+                  <select value={row.uom} onChange={e => updateLineItem(i, 'uom', e.target.value)} className="form-input text-sm">
                     <option>KGS</option><option>NOS</option><option>PCS</option><option>SET</option>
                   </select>
-                </td>
-                <td className="td"><input type="number" step="0.001" value={row.weight} onChange={e => updateLineItem(i, 'weight', e.target.value)} className="form-input text-xs py-1 w-18 tabular-nums" /></td>
-                <td className="td">
-                  {lineItems.length > 1 && (
-                    <button type="button" onClick={() => setLineItems(prev => prev.filter((_, idx) => idx !== i))}
-                      className="text-rose-400 hover:text-rose-600 transition-colors">
-                      <span className="material-symbols-outlined text-sm">delete</span>
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

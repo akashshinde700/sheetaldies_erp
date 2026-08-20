@@ -19,24 +19,23 @@ export default function CertHeaderSection({ form, set, parties, jobCards, jcData
 
   const jobCardOptions = (jobCards || []).map(jc => ({
     value: jc.id,
-    label: (() => {
-      const partLabel = jc.part?.description ||
-        (jc.part?.partNo && !jc.part.partNo.startsWith('JOBCARD-') ? jc.part.partNo : '');
-      return partLabel ? `${jc.jobCardNo} — ${partLabel}` : jc.jobCardNo;
-    })(),
+    label: jc.jobCardNo,
   }));
 
   return (
     <div className="card p-5 space-y-4">
-      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-        <p className="section-title">Certificate Details</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-2">
+        <div>
+          <p className="section-title">Certificate Details</p>
+          <p className="text-xs text-slate-500 mt-1">Link a Job Card, customer, and certificate metadata in one section.</p>
+        </div>
         {locked && (
           <span className="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
             Job Card: {jcData.jobCardNo}
           </span>
         )}
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <F label="Customer">
           {locked ? (
             <input value={jcData.customer?.name || jcData.customerNameSnapshot || form.issuedTo || ''} disabled className={JC_INPUT} />
@@ -79,6 +78,11 @@ export default function CertHeaderSection({ form, set, parties, jobCards, jcData
         <F label="Your PO No.">
           <input value={form.yourPoNo} disabled={locked} onChange={e => set('yourPoNo', e.target.value)}
             className={locked ? JC_INPUT : 'form-input'} />
+        </F>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <F label="Your PO Date">
+          <input type="date" value={form.yourPoDate} onChange={e => set('yourPoDate', e.target.value)} className="form-input" />
         </F>
       </div>
       <div className="grid grid-cols-2 gap-4">

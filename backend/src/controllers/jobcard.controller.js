@@ -5,13 +5,19 @@ const { transaction } = require('../utils/transaction');
 const { jobCardStatusBody, JOB_CARD_STATUSES } = require('../validation/schemas');
 const { toInt, toNum } = require('../utils/normalize');
 const { formatErrorResponse, getStatusCode, formatListResponse, parsePagination } = require('../utils/validation');
+const { generateJobCardNoAtomic, releaseSequenceValue } = require('../utils/sequenceManager');
 
 const UPLOAD_BASE = path.join(__dirname, '../../uploads');
+
+const JOBCARD_UPLOAD_DIR = path.join(UPLOAD_BASE, 'jobcards');
 
 function deleteImageFile(urlPath) {
   if (!urlPath) return;
   const filename = path.basename(urlPath);
-  const full = path.join(UPLOAD_BASE, 'jobcards', filename);
+  if (!filename || filename === '.' || filename === '..') return;
+  const full = path.resolve(JOBCARD_UPLOAD_DIR, filename);
+  // Safety: ensure resolved path stays inside the intended upload directory
+  if (!full.startsWith(JOBCARD_UPLOAD_DIR + path.sep) && full !== JOBCARD_UPLOAD_DIR) return;
   fs.unlink(full, () => {}); // ignore errors (file may already be gone)
 }
 
@@ -85,7 +91,7 @@ const validateStatusTransition = async (currentStatus, newStatus, jobCardId) => 
 const generateJobworkChallanNo = async (db = prisma) => {
   const y = new Date().getFullYear().toString().slice(-2);
   const yn = String(toInt(y, 0) + 1);
-  const prefix = `SDT/JW/${y}-${yn}/`;
+  const prefix = `SVT/JW/${y}-${yn}/`;
 
   const last = await db.jobworkChallan.findFirst({
     where: { challanNo: { startsWith: prefix } },
@@ -117,6 +123,18 @@ const autoCreateJobworkChallanIfNeeded = async (jobCardId, createdById) => {
       select: { id: true },
     });
     if (existing) return;
+
+    // Also skip if this job card already has items linked via a real inward
+    // challan (ChallanItem.jobCardId is the actual source-of-truth link when
+    // a job card is created from an inward — the challan itself never gets
+    // JobworkChallan.jobCardId set in that flow). Without this check, every
+    // job card created from an inward gets a redundant blank placeholder
+    // challan the moment it reaches SENT_FOR_JOBWORK.
+    const linkedItem = await tx.challanItem.findFirst({
+      where: { jobCardId: id },
+      select: { id: true },
+    });
+    if (linkedItem) return;
 
     const card = await tx.jobCard.findUnique({
       where: { id },
@@ -178,26 +196,44 @@ const autoCreateJobworkChallanIfNeeded = async (jobCardId, createdById) => {
 };
 
 
-// Auto-generate job card number: YYMMXXXX (e.g. 26030625)
-// YY = last 2 digits of year, MM = month, XXXX = random 4 digits (unique)
-const generateJobCardNo = async () => {
-  const now = new Date();
-  const yy  = String(now.getFullYear()).slice(-2);           // "26"
-  const mm  = String(now.getMonth() + 1).padStart(2, '0'); // "03"
-  const prefix = `${yy}${mm}`;                              // "2603"
+// Job card numbers are generated atomically via sequenceManager.js
+// (generateJobCardNoAtomic) — never derived from the highest surviving row,
+// since deleting that row would rewind the counter and reissue its number.
 
-  // Keep generating until unique
-  let jobCardNo;
-  let attempts = 0;
-  do {
-    const rand = String(Math.floor(1000 + Math.random() * 9000)); // 4-digit random: 1000-9999
-    jobCardNo  = `${prefix}${rand}`;
-    const exists = await prisma.jobCard.findUnique({ where: { jobCardNo } });
-    if (!exists) break;
-    attempts++;
-  } while (attempts < 20);
+// ── Distinct Operator Names (autocomplete) ────────────────────
+exports.operatorNames = async (req, res) => {
+  try {
+    const rows = await prisma.jobCard.findMany({
+      where: { operatorName: { not: null } },
+      select: { operatorName: true },
+      distinct: ['operatorName'],
+      orderBy: { operatorName: 'asc' },
+    });
+    const names = rows
+      .map(r => r.operatorName?.trim())
+      .filter(Boolean);
+    res.json({ success: true, data: names });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to fetch operator names.' });
+  }
+};
 
-  return jobCardNo;
+// ── Distinct "Issued By" Names (autocomplete) ─────────────────
+exports.issueBySuggestions = async (req, res) => {
+  try {
+    const rows = await prisma.jobCard.findMany({
+      where: { issueBy: { not: null } },
+      select: { issueBy: true },
+      distinct: ['issueBy'],
+      orderBy: { issueBy: 'asc' },
+    });
+    const names = rows
+      .map(r => r.issueBy?.trim())
+      .filter(Boolean);
+    res.json({ success: true, data: names });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to fetch issued-by names.' });
+  }
 };
 
 // ── List Job Cards ────────────────────────────────────────────
@@ -209,24 +245,37 @@ exports.list = async (req, res) => {
     const where = {};
     if (status) where.status = status;
     const searchText = String(search || '').trim();
-    if (searchText)  where.OR = [
-      { jobCardNo: { contains: searchText, mode: 'insensitive' } },
-      { part: { is: { partNo: { contains: searchText, mode: 'insensitive' } } } },
-      { part: { is: { description: { contains: searchText, mode: 'insensitive' } } } },
-      { operatorName: { contains: searchText, mode: 'insensitive' } },
-    ];
+    if (searchText) {
+      // People look a job card up by whatever number is in front of them —
+      // often the inward/challan it came from ("INW/26-27/0004"), or just its
+      // tail ("0004"). `contains` covers the partial case; these relations
+      // cover the challan side, which used to be unsearchable.
+      const like = { contains: searchText };
+      const challanMatch = { OR: [{ challanNo: like }, { inwardNo: like }] };
+      where.OR = [
+        { jobCardNo: like },
+        { part: { is: { partNo: like } } },
+        { part: { is: { description: like } } },
+        { operatorName: like },
+        { customer: { is: { name: like } } },
+        // job card directly attached to a challan
+        { challans: { some: challanMatch } },
+        // and the usual case: attached through the challan's items
+        { challanItemLinks: { some: { challan: { is: challanMatch } } } },
+      ];
+    }
     if (fromDate || toDate) {
+      const from = fromDate ? new Date(fromDate) : null;
+      const to   = toDate   ? new Date(toDate)   : null;
+      if ((from && Number.isNaN(from.getTime())) || (to && Number.isNaN(to.getTime())))
+        return res.status(400).json({ success: false, message: 'Invalid date format in fromDate or toDate.' });
+      if (from && to && from > to)
+        return res.status(400).json({ success: false, message: 'fromDate must not be after toDate.' });
       where.createdAt = {};
-      if (fromDate) {
-        const from = new Date(fromDate);
-        if (!Number.isNaN(from.getTime())) where.createdAt.gte = from;
-      }
-      if (toDate) {
-        const to = new Date(toDate);
-        if (!Number.isNaN(to.getTime())) {
-          to.setDate(to.getDate() + 1);
-          where.createdAt.lt = to;
-        }
+      if (from) where.createdAt.gte = from;
+      if (to) {
+        to.setDate(to.getDate() + 1);
+        where.createdAt.lt = to;
       }
     }
 
@@ -239,6 +288,9 @@ exports.list = async (req, res) => {
           machine: { select: { code: true, name: true } },
           createdBy: { select: { name: true } },
           inspection: { select: { inspectionStatus: true } },
+          // Include challan links and challanItemLinks so we can surface inwardNo
+          challans: { select: { id: true, inwardNo: true, challanNo: true, challanDate: true, issuedBy: true, deliveryPerson: true } },
+          challanItemLinks: { include: { challan: { select: { id: true, inwardNo: true, challanNo: true } } } },
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -247,7 +299,21 @@ exports.list = async (req, res) => {
       prisma.jobCard.count({ where }),
     ]);
 
-    res.json(formatListResponse(cards, total, page, limit));
+    // Derive a top-level inwardNo for list view so job cards created from an inward show the inward number.
+    // challanItemLinks reflects each item's actual current challan assignment;
+    // c.challans[0] is a direct relation that can point to a stale/wrong
+    // challan (e.g. an auto-created placeholder), so it's checked last.
+    const cardsWithInward = cards.map(c => {
+      let inward = null;
+      if (c.challanItemLinks && c.challanItemLinks.length) {
+        const first = c.challanItemLinks.find(l => l.challan && l.challan.inwardNo);
+        if (first && first.challan) inward = first.challan.inwardNo || null;
+      }
+      if (!inward && c.challans && c.challans.length) inward = c.challans[0].inwardNo || null;
+      return { ...c, inwardNo: inward };
+    });
+
+    res.json(formatListResponse(cardsWithInward, total, page, limit));
   } catch (err) {
     console.error(err);
     res.status(getStatusCode('ERR_INTERNAL')).json(formatErrorResponse('ERR_INTERNAL', 'Server error.'));
@@ -267,11 +333,15 @@ exports.getOne = async (req, res) => {
         customer: { select: { id: true, name: true, address: true, city: true, state: true, pinCode: true } },
         createdBy: { select: { name: true, email: true } },
         inspection: {
-          include: { processType: true, heatProcesses: true },
+          include: {
+            processType: true,
+            heatProcesses: { include: { processType: true }, orderBy: { id: 'asc' } },
+          },
         },
         challans: {
           select: {
             id: true, challanNo: true, inwardNo: true, challanDate: true,
+            issuedBy: true, deliveryPerson: true,
             toParty: { select: { name: true } },
             fromParty: { select: { name: true } },
             items: true,
@@ -280,8 +350,13 @@ exports.getOne = async (req, res) => {
         },
         challanItemLinks: {
           include: {
-            challan: { select: { id: true, challanNo: true, inwardNo: true, fromParty: { select: { name: true } } } },
+            challan: { select: { id: true, challanNo: true, inwardNo: true, challanDate: true, fromParty: { select: { name: true } } } },
+            productionEntries: {
+              include: { createdBy: { select: { name: true } } },
+              orderBy: { createdAt: 'asc' },
+            },
           },
+          orderBy: { id: 'asc' },
         },
         vhtRunsheetItems: {
           include: {
@@ -307,7 +382,59 @@ exports.getOne = async (req, res) => {
       .filter(Boolean)
       .filter((rs, idx, arr) => arr.findIndex(r => r.id === rs.id) === idx);
 
-    res.json({ success: true, data: { ...card, runsheets } });
+    // Enrich challanItemLinks with production summary
+    const challanItemLinks = card.challanItemLinks.map(item => {
+      const assignedQty    = Number(item.quantity || 0);
+      const completedQty   = item.productionEntries.reduce((s, e) => s + Number(e.completedQty || 0), 0);
+      const pendingQty     = Math.max(0, assignedQty - completedQty);
+      let itemStatus = 'PENDING';
+      if (completedQty >= assignedQty && assignedQty > 0) itemStatus = 'COMPLETED';
+      else if (completedQty > 0) itemStatus = 'PARTIAL';
+      return { ...item, assignedQty, completedQty, pendingQty, itemStatus };
+    });
+
+    // Job-card level production status
+    const allCompleted = challanItemLinks.length > 0 && challanItemLinks.every(i => i.itemStatus === 'COMPLETED');
+    const anyProgress  = challanItemLinks.some(i => i.itemStatus === 'PARTIAL' || i.itemStatus === 'COMPLETED');
+    const productionStatus = allCompleted ? 'COMPLETED' : anyProgress ? 'PARTIAL' : 'PENDING';
+
+    // Weight summary from related challan(s)
+    let weightSummary = null;
+    if (card.challanItemLinks.length > 0) {
+      const challanIds = [...new Set(card.challanItemLinks.map(ci => ci.challanId))];
+      const firstChallanId = challanIds[0];
+      const challan = await prisma.jobworkChallan.findUnique({
+        where: { id: firstChallanId },
+        include: {
+          items: {
+            include: { jobCard: { select: { id: true, jobCardNo: true, totalWeight: true } } },
+          },
+        },
+      });
+      if (challan) {
+        // Use stored totalInwardWeight; fallback to sum(items.weight) for old data
+        const inwardTotalWeight = Number(challan.totalInwardWeight || 0) ||
+          challan.items.reduce((s, it) => s + Number(it.weight || 0), 0);
+        const jcMap = {};
+        challan.items.forEach(it => { if (it.jobCard) jcMap[it.jobCard.id] = it.jobCard; });
+        const allLinkedJC = Object.values(jcMap);
+        const consumedWeight = allLinkedJC.reduce((s, jc) => s + Number(jc.totalWeight || 0), 0);
+        const remainingWeight = Math.max(0, inwardTotalWeight - consumedWeight);
+        weightSummary = {
+          challanId: firstChallanId,
+          inwardTotalWeight,
+          consumedWeight,
+          remainingWeight,
+          thisJobCardWeight: Number(card.totalWeight || 0),
+          consumptionPct: inwardTotalWeight > 0
+            ? Math.min(100, Number(((consumedWeight / inwardTotalWeight) * 100).toFixed(1)))
+            : 0,
+          fullyConsumed: inwardTotalWeight > 0 && consumedWeight >= inwardTotalWeight,
+        };
+      }
+    }
+
+    res.json({ success: true, data: { ...card, challanItemLinks, runsheets, productionStatus, weightSummary } });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error.' });
   }
@@ -323,14 +450,14 @@ exports.create = async (req, res) => {
           dispatchByOurVehicle, dispatchByCourier, collectedByCustomer,
           hrcRange, specialRequirements, precautions, documentNo, revisionNo, revisionDate, pageNo,
           controlPlanNo, specification } = req.body;
-    if (!partId || !quantity)
-      return res.status(400).json({ success: false, code: 'ERR_VALIDATION', message: 'Part and quantity are required.' });
+    if (!quantity)
+      return res.status(400).json({ success: false, code: 'ERR_VALIDATION', message: 'Quantity is required.' });
 
-    const jobCardNo = await generateJobCardNo();
+    const jobCardNo = await generateJobCardNoAtomic();
 
     const cardData = {
       jobCardNo,
-      partId:       toInt(partId),
+      partId:       partId ? toInt(partId) : null,
       dieNo:        dieNo        || null,
       yourNo:       yourNo       || null,
       heatNo:       heatNo       || null,
@@ -357,6 +484,7 @@ exports.create = async (req, res) => {
       contactEmail: contactEmail || null,
       dispatchByOurVehicle: dispatchByOurVehicle === 'true' || dispatchByOurVehicle === true,
       dispatchByCourier: dispatchByCourier === 'true' || dispatchByCourier === true,
+      collectedByCustomer: collectedByCustomer === 'true' || collectedByCustomer === true,
       collectedByCustomer: collectedByCustomer === 'true' || collectedByCustomer === true,
       hrcRange: hrcRange || null,
       specialRequirements: specialRequirements || null,
@@ -401,8 +529,8 @@ exports.create = async (req, res) => {
 exports.update = async (req, res) => {
   try {
     const id = toInt(req.params.id);
-    const { operationNo, drawingNo, woNo, machineId, operatorName, quantity, timeTaken, startDate, endDate, status, remarks,
-            dieNo, yourNo, heatNo, dieMaterial, customerId, receivedDate, dueDate, totalWeight, operationMode,
+    const { operationNo, drawingNo, showDrawingNoInPrint, showDrawingNoLabelInPrint, woNo, machineId, operatorName, quantity, timeTaken, startDate, endDate, status, remarks,
+            dieNo, yourNo, heatNo, dieMaterial, customerId, receivedDate, dueDate, totalWeight, actualWeightUsed, operationMode,
             issueDate, issueBy, specInstrCert, specInstrMPIRep, specInstrGraph,
             certificateNo, customerNameSnapshot, customerAddressSnapshot, factoryName, factoryAddress, contactEmail,
             dispatchByOurVehicle, dispatchByCourier, collectedByCustomer,
@@ -433,11 +561,14 @@ exports.update = async (req, res) => {
         ...(customerId   !== undefined && { customerId:  customerId ? toInt(customerId) : null }),
         ...(operationNo  !== undefined && { operationNo }),
         ...(drawingNo    !== undefined && { drawingNo }),
+        ...(showDrawingNoInPrint !== undefined && { showDrawingNoInPrint: showDrawingNoInPrint === 'true' || showDrawingNoInPrint === true }),
+        ...(showDrawingNoLabelInPrint !== undefined && { showDrawingNoLabelInPrint: showDrawingNoLabelInPrint === 'true' || showDrawingNoLabelInPrint === true }),
         ...(woNo         !== undefined && { woNo: woNo || null }),
         ...(machineId    !== undefined && { machineId: machineId ? toInt(machineId) : null }),
         ...(operatorName !== undefined && { operatorName }),
         ...(quantity     !== undefined && { quantity: toInt(quantity) }),
-        ...(totalWeight  !== undefined && { totalWeight: totalWeight ? toNum(totalWeight, null) : null }),
+        ...(totalWeight       !== undefined && { totalWeight: totalWeight ? toNum(totalWeight, null) : null }),
+        ...(actualWeightUsed !== undefined && { actualWeightUsed: actualWeightUsed !== null && actualWeightUsed !== '' ? toNum(actualWeightUsed, null) : null }),
         ...(timeTaken    !== undefined && { timeTaken: toNum(timeTaken, null) }),
         ...(startDate    !== undefined && { startDate:    startDate    ? new Date(startDate)    : null }),
         ...(receivedDate !== undefined && { receivedDate: receivedDate ? new Date(receivedDate) : null }),
@@ -453,6 +584,7 @@ exports.update = async (req, res) => {
         ...(contactEmail !== undefined && { contactEmail: contactEmail || null }),
         ...(dispatchByOurVehicle !== undefined && { dispatchByOurVehicle: dispatchByOurVehicle === 'true' || dispatchByOurVehicle === true }),
         ...(dispatchByCourier !== undefined && { dispatchByCourier: dispatchByCourier === 'true' || dispatchByCourier === true }),
+        ...(collectedByCustomer !== undefined && { collectedByCustomer: collectedByCustomer === 'true' || collectedByCustomer === true }),
         ...(collectedByCustomer !== undefined && { collectedByCustomer: collectedByCustomer === 'true' || collectedByCustomer === true }),
         ...(hrcRange !== undefined && { hrcRange: hrcRange || null }),
         ...(specialRequirements !== undefined && { specialRequirements: specialRequirements || null }),
@@ -481,6 +613,56 @@ exports.update = async (req, res) => {
         if (req.files[`image${i}`] && req.files[`image${i}`][0]) {
           deleteImageFile(existing?.[`image${i}`]);
           updateData[`image${i}`] = `/uploads/jobcards/${req.files[`image${i}`][0].filename}`;
+        }
+      }
+    }
+
+    // Validate totalWeight against inward remaining weight (all linked challans)
+    if (updateData.totalWeight !== undefined && updateData.totalWeight !== null) {
+      const links = await prisma.challanItem.findMany({
+        where: { jobCardId: id },
+        select: { challanId: true },
+      });
+      if (links.length > 0) {
+        const uniqueChallanIds = [...new Set(links.map(l => l.challanId))];
+
+        for (const challanId of uniqueChallanIds) {
+          const challan = await prisma.jobworkChallan.findUnique({
+            where: { id: challanId },
+            select: {
+              totalInwardWeight: true,
+              items: {
+                select: {
+                  weight: true,
+                  jobCard: { select: { id: true, totalWeight: true } },
+                },
+              },
+            },
+          });
+          if (!challan) continue;
+
+          const inwardTotal = Number(challan.totalInwardWeight || 0) ||
+            challan.items.reduce((s, it) => s + Number(it.weight || 0), 0);
+          if (inwardTotal <= 0) continue;
+
+          // Deduplicate job cards across items
+          const jcMap = {};
+          challan.items.forEach(it => {
+            if (it.jobCard) jcMap[it.jobCard.id] = it.jobCard;
+          });
+
+          const otherConsumed = Object.values(jcMap)
+            .filter(jc => jc.id !== id)
+            .reduce((s, jc) => s + Number(jc.totalWeight || 0), 0);
+
+          const newTotal = otherConsumed + Number(updateData.totalWeight);
+          if (newTotal > inwardTotal) {
+            const available = Math.max(0, inwardTotal - otherConsumed);
+            return res.status(400).json({
+              success: false,
+              message: `Weight exceeds available balance for Inward. Total: ${inwardTotal} kg, already consumed by other job cards: ${otherConsumed.toFixed(3)} kg, available: ${available.toFixed(3)} kg. You entered: ${Number(updateData.totalWeight).toFixed(3)} kg.`,
+            });
+          }
         }
       }
     }
@@ -564,7 +746,7 @@ exports.split = async (req, res) => {
       for (const s of splits) {
         const qty = toInt(s.quantity);
         if (!qty || qty < 1) continue;
-        const jobCardNo = await generateJobCardNo();
+        const jobCardNo = await generateJobCardNoAtomic(tx);
         const child = await tx.jobCard.create({
           data: {
             jobCardNo,
@@ -592,6 +774,7 @@ exports.split = async (req, res) => {
             contactEmail: parent.contactEmail,
             dispatchByOurVehicle: parent.dispatchByOurVehicle,
             dispatchByCourier: parent.dispatchByCourier,
+            collectedByCustomer: parent.collectedByCustomer,
             collectedByCustomer: parent.collectedByCustomer,
             documentNo: parent.documentNo,
             revisionNo: parent.revisionNo,
@@ -710,8 +893,22 @@ exports.deleteJobCard = async (req, res) => {
   try {
     const id = toInt(req.params.id);
     if (!id || id < 1) return res.status(400).json({ success: false, message: 'Invalid ID.' });
+
+    const card = await prisma.jobCard.findUnique({ where: { id }, select: { jobCardNo: true } });
+    if (!card) return res.status(404).json({ success: false, message: 'Job card not found.' });
+
     await prisma.jobCard.delete({ where: { id } });
-    res.json({ success: true, message: 'Job card deleted.' });
+
+    // Job card no is "<yy><mm><1000+n>", e.g. 26081007 -> prefix 2608, n = 7.
+    // Hand n back if this was the most recent card, so the next one continues
+    // the run instead of skipping.
+    const m = /^(\d{4})(\d+)$/.exec(card.jobCardNo || '');
+    if (m) {
+      const issued = Number(m[2]) - 1000;
+      if (issued > 0) await releaseSequenceValue(`JOBCARD:${m[1]}`, issued);
+    }
+
+    res.json({ success: true, message: `Job card ${card.jobCardNo} deleted.` });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Failed to delete job card.' });

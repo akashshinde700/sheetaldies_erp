@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import api from '../../../utils/api';
 import toast from 'react-hot-toast';
+import DistortionSection from './DistortionSection';
 
 const EMPTY_INSP = {
   catNormal: false, catWelded: false, catCrackRisk: false, catDistortionRisk: false,
@@ -12,6 +13,21 @@ const EMPTY_INSP = {
   achievedHardness: '',
   hardnessAfter1: '', hardnessAfter2: '', hardnessAfter3: '', hardnessAfter4: '',
   packedQty: '',
+  incomingInspectionBy: '',
+  finalInspectionBy: '',
+  distortionBefore: Array(8).fill(''),
+  distortionAfter: Array(8).fill(''),
+};
+
+// Parses "64-66", "64 - 66 HRC", "64–66" into { min: '64', max: '66' }.
+const parseRangeMinMax = (val = '') => {
+  const units = ['HRC', 'HRB', 'HRA', 'HVN', 'HV', 'HS'];
+  let range = val.trim();
+  for (const u of units) {
+    if (range.toUpperCase().endsWith(u)) { range = range.slice(0, -u.length).trim(); break; }
+  }
+  const m = range.match(/^(-?\d+(?:\.\d+)?)\s*[-–]\s*(-?\d+(?:\.\d+)?)$/);
+  return m ? { min: m[1], max: m[2] } : null;
 };
 
 function fromInsp(i) {
@@ -29,14 +45,30 @@ function fromInsp(i) {
     requiredHardnessMin: i.requiredHardnessMin || '', requiredHardnessMax: i.requiredHardnessMax || '',
     hardnessUnit: i.hardnessUnit || 'HRC',
     achievedHardness: i.achievedHardness || '',
-    hardnessAfter1: i.hardnessAfter1 || '', hardnessAfter2: i.hardnessAfter2 || '',
-    hardnessAfter3: i.hardnessAfter3 || '', hardnessAfter4: i.hardnessAfter4 || '',
+    hardnessAfter1: i.hardnessAfter1 != null ? String(i.hardnessAfter1) : '',
+    hardnessAfter2: i.hardnessAfter2 != null ? String(i.hardnessAfter2) : '',
+    hardnessAfter3: i.hardnessAfter3 != null ? String(i.hardnessAfter3) : '',
+    hardnessAfter4: i.hardnessAfter4 != null ? String(i.hardnessAfter4) : '',
     packedQty: i.packedQty || '',
+    incomingInspectionBy: i.incomingInspectionBy || '',
+    finalInspectionBy: i.finalInspectionBy || '',
+    distortionBefore: Array.isArray(i.distortionBefore)
+      ? [...Array(8)].map((_, idx) => { const v = i.distortionBefore[idx]; return v != null && typeof v === 'object' ? (v.val ?? v.value ?? '') : (v ?? ''); })
+      : Array(8).fill(''),
+    distortionAfter: Array.isArray(i.distortionAfter)
+      ? [...Array(8)].map((_, idx) => { const v = i.distortionAfter[idx]; return v != null && typeof v === 'object' ? (v.val ?? v.value ?? '') : (v ?? ''); })
+      : Array(8).fill(''),
   };
 }
 
-export default function InspectionEditSection({ id, inspection }) {
+const InspectionEditSection = forwardRef(function InspectionEditSection({ id, inspection, hrcRange }, ref) {
   const [state, setState] = useState(() => fromInsp(inspection));
+
+  // Keep Req. Hardness Min/Max in sync with the Job Card's "Hardness Range" field.
+  useEffect(() => {
+    const parsed = parseRangeMinMax(hrcRange || '');
+    if (parsed) setState(s => ({ ...s, requiredHardnessMin: parsed.min, requiredHardnessMax: parsed.max }));
+  }, [hrcRange]);
 
   // Re-initialize if inspection data loads after first render
   const [initialized, setInitialized] = useState(!!inspection);
@@ -55,7 +87,23 @@ export default function InspectionEditSection({ id, inspection }) {
     finally { setSaving(false); }
   };
 
+  // Expose a silent flush so the Job Card form's main "Update" button also
+  // persists inspection edits (categorization, process, hardness, distortion,
+  // etc.) even when the user never clicked this section's own "Save
+  // Inspection" button. Re-saving the current state is idempotent.
+  useImperativeHandle(ref, () => ({
+    flushPendingEdits: async () => {
+      try {
+        await api.put(`/quality/${id}/inspection`, state);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  }));
+
   const set = (updates) => setState(s => ({ ...s, ...updates }));
+  const setField = (field, value) => setState(s => ({ ...s, [field]: value }));
 
   const CB = ({ field, label }) => (
     <label className="flex items-center gap-2 mb-1.5 cursor-pointer text-sm">
@@ -66,6 +114,8 @@ export default function InspectionEditSection({ id, inspection }) {
   );
 
   return (
+    <>
+    <DistortionSection form={state} set={setField} onSave={save} saving={saving} />
     <div className="card p-5 space-y-4">
       <div className="flex items-center justify-between border-b border-slate-100 pb-2">
         <p className="section-title">Incoming Inspection</p>
@@ -129,28 +179,28 @@ export default function InspectionEditSection({ id, inspection }) {
           </div>
           <div>
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">Hardness Unit</label>
-            <select className="form-input text-xs py-1" value={state.hardnessUnit} onChange={e => set({ hardnessUnit: e.target.value })}>
-              {['HRC','HRB','HV','HB','BHN'].map(u => <option key={u}>{u}</option>)}
-            </select>
+            <input
+              list="insp-hardness-unit-list"
+              className="form-input text-xs py-1"
+              value={state.hardnessUnit}
+              onChange={e => set({ hardnessUnit: e.target.value })}
+              maxLength={8}
+              placeholder="HRC"
+            />
+            <datalist id="insp-hardness-unit-list">
+              {['HRC','HRB','HV','HB','BHN'].map(u => <option key={u} value={u} />)}
+            </datalist>
           </div>
-          <div>
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">Achieved Hardness</label>
-            <input className="form-input text-xs py-1" value={state.achievedHardness} onChange={e => set({ achievedHardness: e.target.value })} />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {[1,2,3,4].map(n => (
-              <div key={n}>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">Hardness After {n}</label>
-                <input className="form-input text-xs py-1" value={state[`hardnessAfter${n}`]} onChange={e => set({ [`hardnessAfter${n}`]: e.target.value })} />
-              </div>
-            ))}
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">Packed Qty</label>
-            <input className="form-input text-xs py-1" value={state.packedQty} onChange={e => set({ packedQty: e.target.value })} />
-          </div>
+          {/* Hardness After 1-4, Achieved Hardness, Packed Qty, Incoming
+              Inspection By and Quality Inspection By inputs were removed from
+              this edit form on request. Their values are still preserved in
+              `state` (loaded via fromInsp) and re-saved untouched, so existing
+              data and all print outputs remain unchanged. */}
         </div>
       </div>
     </div>
+    </>
   );
-}
+});
+
+export default InspectionEditSection;

@@ -10,6 +10,11 @@ const { formatErrorResponse, getStatusCode } = require('../utils/validation');
 // Generate 6-digit OTP using cryptographically secure random
 const generateOtp = () => crypto.randomInt(100000, 999999).toString();
 
+// In-memory OTP brute-force protection (resets on server restart)
+const otpAttempts = new Map(); // email → { count, lockedUntil }
+const OTP_MAX_ATTEMPTS = 5;
+const OTP_LOCKOUT_MS   = 15 * 60 * 1000; // 15 minutes
+
 // Generate cryptographically secure temporary password
 const generateTempPassword = () => {
   const chars = crypto.randomBytes(12).toString('base64url').slice(0, 12);
@@ -119,6 +124,9 @@ exports.requestOtp = async (req, res) => {
     if (!user || !user.isActive)
       return res.status(404).json({ success: false, message: 'No account found with this email.' });
 
+    // New OTP request resets lockout so user can retry after email re-send
+    otpAttempts.delete(email.toLowerCase());
+
     const otp       = generateOtp();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
@@ -143,17 +151,45 @@ exports.verifyOtp = async (req, res) => {
     if (!email || !otp)
       return res.status(400).json({ success: false, code: 'ERR_INVALID_INPUT', message: 'Email and OTP are required.' });
 
-    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    const emailKey = email.toLowerCase();
+
+    // Brute-force check
+    const attempt = otpAttempts.get(emailKey) || { count: 0, lockedUntil: null };
+    if (attempt.lockedUntil && new Date() < attempt.lockedUntil) {
+      const waitMin = Math.ceil((attempt.lockedUntil - Date.now()) / 60000);
+      return res.status(429).json({
+        success: false,
+        code: 'ERR_LOCKED',
+        message: `Too many failed attempts. Try again in ${waitMin} minute(s) or request a new OTP.`,
+      });
+    }
+
+    const user = await prisma.user.findUnique({ where: { email: emailKey } });
     if (!user || !user.isActive)
       return res.status(401).json({ success: false, code: 'ERR_UNAUTHORIZED', message: 'Invalid credentials.' });
 
-    if (user.otpToken !== otp)
-      return res.status(401).json({ success: false, code: 'ERR_UNAUTHORIZED', message: 'Invalid OTP.' });
+    if (user.otpToken !== otp) {
+      attempt.count += 1;
+      if (attempt.count >= OTP_MAX_ATTEMPTS) {
+        attempt.lockedUntil = new Date(Date.now() + OTP_LOCKOUT_MS);
+        attempt.count = 0;
+      }
+      otpAttempts.set(emailKey, attempt);
+      const remaining = OTP_MAX_ATTEMPTS - attempt.count;
+      return res.status(401).json({
+        success: false,
+        code: 'ERR_UNAUTHORIZED',
+        message: attempt.lockedUntil
+          ? 'Too many failed attempts. Account locked for 15 minutes.'
+          : `Invalid OTP. ${remaining} attempt(s) remaining.`,
+      });
+    }
 
     if (!user.otpExpiry || new Date() > user.otpExpiry)
       return res.status(401).json({ success: false, code: 'ERR_UNAUTHORIZED', message: 'OTP has expired. Request a new one.' });
 
-    // Clear OTP after use
+    // Success — clear lockout and OTP
+    otpAttempts.delete(emailKey);
     await prisma.user.update({
       where: { id: user.id },
       data:  { otpToken: null, otpExpiry: null, lastLogin: new Date() },

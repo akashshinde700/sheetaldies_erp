@@ -36,6 +36,9 @@ async function resolveRunsheetLine(line) {
       quantity: qty,
       weightKg: w != null && !Number.isNaN(w) ? w : null,
       plannedSlot: line.plannedSlot ? String(line.plannedSlot).trim() : null,
+      fixtures: line.fixtures ? String(line.fixtures).trim() : null,
+      tcPosition: line.tcPosition ? String(line.tcPosition).trim() : null,
+      instruction: line.instruction ? String(line.instruction).trim() : null,
     };
   }
 
@@ -58,6 +61,9 @@ async function resolveRunsheetLine(line) {
       quantity: qty,
       weightKg: w != null && !Number.isNaN(w) ? w : null,
       plannedSlot: line.plannedSlot ? String(line.plannedSlot).trim() : null,
+      fixtures: line.fixtures ? String(line.fixtures).trim() : null,
+      tcPosition: line.tcPosition ? String(line.tcPosition).trim() : null,
+      instruction: line.instruction ? String(line.instruction).trim() : null,
     };
   }
 
@@ -69,6 +75,7 @@ function buildRunsheetHeaderPayload(body, opts = {}) {
     batchId: body.batchId != null ? toInt(body.batchId) : null,
     furnaceId: toInt(body.furnaceId),
     runDate: toDateOnly(body.runDate),
+    cycleStartTime: body.cycleStartTime || null,
     cycleEndTime: body.cycleEndTime || null,
     totalTimeDisplay: body.totalTimeDisplay || null,
     mrStart: body.mrStart != null ? toInt(body.mrStart) : null,
@@ -89,6 +96,12 @@ function buildRunsheetHeaderPayload(body, opts = {}) {
     supervisorSign: body.supervisorSign || null,
     supervisorVerifiedAt: body.supervisorVerifiedAt ? new Date(body.supervisorVerifiedAt) : null,
     verificationNote: body.verificationNote || null,
+    gasPressure: body.gasPressure || null,
+    waterCirculationFrom: body.waterCirculationFrom || null,
+    waterCirculationTo: body.waterCirculationTo || null,
+    powerFailureFrom: body.powerFailureFrom || null,
+    powerFailureTo: body.powerFailureTo || null,
+    otherCheckpoint: body.otherCheckpoint || null,
     status: body.status || 'PLANNED',
     actualOutput: body.actualOutput != null ? toInt(body.actualOutput) : null,
     remarks: body.remarks || null,
@@ -235,7 +248,7 @@ exports.listRunsheets = async (req, res) => {
     if (search) {
       const searchText = String(search || '').trim();
       if (searchText) {
-        where.runsheetNumber = { contains: searchText, mode: 'insensitive' };
+        where.runsheetNumber = { contains: searchText };
       }
     }
     if (from || to) {
@@ -382,6 +395,8 @@ exports.getMachineUtilization = async (req, res) => {
   try {
     const shifts = await prisma.shift.findMany({
       include: { plan: true },
+      orderBy: { id: 'desc' },
+      take: 500,
     });
 
     const machineMap = {};
@@ -416,6 +431,8 @@ exports.getIdleTimeReport = async (req, res) => {
   try {
     const shifts = await prisma.shift.findMany({
       include: { plan: true },
+      orderBy: { id: 'desc' },
+      take: 500,
     });
 
     const idleShifts = shifts
@@ -876,6 +893,7 @@ exports.getShiftReport = async (req, res) => {
     const shifts = await prisma.shift.findMany({
       include: { plan: true },
       orderBy: [{ plan: { planDate: 'desc' } }, { shiftNumber: 'asc' }],
+      take: 500,
     });
 
     res.json({ success: true, data: shifts });
@@ -906,6 +924,22 @@ exports.updateRunsheetStatus = async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Failed to update runsheet.' });
+  }
+};
+
+// ── Delete VHT Run Sheet ──────────────────────────────────────
+exports.deleteRunsheet = async (req, res) => {
+  try {
+    const id = toInt(req.params.id);
+    if (Number.isNaN(id)) return res.status(400).json({ success: false, message: 'Invalid ID.' });
+
+    const existing = await prisma.vHTRunsheet.findUnique({ where: { id }, select: { id: true, status: true, runsheetNumber: true } });
+    if (!existing) return res.status(404).json({ success: false, message: 'Run sheet not found.' });
+    await prisma.vHTRunsheet.delete({ where: { id } });
+    res.json({ success: true, message: `Run sheet ${existing.runsheetNumber} deleted.` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to delete run sheet.' });
   }
 };
 

@@ -33,11 +33,12 @@ export default function PartyRatesMatrix() {
     return true;
   });
 
-  const startEdit = (partyId, proc) => {
+  const startEdit = (partyId, proc, procIndex) => {
     const key = `${partyId}:${proc.id}`;
     const existing = rateMap[key] || {};
     setEditing({
       partyId,
+      procIndex: procIndex ?? processes.indexOf(proc),
       processTypeId: proc.id,
       processName: proc.name,
       partyName: parties.find(p => p.id === partyId)?.name || '',
@@ -47,8 +48,9 @@ export default function PartyRatesMatrix() {
     });
   };
 
-  const saveEdit = async () => {
+  const saveEdit = async (thenNext = false) => {
     if (!editing) return;
+    const { partyId, procIndex } = editing;
     setSaving(true);
     try {
       const payload = [{
@@ -57,10 +59,15 @@ export default function PartyRatesMatrix() {
         pricePerPc: editing.pricePerPc !== '' ? toNum(editing.pricePerPc) : null,
         lotPrice:  editing.lotPrice  !== '' ? toNum(editing.lotPrice)  : null,
       }];
-      await api.put(`/parties/${editing.partyId}/process-rates`, payload);
+      await api.put(`/parties/${partyId}/process-rates`, payload);
       toast.success('Rate saved');
       qc.invalidateQueries({ queryKey: ['party-rates-matrix'] });
-      setEditing(null);
+      if (thenNext && processes.length > 0) {
+        const nextIdx = (procIndex + 1) % processes.length;
+        startEdit(partyId, processes[nextIdx], nextIdx);
+      } else {
+        setEditing(null);
+      }
     } catch {
       toast.error('Failed to save rate');
     } finally {
@@ -104,7 +111,7 @@ export default function PartyRatesMatrix() {
               onClick={() => setTypeFilter(t)}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                 typeFilter === t
-                  ? 'bg-indigo-600 text-white'
+                  ? 'bg-sky-600 text-white'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
@@ -120,7 +127,7 @@ export default function PartyRatesMatrix() {
       {/* Legend */}
       <div className="flex items-center gap-4 mb-3 px-1 text-xs text-slate-500">
         <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded bg-indigo-100 inline-block" />
+          <span className="w-3 h-3 rounded bg-sky-100 inline-block" />
           Party-specific rate set
         </span>
         <span className="flex items-center gap-1.5">
@@ -164,19 +171,28 @@ export default function PartyRatesMatrix() {
                   <tr key={party.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}>
                     {/* Party name cell */}
                     <td className={`px-4 py-2.5 sticky left-0 z-10 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
-                      <Link
-                        to={`/admin/parties/${party.id}`}
-                        className="font-semibold text-slate-800 hover:text-indigo-600 hover:underline transition-colors"
-                      >
-                        {party.name}
-                      </Link>
-                      <span className={`ml-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${TYPE_BADGE[party.partyType]}`}>
-                        {party.partyType}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <Link
+                          to={`/admin/parties/${party.id}`}
+                          className="font-semibold text-slate-800 hover:text-sky-600 hover:underline transition-colors"
+                        >
+                          {party.name}
+                        </Link>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${TYPE_BADGE[party.partyType]}`}>
+                          {party.partyType}
+                        </span>
+                        <Link
+                          to={`/admin/parties/${party.id}`}
+                          title="Open party detail"
+                          className="text-slate-300 hover:text-sky-500 transition-colors ml-auto"
+                        >
+                          <span className="material-symbols-outlined text-sm">open_in_new</span>
+                        </Link>
+                      </div>
                     </td>
 
                     {/* Rate cells */}
-                    {processes.map(proc => {
+                    {processes.map((proc, procIdx) => {
                       const key = `${party.id}:${proc.id}`;
                       const rate = rateMap[key];
                       const hasRate = rate && (rate.pricePerKg != null || rate.pricePerPc != null || rate.lotPrice != null);
@@ -184,10 +200,10 @@ export default function PartyRatesMatrix() {
                       return (
                         <td key={proc.id} className="px-2 py-2 text-center">
                           <button
-                            onClick={() => startEdit(party.id, proc)}
+                            onClick={() => startEdit(party.id, proc, procIdx)}
                             className={`w-full rounded-lg px-2 py-1.5 transition-colors group ${
                               hasRate
-                                ? 'bg-indigo-50 hover:bg-indigo-100'
+                                ? 'bg-sky-50 hover:bg-sky-100'
                                 : 'hover:bg-slate-100'
                             }`}
                             title={`Set ${proc.name} rate for ${party.name}`}
@@ -195,7 +211,7 @@ export default function PartyRatesMatrix() {
                             {hasRate ? (
                               <div className="space-y-0.5">
                                 {rate.pricePerKg != null && (
-                                  <div className="font-bold text-indigo-700">₹{Number(rate.pricePerKg).toFixed(0)}<span className="text-[9px] font-normal">/kg</span></div>
+                                  <div className="font-bold text-sky-700">₹{Number(rate.pricePerKg).toFixed(0)}<span className="text-[9px] font-normal">/kg</span></div>
                                 )}
                                 {rate.pricePerPc != null && (
                                   <div className="font-semibold text-violet-600 text-[10px]">₹{Number(rate.pricePerPc).toFixed(0)}/pc</div>
@@ -220,69 +236,105 @@ export default function PartyRatesMatrix() {
       )}
 
       {/* Edit Modal */}
-      {editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl border border-slate-200">
-            <div className="p-5 border-b border-slate-100">
-              <div className="text-xs font-black text-slate-400 uppercase tracking-widest">Set Party Rate</div>
-              <div className="text-lg font-extrabold text-slate-800 mt-1">{editing.processName}</div>
-              <div className="text-sm text-indigo-600 font-semibold">{editing.partyName}</div>
-            </div>
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="form-label">Rate / kg (₹)</label>
-                <input
-                  type="number"
-                  value={editing.pricePerKg}
-                  onChange={e => setEditing(p => ({ ...p, pricePerKg: e.target.value }))}
-                  className="form-input"
-                  placeholder="Leave blank to use global rate"
-                  min="0" step="0.01"
-                  autoFocus
-                />
+      {editing && (() => {
+        const globalRate = processes.find(p => p.id === editing.processTypeId);
+        const globalParts = [];
+        if (globalRate?.pricePerKg != null) globalParts.push(`₹${Number(globalRate.pricePerKg).toFixed(2)}/kg`);
+        if (globalRate?.pricePerPc != null) globalParts.push(`₹${Number(globalRate.pricePerPc).toFixed(2)}/pc`);
+        if (globalRate?.lotPrice  != null) globalParts.push(`₹${Number(globalRate.lotPrice).toFixed(2)} lot`);
+        const globalStr = globalParts.join(' · ');
+        const isLast = editing.procIndex === processes.length - 1;
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl border border-slate-200">
+              <div className="p-5 border-b border-slate-100">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-black text-slate-400 uppercase tracking-widest">Set Party Rate</div>
+                  <span className="text-[10px] text-slate-400">
+                    {editing.procIndex + 1} / {processes.length}
+                  </span>
+                </div>
+                <div className="text-lg font-extrabold text-slate-800 mt-1">{editing.processName}</div>
+                <div className="text-sm text-sky-600 font-semibold">{editing.partyName}</div>
+                {globalStr && (
+                  <div className="mt-1.5 text-[10px] text-slate-400">
+                    Global rate: <span className="font-semibold text-slate-600">{globalStr}</span>
+                  </div>
+                )}
               </div>
-              <div>
-                <label className="form-label">Rate / piece (₹)</label>
-                <input
-                  type="number"
-                  value={editing.pricePerPc}
-                  onChange={e => setEditing(p => ({ ...p, pricePerPc: e.target.value }))}
-                  className="form-input"
-                  placeholder="Optional"
-                  min="0" step="0.01"
-                />
+              <div className="p-5 space-y-4">
+                <div>
+                  <label className="form-label">Rate / kg (₹)</label>
+                  <input
+                    type="number"
+                    value={editing.pricePerKg}
+                    onChange={e => setEditing(p => ({ ...p, pricePerKg: e.target.value }))}
+                    className="form-input"
+                    placeholder={globalRate?.pricePerKg != null ? `${Number(globalRate.pricePerKg).toFixed(2)} (global)` : 'Leave blank for global'}
+                    min="0" step="0.01"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Rate / piece (₹)</label>
+                  <input
+                    type="number"
+                    value={editing.pricePerPc}
+                    onChange={e => setEditing(p => ({ ...p, pricePerPc: e.target.value }))}
+                    className="form-input"
+                    placeholder={globalRate?.pricePerPc != null ? `${Number(globalRate.pricePerPc).toFixed(2)} (global)` : 'Optional'}
+                    min="0" step="0.01"
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Lot Charge (₹)</label>
+                  <input
+                    type="number"
+                    value={editing.lotPrice}
+                    onChange={e => setEditing(p => ({ ...p, lotPrice: e.target.value }))}
+                    className="form-input"
+                    placeholder={globalRate?.lotPrice != null ? `${Number(globalRate.lotPrice).toFixed(2)} (global)` : 'Optional'}
+                    min="0" step="0.01"
+                    onKeyDown={e => {
+                      if (e.key === 'Tab' && !e.shiftKey && !isLast) {
+                        e.preventDefault();
+                        saveEdit(true);
+                      }
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-slate-400">Leave all blank to remove this party's override — global rate will apply.</p>
               </div>
-              <div>
-                <label className="form-label">Lot Charge (₹)</label>
-                <input
-                  type="number"
-                  value={editing.lotPrice}
-                  onChange={e => setEditing(p => ({ ...p, lotPrice: e.target.value }))}
-                  className="form-input"
-                  placeholder="Optional"
-                  min="0" step="0.01"
-                />
+              <div className="p-4 border-t border-slate-100 flex gap-2">
+                <button
+                  onClick={() => saveEdit(false)}
+                  disabled={saving}
+                  className="btn-primary flex-1"
+                >
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+                {!isLast && (
+                  <button
+                    onClick={() => saveEdit(true)}
+                    disabled={saving}
+                    className="btn-outline text-xs flex items-center gap-1"
+                    title="Save and edit next process (Tab)"
+                  >
+                    Next <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => setEditing(null)}
+                  className="btn-ghost"
+                >
+                  Cancel
+                </button>
               </div>
-              <p className="text-xs text-slate-400">Leave all blank to skip / remove this party's rate.</p>
-            </div>
-            <div className="p-4 border-t border-slate-100 flex gap-3">
-              <button
-                onClick={saveEdit}
-                disabled={saving}
-                className="btn-primary flex-1"
-              >
-                {saving ? 'Saving…' : 'Save Rate'}
-              </button>
-              <button
-                onClick={() => setEditing(null)}
-                className="btn-ghost"
-              >
-                Cancel
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

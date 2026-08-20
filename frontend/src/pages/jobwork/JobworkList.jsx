@@ -3,8 +3,10 @@ import { Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { exportToExcel } from '../../utils/export';
+import KpiCard from '../../components/KpiCard';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import ListSearchInput from '../../components/ListSearchInput';
+import PageNav from '../../components/PageNav';
 
 const STATUS_OPTS = ['DRAFT', 'SENT', 'RECEIVED', 'COMPLETED', 'CANCELLED'];
 const PAGE_LIMIT = 10;
@@ -15,25 +17,6 @@ const SkeletonRow = () => (
       <td key={i} className="px-4 py-3.5"><div className="h-3 bg-slate-100 rounded w-full" /></td>
     ))}
   </tr>
-);
-
-const Pagination = ({ page, totalPages, total, limit, setPage }) => (
-  <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/50">
-    <span className="text-xs text-slate-400">
-      {(page-1)*limit+1}–{Math.min(page*limit, total)} of <span className="font-semibold">{total}</span>
-    </span>
-    <div className="flex items-center gap-1.5">
-      <button onClick={() => setPage(p => Math.max(1,p-1))} disabled={page===1}
-        className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600 transition-colors">
-        <span className="material-symbols-outlined text-sm">chevron_left</span> Prev
-      </button>
-      <span className="text-xs font-semibold text-slate-500 px-2">{page} / {totalPages}</span>
-      <button onClick={() => setPage(p => Math.min(totalPages,p+1))} disabled={page===totalPages}
-        className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600 transition-colors">
-        Next <span className="material-symbols-outlined text-sm">chevron_right</span>
-      </button>
-    </div>
-  </div>
 );
 
 export default function JobworkList() {
@@ -48,9 +31,10 @@ export default function JobworkList() {
   const [total,    setTotal]    = useState(0);
   const [statusSavingId, setStatusSavingId] = useState(null);
 
-  const fetchData = useCallback(() => {
+  const fetchData = useCallback((signal) => {
     setLoading(true); setError(null);
     api.get('/jobwork', {
+      signal,
       params: {
         search: search.trim() || undefined,
         status: status || undefined,
@@ -61,12 +45,16 @@ export default function JobworkList() {
       },
     })
       .then(r => { setChallans(r.data.data || []); setTotal(r.data.pagination?.total || 0); })
-      .catch(() => setError('Failed to load challans.'))
+      .catch(err => { if (err?.name !== 'CanceledError') setError('Failed to load challans.'); })
       .finally(() => setLoading(false));
   }, [search, status, fromDate, toDate, page]);
 
   useEffect(() => { setPage(1); }, [search, status, fromDate, toDate]);
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchData(controller.signal);
+    return () => controller.abort();
+  }, [fetchData]);
 
   const updateChallanStatus = async (ch, nextStatus) => {
     if (nextStatus === ch.status) return;
@@ -207,7 +195,7 @@ export default function JobworkList() {
         <div className="flex items-center gap-3 bg-rose-50 border border-rose-200 text-rose-700 text-sm px-4 py-3 rounded-xl">
           <span className="material-symbols-outlined text-lg">error</span>
           {error}
-          <button onClick={fetchData} className="ml-auto text-xs font-bold hover:underline">Retry</button>
+          <button onClick={() => fetchData()} className="ml-auto text-xs font-bold hover:underline">Retry</button>
         </div>
       )}
 
@@ -241,7 +229,7 @@ export default function JobworkList() {
                       {status ? `No ${status.toLowerCase()} challans.` : 'No challans yet.'}
                     </p>
                     {!status && (
-                      <Link to="/jobwork/inward-entry" className="inline-flex items-center gap-1 text-xs text-indigo-600 font-semibold hover:underline">
+                      <Link to="/jobwork/inward-entry" className="inline-flex items-center gap-1 text-xs text-sky-600 font-semibold hover:underline">
                         <span className="material-symbols-outlined text-sm">add</span> Create first challan
                       </Link>
                     )}
@@ -250,18 +238,45 @@ export default function JobworkList() {
               ) : challans.map(ch => (
                 <tr key={ch.id} className="tr group">
                   <td className="td sticky left-0 z-[1] bg-white group-hover:bg-slate-50/90 shadow-[4px_0_12px_-8px_rgba(15,23,42,0.12)]">
-                    <span className="text-xs font-bold text-indigo-600 font-mono">{ch.challanNo}</span>
+                    <span className="text-xs font-bold text-sky-600 font-mono">{ch.challanNo}</span>
                   </td>
                   <td className="td text-slate-500">{formatDate(ch.challanDate)}</td>
                   <td className="td text-slate-500 truncate max-w-[120px]">{ch.fromParty?.name || '—'}</td>
                   <td className="td font-medium text-slate-700 truncate max-w-[140px] hidden sm:table-cell">{ch.toParty?.name}</td>
                   <td className="td hidden sm:table-cell">
-                    {ch.jobCard ? (
-                      <span className="text-xs text-indigo-600 font-mono">{ch.jobCard.jobCardNo || ch.jobCard}</span>
+                    {/* jobCards comes from the challan's items — the direct
+                        jobCard relation is almost always null, so this column
+                        used to read "—" even for inwards that had a card. */}
+                    {(ch.jobCards?.length || ch.jobCard) ? (
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex flex-wrap items-center gap-1">
+                          {(ch.jobCards?.length ? ch.jobCards : [ch.jobCard]).map(jc => (
+                            <Link key={jc.id || jc.jobCardNo} to={`/jobcards/${jc.id}`}
+                              className="text-xs text-sky-600 font-mono font-bold hover:underline">
+                              {jc.jobCardNo || jc}
+                            </Link>
+                          ))}
+                        </div>
+                        {ch.jobCardStatus === 'PARTIAL' ? (
+                          <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-600 uppercase tracking-wide"
+                            title="Some items still have no job card">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                            Partial {ch.jobCardItemCount}/{ch.itemCount}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 uppercase tracking-wide">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            All {ch.itemCount} items
+                          </span>
+                        )}
+                      </div>
                     ) : (
-                      <span className="text-slate-300 cursor-help" title="No job card linked — open challan to attach one">
-                        —
-                      </span>
+                      <Link to={`/jobcards/new?ref=${encodeURIComponent(ch.inwardNo || ch.challanNo)}`}
+                        title="No job card yet — click to create one from this inward"
+                        className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-400 hover:text-sky-600">
+                        <span className="material-symbols-outlined text-[14px]">add_circle</span>
+                        Create
+                      </Link>
                     )}
                   </td>
                   <td className="td hidden md:table-cell">
@@ -272,24 +287,33 @@ export default function JobworkList() {
                   <td className="td font-bold text-slate-800 hidden md:table-cell">{formatCurrency(ch.totalValue)}</td>
                   <td className="td min-w-[9.5rem]">
                     <label className="sr-only">Status for {ch.challanNo}</label>
-                    <select
-                      aria-label={`Update status for ${ch.challanNo}`}
-                      value={ch.status}
-                      disabled={statusSavingId === ch.id}
-                      onChange={(e) => updateChallanStatus(ch, e.target.value)}
-                      className="form-input text-xs py-1.5 pr-7 font-semibold max-w-[10rem] cursor-pointer disabled:opacity-50"
-                    >
-                      {STATUS_OPTS.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <select
+                        aria-label={`Update status for ${ch.challanNo}`}
+                        aria-busy={statusSavingId === ch.id}
+                        value={ch.status}
+                        disabled={statusSavingId === ch.id}
+                        onChange={(e) => updateChallanStatus(ch, e.target.value)}
+                        className={`form-input text-xs py-1.5 pr-7 font-semibold max-w-[10rem] cursor-pointer disabled:opacity-50 transition-colors ${statusSavingId === ch.id ? 'bg-amber-50 border-amber-300' : ''}`}
+                      >
+                        {STATUS_OPTS.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                      {statusSavingId === ch.id && (
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 material-symbols-outlined text-[14px] text-amber-500 animate-spin pointer-events-none">progress_activity</span>
+                      )}
+                    </div>
                   </td>
                   <td className="td">
                     <div className="flex items-center gap-3">
                       <Link to={`/jobwork/${ch.id}`}
-                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">View</Link>
+                        title="View"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-600 hover:bg-slate-100 transition-all">
+                        <span className="material-symbols-outlined text-[18px]">visibility</span>
+                      </Link>
                       <Link to={`/jobwork/${ch.id}/print`}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-all"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-600 hover:bg-slate-100 transition-all"
                         title="Print Challan"
                       >
                         <span className="material-symbols-outlined text-[18px]">print</span>
@@ -302,7 +326,7 @@ export default function JobworkList() {
           </table>
         </div>
         {!loading && total > 0 && (
-          <Pagination page={page} totalPages={totalPages} total={total} limit={PAGE_LIMIT} setPage={setPage} />
+          <PageNav page={page} totalPages={totalPages} total={total} limit={PAGE_LIMIT} setPage={setPage} />
         )}
       </div>
     </div>

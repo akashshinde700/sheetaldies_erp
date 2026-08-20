@@ -8,11 +8,20 @@ const F = ({ label, children, className = '' }) => (
   </div>
 );
 
-export default function InvoiceDetailsSection({ form, setForm, parties }) {
+export default function InvoiceDetailsSection({ form, setForm, parties, invoiceSeries = [] }) {
   return (
     <div className="card p-4 sm:p-5 3xl:p-6 space-y-4 min-w-0">
       <p className="section-title border-b border-slate-100 pb-2">Invoice Details</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 3xl:gap-5">
+        <F label="Invoice Series *">
+          <SearchSelect
+            value={form.invoiceSeriesId}
+            onChange={v => setForm(p => ({ ...p, invoiceSeriesId: v }))}
+            options={invoiceSeries.map(s => ({ value: s.id, label: s.label || s.code }))}
+            placeholder="— Select Series —"
+            required
+          />
+        </F>
         <F label="Invoice Date">
           <input type="date" value={form.invoiceDate} onChange={e => setForm(p => ({ ...p, invoiceDate: e.target.value }))} className="form-input" />
         </F>

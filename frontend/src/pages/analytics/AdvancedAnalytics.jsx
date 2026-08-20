@@ -167,7 +167,7 @@ export default function AdvancedAnalytics() {
         </div>
         <Link
           to="/analytics"
-          className="text-sm font-semibold text-indigo-600 hover:text-indigo-800"
+          className="text-sm font-semibold text-sky-600 hover:text-sky-800"
         >
           ← Back to main analytics
         </Link>
@@ -226,8 +226,8 @@ export default function AdvancedAnalytics() {
         {/* Monthly Trends */}
         <div className="card p-5">
           <div className="flex items-center gap-2 mb-5">
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center">
-              <span className="material-symbols-outlined text-indigo-500 text-[16px]">trending_up</span>
+            <div className="w-8 h-8 rounded-xl bg-sky-50 flex items-center justify-center">
+              <span className="material-symbols-outlined text-sky-500 text-[16px]">trending_up</span>
             </div>
             <h3 className="section-title">Monthly Trends</h3>
           </div>

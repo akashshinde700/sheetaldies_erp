@@ -1,7 +1,13 @@
 const prisma = require('../utils/prisma');
 const { toInt, toNum } = require('../utils/normalize');
 const { formatErrorResponse, getStatusCode, formatListResponse, parsePagination } = require('../utils/validation');
-const { encryptPartyData, decryptPartyData } = require('../utils/piiHandlerExtended');
+const { encryptPartyData } = require('../utils/piiHandlerExtended');
+const { hash } = require('../utils/encryption');
+
+const normalizeGstin = (v) => {
+  const s = String(v ?? '').trim().toUpperCase().replace(/\s+/g, '');
+  return s === '' ? null : s;
+};
 
 /** Minimal customer row from job card etc. — allowed for OPERATOR + MANAGER */
 exports.quickCreateCustomer = async (req, res) => {
@@ -9,6 +15,8 @@ exports.quickCreateCustomer = async (req, res) => {
     const name = (req.body.name || '').trim();
     const address = (req.body.address || '').trim();
     const email = (req.body.email || '').trim() || null;
+    const phone = (req.body.phone || '').trim() || null;
+    const gstin = normalizeGstin(req.body.gstin);
     const partyType = String(req.body.partyType || 'CUSTOMER').toUpperCase();
     const rates = Array.isArray(req.body.rates) ? req.body.rates : [];
     if (!name || !address) {
@@ -32,7 +40,7 @@ exports.quickCreateCustomer = async (req, res) => {
     // Create party + rates atomically so partial failure leaves no orphaned party
     const party = await prisma.$transaction(async (tx) => {
       const created = await tx.party.create({
-        data: encryptPartyData({ name, address, email, partyType }),
+        data: encryptPartyData({ name, address, email, phone, partyType, gstin, gstinHash: gstin ? hash(gstin) : null }),
       });
       if (rates.length > 0) {
         for (const row of rates) {
@@ -53,7 +61,7 @@ exports.quickCreateCustomer = async (req, res) => {
       return created;
     });
 
-    res.status(201).json({ success: true, data: decryptPartyData(party), reused: false });
+    res.status(201).json({ success: true, data: party, reused: false });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: err.message || 'Failed to create party.' });

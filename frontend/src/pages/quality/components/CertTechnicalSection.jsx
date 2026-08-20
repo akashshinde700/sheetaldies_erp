@@ -1,4 +1,5 @@
 import React from 'react';
+import { useHeatTreatSpecs } from '../../../hooks/useMasterData';
 
 const F = ({ label, children, className }) => (
   <div className={className}>
@@ -7,7 +8,7 @@ const F = ({ label, children, className }) => (
   </div>
 );
 
-const JC = 'form-input bg-indigo-50 text-indigo-900 font-semibold cursor-not-allowed';
+const JC = 'form-input bg-sky-50 text-sky-900 font-semibold cursor-not-allowed';
 
 const CB = ({ label, checked, onChange, locked }) => (
   <label className={`flex items-center gap-2 py-0.5 ${locked ? 'cursor-not-allowed' : 'cursor-pointer group'}`}>
@@ -15,17 +16,18 @@ const CB = ({ label, checked, onChange, locked }) => (
       disabled={locked}
       className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all ${
         checked
-          ? locked ? 'bg-indigo-400 border-indigo-400' : 'bg-indigo-600 border-indigo-600'
-          : locked ? 'border-slate-200 bg-slate-50' : 'border-slate-300 group-hover:border-indigo-400'
+          ? locked ? 'bg-sky-400 border-sky-400' : 'bg-sky-600 border-sky-600'
+          : locked ? 'border-slate-200 bg-slate-50' : 'border-slate-300 group-hover:border-sky-400'
       }`}>
       {checked && <span className="material-symbols-outlined text-white text-[11px] leading-none">check</span>}
     </button>
-    <span className={`text-xs font-medium ${locked ? 'text-indigo-700' : 'text-slate-700'}`}>{label}</span>
+    <span className={`text-xs font-medium ${locked ? 'text-sky-700' : 'text-slate-700'}`}>{label}</span>
   </label>
 );
 
 export default function CertTechnicalSection({ form, set, updateTemperatureCycle, jcData }) {
   const locked = !!jcData;
+  const { data: htSpecs = [] } = useHeatTreatSpecs();
   return (
     <div className="card p-5 space-y-4">
       <div className="grid grid-cols-2 gap-4">
@@ -34,29 +36,43 @@ export default function CertTechnicalSection({ form, set, updateTemperatureCycle
             className={locked ? JC : 'form-input'} placeholder="D2" />
         </F>
         <F label="Heat Treatment Specification">
-          {locked ? (
-            <input value={form.operatorMode} disabled className={JC} />
-          ) : (
-            <select value={form.operatorMode} onChange={e => {
-              set('operatorMode', e.target.value);
-              updateTemperatureCycle(e.target.value);
-            }} className="form-input">
-              <option value="">— Select Heat Treatment —</option>
-              <option value="NORMAL">NORMAL</option>
-              <option value="HARDEN AND TEMPER">HARDEN AND TEMPER</option>
-              <option value="STRESS RELIEVING">STRESS RELIEVING</option>
-              <option value="ANNEALING">ANNEALING</option>
-              <option value="REWORK">REWORK</option>
-            </select>
-          )}
+          <select value={form.operatorMode} onChange={e => {
+            set('operatorMode', e.target.value);
+            updateTemperatureCycle(e.target.value);
+          }} className="form-input">
+            <option value="">— Select Heat Treatment —</option>
+            <optgroup label="Material-specific cycles">
+              <option value="D2">D2 — Cold Work Tool Steel</option>
+              <option value="H13 / HDS">H13 / HDS — Hot Work Die Steel</option>
+              <option value="HSS">HSS — High Speed Steel</option>
+              <option value="D3">D3 — High-C High-Cr Cold Work</option>
+            </optgroup>
+            {htSpecs.length > 0 ? (
+              <optgroup label="Heat Treatment Specs">
+                {htSpecs.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+              </optgroup>
+            ) : (
+              <>
+                <optgroup label="Generic cycles">
+                  <option value="HARDEN AND TEMPER">HARDEN AND TEMPER (D2 default)</option>
+                  <option value="STRESS RELIEVING">STRESS RELIEVING</option>
+                  <option value="ANNEALING">ANNEALING</option>
+                </optgroup>
+                <optgroup label="Other">
+                  <option value="NORMAL">NORMAL</option>
+                  <option value="REWORK">REWORK</option>
+                </optgroup>
+              </>
+            )}
+          </select>
         </F>
       </div>
       <div className="grid grid-cols-3 gap-4">
         <F label="Special Instructions">
-          <div className={`space-y-2 ${locked ? 'bg-indigo-50 rounded-lg p-2' : ''}`}>
-            <CB label="CERTIFICATE"   checked={form.specInstrCertificate}  onChange={v => set('specInstrCertificate', v)}  locked={locked} />
-            <CB label="MPI REPORT"    checked={form.specInstrMpiReport}     onChange={v => set('specInstrMpiReport', v)}     locked={locked} />
-            <CB label="PROCESS GRAPH" checked={form.specInstrProcessGraph}  onChange={v => set('specInstrProcessGraph', v)}  locked={locked} />
+          <div className="space-y-2">
+            <CB label="CERTIFICATE"   checked={form.specInstrCertificate}  onChange={v => set('specInstrCertificate', v)} />
+            <CB label="MPI REPORT"    checked={form.specInstrMpiReport}     onChange={v => set('specInstrMpiReport', v)} />
+            <CB label="PROCESS GRAPH" checked={form.specInstrProcessGraph}  onChange={v => set('specInstrProcessGraph', v)} />
           </div>
         </F>
         <F label="Delivery Date">

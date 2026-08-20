@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
 import { formatDate } from '../../utils/formatters';
+import { DEFAULT_TEMP_CYCLE_TIME_TEMP, tempRowsToSegments } from '../../data/heatTreatmentCycles';
+import HeatCycleStepGraph from '../../components/HeatCycleStepGraph';
 
 // ── Company constants ─────────────────────────────────────────
 const SVT = {
@@ -19,16 +21,9 @@ function asArray(v) {
   return [];
 }
 
-// D2 default cycle — fallback when no graph saved on runsheet or cert
-const DEFAULT_TEMP_CYCLE = [
-  { time: '0',   temp: '550'  },
-  { time: '30',  temp: '550'  },
-  { time: '30',  temp: '850'  },
-  { time: '75',  temp: '850'  },
-  { time: '75',  temp: '1030' },
-  { time: '135', temp: '1030' },
-  { time: '145', temp: '80'   },
-];
+// D2 default cycle — fallback when no graph saved on runsheet or cert.
+// Derived from the canonical heat-treatment cycle definitions so all renderers stay in sync.
+const DEFAULT_TEMP_CYCLE = DEFAULT_TEMP_CYCLE_TIME_TEMP;
 
 function num(v) {
   const n = typeof v === 'number' ? v : Number(v);
@@ -44,171 +39,33 @@ function CB({ checked }) {
   );
 }
 
-// ── Temperature graph — matches physical paper graph style ──────
-function TempGraph({ points }) {
-  const rawPts = (() => {
-    if (!points || points.length === 0) return [];
-    if (typeof points[0] === 'number') return points.map((v, i) => ({ x: i, y: v }));
-    return points
-      .map(p => ({ x: num(p.time ?? p.x), y: num(p.temp ?? p.y) }))
-      .filter(p => p.x != null && p.y != null)
-      .sort((a, b) => a.x - b.x);
-  })();
+// Temperature graph now uses the shared HeatCycleStepGraph component (same
+// time-proportional ramp/hold rendering as the VHT Run Sheet print and the
+// certificate's live-editing preview) so all three stay visually identical.
 
-  const W = 720; const H = 260; const PL = 56; const PR = 24; const PT = 30; const PB = 38;
-  const iW = W - PL - PR; const iH = H - PT - PB;
-  const n = rawPts.length;
-
-  const allY = rawPts.map(p => p.y);
-  const dataMin = n > 0 ? Math.min(...allY) : 0;
-  const dataMax = n > 0 ? Math.max(...allY) : 1000;
-  const Y_MIN = dataMin < 0 ? Math.floor(dataMin / 100) * 100 - 50 : 0;
-  const Y_MAX = Math.ceil((dataMax + 100) / 100) * 100;
-  const yStep = (Y_MAX - Y_MIN) <= 600 ? 100 : 200;
-  const yTicks = [];
-  for (let t = Math.ceil(Y_MIN / yStep) * yStep; t <= Y_MAX; t += yStep) yTicks.push(t);
-
-  const sy = y => PT + iH - ((y - Y_MIN) / (Y_MAX - Y_MIN || 1)) * iH;
-  const minX = n > 0 ? rawPts[0].x : 0;
-  const maxX = n > 0 ? rawPts[n - 1].x : 1;
-  const sx = x => PL + ((x - minX) / (maxX - minX || 1)) * iW;
-  const zero_y = sy(0);
-
-  // Deduplicate: keep FIRST point at each unique time value so that
-  // instant-step data (same t, different temps) becomes flat→slope pattern.
-  const pts = [];
-  const seenX = new Set();
-  for (const p of rawPts) {
-    const key = String(p.x);
-    if (!seenX.has(key)) { seenX.add(key); pts.push(p); }
-  }
-  const m = pts.length;
-
-  if (m < 2) return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: H }}>
-      <rect x="0" y="0" width={W} height={H} fill="white" />
-      <line x1={PL} y1={PT} x2={PL} y2={PT + iH} stroke="#888" strokeWidth="1" />
-      <line x1={PL} y1={zero_y} x2={PL + iW} y2={zero_y} stroke="#888" strokeWidth="1" />
-      <text x={PL + iW / 2} y={PT + iH / 2 + 5} textAnchor="middle" fontSize="9" fill="#bbb">— No graph data —</text>
-    </svg>
-  );
-
-  // Straight lines between each point → diagonal ramps like physical graph
-  let d = `M ${sx(pts[0].x).toFixed(1)} ${sy(pts[0].y).toFixed(1)}`;
-  for (let i = 1; i < m; i++) {
-    d += ` L ${sx(pts[i].x).toFixed(1)} ${sy(pts[i].y).toFixed(1)}`;
-  }
-
-  // Labels: temp at each new level (bold), duration centered on each segment
-  const labelEls = [];
-  for (let i = 0; i < m; i++) {
-    const p  = pts[i];
-    const cx = sx(p.x);
-    const cy = sy(p.y);
-
-    const prevY = i > 0 ? pts[i - 1].y : null;
-    const tempChanged = prevY === null || prevY !== p.y;
-
-    // Temperature label: always above the point (bold)
-    if (tempChanged && p.y !== 0) {
-      const tempY = Math.max(cy - 8, PT + 10);
-      labelEls.push(
-        <text key={`t${i}`} x={cx} y={tempY}
-          textAnchor="middle" fontSize="10" fontWeight="bold" fill="#000">
-          {p.y}
-        </text>
-      );
-    }
-
-    // Duration label: always BELOW the line midpoint
-    if (i < m - 1) {
-      const next  = pts[i + 1];
-      const dur   = next.x - p.x;
-      if (dur > 0) {
-        const mx  = (cx + sx(next.x)) / 2;
-        const my  = (cy + sy(next.y)) / 2;
-        labelEls.push(
-          <text key={`d${i}`} x={mx} y={my + 16}
-            textAnchor="middle" fontSize="9" fill="#444">
-            {dur}
-          </text>
-        );
-      }
-    }
-  }
-
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: H, fontFamily: 'Arial, sans-serif' }}>
-      <rect x="0" y="0" width={W} height={H} fill="white" />
-
-      {/* Y axis */}
-      <line x1={PL} y1={PT - 4} x2={PL} y2={PT + iH + 2} stroke="#111" strokeWidth="1.5" />
-      <polygon points={`${PL},${PT - 12} ${PL - 4.5},${PT - 3} ${PL + 4.5},${PT - 3}`} fill="#111" />
-
-      {/* X axis at temperature = 0 */}
-      <line x1={PL} y1={zero_y} x2={PL + iW + 4} y2={zero_y} stroke="#111" strokeWidth="1.5" />
-      <polygon points={`${PL + iW + 13},${zero_y} ${PL + iW + 4},${zero_y - 4.5} ${PL + iW + 4},${zero_y + 4.5}`} fill="#111" />
-
-      {/* Y axis tick marks + labels (no grid lines) */}
-      {yTicks.filter(t => t !== 0).map(t => (
-        <g key={t}>
-          <line x1={PL - 4} y1={sy(t)} x2={PL} y2={sy(t)} stroke="#555" strokeWidth="1" />
-          <text x={PL - 6} y={sy(t) + 3.5} textAnchor="end" fontSize="8" fill="#333">{t}</text>
-        </g>
-      ))}
-
-      {/* Y axis title — stacked letters like physical form */}
-      {'TEMPERATURE'.split('').map((ch, i) => (
-        <text key={i} x={13} y={PT + 4 + i * 9.5} textAnchor="middle" fontSize="7" fontWeight="bold" fill="#444">{ch}</text>
-      ))}
-      <text x={13} y={PT + 4 + 11 * 9.5} textAnchor="middle" fontSize="7" fill="#444">°C</text>
-
-      {/* Staircase — thick bold line, no dots */}
-      <path d={d} fill="none" stroke="#000" strokeWidth="2.8" strokeLinejoin="miter" strokeLinecap="square" />
-
-      {/* Temperature + duration labels */}
-      {labelEls}
-
-      {/* X axis label */}
-      <text x={PL + iW / 2} y={H - 5} textAnchor="middle" fontSize="9" fontWeight="bold" fill="#444">
-        TIME (MINUTE)
-      </text>
-    </svg>
-  );
-}
-
-// ── SVT logo ─────────────────────────────────────────────────
 function SvtLogo({ size = 50 }) {
-  return (
-    <svg width={size} height={size * 1.15} viewBox="0 0 100 115" fill="none">
-      <polygon points="50,2 95,27 95,77 50,102 5,77 5,27" fill="#1a1a1a" stroke="#000" strokeWidth="1.5"/>
-      <path d="M 38,28 C 22,28 20,38 30,43 L 40,48 C 54,53 54,65 38,66 C 28,66 24,62 24,62"
-        fill="none" stroke="white" strokeWidth="7" strokeLinecap="round"/>
-      <text x="60" y="70" textAnchor="middle" fill="white"
-        fontFamily="Arial Black, Arial, sans-serif" fontWeight="900" fontSize="28" letterSpacing="1">VT</text>
-      <text x="50" y="96" textAnchor="middle" fill="#aaa"
-        fontFamily="Arial, sans-serif" fontSize="6" letterSpacing="0.5">PUNE</text>
-    </svg>
-  );
+  return <img src="/logo.png" alt="SVT" style={{ height: size, width: 'auto', flexShrink: 0, display: 'block' }} />;
 }
 
 function TuvLogo({ size = 44 }) {
-  return (
-    <svg width={size * 1.4} height={size} viewBox="0 0 72 52" fill="none">
-      <rect x="1" y="1" width="70" height="50" rx="4" fill="white" stroke="#1e3a8a" strokeWidth="2" />
-      <text x="36" y="20" textAnchor="middle" fill="#1e3a8a" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="14" letterSpacing="1">TÜV</text>
-      <text x="36" y="33" textAnchor="middle" fill="#1e3a8a" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="9" letterSpacing="1">AUSTRIA</text>
-      <text x="36" y="44" textAnchor="middle" fill="#64748b" fontFamily="Arial,sans-serif" fontSize="7">CERTIFIED</text>
-    </svg>
-  );
+  return <img src="/tuv.png" alt="TÜV Austria" style={{ height: size, width: 'auto', display: 'block' }} />;
 }
 
 // ─────────────────────────────────────────────────────────────
 export default function CertPrint() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [cert, setCert] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  useEffect(() => { const p = document.title; document.title = ' '; return () => { document.title = p; }; }, []);
+
+  // Replace history entry to remove detail page from browser history
+  // This ensures Back button goes to certificate list instead of detail page
+  useEffect(() => {
+    navigate(`/quality/certificates/${id}/print`, { replace: true });
+  }, [id, navigate]);
 
   useEffect(() => {
     api.get(`/quality/certificates/${id}`)
@@ -217,35 +74,43 @@ export default function CertPrint() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  // Use relative path — nginx serves /uploads/* from backend on production
   const makeImgUrl = p => {
     if (!p) return null;
-    // Strip any localhost prefix stored from dev environment
-    const clean = p.replace(/^https?:\/\/localhost:\d+/, '');
-    return clean.startsWith('http') ? clean : clean;
+    if (p.startsWith('http')) return p;
+    const base = import.meta.env.VITE_API_URL || '';
+    return `${base}${p}`;
   };
 
   const derived = useMemo(() => {
     if (!cert) return {};
     const tempPoints = asArray(cert.effectiveTempCycleData ?? cert.tempCycleData);
     const effectiveTempPoints = tempPoints.length >= 2 ? tempPoints : DEFAULT_TEMP_CYCLE;
+    const tempSegments = tempRowsToSegments(effectiveTempPoints);
     const insp = cert.jobCard?.inspection;
 
-    // Required hardness — num(0)||null treats stored-zero as "not set", falls back to jc.hrcRange
-    const reqMin = num(insp?.requiredHardnessMin) ?? (num(cert.hardnessMin) || null);
-    const reqMax = num(insp?.requiredHardnessMax) ?? (num(cert.hardnessMax) || null);
+    // Required hardness — treat 0 as "not set", fall back to jc.hrcRange
+    const reqMin = num(insp?.requiredHardnessMin) || num(cert.hardnessMin) || null;
+    const reqMax = num(insp?.requiredHardnessMax) || num(cert.hardnessMax) || null;
+    const rawHrcRange = cert.hrcRange || cert.jobCard?.hrcRange || '';
     const reqText = (reqMin != null && reqMax != null)
       ? `${reqMin}-${reqMax} ${cert.hardnessUnit || 'HRC'}`
-      : cert.hrcRange || cert.jobCard?.hrcRange || '—';
+      : rawHrcRange ? `${rawHrcRange} ${cert.hardnessUnit || 'HRC'}` : '—';
 
-    // Achieved hardness — from inspectionResults or cert inspection
+    // Achieved hardness — cert.achievedHardness (direct field) → inspectionResults → cert inspection
     const achResult = (cert.inspectionResults || []).find(r => r.inspectionType === 'HARDNESS');
-    const achText = achResult?.achievedValue || (insp?.achievedHardness != null ? `${insp.achievedHardness} ${cert.hardnessUnit || 'HRC'}` : '—');
+    const achText = cert.achievedHardness != null
+      ? `${cert.achievedHardness} ${cert.hardnessUnit || 'HRC'}`
+      : (achResult?.achievedValue || (insp?.achievedHardness != null ? `${insp.achievedHardness} ${cert.hardnessUnit || 'HRC'}` : '—'));
 
-    // Challan items (for WM No, DRG No + items fallback)
-    const challanItems = cert.jobCard?.challans?.flatMap(ch => ch.items || []) || [];
+    // Challan items (for WM No, DRG No + items fallback). challanItemLinks
+    // reflects each item's actual current challan assignment; jobCard.challans
+    // is a direct relation that can be empty or point to a stale/wrong
+    // challan, so it's only used as a last-resort fallback.
+    const challanItems = (cert.jobCard?.challanItemLinks?.length > 0
+      ? cert.jobCard.challanItemLinks
+      : cert.jobCard?.challans?.flatMap(ch => ch.items || [])) || [];
 
-    return { tempPoints, effectiveTempPoints, reqText, achText, challanItems };
+    return { tempPoints, effectiveTempPoints, tempSegments, reqText, achText, challanItems };
   }, [cert]);
 
   if (loading) return <div className="p-4 text-slate-400 text-sm">Loading…</div>;
@@ -259,15 +124,30 @@ export default function CertPrint() {
   const customer   = cert.customer || cert.jobCard?.customer;
   const jc         = cert.jobCard || {};
   const challanItems = derived.challanItems || [];
+  // Index challan items by ID so cert items can look up DRG NO by sourceChallanItemId
+  const chItemById = {};
+  challanItems.forEach(ci => { chItemById[ci.id] = ci; });
   const insp = jc.inspection || {};
 
-  // If cert was saved before categorization/process were populated, fall back to job card inspection
-  const hasCertCat  = cert.catNormal || cert.catWelded || cert.catCrackRisk || cert.catDistortionRisk ||
-                      cert.catCriticalFinishing || cert.catDentDamage || cert.catRusty || cert.catOthers;
-  const hasCertProc = cert.procStressRelieving || cert.procHardening || cert.procTempering || cert.procAnnealing ||
-                      cert.procBrazing || cert.procPlasmaNitriding || cert.procSubZero || cert.procSoakClean;
-  const cat  = (field) => hasCertCat  ? !!cert[field] : !!insp[field];
-  const proc = (field) => hasCertProc ? !!cert[field] : !!insp[field];
+  // Categorization/Process — the Job Card's Incoming Inspection is the
+  // source of truth (matches CertForm's edit-load sync); fall back to the
+  // certificate's own saved value only if this job card has no inspection
+  // record at all yet.
+  // The certificate carries its own categorisation, and editing it must show
+  // up here. This used to read the job card's inspection whenever one existed,
+  // so the certificate's own ticks were never printed and every certificate
+  // made from the same job card looked identical no matter what was set.
+  // The inspection is only a fallback for certificates that carry nothing.
+  const CAT_PROC_FIELDS = [
+    'catNormal', 'catWelded', 'catCrackRisk', 'catDistortionRisk', 'catCriticalFinishing',
+    'catDentDamage', 'catRusty', 'catCavity', 'catOthers',
+    'procStressRelieving', 'procHardening', 'procTempering', 'procAnnealing',
+    'procBrazing', 'procPlasmaNitriding', 'procSubZero', 'procSoakClean',
+    'visualBefore', 'visualAfter', 'mpiBefore', 'mpiAfter', 'mpiNil',
+  ];
+  const certHasOwnFlags = CAT_PROC_FIELDS.some(f => cert[f]);
+  const cat  = (field) => !!(certHasOwnFlags ? cert[field] : (jc.inspection ? insp[field] : cert[field]));
+  const proc = cat;
 
   // If cert has no saved items, fall back to job card challan items so the table isn't blank
   const certItemsSaved = cert.items || [];
@@ -281,38 +161,69 @@ export default function CertPrint() {
         remarks:     '',
       }));
   const totalQty   = items.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
-  const totalWt    = items.reduce((s, it) => s + (num(it.totalWeight) || 0), 0);
+  // Weight shown on a certificate is the job card's weight. Prefer what the
+  // certificate saved, then the inward item it came from, and finally the job
+  // card's own total split across the items — certificates made before the
+  // weight was carried across have none of their own, and job cards where the
+  // weight was typed only into "Total Weight" leave the items blank.
+  const jcTotalWeight = Number(jc.totalWeight) || 0;
+  const itemWeight = (it, i, list = items) => {
+    const ch = (it.sourceChallanItemId && chItemById[it.sourceChallanItemId]) || challanItems[i] || challanItems[0];
+    const own = num(it.totalWeight) || num(ch?.weight) || 0;
+    if (own) return own;
+    return jcTotalWeight && list.length ? jcTotalWeight / list.length : 0;
+  };
+  const totalWt    = items.reduce((s, it, i) => s + itemWeight(it, i), 0)
+                     || Number(jc.totalWeight) || 0;
 
   const dt = cert.dispatchedThrough || '';
   const byOurVehicle     = jc.dispatchByOurVehicle  || dt.toLowerCase().includes('vehicle');
   const byCourier        = jc.dispatchByCourier      || dt.toLowerCase().includes('courier');
   const collectedByCust  = jc.collectedByCustomer    || dt.toLowerCase().includes('collected');
 
-  // Get DC No from yourRefNo or from linked challan
-  const yourDcNo = cert.yourRefNo || jc.challans?.[0]?.challanNo || '—';
+  // challanItemLinks reflects each item's actual current challan assignment;
+  // jc.challans[0] is a direct relation that can point to a stale/wrong
+  // challan (e.g. an auto-created placeholder), so it must be checked last.
+  const _dcBase = cert.yourRefNo
+    || jc.challanItemLinks?.[0]?.challan?.challanNo
+    || jc.challans?.[0]?.challanNo
+    || '';
+  const _challanDate = jc.challanItemLinks?.[0]?.challan?.challanDate || jc.challans?.[0]?.challanDate;
+  const _challanDateStr = _challanDate ? (() => {
+    const d = new Date(_challanDate);
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${dd}.${mm}.${yyyy}`;
+  })() : null;
+  const yourDcNo = _dcBase
+    ? (_challanDateStr ? `${_dcBase}/${_challanDateStr}` : _dcBase)
+    : '—';
   const cycleNo  = cert.heatNo || '';
 
-  // Material and process from cert or job card or first challan item
-  const material  = cert.dieMaterial || jc.dieMaterial || challanItems[0]?.material || '—';
+  // Material — prefer JC value (cert may have been created before material was filled)
+  const material  = jc.dieMaterial || cert.dieMaterial || challanItems[0]?.material || '—';
   const htSpec    = cert.operatorMode || jc.hrcRange?.replace(/\d.*/, '').trim() || challanItems[0]?.processName || '—';
 
   // DB stores distortion as [{pt, val}, ...] — extract scalar values
   const extractDist = arr => asArray(arr).map(v =>
     v != null && typeof v === 'object' ? (v.val ?? v.value ?? '') : v
   );
-  const distBefore = extractDist(cert.distortionBefore);
-  const distAfter  = extractDist(cert.distortionAfter);
+  // Use certificate distortion data, fall back to job card inspection data
+  const distBefore = extractDist(cert.distortionBefore || insp.distortionBefore);
+  const distAfter  = extractDist(cert.distortionAfter || insp.distortionAfter);
 
   const ITEMS_8 = Array.from({ length: 8 }, (_, i) => i);
 
   return (
     <div className="bg-slate-100 py-4 print:bg-white print:py-0">
       <style>{`
+        @page { margin: 0mm; size: A4; }
         @media print {
           .no-print { display: none !important; }
-          .page { box-shadow: none !important; margin: 0 !important; border: none !important; }
-          body { background: white !important; -webkit-print-color-adjust: exact; }
-          @page { margin: 8mm; size: A4; }
+          html, body { margin: 0 !important; padding: 2mm 4mm !important; }
+          .page { box-shadow: none !important; margin: 0 !important; }
+          body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
         .cert-border { border: 1px solid black; }
         .cell { border: 1px solid black; }
@@ -320,56 +231,46 @@ export default function CertPrint() {
 
       {/* Action bar */}
       <div className="no-print max-w-[900px] mx-auto mb-3 flex items-center gap-2 px-2">
-        <Link to={`/quality/certificates/${id}`} className="btn-ghost text-sm">← Back</Link>
+        <Link to="/quality/certificates" className="btn-ghost text-sm">← Back</Link>
         <button className="btn-primary ml-auto text-sm" onClick={() => window.print()}>
           Print / Save PDF
         </button>
       </div>
 
       {/* ── Certificate Page ── */}
-      <div className="page max-w-[900px] mx-auto bg-white shadow-lg text-[10px]" style={{ fontFamily: 'Arial, sans-serif' }}>
+      <div className="page max-w-[900px] mx-auto bg-white shadow-lg text-[10px]" style={{ fontFamily: 'Arial, sans-serif', border: '2px solid #222' }}>
 
         {/* ── HEADER ── */}
         <table className="w-full border-collapse" style={{ borderBottom: '2px solid black' }}>
           <tbody>
             <tr>
-              {/* Left: SVT + Factory */}
-              <td className="p-2 align-top" style={{ width: '35%', borderRight: '1px solid black' }}>
-                <div className="flex items-start gap-2">
-                  <SvtLogo size={46} />
-                  <div className="leading-snug">
-                    <div className="font-bold text-[9px] text-slate-600 mb-0.5">Factory:</div>
-                    <div className="font-extrabold text-[11px]">{SVT.name}</div>
-                    <div className="text-[9px] text-slate-700">{SVT.address}</div>
-                    <div className="text-[9px] text-slate-700">{SVT.email}</div>
+              {/* SVT logo — left corner */}
+              <td style={{ width: 120, padding: '5px 10px', verticalAlign: 'middle', textAlign: 'center' }}>
+                <SvtLogo size={96} />
+              </td>
+              {/* Title + company info */}
+              <td style={{ padding: '6px 16px', verticalAlign: 'middle' }}>
+                <div style={{ textAlign: 'center', fontWeight: 900, fontSize: 18, letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: 8 }}>
+                  TEST CERTIFICATE
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 9, color: '#555', marginBottom: 2 }}>Factory:</div>
+                    <div style={{ fontWeight: 900, fontSize: 10.5 }}>{SVT.name}</div>
+                    <div style={{ fontSize: 9 }}>{SVT.address}</div>
+                    <div style={{ fontSize: 9 }}>{SVT.email}</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontWeight: 700, fontSize: 9, color: '#555', marginBottom: 2 }}>Registered Office:</div>
+                    <div style={{ fontWeight: 900, fontSize: 10.5 }}>{SVT.name}</div>
+                    <div style={{ fontSize: 9 }}>{SVT.address}</div>
+                    <div style={{ fontSize: 9 }}>{SVT.email}</div>
                   </div>
                 </div>
               </td>
-
-              {/* Center + Right: Title + Reg Office + TUV */}
-              <td className="p-2 align-top" style={{ width: '65%' }}>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="font-bold text-[9px] text-slate-600 mb-0.5">Registered Office:</div>
-                    <div className="font-extrabold text-[11px]">{SVT.name}</div>
-                    <div className="text-[9px] text-slate-700">{SVT.address}</div>
-                    <div className="text-[9px] text-slate-700">{SVT.email}</div>
-                  </div>
-                  <div className="flex flex-col items-end gap-1 ml-4">
-                    <TuvLogo size={40} />
-                    <table className="text-[8px] border border-black mt-1" style={{ borderCollapse: 'collapse' }}>
-                      <tbody>
-                        <tr><td className="px-2 py-0.5 border border-black font-semibold">DOC NO</td><td className="px-2 py-0.5 border border-black">QF-QA-08</td></tr>
-                        <tr><td className="px-2 py-0.5 border border-black font-semibold">REVISION NO</td><td className="px-2 py-0.5 border border-black">00</td></tr>
-                        <tr><td className="px-2 py-0.5 border border-black font-semibold">REV. DATE</td><td className="px-2 py-0.5 border border-black"></td></tr>
-                        <tr><td className="px-2 py-0.5 border border-black font-semibold">PAGE NO</td><td className="px-2 py-0.5 border border-black">1 Of 1</td></tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-                <div className="text-center font-extrabold text-[16px] tracking-widest mt-1" style={{ letterSpacing: '0.15em' }}>
-                  TEST CERTIFICATE
-                </div>
+              {/* TÜV logo — right corner */}
+              <td style={{ width: 120, padding: '5px 10px', verticalAlign: 'middle', textAlign: 'center' }}>
+                <TuvLogo size={82} />
               </td>
             </tr>
           </tbody>
@@ -379,20 +280,37 @@ export default function CertPrint() {
         <table className="w-full border-collapse" style={{ borderBottom: '1px solid black' }}>
           <tbody>
             <tr>
-              <td className="p-2 align-top" style={{ width: '55%', borderRight: '1px solid black' }}>
-                <div className="font-bold mb-1">Customer's:</div>
-                <div className="font-extrabold text-[11px]">{customer?.name || '—'}</div>
-                <div className="text-[9px] whitespace-pre-wrap leading-snug mt-0.5">{customer?.address || '—'}</div>
+              <td className="p-1.5 align-top" style={{ width: '55%' }}>
+                <div className="font-bold mb-1" style={{ fontSize: 10 }}>Customer's:</div>
+                <div className="font-extrabold" style={{ fontSize: 12 }}>{customer?.name || '—'}</div>
+                {/* address holds only the street line; city, state and PIN are
+                    separate columns, so printing address alone dropped them. */}
+                <div className="whitespace-pre-wrap leading-snug mt-0.5" style={{ fontSize: 10 }}>
+                  {[
+                    customer?.address,
+                    [customer?.city, customer?.state].filter(Boolean).join(', '),
+                    customer?.pinCode ? `- ${customer.pinCode}` : '',
+                  ].filter(Boolean).join(' ').replace(/,\s*-/g, ' -').trim() || '—'}
+                </div>
               </td>
-              <td className="p-2 align-top text-[9.5px]" style={{ width: '45%' }}>
-                <table className="w-full">
+              <td className="align-top" style={{ width: '45%', padding: '4px 6px 4px 20px' }}>
+                <table style={{ borderCollapse: 'collapse' }}>
                   <tbody>
-                    <tr><td className="pr-2 py-0.5 text-slate-600 whitespace-nowrap">Certificate No.</td><td className="font-bold font-mono">: {cert.certNo}</td></tr>
-                    <tr><td className="pr-2 py-0.5 text-slate-600">Job Card No.</td><td className="font-mono">: {jc.jobCardNo || '—'}</td></tr>
-                    <tr><td className="pr-2 py-0.5 text-slate-600">Your PO No.</td><td className="font-mono">: {cert.yourPoNo || '—'}</td></tr>
-                    <tr><td className="pr-2 py-0.5 text-slate-600">Your DC No.</td><td className="font-mono">: {yourDcNo}</td></tr>
-                    <tr><td className="pr-2 py-0.5 text-slate-600">Issue Date</td><td className="font-mono">: {formatDate(cert.issueDate)}</td></tr>
-                    <tr><td className="pr-2 py-0.5 text-slate-600">Issue By</td><td className="font-mono">: {cert.checkedBy || cert.createdBy?.name || '—'}</td></tr>
+                    {[
+                      ['Certificate No.', cert.certNo, true],
+                      ['Job Card No.',    jc.jobCardNo || '—', false],
+                      ['Your PO No.',     cert.yourPoNo || '—', false],
+                      cert.yourPoDate ? ['Your PO Date', formatDate(cert.yourPoDate), false] : null,
+                      ['Your DC No.',     yourDcNo, false],
+                      ['Issue Date',      formatDate(cert.issueDate), false],
+                      ['Issue By',        cert.checkedBy || cert.createdBy?.name || '—', false],
+                    ].filter(Boolean).map(([lbl, val, bold]) => (
+                      <tr key={lbl}>
+                        <td style={{ paddingRight: 6, paddingBottom: 2, fontSize: 10, color: '#000', whiteSpace: 'nowrap', fontWeight: 700 }}>{lbl}</td>
+                        <td style={{ paddingRight: 4, paddingBottom: 2, fontSize: 10, fontWeight: 700, color: '#000' }}>:</td>
+                        <td style={{ paddingBottom: 2, fontSize: 10, fontWeight: bold ? 900 : 700, color: '#000', whiteSpace: 'nowrap' }}>{val}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </td>
@@ -405,35 +323,34 @@ export default function CertPrint() {
           <tbody>
             {/* Row 1: Dispatch Mode */}
             <tr>
-              <td className="p-2" colSpan={3} style={{ borderRight: '1px solid black', borderBottom: '1px solid black' }}>
+              <td className="p-1.5" colSpan={3} style={{ borderBottom: '1px solid black' }}>
                 <span className="font-bold mr-2">DISPATCH MODE:-</span>
                 <span className="mr-3"><CB checked={byOurVehicle} /> BY OUR VEHICLE</span>
                 <span className="mr-3"><CB checked={byCourier} /> BY COURIER</span>
                 <span><CB checked={collectedByCust || (!byOurVehicle && !byCourier)} /> COLLECTED BY CUSTOMER</span>
               </td>
-              <td className="p-2 align-top" rowSpan={3} style={{ width: '200px' }}>
+              <td className="p-1.5 align-top" rowSpan={3} style={{ width: '200px', borderLeft: '1px solid black' }}>
                 <div className="font-bold mb-1">Special Instruction</div>
-                <div><CB checked={cert.specInstrCertificate} /> CERTIFICATE</div>
-                <div><CB checked={cert.specInstrMpiReport} /> MPI REPORT</div>
-                <div><CB checked={cert.specInstrProcessGraph} /> PROCESS GRAPH</div>
+                <div><CB checked={cert.specInstrCertificate || jc.specInstrCert} /> CERTIFICATE</div>
+                <div><CB checked={cert.specInstrMpiReport || jc.specInstrMPIRep} /> MPI REPORT</div>
+                <div><CB checked={cert.specInstrProcessGraph || jc.specInstrGraph} /> PROCESS GRAPH</div>
               </td>
             </tr>
             {/* Row 2: Labels */}
             <tr style={{ borderBottom: '1px solid black' }}>
               <td className="px-2 py-0.5 text-slate-500 text-[9px]" style={{ borderRight: '1px solid black' }}>Material</td>
-              <td className="px-2 py-0.5 text-slate-500 text-[9px]" style={{ borderRight: '1px solid black' }}>Heat Treatment Specification</td>
-              <td className="px-2 py-0.5 text-slate-500 text-[9px]" style={{ borderRight: '1px solid black' }}></td>
+              <td className="px-2 py-0.5 text-slate-500 text-[9px]" colSpan={2}>Heat Treatment Specification</td>
             </tr>
             {/* Row 3: Values */}
             <tr>
-              <td className="p-2 font-bold" style={{ width: '80px', borderRight: '1px solid black' }}>
+              <td className="p-1.5 font-bold" style={{ width: '80px', borderRight: '1px solid black' }}>
                 {material}
               </td>
-              <td className="p-2 font-bold" style={{ borderRight: '1px solid black' }}>
+              <td className="p-1.5 font-bold" colSpan={2}>
                 {htSpec || 'HARDEN AND TEMPER'}
-              </td>
-              <td className="p-2 font-extrabold text-center" style={{ width: '120px', fontSize: '12px', borderRight: '1px solid black' }}>
-                {derived.reqText}
+                {derived.reqText && derived.reqText !== '—' && (
+                  <span className="ml-4 font-extrabold" style={{ fontSize: '12px' }}>{derived.reqText}</span>
+                )}
               </td>
             </tr>
           </tbody>
@@ -443,35 +360,54 @@ export default function CertPrint() {
         <table className="w-full border-collapse" style={{ borderBottom: '1px solid black' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid black' }}>
-              <th className="p-1.5 text-left font-bold" style={{ width: '40px', borderRight: '1px solid black' }}>Item</th>
-              <th className="p-1.5 text-left font-bold" style={{ borderRight: '1px solid black' }}>Description</th>
-              <th className="p-1.5 text-center font-bold" style={{ width: '100px', borderRight: '1px solid black' }}>Quantity (Pcs)</th>
-              <th className="p-1.5 text-center font-bold" style={{ width: '100px', borderRight: '1px solid black' }}>Weight (Kg)</th>
-              <th className="p-1.5 text-center font-bold" style={{ width: '100px' }}>Remarks</th>
+              <th className="p-1 text-left font-bold" style={{ width: '40px', borderRight: '1px solid black' }}>Item</th>
+              <th className="p-1 text-left font-bold" style={{ borderRight: '1px solid black' }}>Description</th>
+              <th className="p-1 text-center font-bold" style={{ width: '100px', borderRight: '1px solid black' }}>Quantity (Pcs)</th>
+              <th className="p-1 text-center font-bold" style={{ width: '100px', borderRight: '1px solid black' }}>Weight (Kg)</th>
+              <th className="p-1 text-center font-bold" style={{ width: '100px' }}>Remarks</th>
             </tr>
           </thead>
           <tbody>
             {items.map((it, i) => {
-              const chItem = challanItems[i] || challanItems[0];
+              const chItem = (it.sourceChallanItemId && chItemById[it.sourceChallanItemId])
+                || challanItems[i]
+                || challanItems[0];
+              // Clean description: remove process name and material suffixes (same logic as JobCardPrint)
+              let desc = it.description || it.partName || '—';
+              const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              if (chItem?.processName) desc = desc.replace(new RegExp('\\s*[-–]\\s*' + esc(chItem.processName) + '\\s*$', 'i'), '').trim();
+              if (chItem?.material) desc = desc.replace(new RegExp('\\s*[-–]\\s*' + esc(chItem.material) + '\\s*$', 'i'), '').trim();
               return (
                 <tr key={it.id} style={{ borderBottom: '1px solid #ccc' }}>
-                  <td className="p-1.5 text-center" style={{ borderRight: '1px solid black' }}>{i + 1}</td>
-                  <td className="p-1.5" style={{ borderRight: '1px solid black' }}>
-                    <div className="font-semibold">{it.description}</div>
+                  <td className="p-0.5 text-center" style={{ borderRight: '1px solid black' }}>{i + 1}</td>
+                  <td className="p-0.5" style={{ borderRight: '1px solid black' }}>
+                    <div className="font-semibold flex items-baseline gap-1.5 flex-wrap">
+                      <span>{desc || '—'}</span>
+                      {jc.showDrawingNoInPrint !== false && chItem?.drawingNo && (
+                        <span className="text-[9px] font-normal text-slate-600">
+                          {jc.showDrawingNoLabelInPrint !== false && (chItem.drawingNoLabel || 'DRG NO').trim() ? `${(chItem.drawingNoLabel || 'DRG NO').trim()} - ` : ''}{chItem.drawingNo}
+                        </span>
+                      )}
+                    </div>
                     {chItem?.woNo && <div className="text-[9px] text-slate-600">WM NO - {chItem.woNo}</div>}
-                    {chItem?.drawingNo && <div className="text-[9px] text-slate-600">DRG NO - {chItem.drawingNo || '-'}</div>}
                   </td>
-                  <td className="p-1.5 text-center font-mono" style={{ borderRight: '1px solid black' }}>{it.quantity}</td>
-                  <td className="p-1.5 text-center font-mono" style={{ borderRight: '1px solid black' }}>
-                    {num(it.totalWeight) != null ? Number(it.totalWeight).toFixed(2) : '—'}
+                  <td className="p-0.5 text-center font-mono" style={{ borderRight: '1px solid black' }}>{it.quantity}</td>
+                  <td className="p-0.5 text-center font-mono" style={{ borderRight: '1px solid black' }}>
+                    {/* Certificates saved before the weight was carried across
+                        have a blank totalWeight; the inward item it came from
+                        still knows it, so read that rather than printing "—". */}
+                    {(() => {
+                      const wt = itemWeight(it, i);
+                      return wt ? Number(wt).toFixed(3) : '—';
+                    })()}
                   </td>
-                  <td className="p-1.5 text-center">{it.remarks || ''}</td>
+                  <td className="p-0.5 text-center">{it.remarks || ''}</td>
                 </tr>
               );
             })}
             {/* empty rows to fill form */}
-            {Array.from({ length: Math.max(0, 3 - items.length) }).map((_, i) => (
-              <tr key={`empty-${i}`} style={{ borderBottom: '1px solid #e5e5e5', height: '22px' }}>
+            {Array.from({ length: Math.max(0, 1 - items.length) }).map((_, i) => (
+              <tr key={`empty-${i}`} style={{ borderBottom: '1px solid #e5e5e5', height: '18px' }}>
                 <td style={{ borderRight: '1px solid black' }}></td>
                 <td style={{ borderRight: '1px solid black' }}></td>
                 <td style={{ borderRight: '1px solid black' }}></td>
@@ -480,10 +416,10 @@ export default function CertPrint() {
               </tr>
             ))}
             <tr style={{ borderTop: '1px solid black' }}>
-              <td className="p-1.5 font-bold text-right" colSpan={2} style={{ borderRight: '1px solid black' }}>Total</td>
-              <td className="p-1.5 text-center font-bold font-mono" style={{ borderRight: '1px solid black' }}>{totalQty}</td>
-              <td className="p-1.5 text-center font-bold font-mono" style={{ borderRight: '1px solid black' }}>
-                {totalWt ? totalWt.toFixed(2) : '—'}
+              <td className="p-1 font-bold text-right" colSpan={2} style={{ borderRight: '1px solid black' }}>Total</td>
+              <td className="p-1 text-center font-bold font-mono" style={{ borderRight: '1px solid black' }}>{totalQty}</td>
+              <td className="p-1 text-center font-bold font-mono" style={{ borderRight: '1px solid black' }}>
+                {totalWt ? totalWt.toFixed(3) : '—'}
               </td>
               <td></td>
             </tr>
@@ -501,8 +437,8 @@ export default function CertPrint() {
             <tbody>
               <tr>
                 {/* Categorization */}
-                <td className="p-2 align-top" style={{ width: '22%', borderRight: '1px solid black' }}>
-                  <div className="font-bold mb-1 text-[9px]">Categorization</div>
+                <td className="px-2 py-0.5 align-top" style={{ width: '22%', borderRight: '1px solid black', lineHeight: 1.35 }}>
+                  <div className="font-bold text-[9px]" style={{ marginBottom: 2 }}>Categorization</div>
                   <div><CB checked={cat('catNormal')} /> NORMAL</div>
                   <div><CB checked={cat('catWelded')} /> WELDED</div>
                   <div><CB checked={cat('catCrackRisk')} /> CRACK OR CRACK RISK</div>
@@ -514,8 +450,8 @@ export default function CertPrint() {
                 </td>
 
                 {/* Process */}
-                <td className="p-2 align-top" style={{ width: '22%', borderRight: '1px solid black' }}>
-                  <div className="font-bold mb-1 text-[9px]">Process</div>
+                <td className="px-2 py-0.5 align-top" style={{ width: '22%', borderRight: '1px solid black', lineHeight: 1.35 }}>
+                  <div className="font-bold text-[9px]" style={{ marginBottom: 2 }}>Process</div>
                   <div><CB checked={proc('procStressRelieving')} /> STRESS RELIVING</div>
                   <div><CB checked={proc('procHardening')} /> HARDENING</div>
                   <div><CB checked={proc('procTempering')} /> TEMPERING</div>
@@ -527,29 +463,29 @@ export default function CertPrint() {
                 </td>
 
                 {/* Visual + MPI inspection */}
-                <td className="p-2 align-top" style={{ width: '28%', borderRight: '1px solid black' }}>
-                  <div className="font-bold mb-1 text-[9px]">VISUAL INSPECTION</div>
-                  <div><CB checked={false} /> BEFORE</div>
-                  <div><CB checked={true} /> AFTER</div>
-                  <div className="mt-2 font-bold mb-1 text-[9px]">MPI INSPECTION</div>
-                  <div><CB checked={false} /> BEFORE</div>
-                  <div><CB checked={false} /> AFTER</div>
-                  <div><CB checked={!cert.specInstrMpiReport} /> NIL</div>
+                <td className="px-2 py-0.5 align-top" style={{ width: '28%', borderRight: '1px solid black', lineHeight: 1.35 }}>
+                  <div className="font-bold text-[9px]" style={{ marginBottom: 2 }}>VISUAL INSPECTION</div>
+                  <div><CB checked={cert.visualBefore ?? false} /> BEFORE</div>
+                  <div><CB checked={cert.visualAfter !== false} /> AFTER</div>
+                  <div className="font-bold text-[9px]" style={{ marginTop: 4, marginBottom: 2 }}>MPI INSPECTION</div>
+                  <div><CB checked={cert.mpiBefore ?? false} /> BEFORE</div>
+                  <div><CB checked={cert.mpiAfter ?? false} /> AFTER</div>
+                  <div><CB checked={cert.mpiNil ?? (!cert.specInstrMpiReport)} /> NIL</div>
                 </td>
 
                 {/* Hardness + Final Inspection By */}
-                <td className="p-2 align-top" style={{ width: '28%' }}>
-                  <div style={{ border: '1px solid black', marginBottom: '4px' }}>
-                    <div className="px-2 py-1 font-bold text-[9px]" style={{ borderBottom: '1px solid black' }}>REQUIRE HARDNESS</div>
-                    <div className="px-2 py-1.5 font-extrabold text-[12px]">{derived.reqText}</div>
+                <td className="px-2 py-0.5 align-top" style={{ width: '28%' }}>
+                  <div style={{ border: '1px solid black', marginBottom: 3 }}>
+                    <div className="px-1 font-bold text-[9px]" style={{ borderBottom: '1px solid black', padding: '2px 4px' }}>REQUIRE HARDNESS</div>
+                    <div className="font-extrabold text-[12px]" style={{ padding: '2px 4px' }}>{derived.reqText}</div>
                   </div>
-                  <div style={{ border: '1px solid black', marginBottom: '4px' }}>
-                    <div className="px-2 py-1 font-bold text-[9px]" style={{ borderBottom: '1px solid black' }}>ACHIVED HARDNESS</div>
-                    <div className="px-2 py-1.5 font-extrabold text-[12px]">{derived.achText}</div>
+                  <div style={{ border: '1px solid black', marginBottom: 3 }}>
+                    <div className="font-bold text-[9px]" style={{ borderBottom: '1px solid black', padding: '2px 4px' }}>ACHIVED HARDNESS</div>
+                    <div className="font-extrabold text-[12px]" style={{ padding: '2px 4px' }}>{derived.achText}</div>
                   </div>
                   <div style={{ border: '1px solid black' }}>
-                    <div className="px-2 py-1 font-bold text-[9px]" style={{ borderBottom: '1px solid black' }}>FINAL INSPECTION BY</div>
-                    <div className="px-2 py-3"></div>
+                    <div className="font-bold text-[9px]" style={{ borderBottom: '1px solid black', padding: '2px 4px' }}>FINAL INSPECTION BY</div>
+                    <div style={{ padding: '4px 4px', fontWeight: 700, fontSize: 11, minHeight: 20 }}>{cert.finalInspectionBy || ''}</div>
                   </div>
                 </td>
               </tr>
@@ -559,23 +495,23 @@ export default function CertPrint() {
 
         {/* ── HEAT TREATMENT PROCESS GRAPH ── */}
         <div style={{ borderBottom: '1px solid black' }}>
-          <div className="flex items-center gap-4 px-2 py-1 font-bold" style={{ borderBottom: '1px solid black' }}>
+          <div className="flex items-center gap-4 px-2 py-0.5 font-bold" style={{ borderBottom: '1px solid black' }}>
             <span>HEAT TREATMENT PROCESS</span>
             <span className="font-normal">
               CYCLE NO: <span className="font-mono">{cycleNo}</span>
             </span>
           </div>
-          <div className="px-2 py-1">
-            <TempGraph points={derived.effectiveTempPoints || []} />
+          <div className="px-2" style={{ paddingTop: 0, paddingBottom: 0, height: 170 }}>
+            <HeatCycleStepGraph segments={derived.tempSegments || []} stroke="#000" viewW={1400} labelFontSize={13} strokeWidth={3} showYAxisTicks />
           </div>
         </div>
 
-        {/* ── DISTORTION + HARDNESS + PACKED ── */}
+        {/* ── DISTORTION + HARDNESS + APPROVED BY (side by side) ── */}
         <table className="w-full border-collapse" style={{ borderBottom: '1px solid black' }}>
           <tbody>
-            <tr>
-              <td className="align-top p-2" style={{ borderRight: '1px solid black' }}>
-                <table className="w-full border-collapse text-[9px]" style={{ border: '1px solid black' }}>
+            <tr style={{ verticalAlign: 'top' }}>
+              <td className="p-1" style={{ width: '55%', borderRight: '1px solid black' }}>
+                <table className="w-full border-collapse text-[9px]" style={{ border: '1px solid black', height: '46px' }}>
                   <thead>
                     <tr>
                       <th className="p-1 font-bold" style={{ border: '1px solid black' }} colSpan={9}>DISTORTION</th>
@@ -607,21 +543,46 @@ export default function CertPrint() {
                   </tbody>
                 </table>
               </td>
-              <td className="align-top p-2" style={{ width: '220px' }}>
-                <table className="border-collapse text-[9px] w-full" style={{ border: '1px solid black' }}>
+              <td className="p-1" style={{ width: '22%', borderRight: '1px solid black' }}>
+                <table className="w-full border-collapse text-[8px]" style={{ border: '1px solid black', height: '46px' }}>
+                  <thead>
+                    <tr>
+                      <th className="p-0.5 font-bold" style={{ border: '1px solid black' }} colSpan={2}>HARDNESS AFTER</th>
+                    </tr>
+                  </thead>
                   <tbody>
-                    {[1, 2, 3, 4].map(n => (
-                      <tr key={n} style={{ borderBottom: '1px solid black' }}>
-                        <td className="p-1 font-semibold" style={{ borderRight: '1px solid black', width: '20px' }}>{n}</td>
-                        <td className="p-1.5 font-mono">{derived.reqText}</td>
-                      </tr>
-                    ))}
+                    <tr>
+                      <td className="p-0.5 font-bold text-center" style={{ border: '1px solid black', width: '30%' }}>1</td>
+                      <td className="p-0.5 text-center" style={{ border: '1px solid black' }}>{cert.hardnessAfter1 || '—'}</td>
+                    </tr>
+                    <tr>
+                      <td className="p-0.5 font-bold text-center" style={{ border: '1px solid black' }}>2</td>
+                      <td className="p-0.5 text-center" style={{ border: '1px solid black' }}>{cert.hardnessAfter2 || '—'}</td>
+                    </tr>
+                    <tr>
+                      <td className="p-0.5 font-bold text-center" style={{ border: '1px solid black' }}>3</td>
+                      <td className="p-0.5 text-center" style={{ border: '1px solid black' }}>{cert.hardnessAfter3 || '—'}</td>
+                    </tr>
+                    <tr>
+                      <td className="p-0.5 font-bold text-center" style={{ border: '1px solid black' }}>4</td>
+                      <td className="p-0.5 text-center" style={{ border: '1px solid black' }}>{cert.hardnessAfter4 || '—'}</td>
+                    </tr>
                   </tbody>
                 </table>
-                <div className="mt-1.5" style={{ border: '1px solid black' }}>
-                  <div className="px-2 py-1 font-bold text-[9px]" style={{ borderBottom: '1px solid black' }}>APPROVED BY:</div>
-                  <div className="px-2 py-3">{cert.approvedBy || ''}</div>
-                </div>
+              </td>
+              <td className="p-1" style={{ width: '23%' }}>
+                <table className="w-full border-collapse text-[9px]" style={{ border: '1px solid black', height: '46px' }}>
+                  <thead>
+                    <tr>
+                      <th className="p-1 font-bold" style={{ border: '1px solid black' }}>APPROVED BY:</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="p-1 text-center" style={{ border: '1px solid black', verticalAlign: 'middle', height: 'calc(46px - 24px)' }}>{cert.approvedBy || ''}</td>
+                    </tr>
+                  </tbody>
+                </table>
               </td>
             </tr>
           </tbody>
@@ -630,20 +591,20 @@ export default function CertPrint() {
         {/* ── JOB IMAGES ── */}
         <div style={{ borderBottom: '1px solid black' }}>
           <div className="px-2 py-1 font-bold" style={{ borderBottom: '1px solid black' }}>JOB IMAGE</div>
-          <div className="flex gap-2 p-2">
+          <div className="flex gap-1 p-1">
             {[jc.image1, jc.image2, jc.image3, jc.image4, jc.image5]
               .map(makeImgUrl)
               .filter(Boolean)
               .map((url, i) => (
-                <div key={i} className="border border-black" style={{ width: 140, height: 110 }}>
+                <div key={i} className="border border-black" style={{ width: 150, height: 95 }}>
                   <img src={url} alt={`Job ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
               ))}
             {![jc.image1, jc.image2].some(Boolean) && (
-              <div className="flex gap-2">
+              <div className="flex gap-1">
                 {[1, 2].map(n => (
                   <div key={n} className="border border-black flex items-center justify-center text-slate-400 text-[9px]"
-                    style={{ width: 140, height: 110 }}>
+                    style={{ width: 150, height: 95 }}>
                     {n}
                   </div>
                 ))}
@@ -653,7 +614,7 @@ export default function CertPrint() {
         </div>
 
         {/* ── FOOTER ── */}
-        <div className="flex justify-between items-center px-2 py-1.5 text-[8.5px] text-slate-600" style={{ borderTop: '1px solid #ccc' }}>
+        <div className="flex justify-between items-center px-2 py-0.5 text-[8.5px] text-slate-600" style={{ borderTop: '1px solid #ccc' }}>
           <span>QF-QA-08</span>
           <span>Effective Date: 10/05/2019</span>
           <span>Revision: 00</span>

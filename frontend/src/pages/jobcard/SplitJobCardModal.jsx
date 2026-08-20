@@ -78,8 +78,10 @@ export default function SplitJobCardModal({ card, onClose, onSuccess }) {
             {remaining < 0 && <span className="ml-1">· Over by {Math.abs(remaining)}</span>}
           </div>
 
-          {/* Split rows */}
-          <table className="w-full text-xs">
+          {/* Split rows. Five columns of inputs need room, so let them scroll
+              inside the modal rather than collapse. */}
+          <div className="overflow-x-auto">
+          <table className="w-full text-xs min-w-[440px]">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
                 <th className="px-3 py-2 text-left text-[10px] font-bold text-slate-500 uppercase w-8">#</th>
@@ -133,6 +135,7 @@ export default function SplitJobCardModal({ card, onClose, onSuccess }) {
               ))}
             </tbody>
           </table>
+          </div>
 
           <button type="button" onClick={() => setRows(p => [...p, emptyRow()])}
             className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-2 rounded-lg transition-colors">

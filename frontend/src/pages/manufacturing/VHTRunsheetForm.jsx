@@ -4,49 +4,14 @@ import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { toNum, toInt } from '../../utils/normalize';
 import SearchSelect from '../../components/SearchSelect';
+import HeatCycleGraphPreview from '../../components/HeatCycleGraphPreview';
+import {
+  CYCLE_PRESETS,
+  CYCLE_NAMES,
+  DEFAULT_GRAPH_SEGMENTS,
+} from '../../data/heatTreatmentCycles';
 
-// Cycle presets from Excel Graphs sheet (D2/H13/HSS/D3/SR cycles)
-const CYCLE_PRESETS = {
-  D2: [
-    { tempC: 550,  holdMin: 30,  label: 'Preheat 1' },
-    { tempC: 750,  holdMin: 30,  label: 'Preheat 2' },
-    { tempC: 950,  holdMin: 20,  label: 'Preheat 3' },
-    { tempC: 1040, holdMin: 90,  label: 'Harden (Soak)' },
-    { tempC: 500,  holdMin: 120, label: 'Temper 1' },
-    { tempC: 500,  holdMin: 120, label: 'Temper 2' },
-  ],
-  'H13 / HDS': [
-    { tempC: 550,  holdMin: 30,  label: 'Preheat 1' },
-    { tempC: 750,  holdMin: 30,  label: 'Preheat 2' },
-    { tempC: 950,  holdMin: 20,  label: 'Preheat 3' },
-    { tempC: 1030, holdMin: 90,  label: 'Harden (Soak)' },
-    { tempC: 560,  holdMin: 120, label: 'Temper 1' },
-    { tempC: 590,  holdMin: 120, label: 'Temper 2' },
-    { tempC: 560,  holdMin: 120, label: 'Temper 3' },
-  ],
-  HSS: [
-    { tempC: 650,  holdMin: 30,  label: 'Preheat 1' },
-    { tempC: 850,  holdMin: 30,  label: 'Preheat 2' },
-    { tempC: 1050, holdMin: 20,  label: 'Preheat 3' },
-    { tempC: 1195, holdMin: 60,  label: 'Harden (Soak)' },
-    { tempC: 540,  holdMin: 120, label: 'Temper 1' },
-    { tempC: 540,  holdMin: 120, label: 'Temper 2' },
-    { tempC: 540,  holdMin: 120, label: 'Temper 3' },
-  ],
-  D3: [
-    { tempC: 500,  holdMin: 20,  label: 'Preheat 1' },
-    { tempC: 750,  holdMin: 20,  label: 'Preheat 2' },
-    { tempC: 850,  holdMin: 20,  label: 'Preheat 3' },
-    { tempC: 990,  holdMin: 90,  label: 'Harden (Soak)' },
-    { tempC: 200,  holdMin: 120, label: 'Temper 1' },
-    { tempC: 200,  holdMin: 120, label: 'Temper 2' },
-  ],
-  'Stress Relieving': [
-    { tempC: 650,  holdMin: 180, label: 'Stress Relieving' },
-  ],
-};
-
-const DEFAULT_GRAPH = CYCLE_PRESETS['D2'];
+const DEFAULT_GRAPH = DEFAULT_GRAPH_SEGMENTS;
 
 const emptyLine = () => ({
   _id: Math.random(),
@@ -58,6 +23,9 @@ const emptyLine = () => ({
   jobDescription: '',
   materialGrade: '',
   hrcRequired: '',
+  fixtures: '',
+  tcPosition: '',
+  instruction: '',
 });
 
 function todayISODate() {
@@ -68,49 +36,19 @@ function todayISODate() {
   return `${y}-${m}-${day}`;
 }
 
-function expandToPlot(points) {
-  if (!points?.length) return [];
-  let t = 0;
-  const out = [{ t: 0, temp: Number(points[0].tempC) }];
-  for (let i = 0; i < points.length; i++) {
-    const temp = Number(points[i].tempC);
-    const hold = Number(points[i].holdMin) || 0;
-    if (i > 0) {
-      const prev = out[out.length - 1];
-      if (prev.temp !== temp) out.push({ t, temp });
-    }
-    t += hold;
-    out.push({ t, temp });
-  }
-  out.push({ t: t + 8, temp: 80 });
-  return out;
-}
-
-function RunGraphPreview({ graph }) {
-  const pts = useMemo(() => expandToPlot(graph), [graph]);
-  if (pts.length < 2) return <div className="text-xs text-slate-400">Add graph points.</div>;
-
-  const w = 560;
-  const h = 160;
-  const pad = 28;
-  const minX = Math.min(...pts.map((p) => p.t));
-  const maxX = Math.max(...pts.map((p) => p.t));
-  const minY = Math.min(...pts.map((p) => p.temp), 0);
-  const maxY = Math.max(...pts.map((p) => p.temp));
-  const sx = (x) => pad + ((x - minX) / (maxX - minX || 1)) * (w - pad * 2);
-  const sy = (y) => h - pad - ((y - minY) / (maxY - minY || 1)) * (h - pad * 2);
-  const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${sx(p.t).toFixed(2)} ${sy(p.temp).toFixed(2)}`).join(' ');
-
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="w-full max-w-xl h-[160px] border border-slate-200 rounded bg-white">
-      <path d={d} fill="none" stroke="#1e293b" strokeWidth="2" />
-      {pts.map((p, i) => (
-        <circle key={i} cx={sx(p.t)} cy={sy(p.temp)} r="2.5" fill="#6366f1" />
-      ))}
-      <text x={pad} y={h - 6} className="text-[9px] fill-slate-500">Time (min)</text>
-      <text x={4} y={pad} className="text-[9px] fill-slate-500" transform={`rotate(-90 4 ${pad})`}>°C</text>
-    </svg>
-  );
+// "07:00" + "17:00" -> "10:00" (H:MM). Assumes the cycle finishes the same
+// day; if end time is earlier than start it's treated as running past
+// midnight (adds 24h) rather than showing a negative duration.
+function computeDurationDisplay(start, end) {
+  if (!start || !end) return '';
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  if ([sh, sm, eh, em].some(Number.isNaN)) return '';
+  let minutes = (eh * 60 + em) - (sh * 60 + sm);
+  if (minutes < 0) minutes += 24 * 60;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h}:${String(m).padStart(2, '0')}`;
 }
 
 export default function VHTRunsheetForm() {
@@ -120,15 +58,36 @@ export default function VHTRunsheetForm() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(!isNew);
   const [machines, setMachines] = useState([]);
-  const [batches, setBatches] = useState([]);
   const [jobCards, setJobCards] = useState([]);
   const [jobCardNoLookup, setJobCardNoLookup] = useState('');
   const [fillingJobCard, setFillingJobCard] = useState(false);
+  const [masterGraphs, setMasterGraphs] = useState([]);
+
+  useEffect(() => {
+    api.get('/quality/temp-cycle-templates', { params: { isActive: 'true', limit: 200 } })
+      .then(r => setMasterGraphs(r.data.data || []))
+      .catch(() => {});
+  }, []);
+
+  const loadMasterGraph = async (graphId) => {
+    if (!graphId) return;
+    try {
+      const r = await api.get(`/quality/temp-cycle-templates/${graphId}`);
+      const segments = r.data.data?.data;
+      if (segments?.length) {
+        setForm(f => ({ ...f, tempGraphPoints: segments.map(p => ({ ...p })) }));
+        toast.success(`Loaded graph: ${r.data.data.name}`);
+      }
+    } catch {
+      toast.error('Failed to load graph.');
+    }
+  };
 
   const [form, setForm] = useState({
     batchId: '',
     furnaceId: '',
     runDate: todayISODate(),
+    cycleStartTime: '',
     cycleEndTime: '',
     totalTimeDisplay: '',
     mrStart: '',
@@ -149,21 +108,40 @@ export default function VHTRunsheetForm() {
     supervisorSign: '',
     supervisorVerifiedAt: '',
     verificationNote: '',
+    gasPressure: '',
+    waterCirculationFrom: '',
+    waterCirculationTo: '',
+    powerFailureFrom: '',
+    powerFailureTo: '',
+    otherCheckpoint: '',
     status: 'IN_PROGRESS',
     actualOutput: '',
     remarks: '',
     items: [emptyLine()],
   });
 
+  // Total time and Total M.R. are fully derived from the start/end pairs —
+  // auto-recompute whenever those change instead of relying on manual entry
+  // (manual entry is what produced the wrong "-1" seen on a real run sheet).
+  useEffect(() => {
+    setForm(f => ({ ...f, totalTimeDisplay: computeDurationDisplay(f.cycleStartTime, f.cycleEndTime) }));
+  }, [form.cycleStartTime, form.cycleEndTime]);
+
+  useEffect(() => {
+    setForm(f => {
+      if (f.mrStart === '' || f.mrEnd === '') return f;
+      const diff = toNum(f.mrEnd, 0) - toNum(f.mrStart, 0);
+      return { ...f, totalMr: String(diff) };
+    });
+  }, [form.mrStart, form.mrEnd]);
+
   useEffect(() => {
     Promise.all([
       api.get('/machines'),
-      api.get('/manufacturing/batches', { params: { limit: 100 } }),
       api.get('/jobcards', { params: { limit: 500 } }),
     ])
-      .then(([m, b, j]) => {
+      .then(([m, j]) => {
         setMachines(m.data.data || []);
-        setBatches(b.data.data || []);
         setJobCards(j.data.data || []);
       })
       .catch(console.error);
@@ -183,6 +161,7 @@ export default function VHTRunsheetForm() {
           batchId: r.batchId ? String(r.batchId) : '',
           furnaceId: String(r.furnaceId || ''),
           runDate: r.runDate ? r.runDate.slice(0, 10) : todayISODate(),
+          cycleStartTime: r.cycleStartTime || '',
           cycleEndTime: r.cycleEndTime || '',
           totalTimeDisplay: r.totalTimeDisplay || '',
           mrStart: r.mrStart != null ? String(r.mrStart) : '',
@@ -205,6 +184,12 @@ export default function VHTRunsheetForm() {
             ? new Date(r.supervisorVerifiedAt).toISOString().slice(0, 16)
             : '',
           verificationNote: r.verificationNote || '',
+          gasPressure: r.gasPressure || '',
+          waterCirculationFrom: r.waterCirculationFrom || '',
+          waterCirculationTo: r.waterCirculationTo || '',
+          powerFailureFrom: r.powerFailureFrom || '',
+          powerFailureTo: r.powerFailureTo || '',
+          otherCheckpoint: r.otherCheckpoint || '',
           status: r.status || 'PLANNED',
           actualOutput: r.actualOutput != null ? String(r.actualOutput) : '',
           remarks: r.remarks || '',
@@ -220,6 +205,9 @@ export default function VHTRunsheetForm() {
               jobDescription: it.jobDescription || '',
               materialGrade: it.materialGrade || '',
               hrcRequired: it.hrcRequired || '',
+              fixtures: it.fixtures || '',
+              tcPosition: it.tcPosition || '',
+              instruction: it.instruction || '',
             })) || [emptyLine()],
         });
       })
@@ -233,22 +221,44 @@ export default function VHTRunsheetForm() {
     return m;
   }, [jobCards]);
 
-  const onSelectJobCard = (idx, jobCardId) => {
+  const onSelectJobCard = async (idx, jobCardId) => {
     const jc = jcById.get(Number(jobCardId));
+    // Seed immediately from the list-row data (fast, but its quantity/
+    // totalWeight/material can be stale header fields), then replace with
+    // the full job card detail's actual linked-item totals — the same
+    // numbers shown on the Job Card's own Items table — once it loads.
     setForm(prev => {
       const next = [...prev.items];
       next[idx] = {
         ...next[idx],
         jobCardId,
-        quantity: jc ? String(jc.quantity) : next[idx].quantity,
-        weightKg: jc?.totalWeight != null ? String(jc.totalWeight) : next[idx].weightKg,
         customerName: jc?.customerNameSnapshot || jc?.customer?.name || '',
-        jobDescription: jc?.part?.description || '',
-        materialGrade: jc?.dieMaterial || jc?.part?.material || '',
         hrcRequired: jc?.hrcRange || '',
       };
       return { ...prev, items: next };
     });
+    if (!jobCardId) return;
+    try {
+      const r = await api.get(`/jobcards/${jobCardId}`);
+      const full = r.data.data;
+      const linkedItems = (full.challanItemLinks || []).length > 0
+        ? full.challanItemLinks
+        : (full.challans?.flatMap(ch => ch.items || []) || []);
+      const totalQty = linkedItems.reduce((s, it) => s + (Number(it.qty ?? it.quantity) || 0), 0);
+      const totalWt  = linkedItems.reduce((s, it) => s + (Number(it.weight) || 0), 0);
+      const material = full.dieMaterial || linkedItems[0]?.material || '';
+      setForm(prev => {
+        const next = [...prev.items];
+        if (next[idx]?.jobCardId !== jobCardId) return prev; // user picked a different card while this was loading
+        next[idx] = {
+          ...next[idx],
+          quantity: totalQty ? String(totalQty) : (full.quantity != null ? String(full.quantity) : next[idx].quantity),
+          weightKg: totalWt ? String(totalWt) : (full.totalWeight != null ? String(full.totalWeight) : next[idx].weightKg),
+          materialGrade: material,
+        };
+        return { ...prev, items: next };
+      });
+    } catch { /* keep the list-row seeded values */ }
   };
 
   const updateItem = (idx, field, value) => {
@@ -270,15 +280,8 @@ export default function VHTRunsheetForm() {
       toast.error('Job card number not found.');
       return;
     }
-    setForm(prev => ({
-      ...prev,
-      items: [{
-        ...emptyLine(),
-        jobCardId: String(found.id),
-        quantity: found.quantity ? String(found.quantity) : prev.items[0]?.quantity || '',
-        weightKg: found.totalWeight != null ? String(found.totalWeight) : prev.items[0]?.weightKg || '',
-      }],
-    }));
+    setForm(prev => ({ ...prev, items: [emptyLine()] }));
+    onSelectJobCard(0, String(found.id));
     toast.success(`Loaded job card ${found.jobCardNo}.`);
   };
 
@@ -313,6 +316,9 @@ export default function VHTRunsheetForm() {
         jobDescription: it.jobDescription || null,
         materialGrade: it.materialGrade || null,
         hrcRequired: it.hrcRequired || null,
+        fixtures: it.fixtures || null,
+        tcPosition: it.tcPosition || null,
+        instruction: it.instruction || null,
       }));
     if (!lines.length) {
       toast.error('Add at least one line with a job card.');
@@ -336,6 +342,7 @@ export default function VHTRunsheetForm() {
       batchId: form.batchId ? toInt(form.batchId) : null,
       furnaceId: toInt(form.furnaceId),
       runDate: form.runDate,
+      cycleStartTime: form.cycleStartTime || null,
       cycleEndTime: form.cycleEndTime || null,
       totalTimeDisplay: form.totalTimeDisplay || null,
       mrStart: form.mrStart === '' ? null : toNum(form.mrStart, 0),
@@ -356,6 +363,12 @@ export default function VHTRunsheetForm() {
       supervisorSign: form.supervisorSign || null,
       supervisorVerifiedAt: form.supervisorVerifiedAt || null,
       verificationNote: form.verificationNote || null,
+      gasPressure: form.gasPressure || null,
+      waterCirculationFrom: form.waterCirculationFrom || null,
+      waterCirculationTo: form.waterCirculationTo || null,
+      powerFailureFrom: form.powerFailureFrom || null,
+      powerFailureTo: form.powerFailureTo || null,
+      otherCheckpoint: form.otherCheckpoint || null,
       status: form.status,
       actualOutput: form.actualOutput === '' ? null : toNum(form.actualOutput, 0),
       remarks: form.remarks || null,
@@ -389,7 +402,7 @@ export default function VHTRunsheetForm() {
     <div className="page-stack w-full p-6 pb-24">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
-          <Link to="/manufacturing/runsheet" className="text-sm text-indigo-600 hover:underline">
+          <Link to="/manufacturing/runsheet" className="text-sm text-sky-600 hover:underline">
             ← Run sheets
           </Link>
           <h1 className="text-2xl font-bold text-slate-800 mt-2">{isNew ? 'New VHT Run Sheet' : 'Edit VHT Run Sheet'}</h1>
@@ -399,7 +412,7 @@ export default function VHTRunsheetForm() {
             to={`/manufacturing/runsheet/${id}/print`}
             target="_blank"
             rel="noreferrer"
-            className="text-sm font-medium text-slate-600 hover:text-indigo-600"
+            className="text-sm font-medium text-slate-600 hover:text-sky-600"
           >
             Open print view
           </Link>
@@ -432,13 +445,12 @@ export default function VHTRunsheetForm() {
               />
             </label>
             <label className="block text-xs">
-              <span className="text-slate-500">Manufacturing batch (optional)</span>
-              <SearchSelect
-                value={String(form.batchId || '')}
-                onChange={v => setForm({ ...form, batchId: v })}
-                options={[{ value: '', label: 'None' }, ...(batches || []).map(b => ({ value: b.id, label: b.batchNumber }))]}
-                placeholder="None"
-                className="mt-1"
+              <span className="text-slate-500">Cycle start time</span>
+              <input
+                type="time"
+                value={form.cycleStartTime}
+                onChange={(e) => setForm({ ...form, cycleStartTime: e.target.value })}
+                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
               />
             </label>
             <label className="block text-xs">
@@ -451,13 +463,13 @@ export default function VHTRunsheetForm() {
               />
             </label>
             <label className="block text-xs">
-              <span className="text-slate-500">Total time (display)</span>
+              <span className="text-slate-500">Total time <span className="text-slate-400">(auto, from start/end)</span></span>
               <input
                 type="text"
+                readOnly
                 placeholder="e.g. 8:00"
                 value={form.totalTimeDisplay}
-                onChange={(e) => setForm({ ...form, totalTimeDisplay: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
+                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-slate-50 text-slate-500"
               />
             </label>
             <label className="block text-xs">
@@ -488,12 +500,12 @@ export default function VHTRunsheetForm() {
               />
             </label>
             <label className="block text-xs">
-              <span className="text-slate-500">Total M.R.</span>
+              <span className="text-slate-500">Total M.R. <span className="text-slate-400">(auto, end − start)</span></span>
               <input
-                type="number"
+                type="text"
+                readOnly
                 value={form.totalMr}
-                onChange={(e) => setForm({ ...form, totalMr: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
+                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-slate-50 text-slate-500"
               />
             </label>
             <label className="block text-xs sm:col-span-2">
@@ -559,7 +571,7 @@ export default function VHTRunsheetForm() {
             <button
               type="button"
               onClick={fillFromJobCardNumber}
-              className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
+              className="px-4 py-2 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-700"
             >
               Load from job card
             </button>
@@ -575,7 +587,6 @@ export default function VHTRunsheetForm() {
                   <th className="py-2 pr-2">HRC req</th>
                   <th className="py-2 pr-2">Qty</th>
                   <th className="py-2 pr-2">Wt (kg)</th>
-                  <th className="py-2 pr-2">Slot</th>
                   <th className="py-2" />
                 </tr>
               </thead>
@@ -638,14 +649,6 @@ export default function VHTRunsheetForm() {
                         onChange={(e) => updateItem(idx, 'weightKg', e.target.value)}
                       />
                     </td>
-                    <td className="py-2 pr-2">
-                      <input
-                        className="w-20 border rounded px-2 py-1.5"
-                        value={it.plannedSlot}
-                        onChange={(e) => updateItem(idx, 'plannedSlot', e.target.value)}
-                        placeholder="—"
-                      />
-                    </td>
                     <td className="py-2">
                       <button
                         type="button"
@@ -666,7 +669,7 @@ export default function VHTRunsheetForm() {
           <button
             type="button"
             onClick={() => setForm(prev => ({ ...prev, items: [...prev.items, emptyLine()] }))}
-            className="text-sm text-indigo-600 font-medium"
+            className="text-sm text-sky-600 font-medium"
           >
             + Add line
           </button>
@@ -728,13 +731,26 @@ export default function VHTRunsheetForm() {
           <p className="text-xs text-slate-500">
             Select a material cycle preset or enter custom segments. Graph on the test certificate will reflect these values.
           </p>
+          {masterGraphs.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 font-semibold whitespace-nowrap">Load from Graph Master:</span>
+              <SearchSelect
+                value=""
+                onChange={loadMasterGraph}
+                options={masterGraphs.map(g => ({ value: g.id, label: g.isDefault ? `${g.name} ★` : g.name }))}
+                placeholder="— Select a saved graph —"
+                useFixed
+                className="max-w-xs"
+              />
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             <span className="text-xs text-slate-500 self-center font-semibold">Load preset:</span>
-            {Object.keys(CYCLE_PRESETS).map(name => (
+            {CYCLE_NAMES.map(name => (
               <button
                 key={name}
                 type="button"
-                className="px-3 py-1 text-xs font-bold rounded-lg border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+                className="px-3 py-1 text-xs font-bold rounded-lg border border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100 transition-colors"
                 onClick={() => setForm(f => ({ ...f, tempGraphPoints: CYCLE_PRESETS[name].map(p => ({ ...p })) }))}
               >
                 {name}
@@ -786,7 +802,7 @@ export default function VHTRunsheetForm() {
             ))}
             <button
               type="button"
-              className="text-sm text-indigo-600"
+              className="text-sm text-sky-600"
               onClick={() =>
                 setForm(prev => ({
                   ...prev,
@@ -797,7 +813,60 @@ export default function VHTRunsheetForm() {
               + Add segment
             </button>
           </div>
-          <RunGraphPreview graph={form.tempGraphPoints} />
+          <HeatCycleGraphPreview segments={form.tempGraphPoints} />
+        </section>
+
+        <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+          <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Check points</h2>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <label className="block text-xs">
+              <span className="text-slate-500">Gas pressure</span>
+              <input
+                value={form.gasPressure}
+                onChange={(e) => setForm({ ...form, gasPressure: e.target.value })}
+                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="text-slate-500">Water circulation</span>
+              <select
+                value={form.waterCirculationFrom}
+                onChange={(e) => setForm({ ...form, waterCirculationFrom: e.target.value })}
+                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="">—</option>
+                <option value="OK">OK</option>
+                <option value="NOT OK">NOT OK</option>
+              </select>
+            </label>
+            <label className="block text-xs">
+              <span className="text-slate-500">Power failure — from</span>
+              <input
+                type="time"
+                value={form.powerFailureFrom}
+                onChange={(e) => setForm({ ...form, powerFailureFrom: e.target.value })}
+                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="text-slate-500">Power failure — to</span>
+              <input
+                type="time"
+                value={form.powerFailureTo}
+                onChange={(e) => setForm({ ...form, powerFailureTo: e.target.value })}
+                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="block text-xs sm:col-span-2 lg:col-span-3">
+              <span className="text-slate-500">Other</span>
+              <textarea
+                value={form.otherCheckpoint}
+                onChange={(e) => setForm({ ...form, otherCheckpoint: e.target.value })}
+                rows={2}
+                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
+              />
+            </label>
+          </div>
         </section>
 
         <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
@@ -867,7 +936,7 @@ export default function VHTRunsheetForm() {
           <button
             type="submit"
             disabled={saving}
-            className="px-6 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50"
+            className="px-6 py-2.5 rounded-lg bg-sky-600 text-white text-sm font-semibold hover:bg-sky-700 disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Save'}
           </button>

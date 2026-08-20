@@ -6,6 +6,19 @@ const { parseJsonIfString } = require('../utils/json');
 const { parsePagination, formatListResponse, formatErrorResponse, getStatusCode } = require('../utils/validation');
 const { canEditInspection, canViewInspection, hasRole } = require('../middleware/role');
 const { log } = require('../utils/logger');
+const fs = require('fs');
+
+const CERT_UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR || 'uploads', 'inspections');
+
+// Removed photo ki file bhi disk se hatao, warna uploads folder bhara rehta hai.
+function deleteCertImage(urlPath) {
+  if (!urlPath) return;
+  const filename = path.basename(urlPath);
+  if (!filename || filename === '.' || filename === '..') return;
+  const full = path.resolve(CERT_UPLOAD_DIR, filename);
+  if (!full.startsWith(CERT_UPLOAD_DIR + path.sep) && full !== CERT_UPLOAD_DIR) return;
+  fs.unlink(full, () => {});
+}
 
 // Auto-determine inspection status from hardness values and defect categories
 function autoCalcInspectionStatus(data) {
@@ -88,6 +101,32 @@ async function attachEffectiveTempCycle(cert) {
   };
 }
 
+// Certificate categorization/process/visual/MPI fields are duplicated onto the
+// linked job card's IncomingInspection so the two stay in sync in both
+// directions: editing either one keeps the other current. Only fields that
+// exist on both models are synced (IncomingInspection also has procNitriding
+// and procSlowCool with no TestCertificate equivalent —
+// those are left untouched).
+async function syncCategorizationToJobCard(tx, jobCardId, f) {
+  if (!jobCardId) return;
+  const shared = {
+    catNormal: !!f.catNormal, catWelded: !!f.catWelded, catRusty: !!f.catRusty,
+    catCrackRisk: !!f.catCrackRisk, catDistortionRisk: !!f.catDistortionRisk,
+    catCriticalFinishing: !!f.catCriticalFinishing, catDentDamage: !!f.catDentDamage,
+    catCavity: !!f.catCavity, catOthers: !!f.catOthers,
+    procStressRelieving: !!f.procStressRelieving, procHardening: !!f.procHardening,
+    procTempering: !!f.procTempering, procAnnealing: !!f.procAnnealing, procBrazing: !!f.procBrazing,
+    procPlasmaNitriding: !!f.procPlasmaNitriding, procSubZero: !!f.procSubZero, procSoakClean: !!f.procSoakClean,
+    visualBefore: !!f.visualBefore, visualAfter: !!f.visualAfter,
+    mpiBefore: !!f.mpiBefore, mpiAfter: !!f.mpiAfter, mpiNil: !!f.mpiNil,
+  };
+  await tx.incomingInspection.upsert({
+    where: { jobCardId },
+    update: shared,
+    create: { jobCardId, ...shared },
+  });
+}
+
 // Helper: extract image paths from multer fields
 const getImagePaths = (files) => {
   const images = {};
@@ -153,52 +192,61 @@ exports.upsertInspection = async (req, res) => {
     const images = getImagePaths(req.files);
     const b = (v) => v === 'true' || v === true;
 
+    // Partial update: only fields the caller actually sent are written. This
+    // endpoint is called from two different pages (the Job Card edit form's
+    // Inspection section, and the Job Card print page's inline-editable
+    // fields) that each only know about their own subset of columns — e.g.
+    // the print page never sends distortionBefore/After, and the edit form
+    // never sends heatProcesses. Unconditionally writing every field (the
+    // previous behaviour) meant whichever page saved last silently wiped
+    // out the columns it doesn't track, e.g. print-page edits were erasing
+    // the edit form's saved Distortion Measurements.
     const data = {
-      catNormal:            b(catNormal),
-      catWelded:            b(catWelded),
-      catCrackRisk:         b(catCrackRisk),
-      catDistortionRisk:    b(catDistortionRisk),
-      catCriticalFinishing: b(catCriticalFinishing),
-      catDentDamage:        b(catDentDamage),
-      catRusty:             b(catRusty),
-      catCavity:            b(catCavity),
-      catOthers:            b(catOthers),
-      otherDefects:         otherDefects || null,
-      processTypeId:       processTypeId       ? toInt(processTypeId) : null,
-      procStressRelieving: b(procStressRelieving),
-      procHardening:       b(procHardening),
-      procTempering:       b(procTempering),
-      procAnnealing:       b(procAnnealing),
-      procBrazing:         b(procBrazing),
-      procPlasmaNitriding: b(procPlasmaNitriding),
-      procNitriding:       b(procNitriding),
-      procSubZero:         b(procSubZero),
-      procSoakClean:       b(procSoakClean),
-      procSlowCool:        b(procSlowCool),
-      visualBefore:        b(visualBefore),
-      visualAfter:         b(visualAfter),
-      mpiBefore:           b(mpiBefore),
-      mpiAfter:            b(mpiAfter),
-      mpiNil:              b(mpiNil),
-      requiredHardnessMin: requiredHardnessMin ? toNum(requiredHardnessMin, null) : null,
-      requiredHardnessMax: requiredHardnessMax ? toNum(requiredHardnessMax, null) : null,
-      hardnessUnit:        hardnessUnit        || 'HRC',
-      achievedHardness:    achievedHardness    ? toNum(achievedHardness, null)    : null,
-      hardnessAfter1:      hardnessAfter1      ? toNum(hardnessAfter1, null)      : null,
-      hardnessAfter2:      hardnessAfter2      ? toNum(hardnessAfter2, null)      : null,
-      hardnessAfter3:      hardnessAfter3      ? toNum(hardnessAfter3, null)      : null,
-      hardnessAfter4:      hardnessAfter4      ? toNum(hardnessAfter4, null)      : null,
-      distortionBefore: parseJsonIfString(distortionBefore, { fieldName: 'distortionBefore', defaultValue: null }),
-      distortionAfter: parseJsonIfString(distortionAfter, { fieldName: 'distortionAfter', defaultValue: null }),
-      urgent:              b(urgent),
-      packedQty:            packedQty            ? toInt(packedQty)    : null,
-      packedBy:             packedBy             || null,
-      incomingInspectionBy: incomingInspectionBy || null,
-      finalInspectionBy:    finalInspectionBy    || null,
-      inspectedBy:          inspectedBy          || null,
-      inspectionDate:       inspectionDate       ? new Date(inspectionDate) : null,
-      remarks:              remarks              || null,
-      inspectionStatus:     inspectionStatus     || 'PENDING',
+      ...(catNormal            !== undefined && { catNormal:            b(catNormal) }),
+      ...(catWelded             !== undefined && { catWelded:            b(catWelded) }),
+      ...(catCrackRisk         !== undefined && { catCrackRisk:         b(catCrackRisk) }),
+      ...(catDistortionRisk    !== undefined && { catDistortionRisk:    b(catDistortionRisk) }),
+      ...(catCriticalFinishing !== undefined && { catCriticalFinishing: b(catCriticalFinishing) }),
+      ...(catDentDamage        !== undefined && { catDentDamage:        b(catDentDamage) }),
+      ...(catRusty              !== undefined && { catRusty:             b(catRusty) }),
+      ...(catCavity            !== undefined && { catCavity:            b(catCavity) }),
+      ...(catOthers            !== undefined && { catOthers:            b(catOthers) }),
+      ...(otherDefects         !== undefined && { otherDefects:         otherDefects || null }),
+      ...(processTypeId        !== undefined && { processTypeId:        processTypeId ? toInt(processTypeId) : null }),
+      ...(procStressRelieving  !== undefined && { procStressRelieving:  b(procStressRelieving) }),
+      ...(procHardening        !== undefined && { procHardening:        b(procHardening) }),
+      ...(procTempering        !== undefined && { procTempering:        b(procTempering) }),
+      ...(procAnnealing        !== undefined && { procAnnealing:        b(procAnnealing) }),
+      ...(procBrazing          !== undefined && { procBrazing:          b(procBrazing) }),
+      ...(procPlasmaNitriding  !== undefined && { procPlasmaNitriding:  b(procPlasmaNitriding) }),
+      ...(procNitriding        !== undefined && { procNitriding:        b(procNitriding) }),
+      ...(procSubZero          !== undefined && { procSubZero:          b(procSubZero) }),
+      ...(procSoakClean        !== undefined && { procSoakClean:        b(procSoakClean) }),
+      ...(procSlowCool         !== undefined && { procSlowCool:         b(procSlowCool) }),
+      ...(visualBefore         !== undefined && { visualBefore:         b(visualBefore) }),
+      ...(visualAfter          !== undefined && { visualAfter:          b(visualAfter) }),
+      ...(mpiBefore            !== undefined && { mpiBefore:            b(mpiBefore) }),
+      ...(mpiAfter             !== undefined && { mpiAfter:             b(mpiAfter) }),
+      ...(mpiNil               !== undefined && { mpiNil:               b(mpiNil) }),
+      ...(requiredHardnessMin  !== undefined && { requiredHardnessMin:  requiredHardnessMin ? toNum(requiredHardnessMin, null) : null }),
+      ...(requiredHardnessMax  !== undefined && { requiredHardnessMax:  requiredHardnessMax ? toNum(requiredHardnessMax, null) : null }),
+      ...(hardnessUnit         !== undefined && { hardnessUnit:         hardnessUnit || 'HRC' }),
+      ...(achievedHardness     !== undefined && { achievedHardness:     achievedHardness || null }),
+      ...(hardnessAfter1       !== undefined && { hardnessAfter1:       hardnessAfter1 || null }),
+      ...(hardnessAfter2       !== undefined && { hardnessAfter2:       hardnessAfter2 || null }),
+      ...(hardnessAfter3       !== undefined && { hardnessAfter3:       hardnessAfter3 || null }),
+      ...(hardnessAfter4       !== undefined && { hardnessAfter4:       hardnessAfter4 || null }),
+      ...(distortionBefore     !== undefined && { distortionBefore:     parseJsonIfString(distortionBefore, { fieldName: 'distortionBefore', defaultValue: null }) }),
+      ...(distortionAfter      !== undefined && { distortionAfter:      parseJsonIfString(distortionAfter, { fieldName: 'distortionAfter', defaultValue: null }) }),
+      ...(urgent                !== undefined && { urgent:               b(urgent) }),
+      ...(packedQty             !== undefined && { packedQty:            packedQty ? toInt(packedQty) : null }),
+      ...(packedBy              !== undefined && { packedBy:             packedBy || null }),
+      ...(incomingInspectionBy !== undefined && { incomingInspectionBy: incomingInspectionBy || null }),
+      ...(finalInspectionBy    !== undefined && { finalInspectionBy:    finalInspectionBy || null }),
+      ...(inspectedBy           !== undefined && { inspectedBy:          inspectedBy || null }),
+      ...(inspectionDate       !== undefined && { inspectionDate:       inspectionDate ? new Date(inspectionDate) : null }),
+      ...(remarks               !== undefined && { remarks:              remarks || null }),
+      ...(inspectionStatus     !== undefined && { inspectionStatus:     inspectionStatus || 'PENDING' }),
       // Only update images if new ones were uploaded
       ...(images.image1 && { image1: images.image1 }),
       ...(images.image2 && { image2: images.image2 }),
@@ -207,9 +255,12 @@ exports.upsertInspection = async (req, res) => {
       ...(images.image5 && { image5: images.image5 }),
     };
 
-    // Auto-calculate inspection status if not explicitly provided
+    // Auto-calculate inspection status if not explicitly provided — computed
+    // against the existing record merged with this partial update, since
+    // `data` alone may be missing fields (e.g. hardness) this particular
+    // caller didn't send but that still matter for the calculation.
     if (!inspectionStatus || inspectionStatus === 'PENDING') {
-      data.inspectionStatus = autoCalcInspectionStatus(data);
+      data.inspectionStatus = autoCalcInspectionStatus({ ...existingInspection, ...data });
     }
 
     const inspection = await prisma.incomingInspection.upsert({
@@ -299,29 +350,62 @@ exports.getInspection = async (req, res) => {
 // ── Test Certificates ─────────────────────────────────────────
 
 const generateCertNo = async (preferred = null) => {
-  // If caller provides a preferred no, use it if unique
   if (preferred) {
     const exists = await prisma.testCertificate.findUnique({ where: { certNo: String(preferred) } });
     if (!exists) return String(preferred);
   }
 
-  // Format: YYMM + 3 random digits, e.g. 2605145
   const now = new Date();
   const yy  = String(now.getFullYear()).slice(-2);
   const mm  = String(now.getMonth() + 1).padStart(2, '0');
   const prefix = `${yy}${mm}`;
 
-  let certNo;
-  let attempts = 0;
-  do {
-    const rand = String(Math.floor(100 + Math.random() * 900));
-    certNo = `${prefix}${rand}`;
-    const exists = await prisma.testCertificate.findUnique({ where: { certNo } });
-    if (!exists) break;
-    attempts++;
-  } while (attempts < 50);
+  const last = await prisma.testCertificate.findFirst({
+    where:   { certNo: { startsWith: prefix } },
+    orderBy: { id: 'desc' },
+    select:  { certNo: true },
+  });
 
-  return certNo;
+  let nextSeq = 101;
+  if (last?.certNo) {
+    const lastSeq = parseInt(String(last.certNo).slice(4), 10);
+    if (!isNaN(lastSeq) && lastSeq >= 101) nextSeq = lastSeq + 1;
+  }
+  return `${prefix}${nextSeq}`;
+};
+
+// ── Get Pending-Cert Items for a Job Card ──────────────────────
+exports.getPendingCertItems = async (req, res) => {
+  try {
+    const jobCardId = toInt(req.params.jobCardId);
+    if (!jobCardId) return res.status(400).json({ success: false, message: 'jobCardId required.' });
+
+    const items = await prisma.challanItem.findMany({
+      where: { jobCardId, certStatus: 'PENDING_CERT' },
+      include: {
+        challan: { select: { id: true, challanNo: true, inwardNo: true } },
+      },
+      orderBy: { id: 'asc' },
+    });
+
+    // Also fetch already-certified items (so the form can show them as disabled)
+    const certifiedItems = await prisma.challanItem.findMany({
+      where: { jobCardId, certStatus: 'CERTIFIED' },
+      include: {
+        certItems: {
+          include: { cert: { select: { certNo: true, id: true } } },
+          orderBy: { id: 'desc' },
+          take: 1,
+        },
+      },
+      orderBy: { id: 'asc' },
+    });
+
+    res.json({ success: true, data: { pendingItems: items, certifiedItems } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
 };
 
 exports.createCertificate = async (req, res) => {
@@ -332,13 +416,15 @@ exports.createCertificate = async (req, res) => {
       dieMaterial, operatorMode,
       specInstrCertificate, specInstrMpiReport, specInstrProcessGraph,
       deliveryDate, specialRequirements, precautions,
-      catNormal, catWelded, catCrackRisk, catDistortionRisk, catCriticalFinishing, catDentDamage, catRusty, catCavity, catOthers,
+      catNormal, catWelded, catRusty, catCrackRisk, catDistortionRisk, catCriticalFinishing, catDentDamage, catCavity, catOthers,
       procStressRelieving, procHardening, procTempering, procAnnealing, procBrazing, procPlasmaNitriding, procSubZero, procSoakClean,
-      hardnessMin, hardnessMax, hardnessUnit,
-      tempCycleData, distortionBefore, distortionAfter,
-      packedQty, packedBy, approvedBy,
+      visualBefore, visualAfter, mpiBefore, mpiAfter, mpiNil,
+      hardnessMin, hardnessMax, hardnessUnit, achievedHardness,
+      hardnessAfter1, hardnessAfter2, hardnessAfter3, hardnessAfter4,
+      tempCycleData, tempCycleTemplateId, distortionBefore, distortionAfter,
+      packedQty, packedBy, approvedBy, finalInspectionBy,
       issuedTo, heatNo, dispatchMode, dispatchChallanNo, dispatchChallanDate, dispatchedThrough,
-      items, inspectionResults, certHeatProcesses,
+      items, inspectionResults, certHeatProcesses, selectedChallanItemIds,
     } = req.body;
     const b = (v) => v === 'true' || v === true;
 
@@ -355,6 +441,7 @@ exports.createCertificate = async (req, res) => {
     let parsedCertHeatProcesses = null;
     let parsedItems = null;
     let parsedInspectionResults = null;
+    let parsedSelectedChallanItemIds = null;
 
     try {
       parsedTempCycleData = parseJsonIfString(tempCycleData, { fieldName: 'tempCycleData', defaultValue: null });
@@ -363,6 +450,7 @@ exports.createCertificate = async (req, res) => {
       parsedCertHeatProcesses = parseJsonIfString(certHeatProcesses, { fieldName: 'certHeatProcesses', defaultValue: null });
       parsedItems = parseJsonIfString(items, { fieldName: 'items', defaultValue: null });
       parsedInspectionResults = parseJsonIfString(inspectionResults, { fieldName: 'inspectionResults', defaultValue: null });
+      parsedSelectedChallanItemIds = parseJsonIfString(selectedChallanItemIds, { fieldName: 'selectedChallanItemIds', defaultValue: null });
     } catch (e) {
       if (e.code === 'INVALID_JSON') {
         return res.status(400).json({ success: false, code: e.code, message: e.message });
@@ -370,7 +458,16 @@ exports.createCertificate = async (req, res) => {
       throw e;
     }
 
-    const cert = await prisma.testCertificate.create({
+    // If specific challan items selected, fetch them to build cert items automatically
+    let challanItemsForCert = [];
+    if (parsedSelectedChallanItemIds?.length) {
+      challanItemsForCert = await prisma.challanItem.findMany({
+        where: { id: { in: parsedSelectedChallanItemIds.map(toInt) }, certStatus: 'PENDING_CERT' },
+      });
+    }
+
+    const cert = await prisma.$transaction(async (tx) => {
+    const created = await tx.testCertificate.create({
       data: {
         certNo,
         jobCardId: jobCardId ? toInt(jobCardId) : null,
@@ -392,11 +489,11 @@ exports.createCertificate = async (req, res) => {
         precautions:     precautions     || null,
         catNormal:            b(catNormal),
         catWelded:            b(catWelded),
+        catRusty:             b(catRusty),
         catCrackRisk:         b(catCrackRisk),
         catDistortionRisk:    b(catDistortionRisk),
         catCriticalFinishing: b(catCriticalFinishing),
         catDentDamage:        b(catDentDamage),
-        catRusty:             b(catRusty),
         catCavity:            b(catCavity),
         catOthers:            b(catOthers),
         procStressRelieving:  b(procStressRelieving),
@@ -407,10 +504,21 @@ exports.createCertificate = async (req, res) => {
         procPlasmaNitriding:  b(procPlasmaNitriding),
         procSubZero:          b(procSubZero),
         procSoakClean:        b(procSoakClean),
-        hardnessMin:     hardnessMin     ? toNum(hardnessMin, null) : null,
-        hardnessMax:    hardnessMax      ? toNum(hardnessMax, null) : null,
-        hardnessUnit:   hardnessUnit     || 'HRC',
+        visualBefore:         b(visualBefore),
+        visualAfter:          b(visualAfter),
+        mpiBefore:            b(mpiBefore),
+        mpiAfter:             b(mpiAfter),
+        mpiNil:               b(mpiNil),
+        hardnessMin:      hardnessMin      ? toNum(hardnessMin, null)      : null,
+        hardnessMax:      hardnessMax      ? toNum(hardnessMax, null)      : null,
+        hardnessUnit:     hardnessUnit     || 'HRC',
+        achievedHardness: achievedHardness || null,
+        hardnessAfter1:   hardnessAfter1   || null,
+        hardnessAfter2:   hardnessAfter2   || null,
+        hardnessAfter3:   hardnessAfter3   || null,
+        hardnessAfter4:   hardnessAfter4   || null,
         tempCycleData: parsedTempCycleData,
+        tempCycleTemplateId: tempCycleTemplateId ? toInt(tempCycleTemplateId) : null,
         distortionBefore: parsedDistortionBefore,
         distortionAfter: parsedDistortionAfter,
         heatProcessData: parsedCertHeatProcesses,
@@ -425,12 +533,23 @@ exports.createCertificate = async (req, res) => {
         dispatchChallanNo:  dispatchChallanNo  || null,
         dispatchChallanDate: dispatchChallanDate ? new Date(dispatchChallanDate) : null,
         dispatchedThrough:  dispatchedThrough  || null,
-        packedQty:      packedQty        ? toInt(packedQty)    : null,
-        packedBy:       packedBy         || null,
-        approvedBy:     approvedBy       || null,
+        packedQty:            packedQty            ? toInt(packedQty) : null,
+        packedBy:             packedBy             || null,
+        approvedBy:           approvedBy           || null,
+        finalInspectionBy:    finalInspectionBy    || null,
         createdById:    req.user.id,
-        // Nested items
-        items: parsedItems ? {
+        // Items: from selected challan items (preferred) or manually entered
+        items: challanItemsForCert.length > 0 ? {
+          create: challanItemsForCert.map(ci => ({
+            description:  ci.description || ci.processName || '',
+            quantity:     toInt(ci.quantity) || 1,
+            weightPerPc:  null,
+            totalWeight:  ci.weight ? toNum(ci.weight, null) : null,
+            samplingPlan: null,
+            remarks:      null,
+            sourceChallanItemId: ci.id,
+          })),
+        } : parsedItems ? {
           create: parsedItems.map(it => ({
             description:  it.description,
             quantity:     toInt(it.quantity),
@@ -438,6 +557,7 @@ exports.createCertificate = async (req, res) => {
             totalWeight:  it.totalWeight  ? toNum(it.totalWeight, null) : null,
             samplingPlan: it.samplingPlan || null,
             remarks:      it.remarks      || null,
+            sourceChallanItemId: it.sourceChallanItemId ? toInt(it.sourceChallanItemId) : null,
           })),
         } : undefined,
         inspectionResults: parsedInspectionResults ? {
@@ -454,7 +574,20 @@ exports.createCertificate = async (req, res) => {
       include: { items: true, inspectionResults: true, customer: true },
     });
 
-    res.status(201).json({ success: true, data: cert, message: `Certificate ${certNo} created.` });
+    // Mark selected challan items as CERTIFIED
+    if (challanItemsForCert.length > 0) {
+      await tx.challanItem.updateMany({
+        where: { id: { in: challanItemsForCert.map(ci => ci.id) } },
+        data: { certStatus: 'CERTIFIED' },
+      });
+    }
+
+    await syncCategorizationToJobCard(tx, created.jobCardId, req.body);
+
+    return created;
+    }); // end transaction
+
+    res.status(201).json({ success: true, data: cert, message: `Certificate ${cert.certNo} created.` });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error.' });
@@ -492,6 +625,238 @@ exports.getSuggestedTempCycleForJobCard = async (req, res) => {
   }
 };
 
+// ── Temperature Cycle Graphs (reusable master) ──────────────────
+// Shared by Test Certificates and VHT Run Sheets. `data` holds ordered
+// segments [{ tempC, holdMin, label }] — the same shape used by
+// heatTreatmentCycles.js presets and VHTRunsheet.tempGraphPoints.
+// At most one graph may be isDefault per processTypeId (NULL process
+// is its own shared "general default" bucket). Certificates/run sheets
+// copy the data on load — later edits to the master never touch what
+// was already saved on an existing certificate or run sheet.
+
+const tempCycleListSelect = {
+  id: true, name: true, material: true, processTypeId: true, description: true,
+  isDefault: true, isActive: true, createdAt: true, updatedAt: true,
+  processType: { select: { id: true, name: true } },
+};
+
+exports.listTempCycleTemplates = async (req, res) => {
+  try {
+    const { page, limit, skip } = parsePagination(req);
+    const search = (req.query.search || '').trim();
+    const activeOnly = req.query.isActive === 'true';
+    const where = {
+      ...(activeOnly && { isActive: true }),
+      ...(search && { name: { contains: search } }),
+    };
+    const [total, data] = await Promise.all([
+      prisma.tempCycleTemplate.count({ where }),
+      prisma.tempCycleTemplate.findMany({
+        where,
+        select: tempCycleListSelect,
+        orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }],
+        skip, take: limit,
+      }),
+    ]);
+    res.json(formatListResponse(data, total, page, limit));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+exports.getTempCycleTemplate = async (req, res) => {
+  try {
+    const id = toInt(req.params.id);
+    const template = await prisma.tempCycleTemplate.findUnique({
+      where: { id },
+      include: { processType: { select: { id: true, name: true } } },
+    });
+    if (!template) return res.status(404).json({ success: false, message: 'Graph not found.' });
+    res.json({ success: true, data: template });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// processTypeId: undefined = not provided (fall back to the shared bucket);
+// null / '' also normalize to the shared (NULL-process) bucket.
+exports.getDefaultTempCycleTemplate = async (req, res) => {
+  try {
+    const raw = req.query.processTypeId;
+    const processTypeId = raw ? toInt(raw) : null;
+
+    let template = null;
+    if (processTypeId) {
+      template = await prisma.tempCycleTemplate.findFirst({ where: { isDefault: true, processTypeId } });
+    }
+    if (!template) {
+      template = await prisma.tempCycleTemplate.findFirst({ where: { isDefault: true, processTypeId: null } });
+    }
+    res.json({ success: true, data: template || null });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+function parseTempCycleBody(req) {
+  const { name, material, processTypeId, description, data, isDefault, isActive } = req.body;
+  const rows = data !== undefined ? parseJsonIfString(data, { fieldName: 'data', defaultValue: [] }) : undefined;
+  return {
+    name, material, description,
+    processTypeId: processTypeId !== undefined ? (processTypeId ? toInt(processTypeId) : null) : undefined,
+    rows,
+    wantsDefault: isDefault === true || isDefault === 'true',
+    defaultProvided: isDefault !== undefined,
+    isActive: isActive !== undefined ? (isActive === true || isActive === 'true') : undefined,
+  };
+}
+
+exports.createTempCycleTemplate = async (req, res) => {
+  try {
+    const { name, material, processTypeId, description, rows, wantsDefault } = parseTempCycleBody(req);
+    if (!Array.isArray(rows) || !rows.length) {
+      return res.status(400).json({ success: false, message: 'data must be a non-empty array of {tempC, holdMin, label} segments.' });
+    }
+    if (!name?.trim()) {
+      return res.status(400).json({ success: false, message: 'name is required.' });
+    }
+
+    const template = await prisma.$transaction(async (tx) => {
+      if (wantsDefault) {
+        await tx.tempCycleTemplate.updateMany({
+          where: { isDefault: true, processTypeId: processTypeId ?? null },
+          data: { isDefault: false },
+        });
+      }
+      return tx.tempCycleTemplate.create({
+        data: {
+          name: name.trim(),
+          material: material?.trim() || null,
+          processTypeId: processTypeId ?? null,
+          description: description?.trim() || null,
+          data: rows,
+          isDefault: wantsDefault,
+          createdById: req.user.id,
+        },
+        include: { processType: { select: { id: true, name: true } } },
+      });
+    });
+
+    res.status(201).json({ success: true, data: template, message: 'Graph saved.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to save graph.' });
+  }
+};
+
+exports.updateTempCycleTemplate = async (req, res) => {
+  try {
+    const id = toInt(req.params.id);
+    const existing = await prisma.tempCycleTemplate.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ success: false, message: 'Graph not found.' });
+
+    const { name, material, processTypeId, description, rows, wantsDefault, defaultProvided, isActive } = parseTempCycleBody(req);
+    if (rows !== undefined && (!Array.isArray(rows) || !rows.length)) {
+      return res.status(400).json({ success: false, message: 'data must be a non-empty array of {tempC, holdMin, label} segments.' });
+    }
+
+    const finalProcessTypeId = processTypeId !== undefined ? processTypeId : existing.processTypeId;
+
+    const template = await prisma.$transaction(async (tx) => {
+      if (defaultProvided && wantsDefault) {
+        await tx.tempCycleTemplate.updateMany({
+          where: { isDefault: true, processTypeId: finalProcessTypeId ?? null, NOT: { id } },
+          data: { isDefault: false },
+        });
+      }
+      return tx.tempCycleTemplate.update({
+        where: { id },
+        data: {
+          ...(name !== undefined && { name: name.trim() }),
+          ...(material !== undefined && { material: material?.trim() || null }),
+          ...(processTypeId !== undefined && { processTypeId }),
+          ...(description !== undefined && { description: description?.trim() || null }),
+          ...(rows !== undefined && { data: rows }),
+          ...(defaultProvided && { isDefault: wantsDefault }),
+          ...(isActive !== undefined && { isActive }),
+        },
+        include: { processType: { select: { id: true, name: true } } },
+      });
+    });
+
+    res.json({ success: true, data: template, message: 'Graph updated.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to update graph.' });
+  }
+};
+
+exports.duplicateTempCycleTemplate = async (req, res) => {
+  try {
+    const id = toInt(req.params.id);
+    const src = await prisma.tempCycleTemplate.findUnique({ where: { id } });
+    if (!src) return res.status(404).json({ success: false, message: 'Graph not found.' });
+
+    const copy = await prisma.tempCycleTemplate.create({
+      data: {
+        name: `${src.name} (Copy)`,
+        material: src.material,
+        processTypeId: src.processTypeId,
+        description: src.description,
+        data: src.data,
+        isDefault: false,
+        isActive: src.isActive,
+        createdById: req.user.id,
+      },
+      include: { processType: { select: { id: true, name: true } } },
+    });
+
+    res.status(201).json({ success: true, data: copy, message: 'Graph duplicated.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to duplicate graph.' });
+  }
+};
+
+exports.setDefaultTempCycleTemplate = async (req, res) => {
+  try {
+    const id = toInt(req.params.id);
+    const existing = await prisma.tempCycleTemplate.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ success: false, message: 'Graph not found.' });
+
+    const template = await prisma.$transaction(async (tx) => {
+      await tx.tempCycleTemplate.updateMany({
+        where: { isDefault: true, processTypeId: existing.processTypeId, NOT: { id } },
+        data: { isDefault: false },
+      });
+      return tx.tempCycleTemplate.update({
+        where: { id },
+        data: { isDefault: true },
+        include: { processType: { select: { id: true, name: true } } },
+      });
+    });
+
+    res.json({ success: true, data: template, message: 'Set as default.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to set default.' });
+  }
+};
+
+exports.deleteTempCycleTemplate = async (req, res) => {
+  try {
+    const id = toInt(req.params.id);
+    await prisma.tempCycleTemplate.delete({ where: { id } });
+    res.json({ success: true, message: 'Graph deleted.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to delete graph.' });
+  }
+};
+
 exports.listCertificates = async (req, res) => {
   try {
     const { page, limit, skip } = parsePagination(req);
@@ -510,9 +875,9 @@ exports.listCertificates = async (req, res) => {
     const searchText = String(search || '').trim();
     if (searchText) {
       where.OR = [
-        { certNo: { contains: searchText, mode: 'insensitive' } },
-        { customer: { is: { name: { contains: searchText, mode: 'insensitive' } } } },
-        { jobCard: { is: { jobCardNo: { contains: searchText, mode: 'insensitive' } } } },
+        { certNo: { contains: searchText } },
+        { customer: { name: { contains: searchText } } },
+        { jobCard: { is: { jobCardNo: { contains: searchText } } } },
       ];
     }
 
@@ -538,7 +903,7 @@ exports.listCertificates = async (req, res) => {
     const queryConfig = {
       where,
       include: {
-        jobCard:   { select: { jobCardNo: true } },
+        jobCard:   { select: { id: true, jobCardNo: true } },
         customer:  { select: { name: true } },
         items:     true,
         createdBy: { select: { name: true } },
@@ -563,6 +928,207 @@ exports.listCertificates = async (req, res) => {
   }
 };
 
+exports.updateCertificate = async (req, res) => {
+  try {
+    const id = toInt(req.params.id);
+    if (!id) return res.status(400).json({ success: false, message: 'Invalid certificate ID.' });
+
+    const existing = await prisma.testCertificate.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ success: false, message: 'Certificate not found.' });
+
+    const {
+      yourPoNo, yourPoDate, yourRefNo, issueDate, checkedBy,
+      customerId, issuedByPartyId,
+      dieMaterial, operatorMode,
+      specInstrCertificate, specInstrMpiReport, specInstrProcessGraph,
+      deliveryDate, specialRequirements, precautions,
+      catNormal, catWelded, catRusty, catCrackRisk, catDistortionRisk, catCriticalFinishing, catDentDamage, catCavity, catOthers,
+      procStressRelieving, procHardening, procTempering, procAnnealing, procBrazing, procPlasmaNitriding, procSubZero, procSoakClean,
+      visualBefore, visualAfter, mpiBefore, mpiAfter, mpiNil,
+      hardnessMin, hardnessMax, hardnessUnit, achievedHardness,
+      hardnessAfter1, hardnessAfter2, hardnessAfter3, hardnessAfter4,
+      tempCycleData, tempCycleTemplateId, distortionBefore, distortionAfter,
+      packedQty, packedBy, approvedBy, finalInspectionBy,
+      issuedTo, heatNo, dispatchChallanNo, dispatchChallanDate, dispatchedThrough,
+      items, inspectionResults, certHeatProcesses, status,
+    } = req.body;
+    const b = (v) => v === 'true' || v === true;
+    const images = getImagePaths(req.files);
+
+    // Photos could only ever be ADDED: an upload set the column, and anything
+    // else left it untouched. So removing a photo in the form changed nothing —
+    // it stayed in the database and kept printing. The form now names the slots
+    // it cleared, and those columns are set to null.
+    const removeSlots = new Set(
+      String(req.body.removeImages || '')
+        .split(',')
+        .map(v => parseInt(v, 10))
+        .filter(n => n >= 1 && n <= 5)
+    );
+    const clearedImages = {};
+    if (removeSlots.size) {
+      const before = await prisma.testCertificate.findUnique({
+        where: { id },
+        select: { image1: true, image2: true, image3: true, image4: true, image5: true },
+      });
+      for (const n of removeSlots) {
+        const key = `image${n}`;
+        // A slot that is being replaced in the same save keeps the new upload.
+        if (images[key]) continue;
+        clearedImages[key] = null;
+        deleteCertImage(before?.[key]);
+      }
+    }
+
+    let parsedTempCycleData, parsedDistortionBefore, parsedDistortionAfter,
+        parsedCertHeatProcesses, parsedItems, parsedInspectionResults;
+    try {
+      parsedTempCycleData      = parseJsonIfString(tempCycleData,      { fieldName: 'tempCycleData',      defaultValue: null });
+      parsedDistortionBefore   = parseJsonIfString(distortionBefore,   { fieldName: 'distortionBefore',   defaultValue: null });
+      parsedDistortionAfter    = parseJsonIfString(distortionAfter,    { fieldName: 'distortionAfter',    defaultValue: null });
+      parsedCertHeatProcesses  = parseJsonIfString(certHeatProcesses,  { fieldName: 'certHeatProcesses',  defaultValue: null });
+      parsedItems              = parseJsonIfString(items,              { fieldName: 'items',              defaultValue: null });
+      parsedInspectionResults  = parseJsonIfString(inspectionResults,  { fieldName: 'inspectionResults',  defaultValue: null });
+    } catch (e) {
+      if (e.code === 'INVALID_JSON') return res.status(400).json({ success: false, code: e.code, message: e.message });
+      throw e;
+    }
+
+    if (parsedItems !== null)             await prisma.certItem.deleteMany({ where: { certId: id } });
+    if (parsedInspectionResults !== null) await prisma.certInspectionResult.deleteMany({ where: { certId: id } });
+
+    const cert = await prisma.testCertificate.update({
+      where: { id },
+      data: {
+        yourPoNo:             yourPoNo             || null,
+        yourPoDate:           yourPoDate           ? new Date(yourPoDate) : null,
+        yourRefNo:            yourRefNo            || null,
+        issueDate:            issueDate            ? new Date(issueDate) : undefined,
+        checkedBy:            checkedBy            || null,
+        customerId:           customerId           ? toInt(customerId) : undefined,
+        issuedByPartyId:      issuedByPartyId      ? toInt(issuedByPartyId) : null,
+        dieMaterial:          dieMaterial          || null,
+        operatorMode:         operatorMode         || null,
+        specInstrCertificate:  b(specInstrCertificate),
+        specInstrMpiReport:    b(specInstrMpiReport),
+        specInstrProcessGraph: b(specInstrProcessGraph),
+        deliveryDate:         deliveryDate         ? new Date(deliveryDate) : null,
+        specialRequirements:  specialRequirements  || null,
+        precautions:          precautions          || null,
+        catNormal:            b(catNormal),
+        catWelded:            b(catWelded),
+        catRusty:             b(catRusty),
+        catCrackRisk:         b(catCrackRisk),
+        catDistortionRisk:    b(catDistortionRisk),
+        catCriticalFinishing: b(catCriticalFinishing),
+        catDentDamage:        b(catDentDamage),
+        catCavity:            b(catCavity),
+        catOthers:            b(catOthers),
+        procStressRelieving:  b(procStressRelieving),
+        procHardening:        b(procHardening),
+        procTempering:        b(procTempering),
+        procAnnealing:        b(procAnnealing),
+        procBrazing:          b(procBrazing),
+        procPlasmaNitriding:  b(procPlasmaNitriding),
+        procSubZero:          b(procSubZero),
+        procSoakClean:        b(procSoakClean),
+        visualBefore:         b(visualBefore),
+        visualAfter:          b(visualAfter),
+        mpiBefore:            b(mpiBefore),
+        mpiAfter:             b(mpiAfter),
+        mpiNil:               b(mpiNil),
+        hardnessMin:          hardnessMin          ? toNum(hardnessMin, null)      : null,
+        hardnessMax:          hardnessMax          ? toNum(hardnessMax, null)      : null,
+        hardnessUnit:         hardnessUnit         || 'HRC',
+        achievedHardness:     achievedHardness     || null,
+        hardnessAfter1:       hardnessAfter1       || null,
+        hardnessAfter2:       hardnessAfter2       || null,
+        hardnessAfter3:       hardnessAfter3       || null,
+        hardnessAfter4:       hardnessAfter4       || null,
+        tempCycleData:        parsedTempCycleData,
+        tempCycleTemplateId:  tempCycleTemplateId ? toInt(tempCycleTemplateId) : null,
+        distortionBefore:     parsedDistortionBefore,
+        distortionAfter:      parsedDistortionAfter,
+        heatProcessData:      parsedCertHeatProcesses,
+        ...(images.image1 && { image1: images.image1 }),
+        ...(images.image2 && { image2: images.image2 }),
+        ...(images.image3 && { image3: images.image3 }),
+        ...(images.image4 && { image4: images.image4 }),
+        ...(images.image5 && { image5: images.image5 }),
+        ...clearedImages,
+        issuedTo:             issuedTo             || null,
+        heatNo:               heatNo               || null,
+        dispatchChallanNo:    dispatchChallanNo    || null,
+        dispatchChallanDate:  dispatchChallanDate  ? new Date(dispatchChallanDate) : null,
+        dispatchedThrough:    dispatchedThrough    || null,
+        packedQty:            packedQty            ? toInt(packedQty) : null,
+        packedBy:             packedBy             || null,
+        approvedBy:           approvedBy           || null,
+        finalInspectionBy:    finalInspectionBy    || null,
+        ...(status ? { status } : {}),
+        ...(parsedItems !== null ? {
+          items: { create: parsedItems.map(it => ({
+            description: it.description,
+            quantity:    toInt(it.quantity),
+            weightPerPc: it.weightPerPc ? toNum(it.weightPerPc, null) : null,
+            totalWeight: it.totalWeight ? toNum(it.totalWeight, null) : null,
+            samplingPlan: it.samplingPlan || null,
+            remarks:      it.remarks     || null,
+          })) },
+        } : {}),
+        ...(parsedInspectionResults !== null ? {
+          inspectionResults: { create: parsedInspectionResults.map(ir => ({
+            inspectionType:  ir.inspectionType,
+            parameter:       ir.parameter       || null,
+            requiredValue:   ir.requiredValue   || null,
+            achievedValue:   ir.achievedValue   || null,
+            result:          ir.result          || 'OK',
+            finalInspection: ir.finalInspection || null,
+          })) },
+        } : {}),
+      },
+      include: { items: true, inspectionResults: true, customer: true },
+    });
+
+    await syncCategorizationToJobCard(prisma, existing.jobCardId, req.body);
+
+    res.json({ success: true, data: cert, message: 'Certificate updated.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+exports.deleteCertificate = async (req, res) => {
+  try {
+    const id = toInt(req.params.id);
+    if (!id) return res.status(400).json({ success: false, message: 'Invalid certificate ID.' });
+
+    // Before deleting, find linked challan items and reset their certStatus
+    const linkedCertItems = await prisma.certItem.findMany({
+      where: { certId: id, sourceChallanItemId: { not: null } },
+      select: { sourceChallanItemId: true },
+    });
+    const challanItemIds = linkedCertItems.map(ci => ci.sourceChallanItemId).filter(Boolean);
+
+    await prisma.$transaction(async (tx) => {
+      if (challanItemIds.length > 0) {
+        await tx.challanItem.updateMany({
+          where: { id: { in: challanItemIds } },
+          data: { certStatus: 'PENDING_CERT' },
+        });
+      }
+      await tx.testCertificate.delete({ where: { id } });
+    });
+
+    res.json({ success: true, message: 'Certificate deleted.' });
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ success: false, message: 'Certificate not found.' });
+    if (err.code === 'P2003') return res.status(400).json({ success: false, message: 'Cannot delete: certificate has linked records.' });
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 exports.getCertificate = async (req, res) => {
   try {
     const cert = await prisma.testCertificate.findUnique({
@@ -573,7 +1139,12 @@ exports.getCertificate = async (req, res) => {
             part: true,
             inspection: { include: { processType: true, heatProcesses: true } },
             customer: true,
-            challans: { include: { items: true } },
+            challans: { include: { items: true }, orderBy: { createdAt: 'asc' } },
+            challanItemLinks: {
+              include: { challan: { select: { id: true, challanNo: true, inwardNo: true, challanDate: true } } },
+              orderBy: { id: 'asc' },
+              take: 1,
+            },
           },
         },
         customer:          true,

@@ -23,11 +23,28 @@ export default function ChallanSelectionSection({
           onChange={v => handleChallanChange(v)}
           options={challans.map(c => ({
             value: c.id,
-            label: `${c.challanNo} · ${c.toParty?.name || ''} · ${formatDate(c.challanDate)} · ${formatCurrency(toNum(c.totalValue, 0))}`,
+            label: `${c.challanNo} · ${c.fromParty?.name || ''} · ${formatDate(c.challanDate)} · ${formatCurrency(toNum(c.totalValue, 0))}`,
           }))}
           placeholder="— No Challan (manual entry) —"
         />
         {loadingChallan && <p className="text-xs text-slate-400 mt-1.5">Loading challan details...</p>}
+        {challanInfo && (challanInfo.relatedJobCards?.length > 0 || challanInfo.weightSummary?.inwardTotalWeight > 0) && (
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+            {challanInfo.relatedJobCards?.length > 0
+              ? challanInfo.relatedJobCards.map(jc => (
+                  <span key={jc.id}>
+                    Job Card <span className="font-mono text-slate-700">{jc.jobCardNo}</span> total weight:{' '}
+                    <span className="font-bold text-amber-700">{toNum(jc.totalWeight, 0).toFixed(3)} kg</span>
+                  </span>
+                ))
+              : (
+                <span>
+                  Challan total weight:{' '}
+                  <span className="font-bold text-amber-700">{toNum(challanInfo.weightSummary.inwardTotalWeight, 0).toFixed(3)} kg</span>
+                </span>
+              )}
+          </div>
+        )}
       </div>
 
       {/* Billing progress */}

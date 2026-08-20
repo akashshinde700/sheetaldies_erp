@@ -4,8 +4,10 @@ const auth   = require('../middleware/auth');
 const { requireRole } = require('../middleware/role');
 const { uploadFiveImages } = require('../middleware/upload');
 
-router.get   ('/stats', auth, ctrl.stats);
-router.get   ('/',      auth, ctrl.list);
+router.get   ('/stats',          auth, ctrl.stats);
+router.get   ('/operator-names', auth, ctrl.operatorNames);
+router.get   ('/issue-by-suggestions', auth, ctrl.issueBySuggestions);
+router.get   ('/',               auth, ctrl.list);
 router.get   ('/:id',   auth, requireRole('VIEWER'), ctrl.getOne);
 router.post  ('/',      auth, requireRole('OPERATOR'), uploadFiveImages('jobcards'), ctrl.create);
 router.post  ('/:id/assign-certificate-no', auth, requireRole('OPERATOR'), ctrl.assignCertificateNo);

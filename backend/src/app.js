@@ -21,9 +21,6 @@ const sanitizeMiddleware = require('./middleware/sanitize');
 // ✅ NEW: Import structured logger
 const { expressLogger, log, logger } = require('./utils/logger');
 
-// ✅ NEW: Initialize sequence manager for atomic invoice numbering
-const { initializeSequenceManager } = require('./utils/sequenceManager');
-
 const app = express();
 
 // Trust Nginx reverse proxy — required for express-rate-limit to read real client IP
@@ -60,10 +57,14 @@ app.use(sanitizeMiddleware);
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 // ── Rate Limiting ─────────────────────────────────────────────
-// General API limiter: 100 requests per 15 minutes (production), higher in dev
+// General API limiter: 1000 requests per 15 minutes (production and dev) —
+// this covers every GET made while navigating the app (master data, list
+// pages, detail pages each fire several), so it must stay generous; abuse
+// protection on sensitive endpoints comes from strictLimiter/exportLimiter/
+// uploadLimiter and the auth-specific limiters below, not this one.
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: process.env.NODE_ENV === 'production' ? 100 : 1000,  // 1000 per 15 minutes in development
+  max: 1000,
   message: { success: false, code: 'RATE_LIMIT_EXCEEDED', message: 'Too many requests. Please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -155,6 +156,7 @@ app.use('/api/items',     strictLimiter, require('./routes/items.routes'));
 app.use('/api/machines',  require('./routes/machines.routes'));
 app.use('/api/pricing',   strictLimiter, require('./routes/pricing.routes'));
 app.use('/api/processes', require('./routes/process.routes'));
+app.use('/api/heat-treat-specs', require('./routes/heatTreatSpec.routes'));
 app.use('/api/jobcards',  strictLimiter, require('./routes/jobcard.routes'));
 app.use('/api/jobwork',   strictLimiter, require('./routes/jobwork.routes'));
 app.use('/api/quality',   strictLimiter, require('./routes/quality.routes'));
@@ -165,7 +167,9 @@ app.use('/api/manufacturing', strictLimiter, require('./routes/manufacturing.rou
 app.use('/api/furnace-planning', strictLimiter, require('./routes/furnacePlanning.routes'));
 app.use('/api/analytics',  require('./routes/analytics.routes'));
 app.use('/api/audit',      require('./routes/audit.routes'));
+app.use('/api/errors',     require('./routes/errors.routes'));
 app.use('/api/upload',     uploadLimiter, require('./routes/upload.routes'));
+app.use('/api/production-entries', strictLimiter, require('./routes/production.routes'));
 app.use('/api/customer-quotes', strictLimiter, require('./routes/customerQuote.routes'));
 app.use('/api/attachments', strictLimiter, require('./routes/attachment.routes'));
 app.use('/api/workflows',  strictLimiter, require('./routes/workflow.routes'));
@@ -195,6 +199,16 @@ app.get('/api-docs', swaggerUi.setup(swaggerSpecs, {
     displayOperationId: false,
   },
 }));
+
+// ── Frontend static (served by this same process behind a reverse proxy
+// that forwards all paths here, not just /api) ──────────────────────
+const frontendDir = path.join(__dirname, '..', 'public');
+if (require('fs').existsSync(frontendDir)) {
+  app.use(express.static(frontendDir));
+  app.get(/^(?!\/api).*/, (req, res) => {
+    res.sendFile(path.join(frontendDir, 'index.html'));
+  });
+}
 
 // ── 404 Handler ───────────────────────────────────────────────
 app.use((req, res) => {

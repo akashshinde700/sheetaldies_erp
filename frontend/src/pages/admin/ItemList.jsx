@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import ListSearchInput from '../../components/ListSearchInput';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 const emptyForm = () => ({
   partNo: '',
@@ -24,6 +25,7 @@ export default function ItemList() {
   const [viewItem, setViewItem] = useState(null);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState(emptyForm);
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 300);
@@ -97,16 +99,22 @@ export default function ItemList() {
     setShowForm(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure?')) return;
-    try {
-      await api.delete(`/items/${id}`);
-      toast.success('Item deleted.');
-      fetchItems();
-    } catch (error) {
-      console.error('Error deleting:', error);
-      toast.error(error?.response?.data?.message || 'Failed to delete item.');
-    }
+  const handleDelete = (id) => {
+    setConfirmDialog({
+      title: 'Delete item?',
+      message: 'This will permanently delete this item.',
+      confirmLabel: 'Delete',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          await api.delete(`/items/${id}`);
+          toast.success('Item deleted.');
+          fetchItems();
+        } catch (error) {
+          toast.error(error?.response?.data?.message || 'Failed to delete item.');
+        } finally { setConfirmDialog(null); }
+      },
+    });
   };
 
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
@@ -262,6 +270,8 @@ export default function ItemList() {
           </div>
         </div>
       )}
+
+      {confirmDialog && <ConfirmDialog {...confirmDialog} onCancel={() => setConfirmDialog(null)} />}
     </div>
   );
 }

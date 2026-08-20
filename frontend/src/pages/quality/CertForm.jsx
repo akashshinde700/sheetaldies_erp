@@ -1,8 +1,8 @@
-import { useEffect, useState, useMemo } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useEffect, useState, useMemo, useRef } from 'react';
+import { useNavigate, useSearchParams, useParams, Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
-import { toNum } from '../../utils/normalize';
+import { getCycleSegments, segmentsToTempCycleData } from '../../data/heatTreatmentCycles';
 
 // Master Data Hooks
 import { useParties, useMasterJobCards, useProcesses } from '../../hooks/useMasterData';
@@ -18,19 +18,33 @@ import CertPhotosSection from './components/CertPhotosSection';
 // Shared Components
 import CertItemsTable from './components/CertItemsTable';
 import DistortionTable from './components/DistortionTable';
-import HeatProcessLog from './components/HeatProcessLog';
-import InspectionResultsTable from './components/InspectionResultsTable';
 import TemperatureCurve from './components/TemperatureCurve';
+
+function extractDist(arr) {
+  if (!arr) return Array(8).fill('');
+  const parsed = typeof arr === 'string' ? JSON.parse(arr) : arr;
+  const out = Array(8).fill('');
+  (Array.isArray(parsed) ? parsed : []).forEach((v, i) => {
+    out[i] = v != null && typeof v === 'object' ? String(v.val ?? '') : String(v ?? '');
+  });
+  return out;
+}
 
 export default function CertForm() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { id: editId } = useParams();
+  const isEdit = !!editId;
   const { data: parties = [] } = useParties();
   const { data: jobCards = [] } = useMasterJobCards();
   const { data: processes = [] } = useProcesses();
 
-  const [images,    setImages]    = useState({});
+  const [images,        setImages]        = useState({});
+  const [removedImages, setRemovedImages] = useState(new Set());
+  const [existingImages, setExistingImages] = useState({});
+  const [jcImages,      setJcImages]      = useState({});
   const [loading,   setLoading]   = useState(false);
+  const [loadingCert, setLoadingCert] = useState(isEdit);
   const [jcData,    setJcData]    = useState(null); // locked job card snapshot
 
   const today = new Date().toISOString().split('T')[0];
@@ -39,9 +53,19 @@ export default function CertForm() {
     const now = new Date();
     const yy  = String(now.getFullYear()).slice(-2);
     const mm  = String(now.getMonth() + 1).padStart(2, '0');
-    const rand = String(Math.floor(100 + Math.random() * 900));
-    return `${yy}${mm}${rand}`;
+    return `${yy}${mm}101`;
   };
+
+  // Support ?jobCardNo=JC-001 link from certificate list search
+  const jobCardNoParam = searchParams.get('jobCardNo') || '';
+  const resolvedJobCardId = useMemo(() => {
+    if (searchParams.get('jobCardId')) return searchParams.get('jobCardId');
+    if (jobCardNoParam && jobCards.length) {
+      const match = jobCards.find(jc => jc.jobCardNo === jobCardNoParam);
+      return match ? String(match.id) : '';
+    }
+    return '';
+  }, [searchParams, jobCardNoParam, jobCards]);
 
   const [form, setForm] = useState({
     jobCardId: searchParams.get('jobCardId') || '', yourPoNo: '', yourPoDate: '', yourRefNo: '',
@@ -50,13 +74,15 @@ export default function CertForm() {
     dieMaterial: '', operatorMode: '', 
     specInstrCertificate: true, specInstrMpiReport: false, specInstrProcessGraph: false,
     deliveryDate: '', specialRequirements: '', precautions: '',
-    catNormal: false, catWelded: false, catCrackRisk: false, catDistortionRisk: false,
-    catCriticalFinishing: false, catDentDamage: false, catRusty: false, catCavity: false, catOthers: false,
+    catNormal: false, catCrackRisk: false, catDistortionRisk: false,
+    catCriticalFinishing: false, catDentDamage: false, catCavity: false, catOthers: false,
     procStressRelieving: false, procHardening: false, procTempering: false, procAnnealing: false,
     procBrazing: false, procPlasmaNitriding: false, procSubZero: false, procSoakClean: false,
-    hardnessMin: '', hardnessMax: '', hardnessUnit: 'HRC',
+    visualBefore: false, visualAfter: true, mpiBefore: false, mpiAfter: false, mpiNil: true,
+    hardnessMin: '', hardnessMax: '', hardnessUnit: 'HRC', achievedHardness: '',
+    hardnessAfter1: '', hardnessAfter2: '', hardnessAfter3: '', hardnessAfter4: '',
     distortionBefore: Array(8).fill(''), distortionAfter: Array(8).fill(''),
-    packedQty: '', packedBy: '', approvedBy: '',
+    packedQty: '', packedBy: '', approvedBy: '', finalInspectionBy: '',
     issuedTo: '', heatNo: '', dispatchByOurVehicle: false, dispatchByCourier: false, collectedByCustomer: false,
     dispatchChallanNo: '', dispatchChallanDate: '', dispatchedThrough: '',
     specialInstruction: '',
@@ -66,16 +92,21 @@ export default function CertForm() {
     { description: '', quantity: '1', weightPerPc: '', totalWeight: '', samplingPlan: '', remarks: '' },
   ]);
 
-  const emptyHeatRow = () => ({ equipment: '', processName: '', cycleNo: '', startTime: '', endTime: '', uom: '', result: '', signedBy: '' });
-  const [heatRows, setHeatRows] = useState([]);
-
-  const [inspResults, setInspResults] = useState([
-    { inspectionType: 'Visual',    parameter: 'Surface Finish', requiredValue: 'OK', achievedValue: '', result: 'OK', finalInspection: '' },
-    { inspectionType: 'Hardness',  parameter: 'Core Hardness',  requiredValue: '',   achievedValue: '', result: 'OK', finalInspection: '' },
-    { inspectionType: 'Distortion',parameter: 'Dimensional',    requiredValue: '',   achievedValue: '', result: 'OK', finalInspection: '' },
-  ]);
+  // Item selection state
+  const [pendingCertItems,   setPendingCertItems]   = useState([]);  // available to certify
+  const [certifiedItems,     setCertifiedItems]     = useState([]);  // already certified
+  const [selectedItemIds,    setSelectedItemIds]    = useState(new Set());
+  const [loadingCertItems,   setLoadingCertItems]   = useState(false);
 
   const [tempRows, setTempRows] = useState([{ time: '', temp: '' }]);
+  // True once the user manually edits the temp-curve rows; prevents auto-reset on job-card change
+  const tempRowsUserEdited = useRef(false);
+
+  // Temp Cycle Graph master selection (declared here so the edit-load effect below
+  // can restore the previously-selected graph into the dropdown).
+  const [noDefaultTemplate, setNoDefaultTemplate] = useState(false);
+  const [masterGraphs, setMasterGraphs] = useState([]);
+  const [selectedGraphId, setSelectedGraphId] = useState('');
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
@@ -94,33 +125,143 @@ export default function CertForm() {
     return false;
   };
 
-  const updateTemperatureCycle = (treatmentType) => {
-    const cycles = {
-      'HARDEN AND TEMPER': [
-        { time: '0', temp: '50' }, { time: '10', temp: '550' }, { time: '30', temp: '750' }, { time: '50', temp: '950' },
-        { time: '80', temp: '1030' }, { time: '110', temp: '1030' }, { time: '130', temp: '750' }, { time: '150', temp: '550' }, { time: '170', temp: '50' }
-      ],
-      'D2': [
-        { time: '0', temp: '50' }, { time: '10', temp: '550' }, { time: '30', temp: '750' }, { time: '50', temp: '950' },
-        { time: '80', temp: '1040' }, { time: '110', temp: '500' }, { time: '130', temp: '500' }, { time: '250', temp: '50' }
-      ],
-      'HSS': [
-        { time: '0', temp: '50' }, { time: '10', temp: '650' }, { time: '25', temp: '850' }, { time: '40', temp: '1050' },
-        { time: '70', temp: '1195' }, { time: '90', temp: '540' }, { time: '210', temp: '540' }, { time: '330', temp: '50' }
-      ],
-      'D3': [
-        { time: '0', temp: '50' }, { time: '10', temp: '500' }, { time: '30', temp: '750' }, { time: '50', temp: '850' },
-        { time: '140', temp: '990' }, { time: '160', temp: '200' }, { time: '280', temp: '200' }, { time: '330', temp: '50' }
-      ],
-      'STRESS RELIEVING': [
-        { time: '0', temp: '50' }, { time: '50', temp: '650' }, { time: '170', temp: '650' }, { time: '220', temp: '50' }
-      ],
-      'ANNEALING': [
-        { time: '0', temp: '50' }, { time: '50', temp: '590' }, { time: '200', temp: '590' }, { time: '250', temp: '50' }
-      ]
-    };
-    setTempRows(cycles[treatmentType] || cycles['HARDEN AND TEMPER']);
+  // Log-sheet row count — the physical form has a fixed 20 rows regardless
+  // of which material's cycle is loaded, so every material's default is
+  // normalized to exactly 20 (padded with blank rows to fill in manually, or
+  // trimmed from the tail if the cycle naturally produces more).
+  const TEMP_CYCLE_ROW_COUNT = 20;
+  const normalizeRowCount = (data) => {
+    if (data.length === TEMP_CYCLE_ROW_COUNT) return data;
+    if (data.length < TEMP_CYCLE_ROW_COUNT) {
+      return [...data, ...Array(TEMP_CYCLE_ROW_COUNT - data.length).fill(null).map(() => ({ time: '', temp: '' }))];
+    }
+    return data.slice(0, TEMP_CYCLE_ROW_COUNT);
   };
+
+  // Derive temp/time rows from the canonical heat-treatment cycle definitions
+  // (frontend/src/data/heatTreatmentCycles.js). Falls back to D2 if the
+  // treatmentType is unknown (e.g. 'NORMAL' / 'REWORK').
+  const updateTemperatureCycle = (treatmentType) => {
+    const segments = getCycleSegments(treatmentType);
+    const segs = segments.length ? segments : getCycleSegments('D2');
+    const data = normalizeRowCount(segmentsToTempCycleData(segs));
+    if (!data.length) return;
+    setTempRows(data.map(p => ({ time: String(p.time), temp: String(p.temp) })));
+  };
+
+  // Load existing cert in edit mode
+  useEffect(() => {
+    if (!isEdit) return;
+    setLoadingCert(true);
+    api.get(`/quality/certificates/${editId}`)
+      .then(r => {
+        const c = r.data.data;
+        const extractDistLocal = (arr) => {
+          if (!arr) return Array(8).fill('');
+          const parsed = typeof arr === 'string' ? JSON.parse(arr) : arr;
+          const out = Array(8).fill('');
+          parsed.forEach((v, i) => { out[i] = v != null && typeof v === 'object' ? String(v.val ?? '') : String(v ?? ''); });
+          return out;
+        };
+        setForm({
+          jobCardId:            c.jobCardId ? String(c.jobCardId) : '',
+          yourPoNo:             c.yourPoNo  || '',
+          yourPoDate:           c.yourPoDate ? c.yourPoDate.slice(0,10) : '',
+          yourRefNo:            c.yourRefNo || '',
+          issueNo:              c.certNo    || c.issueNo || '',
+          issueDate:            c.issueDate ? c.issueDate.slice(0,10) : '',
+          checkedBy:            c.checkedBy || '',
+          customerId:           c.customerId ? String(c.customerId) : '',
+          issuedByPartyId:      c.issuedByPartyId ? String(c.issuedByPartyId) : '',
+          dieMaterial:          c.dieMaterial  || '',
+          operatorMode:         c.operatorMode || '',
+          specInstrCertificate:  !!c.specInstrCertificate,
+          specInstrMpiReport:    !!c.specInstrMpiReport,
+          specInstrProcessGraph: !!c.specInstrProcessGraph,
+          deliveryDate:         c.deliveryDate ? c.deliveryDate.slice(0,10) : '',
+          specialRequirements:  c.specialRequirements  || '',
+          precautions:          c.precautions          || '',
+          catNormal:            !!c.catNormal,
+          catCrackRisk:         !!c.catCrackRisk,
+          catDistortionRisk:    !!c.catDistortionRisk,
+          catCriticalFinishing: !!c.catCriticalFinishing,
+          catDentDamage:        !!c.catDentDamage,
+          catCavity:            !!c.catCavity,
+          catOthers:            !!c.catOthers,
+          procStressRelieving:  !!c.procStressRelieving,
+          procHardening:        !!c.procHardening,
+          procTempering:        !!c.procTempering,
+          procAnnealing:        !!c.procAnnealing,
+          procBrazing:          !!c.procBrazing,
+          procPlasmaNitriding:  !!c.procPlasmaNitriding,
+          procSubZero:          !!c.procSubZero,
+          procSoakClean:        !!c.procSoakClean,
+          visualBefore:         !!c.visualBefore,
+          visualAfter:          c.visualAfter !== false ? true : false,
+          mpiBefore:            !!c.mpiBefore,
+          mpiAfter:             !!c.mpiAfter,
+          mpiNil:               c.mpiNil !== false ? (!c.mpiAfter) : false,
+          hardnessMin:          c.hardnessMin != null ? String(c.hardnessMin) : '',
+          hardnessMax:          c.hardnessMax != null ? String(c.hardnessMax) : '',
+          hardnessUnit:         c.hardnessUnit || 'HRC',
+          achievedHardness:     c.achievedHardness != null ? String(c.achievedHardness) : '',
+          hardnessAfter1:       c.hardnessAfter1 != null ? String(c.hardnessAfter1) : '',
+          hardnessAfter2:       c.hardnessAfter2 != null ? String(c.hardnessAfter2) : '',
+          hardnessAfter3:       c.hardnessAfter3 != null ? String(c.hardnessAfter3) : '',
+          hardnessAfter4:       c.hardnessAfter4 != null ? String(c.hardnessAfter4) : '',
+          distortionBefore:     extractDistLocal(c.distortionBefore),
+          distortionAfter:      extractDistLocal(c.distortionAfter),
+          packedQty:            c.packedQty  != null ? String(c.packedQty) : '',
+          packedBy:             c.packedBy   || '',
+          approvedBy:           c.approvedBy || '',
+          finalInspectionBy:    c.finalInspectionBy || '',
+          issuedTo:             c.issuedTo   || '',
+          heatNo:               c.heatNo     || '',
+          dispatchByOurVehicle: !!(c.dispatchedThrough || '').toLowerCase().includes('vehicle'),
+          dispatchByCourier:    !!(c.dispatchedThrough || '').toLowerCase().includes('courier'),
+          collectedByCustomer:  !!(c.dispatchedThrough || '').toLowerCase().includes('collected'),
+          dispatchChallanNo:    c.dispatchChallanNo  || '',
+          dispatchChallanDate:  c.dispatchChallanDate ? c.dispatchChallanDate.slice(0,10) : '',
+          dispatchedThrough:    c.dispatchedThrough  || '',
+          specialInstruction:   '',
+        });
+        if (c.items?.length) {
+          setCertItems(c.items.map(it => ({
+            description:  it.description  || '',
+            quantity:     it.quantity != null ? String(it.quantity) : '1',
+            weightPerPc:  it.weightPerPc  != null ? String(it.weightPerPc) : '',
+            totalWeight:  it.totalWeight  != null ? String(it.totalWeight) : '',
+            samplingPlan: it.samplingPlan || '',
+            remarks:      it.remarks      || '',
+          })));
+        }
+        const rawTemp = c.tempCycleData;
+        const parsedTemp = rawTemp ? (typeof rawTemp === 'string' ? JSON.parse(rawTemp) : rawTemp) : null;
+        if (parsedTemp?.length) {
+          setTempRows(parsedTemp.map(p => ({ time: String(p.time ?? ''), temp: String(p.temp ?? '') })));
+          tempRowsUserEdited.current = true; // treat loaded cert data as "user owned" — don't overwrite
+        }
+        // Restore the previously-selected graph so the dropdown stays selected on re-edit
+        if (c.tempCycleTemplateId != null) {
+          setSelectedGraphId(String(c.tempCycleTemplateId));
+        }
+        // Load existing uploaded images so the photo slots show them in edit mode
+        const imgs = {};
+        for (let n = 1; n <= 5; n++) {
+          if (c[`image${n}`]) imgs[`image${n}`] = c[`image${n}`];
+        }
+        setExistingImages(imgs);
+      })
+      .catch(() => toast.error('Failed to load certificate.'))
+      .finally(() => setLoadingCert(false));
+  }, [editId]); // eslint-disable-line
+
+  // When jobCards load and we have a ?jobCardNo= param, set the resolved ID
+  useEffect(() => {
+    if (resolvedJobCardId && !form.jobCardId) {
+      setForm(p => ({ ...p, jobCardId: resolvedJobCardId }));
+    }
+  }, [resolvedJobCardId]); // eslint-disable-line
 
   useEffect(() => {
     if (!form.jobCardId) {
@@ -133,6 +274,9 @@ export default function CertForm() {
       if (cancelled) return;
       const jc = r.data.data;
       setJcData(jc);
+      const imgs = {};
+      for (let n = 1; n <= 5; n++) { if (jc[`image${n}`]) imgs[`image${n}`] = jc[`image${n}`]; }
+      setJcImages(imgs);
 
       // Parse "58-60 HRC" → ["58","60"] — strip non-numeric suffix from each part
       const hrcMatch = (jc.hrcRange || '').match(/(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)/);
@@ -146,27 +290,72 @@ export default function CertForm() {
         ? jc.challanItemLinks
         : (jc.challans?.flatMap(ch => ch.items || []) || []);
       if (linkedItems.length > 0) {
-        setCertItems(linkedItems.map(it => ({
-          description: it.partName || it.description || '',
-          quantity: String(it.qty ?? it.quantity ?? 1),
-          weightPerPc: it.weight ? String(Number(it.weight) / Math.max(Number(it.qty ?? it.quantity ?? 1), 1)) : '',
-          totalWeight: it.weight ? String(Number(it.weight).toFixed(3)) : '',
-          samplingPlan: '',
-          remarks: '',
-        })));
+        // The job card's weight is what this certificate is for — a job card may
+        // take only part of an inward, and the operator may correct the weight
+        // there. So when the job card carries a total, that total wins and is
+        // spread over the items (in proportion to their own weights when they
+        // have any, equally otherwise) so the certificate adds up to it.
+        // Item weights are used as-is only when the job card has no total.
+        const jcTotalWt = Number(jc.totalWeight) || 0;
+        const itemWtSum = linkedItems.reduce((sum, it) => sum + (Number(it.weight) || 0), 0);
+        const weightFor = (it) => {
+          const own = Number(it.weight) || 0;
+          if (!(jcTotalWt > 0)) return own;
+          if (itemWtSum > 0) return (own / itemWtSum) * jcTotalWt;
+          return jcTotalWt / linkedItems.length;
+        };
+        setCertItems(linkedItems.map(it => {
+          const qty = Math.max(Number(it.qty ?? it.quantity ?? 1), 1);
+          return {
+            description: (() => {
+              let d = it.partName || it.description || '';
+              const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              if (it.processName) d = d.replace(new RegExp('\\s*[-–]\\s*' + esc(it.processName) + '\\s*$', 'i'), '').trim();
+              if (it.material)    d = d.replace(new RegExp('\\s*[-–]\\s*' + esc(it.material)    + '\\s*$', 'i'), '').trim();
+              return d;
+            })(),
+            quantity:    String(qty),
+            // The challan item carries the weight, and the job card's total is
+            // already split per item above — both were computed and then
+            // thrown away, so every certificate came out with a blank weight.
+            ...(() => {
+              const wt = weightFor(it);
+              if (!(wt > 0)) return { weightPerPc: '', totalWeight: '' };
+              return {
+                weightPerPc: String(Number((wt / qty).toFixed(3))),
+                totalWeight: String(Number(wt.toFixed(3))),
+              };
+            })(),
+            samplingPlan: '',
+            remarks: '',
+          };
+        }));
       }
+
+      // challanItemLinks reflects each item's actual current challan assignment;
+      // jc.challans[0] is a direct relation that can point to a stale/wrong
+      // challan (e.g. an auto-created placeholder), so it must be checked last.
+      const inwardChallanNo = jc.challanItemLinks?.[0]?.challan?.challanNo
+        || jc.challans?.[0]?.challanNo
+        || '';
 
       setForm(p => ({
         ...p,
         customerId:   jc.customerId   ? String(jc.customerId) : p.customerId,
         issuedTo:     jc.customerNameSnapshot || jc.customer?.name || p.issuedTo,
         yourPoNo:     jc.yourNo       || p.yourPoNo,
+        yourRefNo:    inwardChallanNo || p.yourRefNo,
         heatNo:       jc.heatNo       || p.heatNo,
         dieMaterial:  jc.dieMaterial  || p.dieMaterial || 'D2',
         operatorMode: heatTreatment,
-        hardnessMin:  hardnessMin || insp.requiredHardnessMin || p.hardnessMin,
-        hardnessMax:  hardnessMax || insp.requiredHardnessMax || p.hardnessMax,
-        hardnessUnit: insp.hardnessUnit || p.hardnessUnit,
+        hardnessMin:      hardnessMin || insp.requiredHardnessMin || p.hardnessMin,
+        hardnessMax:      hardnessMax || insp.requiredHardnessMax || p.hardnessMax,
+        hardnessUnit:     insp.hardnessUnit     || p.hardnessUnit,
+        achievedHardness: insp.achievedHardness != null ? String(insp.achievedHardness) : p.achievedHardness,
+        hardnessAfter1:   insp.hardnessAfter1   != null ? String(insp.hardnessAfter1)   : p.hardnessAfter1,
+        hardnessAfter2:   insp.hardnessAfter2   != null ? String(insp.hardnessAfter2)   : p.hardnessAfter2,
+        hardnessAfter3:   insp.hardnessAfter3   != null ? String(insp.hardnessAfter3)   : p.hardnessAfter3,
+        hardnessAfter4:   insp.hardnessAfter4   != null ? String(insp.hardnessAfter4)   : p.hardnessAfter4,
         specialRequirements: jc.specialRequirements || p.specialRequirements,
         precautions:         jc.precautions         || p.precautions,
         specInstrCertificate:  jc.specInstrCert   ?? p.specInstrCertificate,
@@ -175,7 +364,14 @@ export default function CertForm() {
         dispatchByOurVehicle: !!jc.dispatchByOurVehicle,
         dispatchByCourier:    !!jc.dispatchByCourier,
         collectedByCustomer:  !!jc.collectedByCustomer,
-        // Categorization from inspection
+        // Categorization / Process / Visual-MPI: the Job Card's Incoming
+        // Inspection is the source of truth for these — always sync them in
+        // from the job card's current inspection, for both a new AND an
+        // existing certificate, so checking something in the Job Card shows
+        // up on the certificate too. Editing them directly on the
+        // certificate still works and pushes back to the job card on save
+        // (see handleSubmit / syncCategorizationToJobCard on the backend) —
+        // so both directions stay in sync.
         catNormal:            !!insp.catNormal,
         catWelded:            !!insp.catWelded,
         catCrackRisk:         !!insp.catCrackRisk,
@@ -184,7 +380,6 @@ export default function CertForm() {
         catDentDamage:        !!insp.catDentDamage,
         catRusty:             !!insp.catRusty,
         catOthers:            !!insp.catOthers,
-        // Process from inspection
         procStressRelieving:  !!insp.procStressRelieving,
         procHardening:        !!insp.procHardening,
         procTempering:        !!insp.procTempering,
@@ -193,25 +388,145 @@ export default function CertForm() {
         procPlasmaNitriding:  !!insp.procPlasmaNitriding,
         procSubZero:          !!insp.procSubZero,
         procSoakClean:        !!insp.procSoakClean,
+        visualBefore:         !!insp.visualBefore,
+        visualAfter:          insp.visualAfter !== false,
+        mpiBefore:            !!insp.mpiBefore,
+        mpiAfter:             !!insp.mpiAfter,
+        mpiNil:               insp.mpiNil !== false && !insp.mpiAfter,
+        // Distortion Measurements are per-certificate physical readings, not
+        // part of the job card's inspection classification — only seed them
+        // from the job card when creating a brand-new certificate, so an
+        // existing certificate's own saved measurements are never clobbered
+        // by reopening the edit form (this was the original bug report).
+        ...(!isEdit ? {
+          distortionBefore: extractDist(insp.distortionBefore),
+          distortionAfter:  extractDist(insp.distortionAfter),
+        } : {}),
       }));
 
-      loadTempCycleFromRunsheet(form.jobCardId).then(ok => {
-        if (!ok) updateTemperatureCycle(heatTreatment);
-      });
+      if (!tempRowsUserEdited.current) {
+        loadTempCycleFromRunsheet(form.jobCardId).then(ok => {
+          if (!ok) updateTemperatureCycle(heatTreatment);
+        });
+      }
     }).catch(() => {});
 
     return () => { cancelled = true; };
   }, [form.jobCardId]);
 
-  const handleImageChange = (i, file) => setImages(p => ({ ...p, [i]: file }));
+  // New certificate only: auto-load the Temperature Cycle Graph flagged
+  // isDefault, without requiring the user to select anything. Never runs in
+  // edit mode — an existing certificate always keeps its own saved
+  // tempCycleData (loaded separately below) regardless of what the default
+  // graph is now. Graph `data` is segments [{tempC,holdMin,label}]; the
+  // certificate's own editable table works in flat {time,temp} rows, so it's
+  // converted once on load via segmentsToTempCycleData — same conversion the
+  // hardcoded material presets already use.
+  useEffect(() => {
+    api.get('/quality/temp-cycle-templates', { params: { isActive: 'true', limit: 200 } })
+      .then(r => setMasterGraphs(r.data.data || []))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (isEdit) return;
+    api.get('/quality/temp-cycle-templates/default')
+      .then(r => {
+        const tpl = r.data.data;
+        if (tpl?.data?.length) {
+          setTempRows(segmentsToTempCycleData(tpl.data).map(p => ({ time: String(p.time ?? ''), temp: String(p.temp ?? '') })));
+          setSelectedGraphId(String(tpl.id));
+          setNoDefaultTemplate(false);
+        } else {
+          setNoDefaultTemplate(true);
+        }
+      })
+      .catch(() => setNoDefaultTemplate(true));
+  }, [isEdit]);
+
+  const selectGraph = async (graphId) => {
+    if (!graphId) return;
+    try {
+      const r = await api.get(`/quality/temp-cycle-templates/${graphId}`);
+      const graph = r.data.data;
+      if (graph?.data?.length) {
+        setTempRows(segmentsToTempCycleData(graph.data).map(p => ({ time: String(p.time ?? ''), temp: String(p.temp ?? '') })));
+        setSelectedGraphId(String(graphId));
+        setNoDefaultTemplate(false);
+        toast.success(`Loaded graph: ${graph.name}`);
+      }
+    } catch {
+      toast.error('Failed to load graph.');
+    }
+  };
+
+  // Fetch pending cert items whenever jobCardId changes (create mode only)
+  useEffect(() => {
+    if (!form.jobCardId || isEdit) {
+      setPendingCertItems([]);
+      setCertifiedItems([]);
+      setSelectedItemIds(new Set());
+      return;
+    }
+    setLoadingCertItems(true);
+    api.get(`/quality/certificates/pending-cert-items/${form.jobCardId}`)
+      .then(r => {
+        setPendingCertItems(r.data.data.pendingItems || []);
+        setCertifiedItems(r.data.data.certifiedItems || []);
+        // Auto-select all pending items by default
+        setSelectedItemIds(new Set((r.data.data.pendingItems || []).map(it => it.id)));
+      })
+      .catch(() => {})
+      .finally(() => setLoadingCertItems(false));
+  }, [form.jobCardId, isEdit]);
+
+  // When selected items change, auto-fill certItems table
+  const prevSelectedRef = useRef(new Set());
+  useEffect(() => {
+    if (!pendingCertItems.length) return;
+    const selected = pendingCertItems.filter(it => selectedItemIds.has(it.id));
+    if (selected.length === 0) return;
+    setCertItems(selected.map(it => {
+      const qty = Math.max(Number(it.quantity) || 1, 1);
+      const wt  = Number(it.weight) || 0;
+      return {
+        description:  it.description || it.processName || '',
+        quantity:     String(qty),
+        // Carry the inward's weight across — it was being dropped here too.
+        weightPerPc:  wt > 0 ? String(Number((wt / qty).toFixed(3))) : '',
+        totalWeight:  wt > 0 ? String(Number(wt.toFixed(3))) : '',
+        samplingPlan: '',
+        remarks:      '',
+        sourceChallanItemId: it.id,
+      };
+    }));
+    prevSelectedRef.current = selectedItemIds;
+  }, [selectedItemIds]); // eslint-disable-line
+
+  // null = user ne slot khali kiya. Sirf state me null rakhne se backend ko
+  // pata hi nahi chalta tha (submit sirf File bhejta hai), isliye purani photo
+  // DB me padi rehti thi aur print me aati rehti thi.
+  const handleImageChange = (i, file) => {
+    setImages(p => ({ ...p, [i]: file }));
+    setRemovedImages(prev => {
+      const next = new Set(prev);
+      if (file) next.delete(i); else next.add(i);
+      return next;
+    });
+    if (!file) {
+      // saved URL bhi hata do, warna slot dobara bhar jayega
+      setExistingImages(p => { const n = { ...p }; delete n[`image${i}`]; return n; });
+      setJcImages(p => { const n = { ...p }; delete n[`image${i}`]; return n; });
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.jobCardId || !form.customerId) { toast.error('Job Card and Customer are required.'); return; }
-    
+    if (!form.customerId) { toast.error('Customer is required.'); return; }
+    if (!isEdit && !form.jobCardId) { toast.error('Job Card is required.'); return; }
+
     setLoading(true);
     try {
-      // Convert dispatch checkboxes → dispatchedThrough string
       const dispatchParts = [];
       if (form.dispatchByOurVehicle) dispatchParts.push('By Our Vehicle');
       if (form.dispatchByCourier)    dispatchParts.push('By Courier');
@@ -221,56 +536,173 @@ export default function CertForm() {
       const fd = new FormData();
       Object.entries(submitForm).forEach(([k, v]) => {
         if (k === 'distortionBefore' || k === 'distortionAfter') {
-          fd.append(k, JSON.stringify(v.map((val, i) => ({ pt: i + 1, val: toNum(val, 0) }))));
+          // Keep raw values so text entries like "NA"/"OK" survive; numbers stay numeric.
+          fd.append(k, JSON.stringify(v.map((val, i) => {
+            const s = val == null ? '' : String(val).trim();
+            const num = Number(s);
+            return { pt: i + 1, val: s !== '' && !isNaN(num) ? num : s };
+          })));
         } else {
           fd.append(k, v);
         }
       });
       fd.append('items', JSON.stringify(certItems.filter(it => it.description?.trim())));
-      fd.append('inspectionResults', JSON.stringify(inspResults));
-      fd.append('tempCycleData', JSON.stringify(tempRows.filter(r => r.time !== '' && r.temp !== '')));
-      fd.append('certHeatProcesses', JSON.stringify(heatRows.filter(r => r.equipment || r.processName)));
+      if (!isEdit && selectedItemIds.size > 0) {
+        fd.append('selectedChallanItemIds', JSON.stringify([...selectedItemIds]));
+      }
+      fd.append('tempCycleData', JSON.stringify(tempRows));
+      if (selectedGraphId) fd.append('tempCycleTemplateId', selectedGraphId);
       for (let i = 1; i <= 5; i++) { if (images[i] instanceof File) fd.append(`image${i}`, images[i]); }
-      
-      const r = await api.post('/quality/certificates', fd);
-      toast.success(`Certificate ${r.data.data.certNo} created!`);
+      if (removedImages.size) fd.append('removeImages', [...removedImages].join(','));
+
+      if (isEdit) {
+        await api.put(`/quality/certificates/${editId}`, fd);
+        toast.success('Certificate updated!');
+      } else {
+        const r = await api.post('/quality/certificates', fd);
+        toast.success(`Certificate ${r.data.data.certNo} created!`);
+      }
       navigate('/quality/certificates');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Error creating certificate.');
+      toast.error(err.response?.data?.message || (isEdit ? 'Error updating certificate.' : 'Error creating certificate.'));
     } finally { setLoading(false); }
   };
 
+  if (loadingCert) return <div className="p-10 text-slate-400 text-sm">Loading certificate…</div>;
+
   return (
     <div className="page-stack w-full animate-slide-up">
-      <div className="flex items-center gap-3 mb-6">
-        <Link to="/quality/certificates" className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-indigo-600 shadow-sm">
-          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-        </Link>
-        <div>
-          <h2 className="text-xl font-extrabold text-slate-800 font-headline">New Test Certificate</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Sheetal Vacuum Heat Pvt. Ltd.</p>
+      <div className="page-header">
+        <div className="flex items-start gap-3">
+          <Link to="/quality/certificates" className="w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-colors shadow-sm">
+            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+          </Link>
+          <div className="space-y-2">
+            <h1 className="page-title">{isEdit ? 'Edit Test Certificate' : 'Create Test Certificate'}</h1>
+            <p className="page-subtitle max-w-2xl">Use this form to generate or update quality certificates, link job cards, and capture inspection details in one place.</p>
+          </div>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <CertHeaderSection form={form} set={set} parties={parties} jobCards={jobCards} jcData={jcData} />
-        <CertTechnicalSection form={form} set={set} updateTemperatureCurve={updateTemperatureCycle} jcData={jcData} />
+        <CertTechnicalSection form={form} set={set} updateTemperatureCycle={updateTemperatureCycle} jcData={jcData} />
         <CertCategorizationSection form={form} set={set} jcData={jcData} />
+
+        {/* ── Item Selection Panel (create mode only, when JC selected) ── */}
+        {!isEdit && form.jobCardId && (
+          <div className="card p-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-4">
+              <div>
+                <p className="section-title">Select Items to Certify</p>
+                <p className="text-xs text-slate-400 mt-0.5">Only pending items shown. Already certified items are locked.</p>
+              </div>
+              {pendingCertItems.length > 0 && (
+                <button type="button"
+                  onClick={() => setSelectedItemIds(
+                    selectedItemIds.size === pendingCertItems.length
+                      ? new Set()
+                      : new Set(pendingCertItems.map(it => it.id))
+                  )}
+                  className="text-xs font-semibold text-sky-600 hover:underline">
+                  {selectedItemIds.size === pendingCertItems.length ? 'Deselect All' : 'Select All'}
+                </button>
+              )}
+            </div>
+
+            {loadingCertItems ? (
+              <p className="text-xs text-slate-400 py-3">Loading items…</p>
+            ) : pendingCertItems.length === 0 && certifiedItems.length === 0 ? (
+              <p className="text-xs text-slate-400 py-3">No items linked to this Job Card.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {/* Pending items — selectable */}
+                {pendingCertItems.map(it => {
+                  const checked = selectedItemIds.has(it.id);
+                  return (
+                    <div key={it.id}
+                      onClick={() => setSelectedItemIds(prev => {
+                        const next = new Set(prev);
+                        if (next.has(it.id)) next.delete(it.id); else next.add(it.id);
+                        return next;
+                      })}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg border cursor-pointer transition-colors
+                        ${checked
+                          ? 'bg-sky-50 border-sky-300 border-l-4 border-l-sky-500'
+                          : 'bg-white border-slate-200 hover:bg-slate-50'
+                        }`}
+                    >
+                      <input type="checkbox" checked={checked} readOnly
+                        className="w-3.5 h-3.5 accent-sky-600 cursor-pointer flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-semibold text-slate-800 truncate block">
+                          {it.description || it.processName || '—'}
+                        </span>
+                        {it.material && <span className="text-[10px] text-slate-500">{it.material}</span>}
+                      </div>
+                      <div className="flex items-center gap-4 text-xs text-slate-500 flex-shrink-0">
+                        <span>Qty: <span className="font-bold text-slate-700">{Number(it.quantity)}</span></span>
+                        {it.weight && <span>Wt: <span className="font-bold text-amber-700">{Number(it.weight).toFixed(3)} kg</span></span>}
+                        <span className="badge bg-amber-100 text-amber-700 text-[10px]">Pending Cert</span>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Already certified items — locked */}
+                {certifiedItems.map(it => (
+                  <div key={it.id}
+                    className="flex items-center gap-3 px-3 py-2 rounded-lg border border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed">
+                    <span className="w-3.5 h-3.5 flex-shrink-0 text-emerald-500 text-sm">✓</span>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-xs font-semibold text-slate-600 truncate block">
+                        {it.description || it.processName || '—'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs flex-shrink-0">
+                      <span className="badge bg-emerald-100 text-emerald-700 text-[10px]">
+                        Certified {it.certItems?.[0]?.cert?.certNo ? `→ ${it.certItems[0].cert.certNo}` : ''}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+
+                {selectedItemIds.size > 0 && (
+                  <div className="mt-2 px-3 py-2 bg-sky-50 rounded-lg text-xs text-sky-700 font-medium">
+                    {selectedItemIds.size} item{selectedItemIds.size > 1 ? 's' : ''} selected for this certificate
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         <CertItemsTable certItems={certItems} setCertItems={setCertItems} />
         <CertHardnessSection form={form} set={set} jcData={jcData} />
         <DistortionTable form={form} setForm={setForm} set={set} />
-        <HeatProcessLog heatRows={heatRows} setHeatRows={setHeatRows} emptyHeatRow={emptyHeatRow} />
-        <InspectionResultsTable inspResults={inspResults} setInspResults={setInspResults} />
-        <TemperatureCurve tempRows={tempRows} setTempRows={setTempRows} form={form} loadTempCycleFromRunsheet={loadTempCycleFromRunsheet} />
-        <CertPhotosSection handleImageChange={handleImageChange} />
+        <TemperatureCurve
+          tempRows={tempRows}
+          setTempRows={(rows) => { tempRowsUserEdited.current = true; setTempRows(rows); }}
+          form={form}
+          masterGraphs={masterGraphs}
+          selectGraph={(id) => { tempRowsUserEdited.current = false; return selectGraph(id); }}
+          selectedGraphId={selectedGraphId}
+          noDefaultTemplate={!isEdit && noDefaultTemplate}
+        />
+        <CertPhotosSection handleImageChange={handleImageChange} existingImages={{ ...jcImages, ...existingImages }} />
         <CertPackingSection form={form} set={set} jcData={jcData} />
 
-        <div className="flex gap-3 pb-4">
-          <button type="submit" disabled={loading} className="btn-primary">
-            {loading ? 'Creating...' : 'Create Certificate'}
-          </button>
-          <Link to="/quality/certificates" className="btn-ghost">Cancel</Link>
+        <div className="card p-4 flex flex-wrap items-center justify-between gap-3 border-slate-200 shadow-sm">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-slate-700">Ready to finalize?</p>
+            <p className="text-xs text-slate-500">Save the certificate once all sections are complete.</p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button type="submit" disabled={loading} className="btn-primary">
+              {loading ? (isEdit ? 'Saving…' : 'Creating…') : (isEdit ? 'Update Certificate' : 'Create Certificate')}
+            </button>
+            <Link to="/quality/certificates" className="btn-ghost">Cancel</Link>
+          </div>
         </div>
       </form>
     </div>

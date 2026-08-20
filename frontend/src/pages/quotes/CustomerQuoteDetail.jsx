@@ -3,6 +3,8 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
 import { formatDate, formatCurrency } from '../../utils/formatters';
+import ConfirmDialog from '../../components/ConfirmDialog';
+import { useAuth } from '../../context/AuthContext';
 
 const STATUS_COLORS = {
   DRAFT:    'bg-slate-100 text-slate-700 border-slate-200',
@@ -11,6 +13,8 @@ const STATUS_COLORS = {
   REJECTED: 'bg-rose-100 text-rose-700 border-rose-200',
   EXPIRED:  'bg-orange-100 text-orange-700 border-orange-200',
 };
+const UNIT_LABEL = { KGS: '/ Kg', PCS: '/ Pc', LOT: '(Lot)' };
+
 const NEXT_STATUSES = {
   DRAFT: ['SENT'],
   SENT:  ['ACCEPTED', 'REJECTED'],
@@ -22,10 +26,12 @@ const NEXT_STATUSES = {
 export default function CustomerQuoteDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const [q, setQ] = useState(null);
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
   const load = () => {
     setLoading(true);
@@ -37,41 +43,57 @@ export default function CustomerQuoteDetail() {
 
   useEffect(() => { load(); }, [id]);
 
-  const updateStatus = async (status) => {
-    if (!window.confirm(`Change status to ${status}?`)) return;
-    setUpdatingStatus(true);
-    try {
-      await api.patch(`/customer-quotes/${id}/status`, { status });
-      toast.success(`Status → ${status}`);
-      load();
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed.');
-    } finally {
-      setUpdatingStatus(false);
-    }
+  const updateStatus = (status) => {
+    setConfirmDialog({
+      title: `Change status to ${status}?`,
+      message: `This quote's status will be updated to ${status}.`,
+      confirmLabel: `Mark ${status}`,
+      variant: 'primary',
+      onConfirm: async () => {
+        setUpdatingStatus(true);
+        try {
+          await api.patch(`/customer-quotes/${id}/status`, { status });
+          toast.success(`Status → ${status}`);
+          load();
+        } catch (err) {
+          toast.error(err.response?.data?.message || 'Failed.');
+        } finally {
+          setUpdatingStatus(false);
+          setConfirmDialog(null);
+        }
+      },
+    });
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm('Delete this draft quote?')) return;
-    setDeleting(true);
-    try {
-      await api.delete(`/customer-quotes/${id}`);
-      toast.success('Quote deleted.');
-      navigate('/customer-quotes');
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed.');
-    } finally {
-      setDeleting(false);
-    }
+  const handleDelete = () => {
+    const isDraft = q?.status === 'DRAFT';
+    setConfirmDialog({
+      title: isDraft ? 'Delete draft quote?' : `Delete ${q?.status} quote?`,
+      message: isDraft
+        ? 'This will permanently delete this draft quote.'
+        : `${q?.quoteNo} is ${q?.status} — the customer has already been shown this quote. `
+          + 'Deleting it removes the record of what was offered. This cannot be undone.',
+      confirmLabel: 'Delete',
+      variant: 'danger',
+      onConfirm: async () => {
+        setDeleting(true);
+        try {
+          await api.delete(`/customer-quotes/${id}`);
+          toast.success('Quote deleted.');
+          navigate('/customer-quotes');
+        } catch (err) {
+          toast.error(err.response?.data?.message || 'Failed.');
+        } finally {
+          setDeleting(false);
+          setConfirmDialog(null);
+        }
+      },
+    });
   };
 
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent" /></div>;
+  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin w-8 h-8 rounded-full border-2 border-sky-500 border-t-transparent" /></div>;
   if (!q) return <div className="p-8 text-center text-slate-500">Quote not found.</div>;
 
-  const subtotal = +q.subtotal;
-  const cgst = +q.cgst;
-  const sgst = +q.sgst;
-  const total = +q.totalAmount;
   const nextStatuses = NEXT_STATUSES[q.status] || [];
 
   return (
@@ -103,8 +125,12 @@ export default function CustomerQuoteDetail() {
           <Link to={`/customer-quotes/${id}/print`} target="_blank" className="btn-outline text-xs">
             <span className="material-symbols-outlined text-sm">print</span> Print
           </Link>
-          {q.status === 'DRAFT' && (
-            <button onClick={handleDelete} disabled={deleting} className="w-8 h-8 flex items-center justify-center rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50">
+          {(q.status === 'DRAFT' || isAdmin) && (
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              title={q.status === 'DRAFT' ? 'Delete quote' : `Delete ${q.status} quote (admin only)`}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 disabled:opacity-50">
               <span className="material-symbols-outlined text-lg">delete</span>
             </button>
           )}
@@ -115,6 +141,7 @@ export default function CustomerQuoteDetail() {
       <div className="card p-5">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
           <div><p className="form-label">Customer</p><p className="font-semibold text-slate-800">{q.customer?.name}</p></div>
+          <div><p className="form-label">Kind Attn</p><p className="font-semibold text-slate-800">{q.kindAttn ? `Mr. ${q.kindAttn}` : '—'}</p></div>
           <div><p className="form-label">GSTIN</p><p className="font-mono text-slate-600">{q.customer?.gstin || '—'}</p></div>
           <div><p className="form-label">Quote Date</p><p className="font-semibold text-slate-800">{formatDate(q.quoteDate)}</p></div>
           <div><p className="form-label">Valid Until</p><p className="font-semibold text-slate-800">{q.validUntil ? formatDate(q.validUntil) : '—'}</p></div>
@@ -131,14 +158,10 @@ export default function CustomerQuoteDetail() {
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
                 <th className="px-3 py-2 text-left font-bold text-slate-500 uppercase text-[10px]">#</th>
-                <th className="px-3 py-2 text-left font-bold text-slate-500 uppercase text-[10px]">Part Name</th>
+                <th className="px-3 py-2 text-left font-bold text-slate-500 uppercase text-[10px]">Description / Part Name</th>
                 <th className="px-3 py-2 text-left font-bold text-slate-500 uppercase text-[10px]">Process</th>
                 <th className="px-3 py-2 text-left font-bold text-slate-500 uppercase text-[10px]">Material</th>
-                <th className="px-3 py-2 text-center font-bold text-slate-500 uppercase text-[10px]">Qty</th>
-                <th className="px-3 py-2 text-right font-bold text-slate-500 uppercase text-[10px]">Weight</th>
                 <th className="px-3 py-2 text-right font-bold text-slate-500 uppercase text-[10px]">Rate</th>
-                <th className="px-3 py-2 text-right font-bold text-slate-500 uppercase text-[10px]">Amount</th>
-                <th className="px-3 py-2 text-left font-bold text-slate-500 uppercase text-[10px]">Remarks</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -148,29 +171,15 @@ export default function CustomerQuoteDetail() {
                   <td className="px-3 py-2.5 font-medium text-slate-800">{item.partName}</td>
                   <td className="px-3 py-2.5 text-slate-600">{item.processType?.name || '—'}</td>
                   <td className="px-3 py-2.5 text-slate-600">{item.material || '—'}</td>
-                  <td className="px-3 py-2.5 text-center font-mono">{item.qty}</td>
-                  <td className="px-3 py-2.5 text-right font-mono">{item.weight ? `${item.weight} kg` : '—'}</td>
-                  <td className="px-3 py-2.5 text-right font-mono">₹{formatCurrency(item.rate)}</td>
-                  <td className="px-3 py-2.5 text-right font-mono font-bold text-slate-800">₹{formatCurrency(item.amount)}</td>
-                  <td className="px-3 py-2.5 text-slate-500">{item.remarks || '—'}</td>
+                  <td className="px-3 py-2.5 text-right font-mono font-bold text-slate-800">{+item.rate > 0 ? `₹${formatCurrency(item.rate)} ${UNIT_LABEL[item.unit] || UNIT_LABEL.KGS}` : '—'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-
-        {/* Totals */}
-        <div className="mt-5 flex justify-end">
-          <div className="w-64 space-y-1.5 text-xs">
-            <div className="flex justify-between text-slate-600"><span>Subtotal</span><span className="font-mono">₹{formatCurrency(subtotal)}</span></div>
-            <div className="flex justify-between text-slate-600"><span>CGST ({+q.cgstRate}%)</span><span className="font-mono">₹{formatCurrency(cgst)}</span></div>
-            <div className="flex justify-between text-slate-600"><span>SGST ({+q.sgstRate}%)</span><span className="font-mono">₹{formatCurrency(sgst)}</span></div>
-            <div className="flex justify-between text-sm font-extrabold text-slate-800 border-t border-slate-200 pt-2">
-              <span>Total</span><span className="font-mono">₹{formatCurrency(total)}</span>
-            </div>
-          </div>
-        </div>
       </div>
+
+      {confirmDialog && <ConfirmDialog {...confirmDialog} onCancel={() => setConfirmDialog(null)} />}
     </div>
   );
 }

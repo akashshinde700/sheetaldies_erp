@@ -72,7 +72,7 @@ const Pagination = ({ hasNextPage, onNext, onFirst, isLoading }) => {
       <button
         onClick={onFirst}
         disabled={isLoading}
-        className="px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-800 disabled:opacity-50"
+        className="px-4 py-2 text-sm font-medium text-sky-600 hover:text-sky-800 disabled:opacity-50"
       >
         ↺ Reset
       </button>
@@ -84,7 +84,7 @@ const Pagination = ({ hasNextPage, onNext, onFirst, isLoading }) => {
       <button
         onClick={onNext}
         disabled={!hasNextPage || isLoading}
-        className="px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-800 disabled:opacity-50"
+        className="px-4 py-2 text-sm font-medium text-sky-600 hover:text-sky-800 disabled:opacity-50"
       >
         Next ↓
       </button>

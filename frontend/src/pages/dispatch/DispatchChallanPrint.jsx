@@ -10,6 +10,8 @@ export default function DispatchChallanPrint() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  useEffect(() => { const p = document.title; document.title = ' '; return () => { document.title = p; }; }, []);
+
   useEffect(() => {
     api.get(`/dispatch-challans/${id}`)
       .then(r => setDc(r.data.data))
@@ -31,11 +33,12 @@ export default function DispatchChallanPrint() {
   return (
     <div className="bg-slate-100 py-6 print:bg-white print:py-0">
       <style>{`
+        @page { margin: 0mm; size: A4; }
         @media print {
           .no-print { display: none !important; }
           .page { box-shadow: none !important; margin: 0 !important; border: none !important; }
+          html, body { margin: 0 !important; padding: 8mm !important; }
           body { background: white !important; }
-          @page { size: A4; margin: 10mm; }
         }
       `}</style>
 

@@ -37,8 +37,8 @@ exports.list = async (req, res) => {
     if (status && QUOTE_STATUSES.includes(status)) where.status = status;
     const q = String(search || '').trim();
     if (q) where.OR = [
-      { quoteNo: { contains: q, mode: 'insensitive' } },
-      { customer: { is: { name: { contains: q, mode: 'insensitive' } } } },
+      { quoteNo: { contains: q } },
+      { customer: { is: { name: { contains: q } } } },
     ];
     const [quotes, total] = await Promise.all([
       prisma.customerQuote.findMany({
@@ -77,7 +77,11 @@ exports.getOne = async (req, res) => {
 // ── Create ───────────────────────────────────────────────────
 exports.create = async (req, res) => {
   try {
-    const { customerId, quoteDate, validUntil, notes, paymentTerms, cgstRate = 9, sgstRate = 9, items = [] } = req.body;
+    const {
+      customerId, quoteDate, validUntil, notes, paymentTerms, kindAttn, cgstRate = 9, sgstRate = 9, items = [],
+      termsTransport, termsPayment, termsDelivery, termsTax,
+      commercialPan, commercialGst, commercialServicesCode, commercialIso,
+    } = req.body;
     if (!customerId || !quoteDate) return res.status(400).json({ success: false, message: 'Customer and quote date required.' });
     if (!items.length) return res.status(400).json({ success: false, message: 'At least one item required.' });
 
@@ -92,8 +96,17 @@ exports.create = async (req, res) => {
         validUntil: validUntil ? new Date(validUntil) : null,
         notes: notes || null,
         paymentTerms: paymentTerms || null,
+        kindAttn: kindAttn || null,
         cgstRate: +cgstRate, sgstRate: +sgstRate,
         subtotal, cgst, sgst, totalAmount,
+        ...(termsTransport && { termsTransport }),
+        ...(termsPayment && { termsPayment }),
+        ...(termsDelivery && { termsDelivery }),
+        ...(termsTax && { termsTax }),
+        ...(commercialPan && { commercialPan }),
+        ...(commercialGst && { commercialGst }),
+        ...(commercialServicesCode && { commercialServicesCode }),
+        ...(commercialIso && { commercialIso }),
         createdById: req.user.id,
         items: {
           create: items.map(i => ({
@@ -102,6 +115,7 @@ exports.create = async (req, res) => {
             material: i.material || null,
             qty: toInt(i.qty) || 1,
             weight: i.weight ? toNum(i.weight, null) : null,
+            unit: ['KGS', 'PCS', 'LOT'].includes(i.unit) ? i.unit : 'KGS',
             rate: toNum(i.rate, 0),
             amount: toNum(i.amount, 0),
             hsnCode: i.hsnCode || null,
@@ -126,7 +140,11 @@ exports.update = async (req, res) => {
     if (!existing) return res.status(404).json({ success: false, message: 'Quote not found.' });
     if (existing.status !== 'DRAFT') return res.status(400).json({ success: false, message: 'Only DRAFT quotes can be edited.' });
 
-    const { customerId, quoteDate, validUntil, notes, paymentTerms, cgstRate = 9, sgstRate = 9, items = [] } = req.body;
+    const {
+      customerId, quoteDate, validUntil, notes, paymentTerms, kindAttn, cgstRate = 9, sgstRate = 9, items = [],
+      termsTransport, termsPayment, termsDelivery, termsTax,
+      commercialPan, commercialGst, commercialServicesCode, commercialIso,
+    } = req.body;
     const { subtotal, cgst, sgst, totalAmount } = calcTotals(items, +cgstRate, +sgstRate);
 
     await prisma.customerQuoteItem.deleteMany({ where: { quoteId: id } });
@@ -138,8 +156,17 @@ exports.update = async (req, res) => {
         validUntil: validUntil ? new Date(validUntil) : null,
         notes: notes ?? existing.notes,
         paymentTerms: paymentTerms ?? existing.paymentTerms,
+        kindAttn: kindAttn ?? existing.kindAttn,
         cgstRate: +cgstRate, sgstRate: +sgstRate,
         subtotal, cgst, sgst, totalAmount,
+        termsTransport: termsTransport ?? existing.termsTransport,
+        termsPayment: termsPayment ?? existing.termsPayment,
+        termsDelivery: termsDelivery ?? existing.termsDelivery,
+        termsTax: termsTax ?? existing.termsTax,
+        commercialPan: commercialPan ?? existing.commercialPan,
+        commercialGst: commercialGst ?? existing.commercialGst,
+        commercialServicesCode: commercialServicesCode ?? existing.commercialServicesCode,
+        commercialIso: commercialIso ?? existing.commercialIso,
         items: {
           create: items.map(i => ({
             partName: i.partName || '',
@@ -147,6 +174,7 @@ exports.update = async (req, res) => {
             material: i.material || null,
             qty: toInt(i.qty) || 1,
             weight: i.weight ? toNum(i.weight, null) : null,
+            unit: ['KGS', 'PCS', 'LOT'].includes(i.unit) ? i.unit : 'KGS',
             rate: toNum(i.rate, 0),
             amount: toNum(i.amount, 0),
             hsnCode: i.hsnCode || null,
@@ -182,7 +210,15 @@ exports.remove = async (req, res) => {
     const id = toInt(req.params.id);
     const existing = await prisma.customerQuote.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ success: false, message: 'Quote not found.' });
-    if (existing.status !== 'DRAFT') return res.status(400).json({ success: false, message: 'Only DRAFT quotes can be deleted.' });
+    // A quote that has left DRAFT has been shown to the customer, so deleting
+    // it destroys a record of what was actually offered. Managers are held to
+    // drafts only; an admin can still remove one when it was raised by mistake.
+    if (existing.status !== 'DRAFT' && req.user?.role !== 'ADMIN') {
+      return res.status(400).json({
+        success: false,
+        message: `Only DRAFT quotes can be deleted. This one is ${existing.status} — ask an admin.`,
+      });
+    }
     await prisma.customerQuote.delete({ where: { id } });
     res.json({ success: true, message: 'Quote deleted.' });
   } catch (err) {

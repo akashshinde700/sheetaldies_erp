@@ -3,7 +3,10 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
 import ListSearchInput from '../../components/ListSearchInput';
-import { formatDate, formatCurrency } from '../../utils/formatters';
+import PageNav from '../../components/PageNav';
+import { formatDate } from '../../utils/formatters';
+import ConfirmDialog from '../../components/ConfirmDialog';
+import { useAuth } from '../../context/AuthContext';
 
 const PAGE_LIMIT = 15;
 const STATUS_COLORS = {
@@ -22,6 +25,35 @@ export default function CustomerQuoteList() {
   const [status,  setStatus]  = useState('');
   const [page,    setPage]    = useState(1);
   const [total,   setTotal]   = useState(0);
+  const [confirmDialog, setConfirmDialog] = useState(null);
+  const { isAdmin } = useAuth();
+
+  // Only DRAFT quotes are deletable by anyone; an admin can also remove one
+  // that already went out, for the case where it was raised by mistake.
+  const handleDelete = (q) => {
+    const isDraft = q.status === 'DRAFT';
+    setConfirmDialog({
+      title: isDraft ? 'Delete draft quote?' : `Delete ${q.status} quote?`,
+      message: isDraft
+        ? `Permanently delete ${q.quoteNo}?`
+        : `${q.quoteNo} is ${q.status} — the customer has already been shown this quote. `
+          + 'Deleting it removes the record of what was offered. This cannot be undone.',
+      confirmLabel: 'Delete',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          await api.delete(`/customer-quotes/${q.id}`);
+          toast.success(`Quote ${q.quoteNo} deleted.`);
+          setQuotes(p => p.filter(x => x.id !== q.id));
+          setTotal(t => Math.max(0, t - 1));
+        } catch (err) {
+          toast.error(err.response?.data?.message || 'Failed to delete quote.');
+        } finally {
+          setConfirmDialog(null);
+        }
+      },
+    });
+  };
 
   const fetch = useCallback(() => {
     setLoading(true);
@@ -38,6 +70,7 @@ export default function CustomerQuoteList() {
 
   return (
     <div className="space-y-5 animate-slide-up">
+      {confirmDialog && <ConfirmDialog {...confirmDialog} onCancel={() => setConfirmDialog(null)} />}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-extrabold text-slate-800 font-headline">Customer Quotations</h2>
@@ -69,8 +102,8 @@ export default function CustomerQuoteList() {
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="bg-gradient-to-r from-slate-50 to-indigo-50/30 border-b border-slate-100">
-                {['Quote No','Customer','Date','Valid Until','Amount','Status','Action'].map(h => (
+              <tr className="bg-gradient-to-r from-slate-50 to-sky-50/30 border-b border-slate-100">
+                {['Quote No','Customer','Date','Valid Until','Status','Action'].map(h => (
                   <th key={h} className="th">{h}</th>
                 ))}
               </tr>
@@ -79,50 +112,60 @@ export default function CustomerQuoteList() {
               {loading ? (
                 Array.from({length: 5}).map((_, i) => (
                   <tr key={i} className="animate-pulse">
-                    {Array.from({length: 7}).map((_, j) => (
+                    {Array.from({length: 6}).map((_, j) => (
                       <td key={j} className="px-4 py-3.5"><div className="h-3 bg-slate-100 rounded w-20" /></td>
                     ))}
                   </tr>
                 ))
               ) : quotes.length === 0 ? (
-                <tr><td colSpan={7} className="px-5 py-16 text-center">
-                  <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center mx-auto mb-3">
-                    <span className="material-symbols-outlined text-2xl text-indigo-300">request_quote</span>
+                <tr><td colSpan={6} className="px-5 py-16 text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-sky-50 flex items-center justify-center mx-auto mb-3">
+                    <span className="material-symbols-outlined text-2xl text-sky-300">request_quote</span>
                   </div>
                   <p className="text-sm text-slate-400 mb-2">No quotations yet.</p>
-                  <Link to="/customer-quotes/new" className="inline-flex items-center gap-1 text-xs text-indigo-600 font-semibold hover:underline">
+                  <Link to="/customer-quotes/new" className="inline-flex items-center gap-1 text-xs text-sky-600 font-semibold hover:underline">
                     <span className="material-symbols-outlined text-sm">add</span> Create first quote
                   </Link>
                 </td></tr>
               ) : quotes.map(q => (
                 <tr key={q.id} className="tr group">
                   <td className="td">
-                    <Link to={`/customer-quotes/${q.id}`} className="text-xs font-bold text-indigo-600 hover:underline font-mono">{q.quoteNo}</Link>
+                    <Link to={`/customer-quotes/${q.id}`} className="text-xs font-bold text-sky-600 hover:underline font-mono">{q.quoteNo}</Link>
                   </td>
                   <td className="td text-xs font-medium text-slate-700">{q.customer?.name || '—'}</td>
                   <td className="td text-xs text-slate-500">{formatDate(q.quoteDate)}</td>
                   <td className="td text-xs text-slate-500">{q.validUntil ? formatDate(q.validUntil) : '—'}</td>
-                  <td className="td text-xs font-semibold text-slate-800">₹{formatCurrency(q.totalAmount)}</td>
                   <td className="td">
                     <span className={`inline-flex px-2 py-1 text-[10px] font-bold rounded-full ${STATUS_COLORS[q.status] || 'bg-slate-100 text-slate-700'}`}>
                       {q.status}
                     </span>
                   </td>
                   <td className="td">
-                    <div className="flex items-center gap-2">
-                      <Link to={`/customer-quotes/${q.id}`} className="text-xs font-semibold text-indigo-600 hover:underline">View</Link>
+                    <div className="flex items-center gap-1">
+                      <Link to={`/customer-quotes/${q.id}`}
+                        title="View"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-600 hover:bg-slate-100 transition-all">
+                        <span className="material-symbols-outlined text-[18px]">visibility</span>
+                      </Link>
                       {q.status === 'DRAFT' && (
-                        <>
-                          <span className="text-slate-200">·</span>
-                          <Link to={`/customer-quotes/${q.id}/edit`} className="text-xs font-semibold text-violet-600 hover:underline">Edit</Link>
-                        </>
+                        <Link to={`/customer-quotes/${q.id}/edit`}
+                          title="Edit"
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition-all">
+                          <span className="material-symbols-outlined text-[18px]">edit</span>
+                        </Link>
                       )}
-                      <span className="text-slate-200">·</span>
                       <Link to={`/customer-quotes/${q.id}/print`} target="_blank"
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-slate-100"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-600 hover:bg-slate-100 transition-all"
                         title="Print">
                         <span className="material-symbols-outlined text-[18px]">print</span>
                       </Link>
+                      {(q.status === 'DRAFT' || isAdmin) && (
+                        <button type="button" onClick={() => handleDelete(q)}
+                          title={q.status === 'DRAFT' ? 'Delete quote' : `Delete ${q.status} quote (admin only)`}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all">
+                          <span className="material-symbols-outlined text-[18px]">delete</span>
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -131,18 +174,7 @@ export default function CustomerQuoteList() {
           </table>
         </div>
         {!loading && total > PAGE_LIMIT && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/50">
-            <span className="text-xs text-slate-400">{(page-1)*PAGE_LIMIT+1}–{Math.min(page*PAGE_LIMIT, total)} of {total}</span>
-            <div className="flex gap-1.5">
-              <button onClick={() => setPage(p => Math.max(1,p-1))} disabled={page===1} className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 hover:bg-indigo-50">
-                <span className="material-symbols-outlined text-sm">chevron_left</span> Prev
-              </button>
-              <span className="text-xs font-semibold text-slate-500 px-2">{page}/{totalPages}</span>
-              <button onClick={() => setPage(p => Math.min(totalPages,p+1))} disabled={page===totalPages} className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 hover:bg-indigo-50">
-                Next <span className="material-symbols-outlined text-sm">chevron_right</span>
-              </button>
-            </div>
-          </div>
+          <PageNav page={page} totalPages={totalPages} total={total} limit={PAGE_LIMIT} setPage={setPage} />
         )}
       </div>
     </div>

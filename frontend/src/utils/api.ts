@@ -63,6 +63,24 @@ api.interceptors.request.use(
 );
 
 /**
+ * A page load fires several requests at once, so an expired token produces a
+ * burst of 401s. Without this they would each POST /auth/refresh-token, and the
+ * duplicates race each other and eat into the rate limit. One refresh runs and
+ * everyone waits on it.
+ */
+let refreshInFlight: Promise<string | null> | null = null;
+
+const refreshAccessToken = (): Promise<string | null> => {
+  if (!refreshInFlight) {
+    refreshInFlight = axios
+      .post(`${API_BASE_URL}/auth/refresh-token`, {}, { withCredentials: true })
+      .then((res) => (res.data?.data || res.data)?.accessToken ?? null)
+      .finally(() => { refreshInFlight = null; });
+  }
+  return refreshInFlight;
+};
+
+/**
  * Response Interceptor
  * - Handle JWT refresh on 401
  * - Format error responses
@@ -80,24 +98,23 @@ api.interceptors.response.use(
     const originalRequest = error.config;
     const response = error.response;
 
-      // Handle 401 Unauthorized - Try refresh token
-    const reqUrl = originalRequest.url?.toString() || '';
-    const isAuthRoute = reqUrl.includes('/auth/');
-    const isRefreshAttempt = reqUrl.includes('/auth/refresh-token');
-    const isAuthMe = reqUrl.includes('/auth/me');
+    // A 401 from these means there is no session to refresh, so retrying would
+    // just loop. Every OTHER endpoint — including the protected /auth/ ones like
+    // /auth/me — is a normal authenticated call whose 15-minute access token may
+    // simply have aged out, which is exactly what the 30-day refresh token is
+    // for. Excluding /auth/me here used to log the user out mid-work.
+    const reqUrl = originalRequest?.url?.toString() || '';
+    const PUBLIC_AUTH_ROUTES = [
+      '/auth/login', '/auth/refresh-token', '/auth/logout',
+      '/auth/request-otp', '/auth/verify-otp',
+    ];
+    const skipRefresh = PUBLIC_AUTH_ROUTES.some((p) => reqUrl.includes(p));
 
-    // Never attempt refresh-token for auth endpoints themselves (login/logout/me/etc).
-    if (error.response?.status === 401 && !originalRequest._retry && !isRefreshAttempt && !isAuthRoute && !isAuthMe) {
+    if (error.response?.status === 401 && !originalRequest._retry && !skipRefresh) {
       originalRequest._retry = true;
 
       try {
-        const response = await axios.post(
-          `${API_BASE_URL}/auth/refresh-token`,
-          {},
-          { withCredentials: true }
-        );
-
-        const { accessToken } = response.data.data || response.data;
+        const accessToken = await refreshAccessToken();
         if (accessToken) {
           originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         }

@@ -106,14 +106,17 @@ export const SearchableList = ({
     setCurrentPage(0);
   };
 
+  const scrollMainToTop = () =>
+    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
+
   const handlePreviousPage = () => {
     setCurrentPage(Math.max(0, currentPage - 1));
-    window.scrollTo(0, 0);
+    scrollMainToTop();
   };
 
   const handleNextPage = () => {
     setCurrentPage(Math.min(totalPages - 1, currentPage + 1));
-    window.scrollTo(0, 0);
+    scrollMainToTop();
   };
 
   return (

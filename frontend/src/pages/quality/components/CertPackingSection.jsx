@@ -1,8 +1,13 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import api from '../../../utils/api';
 
 const JC = 'form-input bg-indigo-50 text-indigo-900 font-semibold cursor-not-allowed';
 
 export default function CertPackingSection({ form, set, jcData }) {
+  const [users, setUsers] = useState([]);
+  useEffect(() => {
+    api.get('/auth/users').then(r => setUsers(r.data.data || r.data || [])).catch(() => {});
+  }, []);
   const locked = !!jcData;
   return (
     <div className="card p-5">
@@ -22,6 +27,19 @@ export default function CertPackingSection({ form, set, jcData }) {
           <label className="form-label">Approved By</label>
           <input value={form.approvedBy} onChange={e => set('approvedBy', e.target.value)} className="form-input" />
         </div>
+        <div>
+          <label className="form-label">Final Inspection By</label>
+          <input
+            list="final-insp-by-list"
+            value={form.finalInspectionBy}
+            onChange={e => set('finalInspectionBy', e.target.value)}
+            className="form-input"
+            placeholder="Type or select..."
+          />
+          <datalist id="final-insp-by-list">
+            {users.map(u => <option key={u.id} value={u.name} />)}
+          </datalist>
+        </div>
       </div>
 
       {/* Job-card-locked fields */}
@@ -37,23 +55,23 @@ export default function CertPackingSection({ form, set, jcData }) {
             className={locked ? JC : 'form-input'} placeholder="Customer contact / name" />
         </div>
         <div>
-          <label className="form-label">Heat No</label>
-          <input value={form.heatNo} disabled={locked} onChange={e => set('heatNo', e.target.value)}
-            className={locked ? JC : 'form-input'} placeholder="HT-001" />
+          <label className="form-label">Cycle No</label>
+          <input value={form.heatNo} onChange={e => set('heatNo', e.target.value)}
+            className="form-input" placeholder="HT-001" />
         </div>
         <div>
           <label className="form-label">Dispatch Mode</label>
-          <div className={`flex flex-col gap-1.5 mt-1 ${locked ? 'pointer-events-none' : ''}`}>
+          <div className="flex flex-col gap-1.5 mt-1">
             {[
               ['dispatchByOurVehicle', 'By Our Vehicle'],
               ['dispatchByCourier',    'By Courier'],
               ['collectedByCustomer',  'Collected by Customer'],
             ].map(([field, label]) => (
-              <label key={field} className={`flex items-center gap-2 text-sm ${locked ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
-                <input type="checkbox" checked={!!form[field]} disabled={locked}
+              <label key={field} className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={!!form[field]}
                   onChange={e => set(field, e.target.checked)}
-                  className={`accent-indigo-600 ${locked ? 'opacity-60' : ''}`} />
-                <span className={locked ? 'text-indigo-700 font-semibold' : ''}>{label}</span>
+                  className="accent-indigo-600" />
+                <span>{label}</span>
               </label>
             ))}
           </div>

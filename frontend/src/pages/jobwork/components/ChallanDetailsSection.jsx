@@ -26,7 +26,7 @@ export default function ChallanDetailsSection({
           {isEdit ? (
             <>
               <label className="form-label mb-1">Challan No</label>
-              <input type="text" value={challanNoInput || '-'} disabled className="form-input opacity-60 cursor-not-allowed" />
+              <input type="text" value={challanNoInput} onChange={e => setChallanNoInput(e.target.value)} placeholder="Challan No" className="form-input" />
             </>
           ) : (
             <>
@@ -47,7 +47,7 @@ export default function ChallanDetailsSection({
                   type="text"
                   value={challanNoInput}
                   onChange={e => setChallanNoInput(e.target.value)}
-                  placeholder="e.g. SDT/JW/25-26/0050"
+                  placeholder="e.g. SVT/JW/25-26/0050"
                   required
                   className="form-input"
                 />

@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useEffect, useState, useRef } from 'react';
+import { useNavigate, useParams, Link, useSearchParams } from 'react-router-dom';
 import api from '../../utils/api';
 import { useQueryClient } from '@tanstack/react-query';
-import { useItems, useMachines, useParties } from '../../hooks/useMasterData';
+import { useMachines, useParties } from '../../hooks/useMasterData';
 import toast from 'react-hot-toast';
 
 // Subcomponents
@@ -10,11 +10,11 @@ import CustomerSection from './components/CustomerSection';
 import JobCardHeaderInfoSection from './components/JobCardHeaderInfoSection';
 import IssueInstructionsSection from './components/IssueInstructionsSection';
 import ProductionSection from './components/ProductionSection';
-import JobDatesSection from './components/JobDatesSection';
 import StatusRemarksSection from './components/StatusRemarksSection';
 import PhotoSection from './components/PhotoSection';
 import LinkedDataSection from './components/LinkedDataSection';
 import InspectionEditSection from './components/InspectionEditSection';
+import SearchSelect from '../../components/SearchSelect';
 
 export default function JobCardForm() {
   const { id }   = useParams();
@@ -22,7 +22,7 @@ export default function JobCardForm() {
   const isEdit   = Boolean(id);
 
   const [form, setForm] = useState({
-    partId: '', operationNo: '', drawingNo: '', woNo: '', machineId: '',
+    partId: '', operationNo: '', drawingNo: '', showDrawingNoInPrint: true, showDrawingNoLabelInPrint: true, woNo: '', machineId: '',
     operatorName: '', quantity: '', startDate: '', endDate: '', remarks: '', status: 'CREATED',
     dieNo: '', yourNo: '', heatNo: '', dieMaterial: '', customerId: '',
     receivedDate: '', dueDate: '', totalWeight: '', dispatchMode: '', operationMode: 'NORMAL',
@@ -37,24 +37,40 @@ export default function JobCardForm() {
     controlPlanNo: '', specification: '',
   });
   const queryClient = useQueryClient();
-  const { data: parts = [] } = useItems();
   const { data: machines = [] } = useMachines();
   const { data: customers = [] } = useParties();
   const [loading,    setLoading]   = useState(false);
   const [cardData,   setCardData]  = useState(null);
   const [images,     setImages]    = useState({});
   const [savingSlot, setSavingSlot] = useState(null);
-
-  // Part quick-add state
-  const [partOpen,     setPartOpen]     = useState(false);
-  const [partQuery,    setPartQuery]    = useState('');
-  const [showAddForm,  setShowAddForm]  = useState(false);
-  const [newPart,      setNewPart]      = useState({ partNo: '', description: '' });
-  const [savingPart,   setSavingPart]   = useState(false);
   const [challanNoLookup, setChallanNoLookup] = useState('');
+  // Typing a bare number like "0004" should surface the whole inward, the way
+  // the inward register does — a plain text box gave no hint of what existed.
+  const [inwardOptions, setInwardOptions] = useState([]);
+  const [pickedChallan, setPickedChallan] = useState(null);
+  const [pickedItemIds, setPickedItemIds] = useState(new Set());
+  // Arriving from an inward's "Create" link — prefill the number so the user
+  // does not have to copy it across.
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    const ref = searchParams.get('ref');
+    if (ref) setChallanNoLookup(ref);
+  }, []);
+
+  useEffect(() => {
+    if (isEdit) return;
+    api.get('/jobwork', { params: { limit: 200 } })
+      .then(r => setInwardOptions(r.data.data || []))
+      .catch(() => {});
+  }, [isEdit]);
   const [creatingFromChallan, setCreatingFromChallan] = useState(false);
-  const partWrapRef = useRef(null);
-  const partInputRef = useRef(null);
+  // Ref to LinkedDataSection so the main "Update" button can flush any item
+  // row still open in edit mode before saving the job card header.
+  const linkedDataRef = useRef(null);
+  // Ref to InspectionEditSection so the main "Update" button also persists
+  // any page-2 inspection edits (categorization, process, hardness,
+  // distortion, etc.) the user made without clicking "Save Inspection".
+  const inspectionRef = useRef(null);
 
   const buildPartyAddress = (p) => {
     if (!p) return '';
@@ -82,6 +98,12 @@ export default function JobCardForm() {
     }));
   };
 
+  const loadCard = async () => {
+    if (!isEdit) return;
+    const jr = await api.get(`/jobcards/${id}`);
+    setCardData(jr.data.data);
+  };
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -101,6 +123,8 @@ export default function JobCardForm() {
             customerId:   d.customerId   ? String(d.customerId) : '',
             operationNo:  d.operationNo  || '',
             drawingNo:    d.drawingNo    || '',
+            showDrawingNoInPrint: d.showDrawingNoInPrint !== false,
+            showDrawingNoLabelInPrint: d.showDrawingNoLabelInPrint !== false,
             woNo:         d.woNo         || '',
             machineId:    d.machineId    || '',
             operatorName: d.operatorName || '',
@@ -146,68 +170,30 @@ export default function JobCardForm() {
     return () => { cancelled = true; };
   }, [id, isEdit]);
 
-  // Close part dropdown on outside click
+  // Keep form.totalWeight in sync with the saved job card weight. The linked
+  // items table (LinkedDataSection) saves totalWeight on its own via a
+  // separate PUT; without this the parent form keeps a stale value and the
+  // main "Update" button would overwrite the DB weight with null on submit.
   useEffect(() => {
-    const handler = (e) => {
-      if (partWrapRef.current && !partWrapRef.current.contains(e.target)) {
-        setPartOpen(false); setPartQuery(''); setShowAddForm(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  const filteredParts = partQuery.trim()
-    ? parts.filter(p => `${p.partNo} ${p.description}`.toLowerCase().includes(partQuery.toLowerCase()))
-    : parts;
-
-  const openPartDropdown = () => {
-    setPartOpen(true); setPartQuery(''); setShowAddForm(false);
-    setTimeout(() => partInputRef.current?.focus(), 0);
-  };
-
-  const selectPart = (part) => {
-    setForm((p) => ({
-      ...p,
-      partId: String(part.id),
-      drawingNo: part.drawingNo != null ? String(part.drawingNo) : '',
-    }));
-    setPartOpen(false); setPartQuery(''); setShowAddForm(false);
-  };
-
-  const clearPart = (e) => {
-    e.stopPropagation();
-    setForm(p => ({ ...p, partId: '', drawingNo: '' }));
-    setPartOpen(false); setPartQuery('');
-  };
-
-  const initQuickAdd = () => {
-    setShowAddForm(true);
-    setNewPart({ partNo: '', description: partQuery.trim() });
-  };
-
-  const handleQuickAddPart = async (e) => {
-    e.preventDefault();
-    if (!newPart.description.trim()) { toast.error('Description is required.'); return; }
-    setSavingPart(true);
-    try {
-      const r = await api.post('/items', {
-        partNo:      newPart.partNo.trim() || `P-${Date.now()}`,
-        description: newPart.description.trim(),
-      });
-      const created = r.data.data;
-      queryClient.setQueryData(['items'], (old) => old ? [...old, created].sort((a, b) => a.partNo.localeCompare(b.partNo)) : [created]);
-      setForm(p => ({ ...p, partId: String(created.id) }));
-      setPartOpen(false); setPartQuery(''); setShowAddForm(false);
-      toast.success(`Part "${created.description}" added & selected!`);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Could not add part.');
-    } finally {
-      setSavingPart(false);
+    if (cardData?.totalWeight != null) {
+      setForm(prev => ({ ...prev, totalWeight: String(Number(cardData.totalWeight)) }));
     }
-  };
+  }, [cardData?.totalWeight]);
 
-    const handleCreateFromChallan = async (e) => {
+  // Auto-populate address when customerId is set but address is empty (e.g. customers load after form fill)
+  useEffect(() => {
+    if (!form.customerId || form.customerAddressSnapshot) return;
+    const p = customers.find(c => String(c.id) === String(form.customerId));
+    if (p) {
+      setForm(prev => ({
+        ...prev,
+        customerNameSnapshot: prev.customerNameSnapshot || p.name || '',
+        customerAddressSnapshot: buildPartyAddress(p),
+      }));
+    }
+  }, [form.customerId, customers]);
+
+  const handleCreateFromChallan = async (e) => {
       e.preventDefault();
       const challanNo = challanNoLookup.trim();
       if (!challanNo) {
@@ -227,6 +213,54 @@ export default function JobCardForm() {
       }
     };
 
+  // Picking from the dropdown fills the form and lists the challan's items, so
+  // a partly job-carded inward can be finished a few items at a time — the same
+  // way it works from the inward itself.
+  const selectInward = async (ref) => {
+    setChallanNoLookup(ref);
+    setPickedChallan(null);
+    setPickedItemIds(new Set());
+    if (!ref) return;
+    try {
+      const r = await api.get('/jobwork/challan-lookup', { params: { ref } });
+      const challan = r.data.data;
+      setPickedChallan(challan);
+      const open = (challan.items || []).filter(it => !it.jobCardId).map(it => it.id);
+      setPickedItemIds(new Set(open));
+      applyChallanToForm(challan);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not fetch inward.');
+    }
+  };
+
+  const applyChallanToForm = (challan) => {
+    setForm((prev) => ({
+      ...prev,
+      customerId: challan.fromPartyId ? String(challan.fromPartyId) : prev.customerId,
+      customerNameSnapshot: challan.fromParty?.name || prev.customerNameSnapshot,
+      customerAddressSnapshot: buildPartyAddress(challan.fromParty) || prev.customerAddressSnapshot,
+      receivedDate: challan.challanDate ? challan.challanDate.split('T')[0] : prev.receivedDate,
+      quantity: challan.items?.length ? String(challan.items.reduce((sum, it) => sum + (it.quantity || 0), 0)) : prev.quantity,
+      totalWeight: challan.items?.length ? String(challan.items.reduce((sum, it) => sum + (Number(it.weight) || 0), 0)) : prev.totalWeight,
+      issueBy: challan.issuedBy || prev.issueBy,
+    }));
+  };
+
+  const createFromPickedItems = async () => {
+    if (!pickedItemIds.size) { toast.error('Select at least one item.'); return; }
+    setCreatingFromChallan(true);
+    try {
+      const r = await api.post('/jobwork/jobcard-from-items', { itemIds: [...pickedItemIds] });
+      const jobCard = r.data.data.jobCard;
+      toast.success(`Job card ${jobCard.jobCardNo} created from ${pickedItemIds.size} item(s).`);
+      navigate(`/jobcards/${jobCard.id}`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not create job card.');
+    } finally {
+      setCreatingFromChallan(false);
+    }
+  };
+
   const fillFromChallan = async () => {
     const challanNo = challanNoLookup.trim();
     if (!challanNo) {
@@ -235,7 +269,10 @@ export default function JobCardForm() {
     }
     setCreatingFromChallan(true);
     try {
-      const r = await api.get(`/jobwork/challan/${challanNo}`);
+      // Query string, not a path segment: an inward no like "INW/26-27/0002"
+      // has slashes, and nginx turns %2F back into / so the route stops
+      // matching entirely.
+      const r = await api.get('/jobwork/challan-lookup', { params: { ref: challanNo } });
       const challan = r.data.data;
       // Pre-fill form with challan data
       setForm((prev) => ({
@@ -245,8 +282,8 @@ export default function JobCardForm() {
         customerAddressSnapshot: buildPartyAddress(challan.fromParty) || prev.customerAddressSnapshot,
         receivedDate: challan.challanDate ? challan.challanDate.split('T')[0] : prev.receivedDate,
         quantity: challan.items?.length ? String(challan.items.reduce((sum, it) => sum + (it.quantity || 0), 0)) : prev.quantity,
-        totalWeight: challan.items?.length ? String(challan.items.reduce((sum, it) => sum + (it.weightKg || 0), 0)) : prev.totalWeight,
-        // Add more mappings as needed
+        totalWeight: challan.items?.length ? String(challan.items.reduce((sum, it) => sum + (Number(it.weight) || 0), 0)) : prev.totalWeight,
+        issueBy: challan.issuedBy || prev.issueBy,
       }));
       toast.success(`Form filled from challan ${challan.challanNo}.`);
     } catch (err) {
@@ -261,6 +298,33 @@ export default function JobCardForm() {
     setLoading(true);
     let customerIdOut = form.customerId ? Number(form.customerId) : null;
     try {
+      // Commit any open item-row edits in the linked items table first, so the
+      // main "Update" button also persists inline item changes the user made
+      // without clicking the row-level Save.
+      // Holds the total weight the linked-items section currently has, so the
+      // header PUT below uses it instead of the (async, possibly stale)
+      // form.totalWeight — otherwise the header PUT would overwrite a
+      // just-flushed weight with an old value.
+      let effectiveTotalWeight;
+      if (isEdit && linkedDataRef.current?.flushPendingEdits) {
+        const flushed = await linkedDataRef.current.flushPendingEdits();
+        if (!flushed.ok) {
+          toast.error('Could not save one or more item edits. Please review the items table.');
+          setLoading(false);
+          return;
+        }
+        if (flushed.totalWeight != null) effectiveTotalWeight = flushed.totalWeight;
+      }
+      // Also commit any page-2 inspection edits so the single "Update" button
+      // saves the whole page even if the user never clicked "Save Inspection".
+      if (isEdit && inspectionRef.current?.flushPendingEdits) {
+        const inspFlushed = await inspectionRef.current.flushPendingEdits();
+        if (!inspFlushed) {
+          toast.error('Could not save inspection details. Please review the inspection section.');
+          setLoading(false);
+          return;
+        }
+      }
       if (!customerIdOut && form.customerNameSnapshot?.trim()) {
         const existing = customers.find(c => c.name.toLowerCase() === form.customerNameSnapshot.trim().toLowerCase());
         if (!existing) {
@@ -282,6 +346,9 @@ export default function JobCardForm() {
       }
 
       const payload = { ...form, customerId: customerIdOut };
+      // Prefer the weight the linked-items section just flushed, so we never
+      // clobber it with a stale value from the async form state.
+      if (effectiveTotalWeight != null) payload.totalWeight = effectiveTotalWeight;
       const fd = new FormData();
       Object.keys(payload).forEach((k) => {
         const v = payload[k];
@@ -304,50 +371,6 @@ export default function JobCardForm() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const fillFromImage = () => {
-    const selectedPart = parts[0] || {};
-    const selectedMachine = machines[0] || {};
-    const selectedCustomer = customers[0] || {};
-    setForm({
-      partId: selectedPart.id ? String(selectedPart.id) : '',
-      dieNo: selectedPart.partNo || '',
-      yourNo: selectedCustomer.name ? `REF-${selectedCustomer.id || ''}` : '',
-      heatNo: selectedPart.heatNo || '',
-      dieMaterial: selectedPart.material || '',
-      customerId: selectedCustomer.id ? String(selectedCustomer.id) : '',
-      operationNo: selectedPart.operationNo || '',
-      drawingNo: selectedPart.drawingNo || '',
-      machineId: selectedMachine.id ? String(selectedMachine.id) : '',
-      operatorName: selectedMachine.operatorName || '',
-      quantity: selectedPart.quantity ? String(selectedPart.quantity) : '0',
-      totalWeight: selectedPart.totalWeight ? String(selectedPart.totalWeight) : '',
-      startDate: selectedPart.startDate ? selectedPart.startDate.split('T')[0] : new Date().toISOString().split('T')[0],
-      receivedDate: selectedPart.receivedDate ? selectedPart.receivedDate.split('T')[0] : new Date().toISOString().split('T')[0],
-      dueDate: selectedPart.dueDate ? selectedPart.dueDate.split('T')[0] : new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0],
-      endDate: selectedPart.endDate ? selectedPart.endDate.split('T')[0] : '',
-      remarks: selectedPart.remarks || 'Follow drawing and tolerance',
-      status: 'CREATED',
-      operationMode: selectedPart.operationMode || 'NORMAL',
-      certificateNo: '',
-      customerNameSnapshot: selectedCustomer.name || '',
-      customerAddressSnapshot: buildPartyAddress(selectedCustomer) || selectedCustomer.address || '',
-      factoryName: 'SHITAL VACUUM TREAT PVT LTD.',
-      factoryAddress: 'Plot No.84/1, Sector No.10, PCNTDA, Bhosari, Pune',
-      contactEmail: 'info@shitalgroup.com',
-      dispatchByOurVehicle: true,
-      dispatchByCourier: false,
-      collectedByCustomer: false,
-      hrcRange: '54-56 HRC',
-      specialRequirements: '',
-      precautions: '',
-      documentNo: 'QF-PD-01',
-      revisionNo: '01',
-      revisionDate: '',
-      pageNo: '1 OF 2',
-    });
-    toast.success('Job card values loaded from DB-backed sample.');
   };
 
   const handleImageChange = async (index, file) => {
@@ -399,45 +422,71 @@ export default function JobCardForm() {
 
   return (
     <div className="page-stack w-full animate-slide-up">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <Link to="/jobcards"
-          className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-300 transition-colors shadow-sm">
-          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-        </Link>
-        <div>
-          <h2 className="text-xl font-extrabold text-slate-800 font-headline">
-            {isEdit ? 'Edit Job Card' : 'New Job Card'}
-          </h2>
-          <p className="text-xs text-slate-500 mt-1">Customer, Certificate/PO, Dispatch, Material/Process, Item/Qty/Weight, Instructions, Document Control</p>
-          {isEdit && cardData && (
-            <p className="text-xs text-slate-400 mt-0.5 font-mono">Job Card No.: {cardData.jobCardNo}</p>
-          )}
+      <div className="page-header">
+        <div className="flex items-start gap-3">
+          <Link to="/jobcards"
+            className="w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-colors shadow-sm">
+            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+          </Link>
+          <div className="space-y-2">
+            <h1 className="page-title">{isEdit ? 'Edit Job Card' : 'Create Job Card'}</h1>
+            <p className="page-subtitle max-w-2xl">Fill customer, material, and production details here. The form saves the complete job card and keeps linked inward items in sync.</p>
+            {isEdit && cardData && (
+              <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
+                <span className="font-medium">Job Card No.: <span className="font-semibold text-slate-700">{cardData.jobCardNo}</span></span>
+                <span className={`badge ${STATUS_COLOR[cardData.status] || 'bg-slate-100 text-slate-600'}`}>{cardData.status?.replace(/_/g, ' ')}</span>
+              </div>
+            )}
+          </div>
         </div>
-        {isEdit && cardData && (
-          <div className="ml-auto flex items-center gap-2">
-            <Link to={`/jobcards/${id}/print`} className="btn-outline bg-white">
-              <span className="material-symbols-outlined text-[18px]">print</span>
+
+        {isEdit && cardData ? (
+          <div className="flex flex-wrap items-center gap-3 justify-end">
+            <Link to={`/jobcards/${id}/print`} className="btn-outline">
+              <span className="material-symbols-outlined text-sm">print</span>
               Print
             </Link>
-            <span className={`badge ${STATUS_COLOR[cardData.status] || 'bg-slate-100 text-slate-600'}`}>
-              {cardData.status?.replace(/_/g, ' ')}
-            </span>
           </div>
-        )}
+        ) : null}
       </div>
+
+      {isEdit && cardData && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="card p-4">
+            <p className="section-title">Job Card</p>
+            <p className="mt-3 font-semibold text-slate-900">{cardData.jobCardNo}</p>
+            <p className="text-xs text-slate-500 mt-2">{cardData.partName || 'Job card details'}</p>
+          </div>
+          <div className="card p-4">
+            <p className="section-title">Status</p>
+            <p className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
+              <span className={`badge ${STATUS_COLOR[cardData.status] || 'bg-slate-100 text-slate-600'}`}>{cardData.status?.replace(/_/g, ' ')}</span>
+            </p>
+            <p className="text-xs text-slate-500 mt-2">Updated {cardData.updatedAt ? cardData.updatedAt.split('T')[0] : 'recently'}</p>
+          </div>
+          <div className="card p-4">
+            <p className="section-title">Customer</p>
+            <p className="mt-3 font-semibold text-slate-900">{cardData.customerNameSnapshot || form.customerNameSnapshot || 'Customer not set'}</p>
+            <p className="text-xs text-slate-500 mt-2 truncate max-w-full">{cardData.customerAddressSnapshot || form.customerAddressSnapshot || 'Address pending'}</p>
+          </div>
+        </div>
+      )}
 
       {!isEdit && (
         <div className="card p-5 mb-5">
           <div className="grid gap-4 sm:grid-cols-[1.5fr_1fr] items-end">
             <div>
-              <label className="form-label">Inward Challan No</label>
-              <input
-                type="text"
+              <label className="form-label">Inward No / Challan No</label>
+              <SearchSelect
                 value={challanNoLookup}
-                onChange={(e) => setChallanNoLookup(e.target.value)}
-                placeholder="Enter challan number"
-                className="form-input"
+                onChange={selectInward}
+                options={inwardOptions.map(c => ({
+                  value: c.inwardNo || c.challanNo,
+                  label: [c.inwardNo, c.challanNo, c.fromParty?.name].filter(Boolean).join('  ·  ')
+                    + (c.jobCardStatus === 'DONE' ? '   (job card ban chuka)' : ''),
+                }))}
+                placeholder="Type 0004, INW/26-27/0004 ya party ka naam"
+                useFixed
               />
             </div>
             <div className="flex flex-col gap-2 sm:items-end">
@@ -459,13 +508,82 @@ export default function JobCardForm() {
                   {creatingFromChallan ? 'Creating...' : 'Create Job Card'}
                 </button>
               </div>
-              <p className="text-xs text-slate-500">Fill form with challan details or create linked job card automatically.</p>
+              <p className="text-[11px] text-slate-400 text-right">
+                Poore inward ka job card banao, ya neeche se items chuno.
+              </p>
             </div>
           </div>
+
+          {pickedChallan && (
+            <div className="mt-4 border-t border-slate-100 pt-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <div>
+                  <p className="text-xs font-bold text-slate-700">
+                    {pickedChallan.inwardNo || pickedChallan.challanNo}
+                    <span className="text-slate-400 font-normal"> · {pickedChallan.fromParty?.name || '—'}</span>
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    Jin items ka job card banana hai wo chuno — baaki baad me bana sakte ho.
+                  </p>
+                </div>
+                <button type="button"
+                  onClick={() => setPickedItemIds(prev => {
+                    const open = (pickedChallan.items || []).filter(it => !it.jobCardId).map(it => it.id);
+                    return prev.size === open.length ? new Set() : new Set(open);
+                  })}
+                  className="text-xs font-bold text-sky-600 hover:underline">
+                  Select All / None
+                </button>
+              </div>
+
+              <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                {(pickedChallan.items || []).map((it, i) => {
+                  const taken = !!it.jobCardId;
+                  return (
+                    <label key={it.id}
+                      className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-xs ${
+                        taken ? 'border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed'
+                              : 'border-slate-200 hover:border-sky-300 cursor-pointer'}`}>
+                      <input type="checkbox" disabled={taken}
+                        checked={pickedItemIds.has(it.id)}
+                        onChange={e => setPickedItemIds(prev => {
+                          const n = new Set(prev);
+                          e.target.checked ? n.add(it.id) : n.delete(it.id);
+                          return n;
+                        })}
+                        className="accent-sky-600 w-4 h-4" />
+                      <span className="text-slate-400 font-mono w-5">{i + 1}</span>
+                      <span className="font-semibold text-slate-700 flex-1 truncate">
+                        {it.partName || it.description || 'Item'}
+                      </span>
+                      <span className="text-slate-500">{it.material || '—'}</span>
+                      <span className="text-slate-500 font-mono">{it.quantity} {it.uom || ''}</span>
+                      {taken && (
+                        <span className="text-[10px] font-bold text-emerald-600 uppercase">job card ban chuka</span>
+                      )}
+                    </label>
+                  );
+                })}
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 mt-3">
+                <p className="text-[11px] text-slate-500">
+                  <strong>{pickedItemIds.size}</strong> item chune
+                  {' '}({(pickedChallan.items || []).filter(it => it.jobCardId).length} pehle se job card me)
+                </p>
+                <button type="button" onClick={createFromPickedItems}
+                  disabled={creatingFromChallan || !pickedItemIds.size}
+                  className="btn-primary disabled:opacity-50">
+                  <span className="material-symbols-outlined text-sm">add</span>
+                  {creatingFromChallan ? 'Creating...' : `Create Job Card (${pickedItemIds.size})`}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form id="job-card-form" onSubmit={handleSubmit} className="space-y-4">
         <CustomerSection 
           form={form} 
           setForm={setForm} 
@@ -473,55 +591,30 @@ export default function JobCardForm() {
           applyCustomerFromParty={applyCustomerFromParty} 
         />
 
-        <JobCardHeaderInfoSection 
-          form={form} 
-          setForm={setForm} 
-          cardData={cardData} 
-          parts={parts} 
-          partOpen={partOpen} 
-          partWrapRef={partWrapRef} 
-          openPartDropdown={openPartDropdown} 
-          clearPart={clearPart} 
-          partInputRef={partInputRef} 
-          partQuery={partQuery} 
-          setPartQuery={setPartQuery} 
-          setShowAddForm={setShowAddForm} 
-          filteredParts={filteredParts} 
-          selectPart={selectPart} 
-          showAddForm={showAddForm} 
-          initQuickAdd={initQuickAdd} 
-          handleQuickAddPart={handleQuickAddPart} 
-          newPart={newPart} 
-          setNewPart={setNewPart} 
-          savingPart={savingPart} 
-          setPartOpen={setPartOpen}
+        <JobCardHeaderInfoSection
+          form={form}
+          setForm={setForm}
+          cardData={cardData}
         />
 
         <IssueInstructionsSection form={form} setForm={setForm} />
 
-        <ProductionSection form={form} setForm={setForm} machines={machines} />
+        <ProductionSection form={form} setForm={setForm} weightSummary={cardData?.weightSummary} />
 
-        <JobDatesSection form={form} setForm={setForm} />
-
-        <StatusRemarksSection 
-          isEdit={isEdit} 
-          form={form} 
-          setForm={setForm} 
-          moveToNextStatus={moveToNextStatus} 
-        />
+        <StatusRemarksSection form={form} setForm={setForm} />
 
         <PhotoSection handleImageChange={handleImageChange} existingImages={cardData} savingSlot={savingSlot} />
 
         {/* Actions */}
-        <div className="flex gap-3 pt-1">
+        <div className="card p-4 flex flex-wrap items-center justify-between gap-3 border-slate-200 shadow-sm">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-slate-700">Ready to save?</p>
+          <p className="text-xs text-slate-500">Use the buttons below after reviewing the job details.</p>
+        </div>
+        <div className="flex flex-wrap gap-3">
           <button type="submit" disabled={loading} className="btn-primary">
             {loading ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Saving...</> : <><span className="material-symbols-outlined text-sm">save</span> {isEdit ? 'Update' : 'Create Job Card'}</>}
           </button>
-          {isEdit && (
-            <Link to={`/jobcards/${id}/inspection`} className="btn-ghost" style={{ background: 'linear-gradient(135deg,#7c3aed,#6366f1)', color: 'white', border: 'none' }}>
-              <span className="material-symbols-outlined text-sm">fact_check</span> Inspection →
-            </Link>
-          )}
           {isEdit && (
             <Link to={`/jobcards/${id}/print`} className="btn-outline">
               <span className="material-symbols-outlined text-sm">print</span> Print
@@ -529,13 +622,35 @@ export default function JobCardForm() {
           )}
           <Link to="/jobcards" className="btn-ghost">Cancel</Link>
         </div>
+      </div>
       </form>
 
       {isEdit && cardData && (
-        <InspectionEditSection id={id} inspection={cardData.inspection} />
+        <InspectionEditSection ref={inspectionRef} id={id} inspection={cardData.inspection} hrcRange={form.hrcRange} />
       )}
 
-      <LinkedDataSection isEdit={isEdit} cardData={cardData} id={id} />
+      <LinkedDataSection
+        ref={linkedDataRef}
+        isEdit={isEdit}
+        cardData={cardData}
+        id={id}
+        onRefresh={loadCard}
+        onTotalWeightSaved={(w) => setForm(prev => ({ ...prev, totalWeight: String(w) }))}
+      />
+
+      {/* Bottom actions — same Update/Print as the top bar, reachable without
+          scrolling back up after editing the Inspection/Linked Data sections below the form. */}
+      <div className="flex gap-3 pt-1 pb-4">
+        <button type="submit" form="job-card-form" disabled={loading} className="btn-primary">
+          {loading ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Saving...</> : <><span className="material-symbols-outlined text-sm">save</span> {isEdit ? 'Update' : 'Create Job Card'}</>}
+        </button>
+        {isEdit && (
+          <Link to={`/jobcards/${id}/print`} className="btn-outline">
+            <span className="material-symbols-outlined text-sm">print</span> Print
+          </Link>
+        )}
+        <Link to="/jobcards" className="btn-ghost">Cancel</Link>
+      </div>
     </div>
   );
 }

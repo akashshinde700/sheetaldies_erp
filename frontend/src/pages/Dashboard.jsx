@@ -2,71 +2,11 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../utils/api';
 import { formatDate } from '../utils/formatters';
+import KpiCard from '../components/KpiCard';
+import PageNav from '../components/PageNav';
+import { statusColor } from '../utils/statusColors';
 
 const CARDS_PAGE_SIZE = 10;
-
-const Pagination = ({ page, totalPages, total, limit, setPage }) => (
-  <div className="flex flex-col xs:flex-row xs:items-center xs:justify-between gap-2 px-4 py-3 border-t border-slate-100 bg-slate-50/50">
-    <span className="text-xs text-slate-400">
-      {(page - 1) * limit + 1}–{Math.min(page * limit, total)} of <span className="font-semibold">{total}</span>
-    </span>
-    <div className="flex items-center gap-1.5">
-      <button
-        type="button"
-        onClick={() => setPage((p) => Math.max(1, p - 1))}
-        disabled={page === 1}
-        className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 hover:bg-sky-50 hover:border-sky-200 hover:text-sky-800 transition-colors"
-      >
-        <span className="material-symbols-outlined text-sm">chevron_left</span> Prev
-      </button>
-      <span className="text-xs font-semibold text-slate-500 px-2">
-        {page} / {totalPages}
-      </span>
-      <button
-        type="button"
-        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-        disabled={page === totalPages}
-        className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 hover:bg-sky-50 hover:border-sky-200 hover:text-sky-800 transition-colors"
-      >
-        Next <span className="material-symbols-outlined text-sm">chevron_right</span>
-      </button>
-    </div>
-  </div>
-);
-
-const STATUS_STYLE = {
-  CREATED:          'bg-slate-100 text-slate-600',
-  IN_PROGRESS:      'bg-blue-100 text-blue-700',
-  SENT_FOR_JOBWORK: 'bg-amber-100 text-amber-700',
-  INSPECTION:       'bg-violet-100 text-violet-700',
-  COMPLETED:        'bg-emerald-100 text-emerald-700',
-  ON_HOLD:          'bg-rose-100 text-rose-700',
-};
-
-const KpiCard = ({ label, value, sub, icon, iconBg, to, loading, badge, badgeColor }) => (
-  <Link to={to || '#'}
-    className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300/90 transition-all duration-200 block group overflow-hidden min-w-0">
-    <div className="p-4 sm:p-5 3xl:p-6">
-      <div className="flex justify-between items-start gap-2 mb-3 sm:mb-4">
-        <span className="text-[10px] sm:text-xs font-bold text-slate-600 uppercase tracking-wider leading-tight line-clamp-2">{label}</span>
-        <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg}`}>
-          <span className="material-symbols-outlined text-[17px] sm:text-[18px]">{icon}</span>
-        </div>
-      </div>
-      {loading ? (
-        <div className="h-8 bg-slate-100 rounded-lg animate-pulse w-16 mb-2" />
-      ) : (
-        <div className="flex flex-wrap items-baseline gap-2 mb-1">
-          <span className="text-2xl sm:text-3xl font-extrabold text-slate-800 font-headline tabular-nums">{value ?? 0}</span>
-          {badge && (
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badgeColor}`}>{badge}</span>
-          )}
-        </div>
-      )}
-      <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium line-clamp-2">{sub}</p>
-    </div>
-  </Link>
-);
 
 const TableSkeleton = ({ rows = 4, cols = 5 }) => (
   <>
@@ -300,21 +240,31 @@ export default function Dashboard() {
                     </Link>
                   </td>
                 </tr>
-              ) : recentCards.map(card => (
-                <tr key={card.id} className="tr">
+              ) : recentCards.map(card => {
+                const isOverdue = card.dueDate && card.status !== 'COMPLETED' && new Date(card.dueDate) < new Date();
+                return (
+                <tr key={card.id} className={`tr ${isOverdue ? 'bg-rose-50/40' : ''}`}>
                   <td className="td">
-                    <Link to={`/jobcards/${card.id}`}
-                      className="text-xs font-bold text-sky-800 hover:text-sky-950 hover:underline font-mono">
-                      {card.jobCardNo}
-                    </Link>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Link to={`/jobcards/${card.id}`}
+                        className="text-xs font-bold text-sky-800 hover:text-sky-950 hover:underline font-mono">
+                        {card.jobCardNo}
+                      </Link>
+                      {isOverdue && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-rose-100 text-rose-600 text-[10px] font-bold">
+                          <span className="material-symbols-outlined text-[11px]">schedule</span>
+                          Overdue
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="td">
-                    <p className="text-xs font-semibold text-slate-700">{card.part?.description}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{card.part?.partNo}</p>
+                    <p className="text-xs font-bold text-slate-700">{card.part?.partNo}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-1">{card.part?.description}</p>
                   </td>
                   <td className="td">{card.machine?.name || card.machine?.code || '—'}</td>
                   <td className="td">
-                    <span className={`badge ${STATUS_STYLE[card.status] || 'bg-slate-100 text-slate-600'}`}>
+                    <span className={`badge ${statusColor(card.status)}`}>
                       {card.status.replace(/_/g, ' ')}
                     </span>
                   </td>
@@ -330,12 +280,13 @@ export default function Dashboard() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
         {!cardsLoading && cardsTotal > 0 && (
-          <Pagination
+          <PageNav
             page={cardsPage}
             totalPages={cardsTotalPages}
             total={cardsTotal}
@@ -350,7 +301,7 @@ export default function Dashboard() {
         {[
           { label: 'New Inward Entry', icon: 'engineering', to: '/jobwork/inward-entry', color: 'text-amber-600', bg: 'bg-amber-50', ring: 'ring-amber-100' },
           { label: 'New Certificate', icon: 'verified',      to: '/quality/certificates/new', color: 'text-emerald-600', bg: 'bg-emerald-50', ring: 'ring-emerald-100' },
-          { label: 'New Invoice',     icon: 'receipt_long',  to: '/invoices/new',             color: 'text-indigo-600', bg: 'bg-indigo-50',  ring: 'ring-indigo-100' },
+          { label: 'New Invoice',     icon: 'receipt_long',  to: '/invoices/new',             color: 'text-sky-600', bg: 'bg-sky-50',  ring: 'ring-sky-100' },
           { label: 'Manage Parties',  icon: 'group',         to: '/admin/parties',            color: 'text-violet-600', bg: 'bg-violet-50',  ring: 'ring-violet-100' },
         ].map(q => (
           <Link key={q.to} to={q.to}

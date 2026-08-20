@@ -2,7 +2,6 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
-import { toNum } from '../../utils/normalize';
 import { useProcesses } from '../../hooks/useMasterData';
 
 // Subcomponents
@@ -174,7 +173,12 @@ export default function InspectionForm() {
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => {
         if (k === 'distortionBefore' || k === 'distortionAfter') {
-          fd.append(k, JSON.stringify(v.map((val, i) => ({ pt: i + 1, val: toNum(val, 0) }))));
+          // Keep raw values so text entries like "NA"/"OK" survive; numbers stay numeric.
+          fd.append(k, JSON.stringify(v.map((val, i) => {
+            const s = val == null ? '' : String(val).trim();
+            const num = Number(s);
+            return { pt: i + 1, val: s !== '' && !isNaN(num) ? num : s };
+          })));
         } else {
           fd.append(k, v);
         }

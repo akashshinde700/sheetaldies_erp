@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ENVELOPE>
+  <HEADER>
+    <TALLYREQUEST>Import Data</TALLYREQUEST>
+  </HEADER>
+  <BODY>
+    <IMPORTDATA>
+      <REQUESTDESC>
+        <REPORTNAME>All Masters</REPORTNAME>
+      </REQUESTDESC>
+      <REQUESTDATA>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <UNIT NAME="Kgs" ACTION="Create">
+            <NAME>Kgs</NAME>
+            <ISSIMPLEUNIT>Yes</ISSIMPLEUNIT>
+            <DECIMALPLACES>3</DECIMALPLACES>
+          </UNIT>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <LEDGER NAME="Sales" ACTION="Create">
+            <NAME>Sales</NAME>
+            <PARENT>Sales Accounts</PARENT>
+            <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+            <OPENINGBALANCE>0</OPENINGBALANCE>
+          </LEDGER>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <LEDGER NAME="Central Tax on Sales @ 9%" ACTION="Create">
+            <NAME>Central Tax on Sales @ 9%</NAME>
+            <PARENT>Duties &amp; Taxes</PARENT>
+            <TAXTYPE>Others</TAXTYPE>
+            <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+            <OPENINGBALANCE>0</OPENINGBALANCE>
+          </LEDGER>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <LEDGER NAME="State Tax on Sales @ 9%" ACTION="Create">
+            <NAME>State Tax on Sales @ 9%</NAME>
+            <PARENT>Duties &amp; Taxes</PARENT>
+            <TAXTYPE>Others</TAXTYPE>
+            <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+            <OPENINGBALANCE>0</OPENINGBALANCE>
+          </LEDGER>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <LEDGER NAME="Integrated Tax on Sales @ 18%" ACTION="Create">
+            <NAME>Integrated Tax on Sales @ 18%</NAME>
+            <PARENT>Duties &amp; Taxes</PARENT>
+            <TAXTYPE>Others</TAXTYPE>
+            <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+            <OPENINGBALANCE>0</OPENINGBALANCE>
+          </LEDGER>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <LEDGER NAME="Round Off" ACTION="Create">
+            <NAME>Round Off</NAME>
+            <PARENT>Indirect Expenses</PARENT>
+            <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+            <OPENINGBALANCE>0</OPENINGBALANCE>
+          </LEDGER>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <LEDGER NAME="Transport &amp; Freight Charges" ACTION="Create">
+            <NAME>Transport &amp; Freight Charges</NAME>
+            <PARENT>Indirect Incomes</PARENT>
+            <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+            <OPENINGBALANCE>0</OPENINGBALANCE>
+          </LEDGER>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <LEDGER NAME="TCS Payable" ACTION="Create">
+            <NAME>TCS Payable</NAME>
+            <PARENT>Duties &amp; Taxes</PARENT>
+            <TAXTYPE>Others</TAXTYPE>
+            <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+            <OPENINGBALANCE>0</OPENINGBALANCE>
+          </LEDGER>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <LEDGER NAME="Jaydeep technology" ACTION="Create">
+            <NAME>Jaydeep technology</NAME>
+            <PARENT>Sundry Debtors</PARENT>
+            <ISBILLWISEON>Yes</ISBILLWISEON>
+            <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+            <OPENINGBALANCE>0</OPENINGBALANCE>
+          </LEDGER>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <LEDGER NAME="SHITAL VACUUM TREAT PVT. LTD." ACTION="Create">
+            <NAME>SHITAL VACUUM TREAT PVT. LTD.</NAME>
+            <PARENT>Sundry Debtors</PARENT>
+            <ISBILLWISEON>Yes</ISBILLWISEON>
+            <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+            <OPENINGBALANCE>0</OPENINGBALANCE>
+          </LEDGER>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <LEDGER NAME="SMOKE ENGINEERING WORKS" ACTION="Create">
+            <NAME>SMOKE ENGINEERING WORKS</NAME>
+            <PARENT>Sundry Debtors</PARENT>
+            <ISBILLWISEON>Yes</ISBILLWISEON>
+            <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+            <OPENINGBALANCE>0</OPENINGBALANCE>
+          </LEDGER>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <STOCKITEM NAME="STRESS RELIEVING" ACTION="Create">
+            <NAME>STRESS RELIEVING</NAME>
+            <PARENT/>
+            <BASEUNITS>Kgs</BASEUNITS>
+          </STOCKITEM>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <STOCKITEM NAME="HARDENING &amp; TEMPERING" ACTION="Create">
+            <NAME>HARDENING &amp; TEMPERING</NAME>
+            <PARENT/>
+            <BASEUNITS>Kgs</BASEUNITS>
+          </STOCKITEM>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <STOCKITEM NAME="HARDENING/SUBZERO/TEMPERING" ACTION="Create">
+            <NAME>HARDENING/SUBZERO/TEMPERING</NAME>
+            <PARENT/>
+            <BASEUNITS>Kgs</BASEUNITS>
+          </STOCKITEM>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <STOCKITEM NAME="SOLUTION ANNEALING" ACTION="Create">
+            <NAME>SOLUTION ANNEALING</NAME>
+            <PARENT/>
+            <BASEUNITS>Kgs</BASEUNITS>
+          </STOCKITEM>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <STOCKITEM NAME="SOLUTION ANNEALING/AGING" ACTION="Create">
+            <NAME>SOLUTION ANNEALING/AGING</NAME>
+            <PARENT/>
+            <BASEUNITS>Kgs</BASEUNITS>
+          </STOCKITEM>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <STOCKITEM NAME="VACUUM ANNALING" ACTION="Create">
+            <NAME>VACUUM ANNALING</NAME>
+            <PARENT/>
+            <BASEUNITS>Kgs</BASEUNITS>
+          </STOCKITEM>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <STOCKITEM NAME="ONLY TEMPERING" ACTION="Create">
+            <NAME>ONLY TEMPERING</NAME>
+            <PARENT/>
+            <BASEUNITS>Kgs</BASEUNITS>
+          </STOCKITEM>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <STOCKITEM NAME="SUBZERO/CRYOGENIC" ACTION="Create">
+            <NAME>SUBZERO/CRYOGENIC</NAME>
+            <PARENT/>
+            <BASEUNITS>Kgs</BASEUNITS>
+          </STOCKITEM>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <STOCKITEM NAME="PLASMA ION NITRIDING" ACTION="Create">
+            <NAME>PLASMA ION NITRIDING</NAME>
+            <PARENT/>
+            <BASEUNITS>Kgs</BASEUNITS>
+          </STOCKITEM>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <STOCKITEM NAME="VACUUM BRAZING" ACTION="Create">
+            <NAME>VACUUM BRAZING</NAME>
+            <PARENT/>
+            <BASEUNITS>Kgs</BASEUNITS>
+          </STOCKITEM>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <STOCKITEM NAME="HARDENING" ACTION="Create">
+            <NAME>HARDENING</NAME>
+            <PARENT/>
+            <BASEUNITS>Kgs</BASEUNITS>
+          </STOCKITEM>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <STOCKITEM NAME="1st TEMPERING" ACTION="Create">
+            <NAME>1st TEMPERING</NAME>
+            <PARENT/>
+            <BASEUNITS>Kgs</BASEUNITS>
+          </STOCKITEM>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <STOCKITEM NAME="2nd TEMPERING" ACTION="Create">
+            <NAME>2nd TEMPERING</NAME>
+            <PARENT/>
+            <BASEUNITS>Kgs</BASEUNITS>
+          </STOCKITEM>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <STOCKITEM NAME="3rd TEMPERING" ACTION="Create">
+            <NAME>3rd TEMPERING</NAME>
+            <PARENT/>
+            <BASEUNITS>Kgs</BASEUNITS>
+          </STOCKITEM>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <STOCKITEM NAME="AGING" ACTION="Create">
+            <NAME>AGING</NAME>
+            <PARENT/>
+            <BASEUNITS>Kgs</BASEUNITS>
+          </STOCKITEM>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <STOCKITEM NAME="CRYOGENIC" ACTION="Create">
+            <NAME>CRYOGENIC</NAME>
+            <PARENT/>
+            <BASEUNITS>Kgs</BASEUNITS>
+          </STOCKITEM>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <STOCKITEM NAME="4th TEMPERING" ACTION="Create">
+            <NAME>4th TEMPERING</NAME>
+            <PARENT/>
+            <BASEUNITS>Kgs</BASEUNITS>
+          </STOCKITEM>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE xmlns:UDF="TallyUDF">
+          <STOCKITEM NAME="Vacuum Heat Treatment" ACTION="Create">
+            <NAME>Vacuum Heat Treatment</NAME>
+            <PARENT/>
+            <BASEUNITS>Kgs</BASEUNITS>
+            <HSNCODE>998873</HSNCODE>
+          </STOCKITEM>
+        </TALLYMESSAGE>
+      </REQUESTDATA>
+    </IMPORTDATA>
+  </BODY>
+</ENVELOPE>

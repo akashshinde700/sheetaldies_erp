@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import ListSearchInput from '../../components/ListSearchInput';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 const PAGE_SIZE = 15;
 
 const EMPTY_FORM = {
-  code: '', name: '', description: '', hsnSacCode: '',
+  code: '', name: '', description: '', hsnSacCode: '', tallyStockItem: '',
   pricePerKg: '', pricePerPc: '', lotPrice: '', gstRate: '18',
 };
 
@@ -21,6 +22,7 @@ export default function ProcessList() {
   const [editingId, setEditingId]   = useState(null);
   const [form, setForm]             = useState(EMPTY_FORM);
   const [showAll, setShowAll]       = useState(true);
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
   useEffect(() => { fetchProcesses(); }, [showAll]);
   useEffect(() => { setPage(1); }, [search]);
@@ -37,8 +39,16 @@ export default function ProcessList() {
     }
   };
 
+  const nextCode = () => {
+    const maxNumeric = processes.reduce((max, p) => {
+      const n = Number(p.code);
+      return Number.isFinite(n) && n > max ? n : max;
+    }, 0);
+    return String(maxNumeric + 1);
+  };
+
   const openCreate = () => {
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, code: nextCode() });
     setEditingId(null);
     setShowForm(true);
   };
@@ -49,6 +59,7 @@ export default function ProcessList() {
       name:        p.name        || '',
       description: p.description || '',
       hsnSacCode:  p.hsnSacCode  || '',
+      tallyStockItem: p.tallyStockItem || '',
       pricePerKg:  p.pricePerKg  != null ? String(p.pricePerKg)  : '',
       pricePerPc:  p.pricePerPc  != null ? String(p.pricePerPc)  : '',
       lotPrice:    p.lotPrice    != null ? String(p.lotPrice)    : '',
@@ -73,6 +84,7 @@ export default function ProcessList() {
         name:        form.name.trim(),
         description: form.description.trim() || null,
         hsnSacCode:  form.hsnSacCode.trim()  || null,
+        tallyStockItem: form.tallyStockItem.trim() || null,
         pricePerKg:  form.pricePerKg  !== '' ? Number(form.pricePerKg)  : null,
         pricePerPc:  form.pricePerPc  !== '' ? Number(form.pricePerPc)  : null,
         lotPrice:    form.lotPrice    !== '' ? Number(form.lotPrice)    : null,
@@ -104,15 +116,22 @@ export default function ProcessList() {
     }
   };
 
-  const handleDelete = async (p) => {
-    if (!window.confirm(`Delete "${p.name}"? This cannot be undone.`)) return;
-    try {
-      await api.delete(`/processes/${p.id}`);
-      toast.success('Process deleted.');
-      fetchProcesses();
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to delete.');
-    }
+  const handleDelete = (p) => {
+    setConfirmDialog({
+      title: 'Delete process?',
+      message: `Delete "${p.name}"? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          await api.delete(`/processes/${p.id}`);
+          toast.success('Process deleted.');
+          fetchProcesses();
+        } catch (err) {
+          toast.error(err.response?.data?.message || 'Failed to delete.');
+        } finally { setConfirmDialog(null); }
+      },
+    });
   };
 
   const filtered = processes.filter(
@@ -152,10 +171,8 @@ export default function ProcessList() {
                   placeholder="e.g. HRD"
                   value={form.code}
                   onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
-                  disabled={!!editingId}
                   required
                 />
-                {editingId && <p className="text-xs text-slate-400 mt-1">Code cannot be changed after creation.</p>}
               </div>
               <div>
                 <label className="form-label">Name <span className="text-rose-500">*</span></label>
@@ -176,6 +193,25 @@ export default function ProcessList() {
                   onChange={(e) => setForm((f) => ({ ...f, hsnSacCode: e.target.value }))}
                 />
               </div>
+              <div className="sm:col-span-2">
+                <label className="form-label">Tally Stock Item</label>
+                <input
+                  className={`form-input ${form.tallyStockItem ? 'border-violet-300 bg-violet-50/40' : ''}`}
+                  placeholder={form.name || 'Tally me jo stock item hai'}
+                  value={form.tallyStockItem}
+                  onChange={(e) => setForm((f) => ({ ...f, tallyStockItem: e.target.value }))}
+                />
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  Khali chhodo to upar wala process naam hi Tally me jayega. Tally me is process ka
+                  stock item kisi aur naam se hai to wahi yahan likho — <strong>bilkul waisa hi</strong>.
+                  Tally import pe stock item khud nahi banata.
+                </p>
+                {form.tallyStockItem && form.tallyStockItem.trim() !== form.name.trim() && (
+                  <p className="text-[10px] text-violet-600 mt-0.5">
+                    Invoice pe: <strong>{form.name || '—'}</strong> · Tally me: <strong>{form.tallyStockItem.trim()}</strong>
+                  </p>
+                )}
+              </div>
               <div>
                 <label className="form-label">GST Rate (%)</label>
                 <input
@@ -187,46 +223,6 @@ export default function ProcessList() {
                   step="0.01"
                   value={form.gstRate}
                   onChange={(e) => setForm((f) => ({ ...f, gstRate: e.target.value }))}
-                />
-              </div>
-            </div>
-
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider pt-1">Default Rates (overridable per party)</p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="form-label">Price per KG (₹)</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  placeholder="0.00"
-                  min="0"
-                  step="0.01"
-                  value={form.pricePerKg}
-                  onChange={(e) => setForm((f) => ({ ...f, pricePerKg: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="form-label">Price per Piece (₹)</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  placeholder="0.00"
-                  min="0"
-                  step="0.01"
-                  value={form.pricePerPc}
-                  onChange={(e) => setForm((f) => ({ ...f, pricePerPc: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="form-label">Lot Price (₹)</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  placeholder="0.00"
-                  min="0"
-                  step="0.01"
-                  value={form.lotPrice}
-                  onChange={(e) => setForm((f) => ({ ...f, lotPrice: e.target.value }))}
                 />
               </div>
             </div>
@@ -282,6 +278,7 @@ export default function ProcessList() {
             <table className="w-full text-sm text-left">
               <thead>
                 <tr className="border-b border-slate-200/80">
+                  <th className="th text-center w-20">Code</th>
                   <th className="th">Name</th>
                   <th className="th text-center">Status</th>
                   <th className="th text-center">Actions</th>
@@ -290,6 +287,7 @@ export default function ProcessList() {
               <tbody className="divide-y divide-slate-100">
                 {paged.map((p) => (
                   <tr key={p.id} className={`tr ${!p.isActive ? 'opacity-50' : ''}`}>
+                    <td className="td text-center font-mono font-semibold text-slate-500">{p.code}</td>
                     <td className="td font-medium">
                       {p.name}
                       {p.description && (
@@ -306,6 +304,7 @@ export default function ProcessList() {
                         <button
                           type="button"
                           title="Edit"
+                          aria-label={`Edit process ${p.name}`}
                           onClick={() => openEdit(p)}
                           className="p-2 rounded-lg text-sky-700 hover:bg-sky-50"
                         >
@@ -314,6 +313,7 @@ export default function ProcessList() {
                         <button
                           type="button"
                           title={p.isActive ? 'Deactivate' : 'Activate'}
+                          aria-label={`${p.isActive ? 'Deactivate' : 'Activate'} process ${p.name}`}
                           onClick={() => handleToggle(p)}
                           className="p-2 rounded-lg text-amber-600 hover:bg-amber-50"
                         >
@@ -324,6 +324,7 @@ export default function ProcessList() {
                         <button
                           type="button"
                           title="Delete"
+                          aria-label={`Delete process ${p.name}`}
                           onClick={() => handleDelete(p)}
                           className="p-2 rounded-lg text-rose-600 hover:bg-rose-50"
                         >
@@ -356,6 +357,8 @@ export default function ProcessList() {
         Party-specific rate overrides are set per party in <strong>Party Details → Process Rates</strong>.
         The rates here are global defaults.
       </p>
+
+      {confirmDialog && <ConfirmDialog {...confirmDialog} onCancel={() => setConfirmDialog(null)} />}
     </div>
   );
 }

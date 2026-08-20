@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import api from '../../utils/api';
@@ -10,7 +10,7 @@ import { useAuth } from '../../context/AuthContext';
 const EMPTY = {
   name:'', partyCode:'', address:'', city:'', state:'Maharashtra', pinCode:'',
   gstin:'', pan:'', stateCode:'27', phone:'', email:'', partyType:'CUSTOMER',
-  vatTin:'', cstNo:'',
+  vatTin:'', cstNo:'', tallyLedgerName:'',
   bankAccountHolder:'', bankName:'', accountNo:'', ifscCode:'', swiftCode:'',
 };
 
@@ -26,6 +26,13 @@ const STATE_CODES = {
   'dadra and nagar haveli and daman and diu':'26','lakshadweep':'31','puducherry':'34',
   'andaman and nicobar islands':'35',
 };
+
+// Free-typed states drifted in spelling and case ("maharashtra", "MAHARASHTRA",
+// "Maharastra"), and each variant broke the state-code lookup. Offering the
+// canonical list instead keeps every party consistent and fills the GST code.
+const titleCaseState = (s) =>
+  s.split(' ').map(w => (w === 'and' ? w : w[0].toUpperCase() + w.slice(1))).join(' ');
+const STATE_NAMES = Object.keys(STATE_CODES).map(titleCaseState).sort();
 
 const validateGSTIN = (v) => {
   if (!v) return null;
@@ -45,7 +52,7 @@ const validatePAN = (v) => {
 };
 
 const TYPE_BADGE = {
-  CUSTOMER: 'bg-indigo-100 text-indigo-700',
+  CUSTOMER: 'bg-sky-100 text-sky-700',
   VENDOR:   'bg-violet-100 text-violet-700',
   BOTH:     'bg-emerald-100 text-emerald-700',
 };
@@ -64,6 +71,7 @@ const partyToFormFields = (p) => ({
   email: p.email || '',
   partyType: p.partyType || 'CUSTOMER',
   vatTin: p.vatTin || '',
+  tallyLedgerName: p.tallyLedgerName || '',
   cstNo: p.cstNo || '',
   bankAccountHolder: p.bankAccountHolder || '',
   bankName: p.bankName || '',
@@ -91,7 +99,14 @@ export default function PartyList() {
   const [showForm,   setShowForm]   = useState(false);
   const [editId,     setEditId]     = useState(null);
   const [form,       setForm]       = useState(EMPTY);
+  const [gstinError, setGstinError] = useState('');
+  const gstinTimer = useRef(null);
   const [saving,     setSaving]     = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null); // party object to delete
+  // Cities and PINs already used on other parties — typing the same place a
+  // second time should not mean typing it out again.
+  const [locations, setLocations] = useState({ cities: [], states: [], pinCodes: [] });
+  const [deleting,   setDeleting]   = useState(false);
   const [clonePickerKey, setClonePickerKey] = useState(0);
   const [processes,  setProcesses]  = useState([]);
   const [ratesMap,   setRatesMap]   = useState({}); // { [processTypeId]: { pricePerKg, pricePerPc, lotPrice } }
@@ -102,9 +117,12 @@ export default function PartyList() {
   };
 
   useEffect(() => {
+    api.get('/parties/location-suggestions')
+      .then(r => setLocations(r.data.data || { cities: [], states: [], pinCodes: [] }))
+      .catch(() => {});
     load();
     api.get('/processes').then(r => {
-      const all = (r.data.data || r.data).filter(p => p.isActive !== false);
+      const all = (r.data.data || r.data).filter(p => p.isActive !== false && p.showInPartyRates !== false);
       // Deduplicate by process name (keep first occurrence)
       const uniqueByName = [];
       const seenNames = new Set();
@@ -161,6 +179,19 @@ export default function PartyList() {
   const setRate = (ptId, field, val) =>
     setRatesMap(prev => ({ ...prev, [ptId]: { ...(prev[ptId] || {}), [field]: val } }));
 
+  const handleDelete = async () => {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/parties/${confirmDelete.id}`);
+      toast.success('Party deleted.');
+      setConfirmDelete(null);
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Error deleting party.');
+    } finally { setDeleting(false); }
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -201,6 +232,19 @@ export default function PartyList() {
       const code = STATE_CODES[v.toLowerCase().trim()];
       if (code) next.stateCode = code;
     }
+    // A city already on file carries its state and PIN with it, so choosing it
+    // fills both — but never overwrites something already typed.
+    if (k === 'city') {
+      const known = locations.cities.find(c => c.city.toLowerCase() === v.toLowerCase().trim());
+      if (known) {
+        if (known.state && !p.state) {
+          next.state = known.state;
+          const code = STATE_CODES[known.state.toLowerCase().trim()];
+          if (code) next.stateCode = code;
+        }
+        if (known.pinCode && !p.pinCode) next.pinCode = known.pinCode;
+      }
+    }
     return next;
   });
 
@@ -233,8 +277,8 @@ export default function PartyList() {
             <button key={t} onClick={() => setFilter(t)}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all duration-150 ${
                 filter === t
-                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-200'
-                  : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                  ? 'bg-sky-600 text-white border-sky-600 shadow-sm shadow-sky-200'
+                  : 'bg-white text-slate-500 border-slate-200 hover:border-sky-300 hover:text-sky-600'
               }`}>
               {t}
             </button>
@@ -259,7 +303,7 @@ export default function PartyList() {
         <div className="overflow-x-auto">
           <table className="w-full text-left min-w-[540px]">
             <thead>
-              <tr className="bg-gradient-to-r from-slate-50 to-indigo-50/30 border-b border-slate-100">
+              <tr className="bg-gradient-to-r from-slate-50 to-sky-50/30 border-b border-slate-100">
                 <th className="th">Name</th>
                 <th className="th hidden sm:table-cell">City / State</th>
                 <th className="th hidden md:table-cell">GSTIN</th>
@@ -304,16 +348,25 @@ export default function PartyList() {
                     <span className={`badge ${TYPE_BADGE[p.partyType] || 'bg-slate-100 text-slate-600'}`}>{p.partyType}</span>
                   </td>
                   <td className="td">
-                    <div className="flex flex-col sm:flex-row gap-1 sm:gap-2">
+                    <div className="flex items-center gap-1">
                       <Link
                         to={`/admin/parties/${p.id}`}
-                        className="flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-indigo-700 hover:underline">
-                        <span className="material-symbols-outlined text-sm">visibility</span> View
+                        title="View"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-600 hover:bg-slate-100 transition-all">
+                        <span className="material-symbols-outlined text-[18px]">visibility</span>
                       </Link>
                       <button type="button" onClick={() => openEdit(p)}
-                        className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">
-                        <span className="material-symbols-outlined text-sm">edit</span> Edit
+                        title="Edit"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-all">
+                        <span className="material-symbols-outlined text-[18px]">edit</span>
                       </button>
+                      {isManager && (
+                        <button type="button" onClick={() => setConfirmDelete(p)}
+                          title="Delete"
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all">
+                          <span className="material-symbols-outlined text-[18px]">delete</span>
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -350,6 +403,42 @@ export default function PartyList() {
       </div>
 
       {/* Modal: portal to body — avoids broken fixed positioning inside Layout animate-slide-up (transform) */}
+      {confirmDelete &&
+        createPortal(
+          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+            <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm animate-backdrop-in" onClick={() => setConfirmDelete(null)} aria-hidden />
+            <div className="relative w-full max-w-sm rounded-2xl bg-white shadow-2xl border border-slate-200/80 overflow-hidden animate-scale-in">
+              <div className="px-6 py-5">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-rose-600 text-xl">delete</span>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-800">Delete Party?</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">This cannot be undone.</p>
+                  </div>
+                </div>
+                <p className="text-sm text-slate-700 mb-1">
+                  <span className="font-bold">{confirmDelete.name}</span>
+                  {confirmDelete.partyCode && <span className="text-slate-400 font-mono text-xs ml-1">({confirmDelete.partyCode})</span>}
+                </p>
+                <p className="text-xs text-slate-500 mb-5">If this party has linked challans, invoices, or job cards the delete will fail.</p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setConfirmDelete(null)} className="flex-1 btn-ghost justify-center">Cancel</button>
+                  <button type="button" onClick={handleDelete} disabled={deleting}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold bg-rose-600 hover:bg-rose-700 text-white transition-colors disabled:opacity-60">
+                    {deleting
+                      ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Deleting...</>
+                      : <><span className="material-symbols-outlined text-sm">delete</span> Delete</>
+                    }
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
       {showForm &&
         createPortal(
           <div
@@ -362,9 +451,9 @@ export default function PartyList() {
             <div className="relative w-full max-w-2xl max-h-[min(100dvh-1.5rem,1200px)] flex flex-col rounded-2xl bg-white shadow-2xl shadow-slate-900/20 border border-slate-200/80 overflow-hidden animate-scale-in">
 
             {/* Panel Header */}
-            <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-slate-100 shrink-0 bg-gradient-to-br from-slate-50 to-indigo-50/40">
+            <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-slate-100 shrink-0 bg-gradient-to-br from-slate-50 to-sky-50/40">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-gradient-to-br from-indigo-600 to-violet-600 shadow-sm">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-gradient-to-br from-sky-600 to-violet-600 shadow-sm">
                   <span className="material-symbols-outlined text-white text-[18px]">group</span>
                 </div>
                 <h3 id="party-form-title" className="text-base font-extrabold text-slate-800 truncate">
@@ -388,7 +477,7 @@ export default function PartyList() {
                       className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all ${
                         form.partyType === t
                           ? 'text-white border-transparent shadow-sm'
-                          : 'border-slate-200 text-slate-500 hover:border-indigo-300 hover:text-indigo-600'
+                          : 'border-slate-200 text-slate-500 hover:border-sky-300 hover:text-sky-600'
                       }`}
                       style={form.partyType === t ? { background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' } : {}}>
                       {t}
@@ -414,18 +503,53 @@ export default function PartyList() {
 
               {/* City / State / Pin */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <F label="City"><input value={form.city} onChange={e => set('city', e.target.value)} className="form-input" placeholder="Pune" /></F>
-                <F label="State"><input value={form.state} onChange={e => set('state', e.target.value)} className="form-input" placeholder="Maharashtra" /></F>
-                <F label="PIN Code"><input value={form.pinCode} onChange={e => set('pinCode', e.target.value)} className="form-input" placeholder="411014" maxLength={6} /></F>
+                <F label="City">
+                  <input
+                    value={form.city}
+                    list="party-city-list"
+                    onChange={e => set('city', e.target.value)}
+                    className="form-input"
+                    placeholder="Pune"
+                  />
+                  <datalist id="party-city-list">
+                    {locations.cities.map(c => (
+                      <option key={c.city} value={c.city}>{[c.state, c.pinCode].filter(Boolean).join(' · ')}</option>
+                    ))}
+                  </datalist>
+                </F>
+                <F label="State">
+                  <select value={form.state} onChange={e => set('state', e.target.value)} className="form-input">
+                    <option value="">— Select —</option>
+                    {STATE_NAMES.map(st => <option key={st} value={st}>{st}</option>)}
+                  </select>
+                </F>
+                <F label="PIN Code">
+                  <input
+                    value={form.pinCode}
+                    list="party-pin-list"
+                    onChange={e => set('pinCode', e.target.value)}
+                    className="form-input"
+                    placeholder="411014"
+                    maxLength={6}
+                  />
+                  <datalist id="party-pin-list">
+                    {locations.pinCodes.map(pc => <option key={pc} value={pc} />)}
+                  </datalist>
+                </F>
               </div>
 
               {/* GSTIN / State Code */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="col-span-1 sm:col-span-2">
                   <label className="form-label">GSTIN</label>
-                  <input value={form.gstin} onChange={e => set('gstin', e.target.value.toUpperCase())} className={`form-input font-mono ${validateGSTIN(form.gstin) ? 'border-rose-300 bg-rose-50' : form.gstin.length === 15 ? 'border-emerald-300' : ''}`} placeholder="27AAAAA0000A1Z5" maxLength={15} />
-                  {validateGSTIN(form.gstin) && <p className="text-[10px] text-rose-600 mt-0.5">{validateGSTIN(form.gstin)}</p>}
-                  {form.gstin.length === 15 && !validateGSTIN(form.gstin) && <p className="text-[10px] text-emerald-600 mt-0.5">Valid GSTIN format</p>}
+                  <input value={form.gstin} onChange={e => {
+                    const v = e.target.value.toUpperCase();
+                    set('gstin', v);
+                    clearTimeout(gstinTimer.current);
+                    gstinTimer.current = setTimeout(() => setGstinError(validateGSTIN(v) || ''), 500);
+                  }} className={`form-input font-mono ${gstinError ? 'border-rose-300 bg-rose-50' : form.gstin.length === 15 && !gstinError ? 'border-emerald-300' : ''}`} placeholder="27AAAAA0000A1Z5" maxLength={15} />
+                  {gstinError && <p className="text-[10px] text-rose-600 mt-0.5">{gstinError}</p>}
+                  {form.gstin.length === 15 && !gstinError && <p className="text-[10px] text-emerald-600 mt-0.5">✓ Valid GSTIN format</p>}
                 </div>
                 <F label="State Code (auto)">
                   <input value={form.stateCode} onChange={e => set('stateCode', e.target.value)} className="form-input" placeholder="27" maxLength={3} />
@@ -436,6 +560,25 @@ export default function PartyList() {
                 <label className="form-label">PAN</label>
                 <input value={form.pan} onChange={e => set('pan', e.target.value.toUpperCase())} className={`form-input font-mono ${validatePAN(form.pan) ? 'border-rose-300 bg-rose-50' : form.pan.length === 10 ? 'border-emerald-300' : ''}`} placeholder="AAAAA0000A" maxLength={10} />
                 {validatePAN(form.pan) && <p className="text-[10px] text-rose-600 mt-0.5">{validatePAN(form.pan)}</p>}
+              </div>
+
+              {/* Tally matches ledgers by exact name and never creates one on
+                  import, so a party spelled differently there needs mapping. */}
+              <div>
+                <label className="form-label">Tally Ledger Name</label>
+                <input value={form.tallyLedgerName} onChange={e => set('tallyLedgerName', e.target.value)}
+                  className={`form-input ${form.tallyLedgerName ? 'border-violet-300 bg-violet-50/40' : ''}`}
+                  placeholder={form.name || 'Tally me jo naam hai'} maxLength={200} />
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  Khali chhodo to upar wala naam hi Tally me jayega. Tally me is party ka
+                  ledger kisi aur naam se hai to wahi yahan likho — <strong>bilkul waisa hi</strong>,
+                  ek space ka farak bhi "Ledger not found" de dega.
+                </p>
+                {form.tallyLedgerName && form.tallyLedgerName.trim() !== form.name.trim() && (
+                  <p className="text-[10px] text-violet-600 mt-0.5">
+                    Invoice pe: <strong>{form.name || '—'}</strong> · Tally me: <strong>{form.tallyLedgerName.trim()}</strong>
+                  </p>
+                )}
               </div>
 
               {/* Contact */}

@@ -14,6 +14,17 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     let mounted = true;
 
+    // E2E bypass for Playwright tests — only active in non-production builds.
+    // Uses sessionStorage so it never persists across browser sessions.
+    // Set sessionStorage.setItem('E2E_BYPASS', '1') in test setup.
+    const bypassAllowed = import.meta.env.MODE !== 'production';
+    if (bypassAllowed && typeof window !== 'undefined' && sessionStorage.getItem('E2E_BYPASS') === '1') {
+      const testUser = { id: 1, name: 'E2E Tester', email: 'e2e@test', role: 'ADMIN' };
+      sessionStorage.setItem('erp_user', JSON.stringify(testUser));
+      setUser(testUser);
+      setInitializing(false);
+      return () => { mounted = false; };
+    }
     const refreshUserSession = async () => {
       try {
         const { data } = await api.get('/auth/me');

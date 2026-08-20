@@ -136,7 +136,7 @@ export default function Analytics() {
         </div>
         <Link
           to="/analytics/advanced"
-          className="text-sm font-semibold text-indigo-600 hover:text-indigo-800"
+          className="text-sm font-semibold text-sky-600 hover:text-sky-800"
         >
           Advanced charts →
         </Link>
@@ -149,7 +149,7 @@ export default function Analytics() {
           value={fmt(overview?.revenue.thisMonth || 0)}
           sub={`Total: ${fmt(overview?.revenue.total || 0)}`}
           icon="currency_rupee"
-          color="bg-indigo-500"
+          color="bg-sky-500"
           delta={revDelta}
         />
         <KCard
@@ -181,8 +181,8 @@ export default function Analytics() {
         {/* Monthly Revenue */}
         <div className="card p-5">
           <div className="flex items-center gap-2 mb-5">
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center">
-              <span className="material-symbols-outlined text-indigo-500 text-[16px]">bar_chart</span>
+            <div className="w-8 h-8 rounded-xl bg-sky-50 flex items-center justify-center">
+              <span className="material-symbols-outlined text-sky-500 text-[16px]">bar_chart</span>
             </div>
             <h3 className="section-title">Monthly Revenue</h3>
           </div>

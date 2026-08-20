@@ -1,4 +1,5 @@
 import React from 'react';
+import { reportError } from '../utils/errorReporter';
 
 /**
  * CRITICAL FIX: Error Boundary Component
@@ -24,6 +25,17 @@ export class ErrorBoundary extends React.Component {
     // Log error details for debugging
     console.error('Error caught by boundary:', error, errorInfo);
 
+    // A stale tab left open across a deploy references JS chunk hashes that
+    // no longer exist on the server once new assets are uploaded. One
+    // automatic reload fetches the current index.html/chunks; the
+    // sessionStorage flag stops a genuinely broken chunk from reload-looping.
+    const isChunkLoadError = /dynamically imported module|Importing a module script failed/i.test(error?.message || '');
+    if (isChunkLoadError && !sessionStorage.getItem('chunk-reload-attempted')) {
+      sessionStorage.setItem('chunk-reload-attempted', '1');
+      window.location.reload();
+      return;
+    }
+
     // Update state with error info
     this.setState(prevState => ({
       error,
@@ -31,11 +43,12 @@ export class ErrorBoundary extends React.Component {
       errorCount: prevState.errorCount + 1,
     }));
 
-    // In production, send error to monitoring service (Sentry, etc.)
-    if (import.meta.env.PROD) {
-      // TODO: Send to error tracking service
-      // Sentry.captureException(error, { contexts: { react: errorInfo } });
-    }
+    // React ke andar ka crash — server tak pahunchao, warna sirf is user ke
+    // console me reh jayega aur kisi ko pata nahi chalega.
+    reportError(error, {
+      kind: 'react-error-boundary',
+      componentStack: errorInfo?.componentStack?.slice(0, 3000),
+    });
   }
 
   handleReset = () => {

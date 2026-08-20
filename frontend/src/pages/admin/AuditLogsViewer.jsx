@@ -188,7 +188,7 @@ export default function AuditLogsViewer() {
                       <td className="td text-slate-700">{log.tableName}</td>
                       <td className="td text-xs text-slate-500 font-mono">{log.ipAddress}</td>
                       <td className="td">
-                        <button type="button" onClick={() => setViewLog(log)} className="text-xs font-semibold text-indigo-600 hover:underline">
+                        <button type="button" onClick={() => setViewLog(log)} className="text-xs font-semibold text-sky-600 hover:underline">
                           View
                         </button>
                       </td>

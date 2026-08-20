@@ -19,19 +19,11 @@ const PAGE_TITLES = {
   '/analytics/advanced':       { title: 'Advanced analytics', icon: 'insights' },
   '/dispatch':                 { title: 'Dispatch challans',   icon: 'local_shipping' },
   '/dispatch/new':             { title: 'New dispatch',        icon: 'add_circle' },
-  '/purchase':                 { title: 'Purchase orders',     icon: 'shopping_cart' },
-  '/purchase/grn':             { title: 'Goods receipt (GRN)', icon: 'inbox' },
-  '/purchase/inventory':       { title: 'Inventory',           icon: 'warehouse' },
-  '/admin/parties':            { title: 'Party Management',    icon: 'group' },
-  '/admin/party-rates':        { title: 'Party Process Rates', icon: 'price_check' },
+  '/purchaserty-rates':        { title: 'Party Process Rates', icon: 'price_check' },
   '/admin/items':              { title: 'Items',               icon: 'inventory' },
   '/admin/machines':           { title: 'Machines',            icon: 'precision_manufacturing' },
   '/admin/users':              { title: 'User Management',     icon: 'manage_accounts' },
   '/admin/audit-logs':         { title: 'Audit logs',          icon: 'history' },
-  '/manufacturing/batches':    { title: 'Manufacturing batches', icon: 'precision_manufacturing' },
-  '/manufacturing/reports':    { title: 'Mfg reports',         icon: 'assessment' },
-  '/manufacturing/planning':   { title: 'Daily Planning',      icon: 'event_note' },
-  '/manufacturing/planning/print': { title: 'Planning print', icon: 'print' },
   '/manufacturing/runsheet':   { title: 'VHT Run Sheet',       icon: 'thermostat' },
   '/manufacturing/runsheet/new': { title: 'New VHT Run Sheet', icon: 'add_circle' },
 };
@@ -58,6 +50,11 @@ export default function Layout() {
       // PgUp/PgDn always scroll — inputs don't use them
       // ArrowUp/ArrowDown/Home/End skip when an editable field is focused
       if (editable && e.key !== 'PageDown' && e.key !== 'PageUp') return;
+      // Skip contenteditable elements — they own their own arrow-key behaviour
+      if (active?.isContentEditable) return;
+      // Skip when focus is inside the sidebar — let the sidebar handle its own scroll
+      const sidebar = document.querySelector('aside');
+      if (sidebar?.contains(active)) return;
 
       const target = mainRef.current;
       const pageHeight = target.clientHeight * 0.85;
@@ -174,43 +171,7 @@ export default function Layout() {
             </h1>
           </div>
 
-          <div className="hidden md:flex flex-1 justify-center max-w-lg min-w-0 mx-2 lg:mx-6">
-            <div
-              className="relative w-full rounded-lg bg-slate-100/70 border border-slate-200/70 shadow-inner
-                transition-all duration-200 focus-within:bg-white focus-within:border-sky-300/80 focus-within:ring-2 focus-within:ring-sky-400/25"
-            >
-              <label className="flex items-center w-full cursor-text">
-                <span className="material-symbols-outlined pl-3 text-slate-500 text-[18px] shrink-0" aria-hidden>
-                  search
-                </span>
-                <input
-                  type="search"
-                  placeholder="Search job cards, parties, invoices…"
-                  className="w-full min-w-0 py-2.5 pr-3 pl-2 bg-transparent border-0 text-sm text-slate-900
-                    placeholder:text-slate-400 focus:outline-none focus:ring-0"
-                  aria-label="Quick search"
-                />
-              </label>
-            </div>
-          </div>
-
           <div className="flex items-center gap-1 sm:gap-2 shrink-0 ml-auto">
-            <button
-              type="button"
-              className="hidden sm:flex min-w-[40px] min-h-[40px] items-center justify-center rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100/90
-                transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/50"
-              aria-label="Notifications"
-            >
-              <span className="material-symbols-outlined text-[22px]">notifications</span>
-            </button>
-            <button
-              type="button"
-              className="hidden sm:flex min-w-[40px] min-h-[40px] items-center justify-center rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100/90
-                transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/50"
-              aria-label="Settings"
-            >
-              <span className="material-symbols-outlined text-[22px]">settings</span>
-            </button>
             <div className="flex items-center gap-2 sm:gap-2.5 pl-2 sm:pl-3 border-l border-slate-200/80">
               <div
                 className="w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold
@@ -240,7 +201,7 @@ export default function Layout() {
           </div>
         </main>
 
-        <footer className="footer-bar-padding py-2.5 border-t border-slate-200/70 bg-white/85 backdrop-blur-sm safe-pb">
+        <footer className="print:hidden footer-bar-padding py-2.5 border-t border-slate-200/70 bg-white/85 backdrop-blur-sm safe-pb">
           <p className="text-[10px] text-slate-400 text-center leading-relaxed tracking-wide">
             Shital Vacuum Treat Pvt. Ltd. · SVT ERP
           </p>

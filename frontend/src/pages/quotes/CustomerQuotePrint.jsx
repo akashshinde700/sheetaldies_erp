@@ -1,32 +1,32 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
-import { formatDate, formatCurrency } from '../../utils/formatters';
+import { formatDate } from '../../utils/formatters';
 
 const COMPANY = {
-  name: 'SHITAL VACUUM TREAT PVT. LTD.',
+  name: 'SHITAL VACUUM TREAT PVT. LTD',
+  addr1: 'PLOT NO:- 84/1, SECTOR NO-10,',
+  addr2: 'PCNTDA, BHOSARI, PUNE-411019',
+  website: 'www.shitalvacuumtreat.com',
+  pan: 'AATCS0577L',
   gstin: '27AATCS0577L1ZK',
-  address: 'Plot No. 84/1, Sector No. 10, PCNTDA, Bhosari, Pune – 411026',
-  phone: '02027484640',
-  email: 'info@shitalvacuumtreat.com',
+  servicesCode: '998873 ( 18% )',
+  iso: 'ISO 9001 -2015',
 };
 
-function numToWords(n) {
-  const a = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
-  const b = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
-  const num = Math.round(n);
-  if (num === 0) return 'Zero';
-  if (num < 20) return a[num];
-  if (num < 100) return b[Math.floor(num/10)] + (num%10 ? ' ' + a[num%10] : '');
-  if (num < 1000) return a[Math.floor(num/100)] + ' Hundred' + (num%100 ? ' ' + numToWords(num%100) : '');
-  if (num < 100000) return numToWords(Math.floor(num/1000)) + ' Thousand' + (num%1000 ? ' ' + numToWords(num%1000) : '');
-  if (num < 10000000) return numToWords(Math.floor(num/100000)) + ' Lakh' + (num%100000 ? ' ' + numToWords(num%100000) : '');
-  return numToWords(Math.floor(num/10000000)) + ' Crore' + (num%10000000 ? ' ' + numToWords(num%10000000) : '');
+function SvtLogo({ size = 88 }) {
+  return <img src="/logo.png" alt="SVT" style={{ width: size, height: size, objectFit: 'contain' }} />;
 }
+
+const cell = { border: '1px solid #000', padding: '5px 8px', verticalAlign: 'middle' };
+
+const UNIT_SUFFIX = { KGS: 'Per Kgs.', PCS: 'Per Pc.', LOT: 'Lot' };
 
 export default function CustomerQuotePrint() {
   const { id } = useParams();
   const [q, setQ] = useState(null);
+
+  useEffect(() => { const p = document.title; document.title = ' '; return () => { document.title = p; }; }, []);
 
   useEffect(() => {
     api.get(`/customer-quotes/${id}`).then(r => {
@@ -35,139 +35,156 @@ export default function CustomerQuotePrint() {
     });
   }, [id]);
 
-  if (!q) return <div style={{textAlign:'center',padding:40}}>Loading...</div>;
+  if (!q) return <div style={{ textAlign: 'center', padding: 40 }}>Loading...</div>;
 
-  const subtotal = +q.subtotal;
-  const cgst = +q.cgst;
-  const sgst = +q.sgst;
-  const total = +q.totalAmount;
-  const inWords = numToWords(Math.round(total)) + ' Rupees Only';
+  // Pad line items to a minimum of 5 rows like the paper form.
+  const rows = [...q.items];
+  while (rows.length < 5) rows.push(null);
+
+  const TERMS = [
+    ['TRANSPORT', q.termsTransport || 'BOTH SIDE AT YOUR END'],
+    ['PAYMENT', q.termsPayment || '60 DAYS.'],
+    ['DELIVERY', q.termsDelivery || '4-5 DAYS AFTER RECEPIT OF MATERIAL AT OUR END'],
+    ['TAX', q.termsTax || 'AS PER GOVERMENT RULES'],
+    ['', ''],
+  ];
+
+  const COMMERCIAL = [
+    ['PAN CARD NO', q.commercialPan || COMPANY.pan],
+    ['GST NO', q.commercialGst || COMPANY.gstin],
+    ['SERVICES CODE', q.commercialServicesCode || COMPANY.servicesCode],
+    ['ISO CERTIFICATE', q.commercialIso || COMPANY.iso],
+    ['', ''],
+  ];
 
   return (
-    <div style={{ fontFamily: 'Arial, sans-serif', fontSize: 11, maxWidth: 800, margin: '0 auto', padding: 20, color: '#111' }}>
-      {/* Header */}
-      <table style={{ width: '100%', borderBottom: '2px solid #1e3a5f', marginBottom: 8 }}>
-        <tbody><tr>
-          <td style={{ width: '60%' }}>
-            <div style={{ fontSize: 16, fontWeight: 900, color: '#1e3a5f', letterSpacing: 1 }}>{COMPANY.name}</div>
-            <div style={{ fontSize: 9, color: '#555', marginTop: 2 }}>{COMPANY.address}</div>
-            <div style={{ fontSize: 9, color: '#555' }}>Ph: {COMPANY.phone} | Email: {COMPANY.email}</div>
-            <div style={{ fontSize: 9, color: '#555' }}>GSTIN: {COMPANY.gstin}</div>
-          </td>
-          <td style={{ textAlign: 'right', verticalAlign: 'top' }}>
-            <div style={{ fontSize: 18, fontWeight: 900, color: '#1e3a5f', letterSpacing: 2, textTransform: 'uppercase' }}>QUOTATION</div>
-          </td>
-        </tr></tbody>
-      </table>
+    <div style={{ fontFamily: 'Arial, sans-serif', fontSize: 12, maxWidth: 780, margin: '0 auto', padding: 16, color: '#000' }}>
+      <style>{`@page { margin: 0mm; size: A4; } @media print { .no-print { display: none !important; } html, body { margin: 0 !important; padding: 6mm !important; } }`}</style>
 
-      {/* Quote meta */}
-      <table style={{ width: '100%', marginBottom: 10 }}>
-        <tbody><tr>
-          <td style={{ width: '55%', verticalAlign: 'top' }}>
-            <div style={{ border: '1px solid #ccc', padding: 8, borderRadius: 4 }}>
-              <div style={{ fontWeight: 700, marginBottom: 4 }}>To:</div>
-              <div style={{ fontWeight: 700, fontSize: 12 }}>{q.customer?.name}</div>
-              {q.customer?.address && <div style={{ color: '#555', fontSize: 10 }}>{q.customer.address}</div>}
-              {q.customer?.gstin && <div style={{ fontSize: 10 }}>GSTIN: <strong>{q.customer.gstin}</strong></div>}
-            </div>
-          </td>
-          <td style={{ width: '45%', verticalAlign: 'top', paddingLeft: 12 }}>
-            <table style={{ width: '100%', fontSize: 10 }}>
-              <tbody>
-                {[
-                  ['Quote No.', q.quoteNo],
-                  ['Date', formatDate(q.quoteDate)],
-                  ['Valid Until', q.validUntil ? formatDate(q.validUntil) : '—'],
-                  ['Status', q.status],
-                ].map(([k, v]) => (
-                  <tr key={k}>
-                    <td style={{ color: '#555', paddingBottom: 3, width: 90 }}>{k}</td>
-                    <td style={{ fontWeight: 700, paddingBottom: 3 }}>: {v}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </td>
-        </tr></tbody>
-      </table>
-
-      {/* Items Table */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 10 }}>
-        <thead>
-          <tr style={{ background: '#1e3a5f', color: '#fff' }}>
-            {['#','Part Name','Process','Material','Qty','Weight (kg)','Rate (₹)','HSN','Amount (₹)'].map(h => (
-              <th key={h} style={{ border: '1px solid #1e3a5f', padding: '5px 6px', fontSize: 9, fontWeight: 700, textAlign: 'center' }}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {q.items.map((item, i) => (
-            <tr key={item.id} style={{ background: i%2===0?'#f8f9fa':'#fff' }}>
-              <td style={{ border: '1px solid #ddd', padding: '4px 6px', textAlign: 'center' }}>{i+1}</td>
-              <td style={{ border: '1px solid #ddd', padding: '4px 6px', fontWeight: 600 }}>{item.partName}</td>
-              <td style={{ border: '1px solid #ddd', padding: '4px 6px' }}>{item.processType?.name || '—'}</td>
-              <td style={{ border: '1px solid #ddd', padding: '4px 6px' }}>{item.material || '—'}</td>
-              <td style={{ border: '1px solid #ddd', padding: '4px 6px', textAlign: 'center' }}>{item.qty}</td>
-              <td style={{ border: '1px solid #ddd', padding: '4px 6px', textAlign: 'right' }}>{item.weight ? +item.weight : '—'}</td>
-              <td style={{ border: '1px solid #ddd', padding: '4px 6px', textAlign: 'right' }}>₹{formatCurrency(item.rate)}</td>
-              <td style={{ border: '1px solid #ddd', padding: '4px 6px', textAlign: 'center' }}>{item.hsnCode || '—'}</td>
-              <td style={{ border: '1px solid #ddd', padding: '4px 6px', textAlign: 'right', fontWeight: 700 }}>₹{formatCurrency(item.amount)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      {/* Totals */}
-      <table style={{ width: '100%', marginBottom: 10 }}>
-        <tbody><tr>
-          <td style={{ verticalAlign: 'top', width: '55%' }}>
-            {q.notes && <div style={{ border: '1px solid #ddd', padding: 8, borderRadius: 4, fontSize: 10, color: '#555' }}><strong>Notes:</strong> {q.notes}</div>}
-            {q.paymentTerms && <div style={{ marginTop: 6, fontSize: 10, color: '#555' }}><strong>Payment Terms:</strong> {q.paymentTerms}</div>}
-          </td>
-          <td style={{ verticalAlign: 'top', paddingLeft: 20 }}>
-            <table style={{ width: '100%', fontSize: 11 }}>
-              <tbody>
-                {[
-                  ['Subtotal', `₹${formatCurrency(subtotal)}`],
-                  [`CGST (${+q.cgstRate}%)`, `₹${formatCurrency(cgst)}`],
-                  [`SGST (${+q.sgstRate}%)`, `₹${formatCurrency(sgst)}`],
-                ].map(([k,v]) => (
-                  <tr key={k}>
-                    <td style={{ padding: '2px 0', color: '#555' }}>{k}</td>
-                    <td style={{ padding: '2px 0', textAlign: 'right', fontFamily: 'monospace' }}>{v}</td>
-                  </tr>
-                ))}
-                <tr style={{ borderTop: '2px solid #1e3a5f' }}>
-                  <td style={{ padding: '4px 0', fontWeight: 900, fontSize: 13 }}>Total</td>
-                  <td style={{ padding: '4px 0', textAlign: 'right', fontWeight: 900, fontSize: 13, fontFamily: 'monospace' }}>₹{formatCurrency(total)}</td>
-                </tr>
-              </tbody>
-            </table>
-            <div style={{ fontSize: 9, color: '#555', marginTop: 4, fontStyle: 'italic' }}>
-              {inWords}
-            </div>
-          </td>
-        </tr></tbody>
-      </table>
-
-      {/* Terms */}
-      <div style={{ fontSize: 9, color: '#555', borderTop: '1px solid #ddd', paddingTop: 6, marginBottom: 20 }}>
-        <strong>Terms & Conditions:</strong>
-        <ol style={{ paddingLeft: 16, margin: '4px 0 0' }}>
-          <li>Prices are valid for the period mentioned above.</li>
-          <li>GST as applicable will be charged extra.</li>
-          <li>Delivery subject to availability of material and furnace schedule.</li>
-        </ol>
+      <div className="no-print" style={{ marginBottom: 12 }}>
+        <Link to={`/customer-quotes/${id}`}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: '#4338ca', textDecoration: 'none', fontWeight: 600 }}>
+          ← Back
+        </Link>
       </div>
 
-      {/* Signature */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 30 }}>
-        <div style={{ textAlign: 'center', minWidth: 180 }}>
-          <div style={{ borderTop: '1px solid #555', paddingTop: 4, fontSize: 10 }}>
-            <div style={{ fontWeight: 700 }}>For {COMPANY.name}</div>
-            <div style={{ fontSize: 9, color: '#555', marginTop: 20 }}>Authorised Signatory</div>
-          </div>
+      <div style={{ border: '2px solid #000' }}>
+        {/* ── Header ─────────────────────────────────────── */}
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <tbody>
+            <tr>
+              <td rowSpan={3} style={{ ...cell, width: 150, textAlign: 'center', verticalAlign: 'middle' }}>
+                <SvtLogo size={92} />
+              </td>
+              <td style={{ ...cell, textAlign: 'center' }}>
+                <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: 0.5 }}>{COMPANY.name}</div>
+              </td>
+            </tr>
+            <tr>
+              <td style={{ ...cell, textAlign: 'center' }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{COMPANY.addr1}</div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{COMPANY.addr2}</div>
+              </td>
+            </tr>
+            <tr>
+              <td style={{ ...cell, textAlign: 'center', fontSize: 15, fontWeight: 700 }}>TITLE :- QUOTATION.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style={{ textAlign: 'center', borderBottom: '2px solid #000', padding: '3px 0', color: '#1155cc', fontWeight: 700, fontSize: 12 }}>
+          {COMPANY.website}
         </div>
+
+        {/* ── Quotation No / Date ────────────────────────── */}
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <tbody>
+            <tr>
+              <td style={{ ...cell, fontWeight: 700, width: '18%' }}>QUOTATION NO:-</td>
+              <td style={{ ...cell, fontWeight: 700, width: '32%' }}>{q.quoteNo}</td>
+              <td style={{ ...cell, fontWeight: 700, width: '12%' }}>DATE:-</td>
+              <td style={{ ...cell, fontWeight: 700 }}>{formatDate(q.quoteDate)}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* ── To / M/S. ──────────────────────────────────── */}
+        <div style={{ ...cell, borderTop: 'none', minHeight: 70 }}>
+          <div style={{ fontWeight: 700 }}>TO,</div>
+          <div style={{ fontWeight: 700, fontSize: 14, marginTop: 2 }}>M/S. {q.customer?.name || ''}</div>
+          {q.customer?.address && <div style={{ marginTop: 2 }}>{q.customer.address}</div>}
+          {q.customer?.gstin && <div style={{ marginTop: 2, fontSize: 11 }}>GSTIN: {q.customer.gstin}</div>}
+        </div>
+
+        {/* ── Kind Attn ──────────────────────────────────── */}
+        <div style={{ ...cell, borderTop: '1px solid #000', fontWeight: 700 }}>
+          KIND ATTN:- Mr. {q.kindAttn || ''}
+        </div>
+
+        {/* ── Item Table ─────────────────────────────────── */}
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ fontWeight: 700, textAlign: 'center' }}>
+              <td style={{ ...cell, width: '8%' }}>SR NO</td>
+              <td style={{ ...cell, width: '28%' }}>DESCRIPTION</td>
+              <td style={{ ...cell, width: '24%' }}>MATERIAL</td>
+              <td style={{ ...cell, width: '22%' }}>PROCESS</td>
+              <td style={{ ...cell, width: '18%' }}>RATE</td>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((item, i) => (
+              <tr key={i} style={{ height: 46 }}>
+                <td style={{ ...cell, textAlign: 'center' }}>{item ? i + 1 : ''}</td>
+                <td style={{ ...cell }}>{item ? item.partName : ''}</td>
+                <td style={{ ...cell, textAlign: 'center' }}>{item ? (item.material || '') : ''}</td>
+                <td style={{ ...cell, textAlign: 'center' }}>{item ? (item.processType?.name || '') : ''}</td>
+                <td style={{ ...cell, textAlign: 'center', fontWeight: 700 }}>
+                  {item && +item.rate > 0 ? `${(+item.rate).toFixed(0)}/- ${UNIT_SUFFIX[item.unit] || UNIT_SUFFIX.KGS}` : ''}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* ── Terms & Condition ──────────────────────────── */}
+        <div style={{ ...cell, borderTop: '1px solid #000', fontWeight: 700 }}>TERMS & CONDITION :-</div>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <tbody>
+            {TERMS.map(([label, value], i) => (
+              <tr key={i} style={{ height: 30 }}>
+                <td style={{ ...cell, width: '8%', textAlign: 'center' }}>{label ? i + 1 : ''}</td>
+                <td style={{ ...cell, width: '24%', fontWeight: 700 }}>{label}</td>
+                <td style={{ ...cell }}>{value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* ── Commercial Details ─────────────────────────── */}
+        <div style={{ ...cell, borderTop: '1px solid #000', fontWeight: 700 }}>COMMERCIAL DETAILS:-</div>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <tbody>
+            {COMMERCIAL.map(([label, value], i) => (
+              <tr key={i} style={{ height: 30 }}>
+                <td style={{ ...cell, width: '8%', textAlign: 'center' }}>{label ? i + 1 : ''}</td>
+                <td style={{ ...cell, width: '24%', fontWeight: 700 }}>{label}</td>
+                <td style={{ ...cell }}>{value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* ── Footer ─────────────────────────────────────── */}
+        <table style={{ width: '100%', borderCollapse: 'collapse', borderTop: '2px solid #000' }}>
+          <tbody>
+            <tr style={{ fontWeight: 700, fontSize: 11 }}>
+              <td style={{ ...cell, border: 'none', width: '34%' }}>DOC. NO- QF-MKT-03</td>
+              <td style={{ ...cell, border: 'none', width: '33%', textAlign: 'center' }}>REVISION NO: 00</td>
+              <td style={{ ...cell, border: 'none', textAlign: 'right' }}>REVISION DATE: 01.04.2019</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   );

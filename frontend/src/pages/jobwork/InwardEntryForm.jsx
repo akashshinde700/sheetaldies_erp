@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, Fragment } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '../../utils/api';
@@ -7,16 +7,84 @@ import { useParties, useProcesses, useItems } from '../../hooks/useMasterData';
 import { toNum, toInt } from '../../utils/normalize';
 import SearchSelect from '../../components/SearchSelect';
 
+// Shared grid template for the item cards — header, each card's field row,
+// and the footer summary all use the same columns so numbers stay aligned
+// under their labels regardless of how many item cards are rendered.
+const ITEM_FIELD_COLS = 'grid-cols-[minmax(150px,1.4fr)_minmax(160px,1.6fr)_minmax(110px,1.1fr)_80px_70px_90px_70px_70px]';
+
+function highlightMatch(text, query) {
+  if (!query) return text;
+  const idx = text.toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return text;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="bg-amber-200 text-inherit rounded-sm">{text.slice(idx, idx + query.length)}</mark>
+      {text.slice(idx + query.length)}
+    </>
+  );
+}
+
 function AutocompleteInput({ value, onChange, suggestions, placeholder, className }) {
   const [open, setOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const [menuStyle, setMenuStyle] = useState({});
   const inputRef = useRef(null);
   const filtered = value
     ? suggestions.filter(s => s.toLowerCase().includes(value.toLowerCase()))
     : suggestions;
+  const visible = filtered.slice(0, 12);
+
+  useEffect(() => { setHighlightedIndex(0); }, [value, open]);
+
+  // Dropdown is position:fixed so it escapes any overflow:hidden/auto ancestor
+  // (e.g. the horizontally-scrollable items table) instead of being clipped.
+  const updateMenuPosition = useCallback(() => {
+    if (!inputRef.current) return;
+    const rect = inputRef.current.getBoundingClientRect();
+    setMenuStyle({
+      position: 'fixed',
+      top: rect.bottom + 2,
+      left: rect.left,
+      minWidth: rect.width,
+      zIndex: 9999,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    updateMenuPosition();
+    window.addEventListener('scroll', updateMenuPosition, true);
+    window.addEventListener('resize', updateMenuPosition);
+    return () => {
+      window.removeEventListener('scroll', updateMenuPosition, true);
+      window.removeEventListener('resize', updateMenuPosition);
+    };
+  }, [open, updateMenuPosition]);
+
   const handleSelect = (s) => {
     onChange(s);
     setOpen(false);
   };
+
+  const handleKeyDown = (e) => {
+    if (!open) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { setOpen(true); return; }
+      return;
+    }
+    if (e.key === 'Escape') { setOpen(false); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setHighlightedIndex(p => Math.min(p + 1, visible.length - 1)); return; }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); setHighlightedIndex(p => Math.max(p - 1, 0)); return; }
+    if (e.key === 'Enter') {
+      if (visible.length > 0 && visible[highlightedIndex] !== undefined) {
+        e.preventDefault();
+        handleSelect(visible[highlightedIndex]);
+      }
+      return;
+    }
+    if (e.key === 'Tab') { setOpen(false); }
+  };
+
   return (
     <div className="relative">
       <input
@@ -26,21 +94,26 @@ function AutocompleteInput({ value, onChange, suggestions, placeholder, classNam
         onChange={(e) => { onChange(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onKeyDown={handleKeyDown}
         placeholder={placeholder}
         autoComplete="off"
         className={className}
       />
-      {open && filtered.length > 0 && (
-        <div className="absolute z-50 top-full left-0 mt-0.5 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden max-h-40 overflow-y-auto min-w-[120px] w-max">
-          {filtered.slice(0, 12).map(s => (
+      {open && visible.length > 0 && (
+        <div
+          style={menuStyle}
+          className="bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden max-h-40 overflow-y-auto w-max"
+        >
+          {visible.map((s, index) => (
             <button
               key={s}
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleSelect(s)}
-              className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 text-slate-800 truncate"
+              onMouseEnter={() => setHighlightedIndex(index)}
+              className={`w-full text-left px-3 py-1.5 text-xs truncate ${index === highlightedIndex ? 'bg-slate-100' : 'hover:bg-slate-50'} text-slate-800`}
             >
-              {s}
+              {highlightMatch(s, value)}
             </button>
           ))}
         </div>
@@ -69,24 +142,42 @@ export default function InwardEntryForm() {
     return uniqueByName;
   }, [processesRaw]);
 
+  const [partNameHistorySuggestions, setPartNameHistorySuggestions] = useState([]);
+  const [materialHistorySuggestions, setMaterialHistorySuggestions] = useState([]);
+  const [hrcHistorySuggestions, setHrcHistorySuggestions] = useState([]);
+
   const partNameSuggestions = useMemo(() => {
-    const names = itemsMaster.map(i => i.description).filter(Boolean);
+    const names = [
+      ...itemsMaster.map(i => i.description).filter(Boolean),
+      ...partNameHistorySuggestions,
+    ];
     return [...new Set(names)].sort();
-  }, [itemsMaster]);
+  }, [itemsMaster, partNameHistorySuggestions]);
 
   const materialSuggestions = useMemo(() => {
-    const mats = itemsMaster.map(i => i.material).filter(Boolean);
+    const mats = [
+      ...itemsMaster.map(i => i.material).filter(Boolean),
+      ...materialHistorySuggestions,
+    ];
     return [...new Set(mats)].sort();
-  }, [itemsMaster]);
+  }, [itemsMaster, materialHistorySuggestions]);
 
   const [creatingFullFlow, setCreatingFullFlow] = useState(false);
   const [items, setItems] = useState([]);
+  const [issuedBySuggestions, setIssuedBySuggestions] = useState([]);
+
+  useEffect(() => {
+    api.get('/jobwork/issued-by-suggestions').then(r => setIssuedBySuggestions(r.data.data || [])).catch(() => {});
+    api.get('/jobwork/material-suggestions').then(r => setMaterialHistorySuggestions(r.data.data || [])).catch(() => {});
+    api.get('/jobwork/part-name-suggestions').then(r => setPartNameHistorySuggestions(r.data.data || [])).catch(() => {});
+    api.get('/jobwork/hrc-suggestions').then(r => setHrcHistorySuggestions(r.data.data || [])).catch(() => {});
+  }, []);
 
   const hrcSuggestions = useMemo(() => {
     const fromItems = items.map(i => i.hrc).filter(Boolean);
     const defaults = ['54-56', '58-60', '60-62', '62-64', '62-65', '64-66'];
-    return [...new Set([...fromItems, ...defaults])];
-  }, [items]);
+    return [...new Set([...fromItems, ...defaults, ...hrcHistorySuggestions])];
+  }, [items, hrcHistorySuggestions]);
   const [loading, setLoading] = useState(false);
   const [partyRates, setPartyRates] = useState({}); // { [processTypeId]: { pricePerKg, pricePerPc, lotPrice } }
   const [materialWeights, setMaterialWeights] = useState({});
@@ -98,17 +189,21 @@ export default function InwardEntryForm() {
     const map = {};
     for (const it of items) {
       const mat = it.material?.trim() || '(unknown)';
-      if (!map[mat]) map[mat] = { qty: 0 };
+      if (!map[mat]) map[mat] = { qty: 0, weight: 0 };
       map[mat].qty += toNum(it.qty, 0);
+      map[mat].weight += toNum(it.weight, 0);
     }
-    return Object.entries(map).map(([material, data]) => ({ material, sumQty: data.qty }));
+    return Object.entries(map).map(([material, data]) => ({ material, sumQty: data.qty, sumWeight: data.weight }));
   }, [items]);
 
   const grandTotalWeight = useMemo(() => {
     const dgt = toNum(directGrandTotalWeight, 0);
     if (dgt > 0) return dgt;
-    return Object.values(materialWeights).reduce((sum, w) => sum + toNum(w, 0), 0);
-  }, [materialWeights, directGrandTotalWeight]);
+    return materialSummary.reduce((sum, { material, sumWeight }) => {
+      const direct = toNum(materialWeights[material], 0);
+      return sum + (direct > 0 ? direct : sumWeight);
+    }, 0);
+  }, [materialSummary, materialWeights, directGrandTotalWeight]);
 
   const grandTotalQty = useMemo(() => {
     const dgt = toNum(directGrandTotalQty, 0);
@@ -134,6 +229,7 @@ export default function InwardEntryForm() {
     materialInDate: new Date().toISOString().split('T')[0],
     vehicleNo: '',
     deliveryPerson: '',
+    issuedBy: '',
     invoiceRef: '',
     poNo: '',
     poDate: '',
@@ -150,16 +246,15 @@ export default function InwardEntryForm() {
     sacNo: '',
     qty: '',
     weight: '',
-    rate: '0',
-    lotPrice: '',
+    rate: '',
     amount: '0',
+    pcQty: '',
+    lotQty: '',
     processTypeId: '',
     processName: '',
   });
 
   const calcAmount = (it, overrides = {}) => {
-    const lotPrice = toNum(it.lotPrice, 0);
-    if (lotPrice > 0) return lotPrice.toFixed(2);
     const weight = toNum(overrides.weight ?? it.weight, 0);
     const qty    = toNum(overrides.qty    ?? it.qty,    0);
     const rate   = toNum(overrides.rate   ?? it.rate,   0);
@@ -172,14 +267,13 @@ export default function InwardEntryForm() {
     const proc = processes.find(p => p.id === toInt(processTypeId));
     setItems(items.map(it => {
       if (it.id !== id) return it;
-      const { rate: autoRate, lotPrice: autoLot } = getEffectiveRate(proc) ?? {};
+      const { rate: autoRate } = getEffectiveRate(proc) ?? {};
       const updated = {
         ...it,
         processTypeId,
         processName: proc?.name || '',
         hsnCode: it.hsnCode,
         rate: autoRate ?? it.rate,
-        lotPrice: autoLot ?? '',
       };
       updated.amount = calcAmount(updated);
       return updated;
@@ -198,7 +292,7 @@ export default function InwardEntryForm() {
     setItems(items.map(it => {
       if (it.id !== id) return it;
       const updated = { ...it, [field]: value };
-      if (['weight', 'qty', 'rate', 'lotPrice'].includes(field)) {
+      if (['weight', 'qty', 'rate'].includes(field)) {
         updated.amount = calcAmount(updated);
       }
       return updated;
@@ -221,7 +315,7 @@ export default function InwardEntryForm() {
           const proc = processes.find(p => p.id === toInt(it.processTypeId));
           const effective = getEffectiveRate(proc, m);
           if (effective) {
-            const updated = { ...it, rate: effective.rate ?? it.rate, lotPrice: effective.lotPrice ?? '' };
+            const updated = { ...it, rate: effective.rate ?? it.rate };
             updated.amount = calcAmount(updated);
             return updated;
           }
@@ -236,15 +330,15 @@ export default function InwardEntryForm() {
     }
   };
 
-  // Returns { rate, lotPrice } — rate is always the per-unit price, never weight*rate
+  // Returns { rate } — inward entry uses only per-kg process pricing for the
+  // internally-tracked amount; Pc/Lot are received-quantity fields the user
+  // fills in directly, not rates (the per-pc/lot rate lives on the party master
+  // and is applied later at invoicing time).
   const getEffectiveRate = (proc, ratesOverride = null) => {
     if (!proc) return null;
     const partyR = (ratesOverride || partyRates)[proc.id];
-    const lotPrice   = toNum(partyR?.lotPrice   ?? proc.lotPrice,   0);
     const pricePerKg = toNum(partyR?.pricePerKg ?? proc.pricePerKg, 0);
-    // Lot price: flat per-lot charge — rate field shows the lot price, amount = lot price
-    if (lotPrice > 0) return { rate: String(lotPrice.toFixed(2)), lotPrice: String(lotPrice.toFixed(2)) };
-    if (pricePerKg > 0) return { rate: String(pricePerKg.toFixed(2)), lotPrice: '' };
+    if (pricePerKg > 0) return { rate: String(pricePerKg.toFixed(2)) };
     return null;
   };
 
@@ -267,6 +361,13 @@ export default function InwardEntryForm() {
 
   const buildPayload = () => {
     const resolvedToPartyId = parties.find(p => p.partyType === 'BOTH')?.id;
+    // Grand total weight entered by user — stored at challan level, NOT distributed to items
+    const totalInwardWeight = toNum(directGrandTotalWeight, 0) || null;
+
+    // Qty resolution: item-level → material-level → grand total proportional fallback
+    const dgtQ = toNum(directGrandTotalQty, 0);
+    const totalSumQty = materialSummary.reduce((s, m) => s + m.sumQty, 0);
+
     return {
       manualChallanNo: form.challanNo,
       challanDate: form.challanDate,
@@ -276,34 +377,16 @@ export default function InwardEntryForm() {
       invoiceChNo: form.invoiceRef,
       vehicleNo: form.vehicleNo,
       deliveryPerson: form.deliveryPerson,
+      issuedBy: form.issuedBy || null,
       poNo: form.poNo,
       poDate: form.poDate || null,
       processingNotes: form.processingNotes,
+      totalInwardWeight,
       items: items.map((it) => {
         const mat = it.material?.trim() || '(unknown)';
         const matEntry = materialSummary.find(m => m.material === mat);
-        const dgtW = toNum(directGrandTotalWeight, 0);
-        const dgtQ = toNum(directGrandTotalQty, 0);
-        const totalSumQty = materialSummary.reduce((s, m) => s + m.sumQty, 0);
 
-        // Resolve weight: item-level → material-level → grand total proportional fallback
-        const itemWeight = toNum(it.weight, 0);
-        let resolvedWeight = itemWeight;
-        if (resolvedWeight === 0) {
-          const matW = dgtW > 0
-            ? (totalSumQty > 0 ? (dgtW * (matEntry?.sumQty || 0)) / totalSumQty : 0)
-            : toNum(materialWeights[mat], 0);
-          const directQty = toNum(materialQtys[mat], 0);
-          const refQty = directQty > 0 ? directQty : (matEntry?.sumQty || 0);
-          const itemQty = toNum(it.qty, 0);
-          if (matW > 0 && refQty > 0 && itemQty > 0) {
-            resolvedWeight = (matW * itemQty) / refQty;
-          } else if (dgtW > 0 && totalSumQty > 0) {
-            resolvedWeight = (dgtW * toNum(it.qty, 0)) / totalSumQty;
-          }
-        }
-
-        // Resolve qty: item-level → material-level → grand total proportional fallback
+        // Qty resolution (unchanged)
         const itemQty = toNum(it.qty, 0);
         let resolvedQty = itemQty;
         if (resolvedQty === 0) {
@@ -311,9 +394,7 @@ export default function InwardEntryForm() {
             ? (materialSummary.length > 0 ? dgtQ / materialSummary.length : 0)
             : toNum(materialQtys[mat], 0);
           const itemCount = matEntry ? items.filter(i => (i.material?.trim() || '(unknown)') === mat).length : 1;
-          if (directQty > 0 && itemCount > 0) {
-            resolvedQty = directQty / itemCount;
-          }
+          if (directQty > 0 && itemCount > 0) resolvedQty = directQty / itemCount;
         }
 
         return {
@@ -324,11 +405,13 @@ export default function InwardEntryForm() {
           hsnCode: it.hsnCode,
           sacNo: it.sacNo,
           quantity: resolvedQty,
-          weight: resolvedWeight,
+          weight: it.weight ? toNum(it.weight, null) : null, // per-item weight optional, no auto-calc
           rate: toNum(it.rate, 0),
           amount: toNum(it.amount, 0),
+          pcQty: it.pcQty ? toNum(it.pcQty, null) : null,
+          lotQty: it.lotQty ? toNum(it.lotQty, null) : null,
           uom: 'KGS',
-          description: [it.partName, it.material, it.processName].filter(Boolean).join(' - ') || it.material,
+          description: it.partName?.trim() || null,
           processTypeId: it.processTypeId ? toInt(it.processTypeId) : null,
           processName: it.processName || null,
         };
@@ -430,18 +513,21 @@ export default function InwardEntryForm() {
 
   const totalQty    = items.reduce((sum, it) => sum + toNum(it.qty, 0), 0);
   const totalWeight = items.reduce((sum, it) => sum + toNum(it.weight, 0), 0);
+  const totalAmount = items.reduce((sum, it) => sum + toNum(it.amount, 0), 0);
 
   return (
     <div className="page-stack w-full animate-slide-up">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <Link to="/jobwork/register"
-          className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-300 transition-colors shadow-sm">
-          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-        </Link>
-        <div>
-          <h2 className="text-2xl font-extrabold text-slate-800">Inward Entry</h2>
-          <p className="text-xs text-slate-400 font-semibold">Record customer material received and create challan</p>
+      <div className="page-header">
+        <div className="flex items-start gap-3 min-w-0">
+          <Link to="/jobwork/register"
+            className="w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-colors shadow-sm">
+            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+          </Link>
+          <div className="space-y-2 min-w-0">
+            <h1 className="page-title">Inward Entry</h1>
+            <p className="page-subtitle max-w-2xl">Record customer material received, manage challan details, and add items in a modern, consistent form layout.</p>
+          </div>
         </div>
       </div>
 
@@ -449,8 +535,8 @@ export default function InwardEntryForm() {
         {/* Challan Details */}
         <div className="card p-5 space-y-4">
           <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-            <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center">
-              <span className="material-symbols-outlined text-indigo-500 text-[15px]">description</span>
+            <div className="w-7 h-7 rounded-lg bg-sky-50 flex items-center justify-center">
+              <span className="material-symbols-outlined text-sky-500 text-[15px]">description</span>
             </div>
             <p className="section-title">Challan Details</p>
           </div>
@@ -526,6 +612,17 @@ export default function InwardEntryForm() {
                 onChange={(e) => handleFormChange('deliveryPerson', e.target.value)}
                 placeholder="Optional" className="form-input" />
             </div>
+
+            <div>
+              <label className="form-label">Issued By</label>
+              <AutocompleteInput
+                value={form.issuedBy}
+                onChange={v => handleFormChange('issuedBy', v)}
+                suggestions={issuedBySuggestions}
+                placeholder="Person who issued material"
+                className="form-input"
+              />
+            </div>
           </div>
 
           <div>
@@ -570,141 +667,151 @@ export default function InwardEntryForm() {
             <>
 
               <div className="overflow-x-auto rounded-lg border border-slate-200">
-                <table className="w-full text-xs min-w-[820px]">
-                  <thead>
-                    <tr className="bg-slate-100 text-slate-700 border-b border-slate-300 text-left">
-                      <th className="px-2 py-2.5 w-8 text-center font-bold text-[11px] uppercase tracking-wide">#</th>
-                      <th className="px-3 py-2.5 font-bold text-[11px] uppercase tracking-wide min-w-[150px]">Process</th>
-                      <th className="px-3 py-2.5 font-bold text-[11px] uppercase tracking-wide min-w-[160px]">Part Name</th>
-                      <th className="px-3 py-2.5 font-bold text-[11px] uppercase tracking-wide min-w-[110px]">Material</th>
-                      <th className="px-3 py-2.5 font-bold text-[11px] uppercase tracking-wide w-20">HRC</th>
-                      <th className="px-3 py-2.5 font-bold text-[11px] uppercase tracking-wide w-20 text-right">Qty</th>
-                      <th className="px-3 py-2.5 font-bold text-[11px] uppercase tracking-wide w-24 text-right">Wt (kg)</th>
-                      <th className="px-2 py-2.5 w-8"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
+                <div className="min-w-[900px]">
+                  <div className={`grid ${ITEM_FIELD_COLS} gap-2 px-3 py-2.5 bg-slate-100 text-slate-700 border-b border-slate-300 text-[11px] font-bold uppercase tracking-wide`}>
+                    <span>Process</span>
+                    <span>Part Name</span>
+                    <span>Material</span>
+                    <span>HRC</span>
+                    <span className="text-right">Qty</span>
+                    <span className="text-right">Wt (kg)</span>
+                    <span className="text-right">Pc</span>
+                    <span className="text-right">Lot</span>
+                  </div>
+
+                  <div className="space-y-4 p-3 bg-slate-50/60">
                     {items.map((item, idx) => (
-                      <Fragment key={item.id}>
-                        <tr className="hover:bg-slate-50 align-middle border-b border-slate-100">
-                          <td className="px-2 py-2 text-center text-slate-400 font-mono text-[11px]">{idx + 1}</td>
-                          <td className="px-2 py-1.5">
-                            <SearchSelect
-                              value={String(item.processTypeId || '')}
-                              onChange={v => handleProcessChange(item.id, v)}
-                              options={processes.filter(p => p.isActive !== false).map(p => ({ value: p.id, label: p.name }))}
-                              placeholder="— Process —"
-                              useFixed
-                              className="w-full"
-                            />
-                          </td>
-                          <td className="px-2 py-1.5">
-                            <AutocompleteInput
-                              value={item.partName || ''}
-                              onChange={(v) => handleItemChange(item.id, 'partName', v)}
-                              suggestions={partNameSuggestions}
-                              placeholder="Part name…"
-                              className="w-full form-input text-xs py-1.5 font-semibold"
-                            />
-                          </td>
-                          <td className="px-2 py-1.5">
-                            <AutocompleteInput
-                              value={item.material || ''}
-                              onChange={(v) => handleItemChange(item.id, 'material', v)}
-                              suggestions={materialSuggestions}
-                              placeholder="D2, H13…"
-                              className="w-full form-input text-xs py-1.5 font-semibold"
-                            />
-                          </td>
-                          <td className="px-2 py-1.5">
-                            <AutocompleteInput
-                              value={item.hrc || ''}
-                              onChange={(v) => handleItemChange(item.id, 'hrc', v)}
-                              suggestions={hrcSuggestions}
-                              placeholder="54-56"
-                              className="w-full form-input text-xs py-1.5"
-                            />
-                          </td>
-                          <td className="px-2 py-1.5">
-                            <input
-                              type="number"
-                              value={item.qty}
-                              onChange={(e) => handleItemChange(item.id, 'qty', e.target.value)}
-                              placeholder="0"
-                              className="w-full form-input text-xs py-1.5 text-right"
-                              min="0" step="0.01"
-                            />
-                          </td>
-                          <td className="px-2 py-1.5">
-                            <input
-                              type="number"
-                              value={item.weight}
-                              onChange={(e) => handleItemChange(item.id, 'weight', e.target.value)}
-                              placeholder="0.00"
-                              className="w-full form-input text-xs py-1.5 text-right"
-                              min="0" step="0.01"
-                            />
-                          </td>
-                          <td className="px-2 py-1.5 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveItem(item.id)}
-                              className="p-1 rounded text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
-                            >
-                              <span className="material-symbols-outlined text-[16px]">close</span>
-                            </button>
-                          </td>
-                        </tr>
-                        {/* Secondary fields row — always visible */}
-                        <tr className="bg-slate-50 border-b border-slate-200">
-                          <td></td>
-                          <td colSpan={9} className="px-3 py-2">
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                              <div>
-                                <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Drawing No</label>
-                                <input type="text" value={item.drawingNo}
-                                  onChange={(e) => handleItemChange(item.id, 'drawingNo', e.target.value)}
-                                  placeholder="Optional" className="form-input text-xs py-1.5" />
-                              </div>
-                              <div>
-                                <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">WO / Ref No</label>
-                                <input type="text" value={item.woNo || ''}
-                                  onChange={(e) => handleItemChange(item.id, 'woNo', e.target.value)}
-                                  placeholder="Optional" className="form-input text-xs py-1.5" />
-                              </div>
-                              <div>
-                                <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">HSN Code</label>
-                                <input type="text" value={item.hsnCode || ''}
-                                  onChange={(e) => handleItemChange(item.id, 'hsnCode', e.target.value)}
-                                  placeholder="Optional" className="form-input text-xs py-1.5" />
-                              </div>
-                              <div>
-                                <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">SAC No</label>
-                                <input type="text" value={item.sacNo || ''}
-                                  onChange={(e) => handleItemChange(item.id, 'sacNo', e.target.value)}
-                                  placeholder="Optional" className="form-input text-xs py-1.5" />
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      </Fragment>
+                      <div
+                        key={item.id}
+                        className={`rounded-xl border border-slate-200 border-l-4 border-l-sky-500 shadow-sm overflow-hidden ${idx % 2 === 1 ? 'bg-slate-50/70' : 'bg-white'}`}
+                      >
+                        {/* Card header — item number, part name, remove */}
+                        <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-100">
+                          <span className="text-xs font-bold text-slate-600">
+                            Item #{idx + 1}
+                            {item.partName && <span className="text-sky-600 font-semibold"> — {item.partName}</span>}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItem(item.id)}
+                            className="flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-rose-500 hover:bg-rose-50 px-2 py-1 rounded transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">close</span> Remove
+                          </button>
+                        </div>
+
+                        {/* Primary fields */}
+                        <div className={`grid ${ITEM_FIELD_COLS} gap-2 px-3 py-2.5`}>
+                          <SearchSelect
+                            value={String(item.processTypeId || '')}
+                            onChange={v => handleProcessChange(item.id, v)}
+                            options={processes.filter(p => p.isActive !== false).map(p => ({ value: p.id, label: p.name }))}
+                            placeholder="— Process —"
+                            useFixed
+                            dense
+                            className="w-full"
+                          />
+                          <AutocompleteInput
+                            value={item.partName || ''}
+                            onChange={(v) => handleItemChange(item.id, 'partName', v)}
+                            suggestions={partNameSuggestions}
+                            placeholder="Part name…"
+                            className="w-full form-input text-xs py-1.5 font-semibold"
+                          />
+                          <AutocompleteInput
+                            value={item.material || ''}
+                            onChange={(v) => handleItemChange(item.id, 'material', v)}
+                            suggestions={materialSuggestions}
+                            placeholder="D2, H13…"
+                            className="w-full form-input text-xs py-1.5 font-semibold"
+                          />
+                          <AutocompleteInput
+                            value={item.hrc || ''}
+                            onChange={(v) => handleItemChange(item.id, 'hrc', v)}
+                            suggestions={hrcSuggestions}
+                            placeholder="54-56"
+                            className="w-full form-input text-xs py-1.5"
+                          />
+                          <input
+                            type="number"
+                            value={item.qty}
+                            onChange={(e) => handleItemChange(item.id, 'qty', e.target.value.replace(/[^0-9]/g, ''))}
+                            placeholder="0"
+                            className="w-full form-input text-xs py-1.5 text-right"
+                            min="0" step="1"
+                          />
+                          <input
+                            type="number"
+                            value={item.weight}
+                            onChange={(e) => handleItemChange(item.id, 'weight', e.target.value)}
+                            placeholder="0.00"
+                            className="w-full form-input text-xs py-1.5 text-right"
+                            min="0" step="0.01"
+                          />
+                          <input
+                            type="number"
+                            value={item.pcQty}
+                            onChange={(e) => handleItemChange(item.id, 'pcQty', e.target.value.replace(/[^0-9]/g, ''))}
+                            placeholder="0"
+                            className="w-full form-input text-xs py-1.5 text-right"
+                            min="0" step="1"
+                          />
+                          <input
+                            type="number"
+                            value={item.lotQty}
+                            onChange={(e) => handleItemChange(item.id, 'lotQty', e.target.value.replace(/[^0-9]/g, ''))}
+                            placeholder="0"
+                            className="w-full form-input text-xs py-1.5 text-right"
+                            min="0" step="1"
+                          />
+                        </div>
+
+                        {/* Secondary fields — always visible */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-3 pb-3">
+                          <div>
+                            <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Drawing No</label>
+                            <input type="text" value={item.drawingNo}
+                              onChange={(e) => handleItemChange(item.id, 'drawingNo', e.target.value)}
+                              placeholder="Optional" className="form-input text-xs py-1.5" />
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">WO / Ref No</label>
+                            <input type="text" value={item.woNo || ''}
+                              onChange={(e) => handleItemChange(item.id, 'woNo', e.target.value)}
+                              placeholder="Optional" className="form-input text-xs py-1.5" />
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">HSN Code</label>
+                            <input type="text" value={item.hsnCode || ''}
+                              onChange={(e) => handleItemChange(item.id, 'hsnCode', e.target.value)}
+                              placeholder="Optional" className="form-input text-xs py-1.5" />
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">SAC No</label>
+                            <input type="text" value={item.sacNo || ''}
+                              onChange={(e) => handleItemChange(item.id, 'sacNo', e.target.value)}
+                              placeholder="Optional" className="form-input text-xs py-1.5" />
+                          </div>
+                        </div>
+                      </div>
                     ))}
-                  </tbody>
-                  <tfoot className="bg-slate-100 border-t-2 border-slate-300">
-                    <tr>
-                      <td colSpan={5} className="px-3 py-2 text-xs font-bold text-slate-500">
-                        {items.length} item{items.length !== 1 ? 's' : ''}
-                      </td>
-                      <td className="px-3 py-2 text-right text-xs font-black text-indigo-700 tabular-nums">
-                        {totalQty > 0 ? totalQty.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : ''}
-                      </td>
-                      <td className="px-3 py-2 text-right text-xs font-black text-amber-700 tabular-nums">
-                        {totalWeight > 0 ? totalWeight.toLocaleString('en-IN', { maximumFractionDigits: 2 }) + ' kg' : ''}
-                      </td>
-                      <td></td>
-                    </tr>
-                  </tfoot>
-                </table>
+                  </div>
+
+                  {/* Footer summary */}
+                  <div className={`grid ${ITEM_FIELD_COLS} gap-2 px-3 py-2.5 bg-slate-100 border-t-2 border-slate-300`}>
+                    <span className="col-span-4 text-xs font-bold text-slate-500">
+                      {items.length} item{items.length !== 1 ? 's' : ''}
+                    </span>
+                    <span className="text-right text-xs font-black text-sky-700 tabular-nums">
+                      {totalQty > 0 ? totalQty.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : ''}
+                    </span>
+                    <span className="text-right text-xs font-black text-amber-700 tabular-nums">
+                      {totalWeight > 0 ? totalWeight.toLocaleString('en-IN', { maximumFractionDigits: 2 }) + ' kg' : ''}
+                    </span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                </div>
               </div>
 
               {/* Add Item — bottom */}
@@ -717,22 +824,25 @@ export default function InwardEntryForm() {
 
               {/* Material Weight Summary */}
               {materialSummary.length > 0 && (
-                <div className="mt-3 rounded-xl border border-slate-200 overflow-hidden">
+                <div className="mt-3 rounded-xl border border-slate-200 overflow-x-auto">
                   <div className="bg-slate-50 px-4 py-2 border-b border-slate-200">
                     <p className="text-xs font-bold text-slate-600 uppercase tracking-widest">Material Weight Summary</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Enter total weight per material — used when individual item weight is blank</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Auto-calculated from item weight/qty — override only if you need a different total</p>
                   </div>
-                  <table className="w-full text-xs">
+                  {/* Five numeric columns, two of them editable — scroll rather
+                      than squeeze them below a usable width. */}
+                  <table className="w-full text-xs min-w-[600px]">
                     <thead>
                       <tr className="bg-slate-100 text-left">
                         <th className="px-4 py-2 font-bold text-[11px] uppercase tracking-wide text-slate-600">Material</th>
                         <th className="px-4 py-2 font-bold text-[11px] uppercase tracking-wide text-slate-600 text-right">Item Qty (sum)</th>
                         <th className="px-4 py-2 font-bold text-[11px] uppercase tracking-wide text-slate-600 text-right w-36">Total Qty (direct)</th>
+                        <th className="px-4 py-2 font-bold text-[11px] uppercase tracking-wide text-slate-600 text-right">Item Weight (sum)</th>
                         <th className="px-4 py-2 font-bold text-[11px] uppercase tracking-wide text-slate-600 text-right w-40">Total Weight (kg)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {materialSummary.map(({ material, sumQty }) => (
+                      {materialSummary.map(({ material, sumQty, sumWeight }) => (
                         <tr key={material} className="hover:bg-slate-50">
                           <td className="px-4 py-2 font-semibold text-slate-800">{material}</td>
                           <td className="px-4 py-2 text-right text-slate-400 tabular-nums text-[11px]">
@@ -748,12 +858,15 @@ export default function InwardEntryForm() {
                               min="0" step="1"
                             />
                           </td>
+                          <td className="px-4 py-2 text-right text-slate-400 tabular-nums text-[11px]">
+                            {sumWeight > 0 ? sumWeight.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '—'}
+                          </td>
                           <td className="px-4 py-2">
                             <input
                               type="number"
                               value={materialWeights[material] ?? ''}
                               onChange={e => setMaterialWeights(prev => ({ ...prev, [material]: e.target.value }))}
-                              placeholder="0.00"
+                              placeholder={sumWeight > 0 ? sumWeight.toFixed(2) : '0.00'}
                               className="form-input text-xs py-1 text-right w-full"
                               min="0" step="0.01"
                             />
@@ -761,11 +874,15 @@ export default function InwardEntryForm() {
                         </tr>
                       ))}
                     </tbody>
-                    <tfoot className="bg-indigo-50 border-t-2 border-indigo-300">
+                    <tfoot className="bg-sky-50 border-t-2 border-sky-300">
                       <tr>
-                        <td colSpan={2} className="px-4 py-2 text-xs font-bold text-indigo-700">
-                          Grand Total
-                          <span className="ml-1 text-[9px] font-normal text-indigo-400 normal-case">(direct entry overrides material-wise)</span>
+                        <td colSpan={2} className="px-4 py-2 text-xs font-bold text-sky-700">
+                          <div className="flex flex-col gap-0.5">
+                            <span>Grand Total Override</span>
+                            <span className="font-normal text-sky-400 text-[9px] normal-case">
+                              Optional: fills blanks only when material summary is incomplete
+                            </span>
+                          </div>
                         </td>
                         <td className="px-4 py-2">
                           <input
@@ -773,9 +890,12 @@ export default function InwardEntryForm() {
                             value={directGrandTotalQty}
                             onChange={e => setDirectGrandTotalQty(e.target.value)}
                             placeholder={grandTotalQty > 0 ? String(grandTotalQty) : '0'}
-                            className="form-input text-xs py-1 text-right w-full font-black text-indigo-700 border-indigo-300"
+                            className="form-input text-xs py-1 text-right w-full font-black text-sky-700 border-sky-300"
                             min="0" step="1"
                           />
+                        </td>
+                        <td className="px-4 py-2 text-right text-sky-400 tabular-nums text-[11px] font-semibold">
+                          {materialSummary.reduce((s, m) => s + m.sumWeight, 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                         </td>
                         <td className="px-4 py-2">
                           <input

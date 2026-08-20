@@ -65,6 +65,7 @@ exports.createInvoiceSchema = Joi.object({
   dispatchDate: Joi.date().allow('', null),
   fromPartyId: Joi.number().integer().positive().required(),
   toPartyId: Joi.number().integer().positive().required(),
+  invoiceSeriesId: Joi.number().integer().positive().required(),
   challanId: Joi.number().integer().positive().allow(null, ''),
   challanRef: Joi.string().allow('', null),
   poRef: Joi.string().allow('', null),
@@ -78,6 +79,7 @@ exports.createInvoiceSchema = Joi.object({
   extraAmt: Joi.number().allow(null),
   dispatchDocNo: Joi.string().allow('', null),
   eWayBillNo: Joi.string().allow('', null),
+  showPartName: Joi.boolean(),
   items: Joi.array().items(invoiceItemSchema).min(1).required(),
 });
 
@@ -106,6 +108,8 @@ const jobworkItemSchema = Joi.object({
   weight: Joi.number().min(0).allow(null),
   rate: Joi.number().min(0).required(),
   amount: Joi.number().min(0).required(),
+  pcQty: Joi.number().min(0).allow(null, ''),
+  lotQty: Joi.number().min(0).allow(null, ''),
 });
 
 exports.createJobworkSchema = Joi.object({
@@ -128,6 +132,7 @@ exports.createJobworkSchema = Joi.object({
   poDate: Joi.date().allow('', null),
   cillNo: Joi.string().allow('', null),
   processingNotes: Joi.string().allow('', null),
+  totalInwardWeight: Joi.number().min(0).allow(null),
   handlingCharges: Joi.number().min(0).allow(null),
   cgstRate: Joi.number().min(0).allow(null),
   sgstRate: Joi.number().min(0).allow(null),
@@ -148,6 +153,7 @@ exports.updateJobworkSchema = Joi.object({
   dispatchDate: Joi.date().allow('', null),
   dueDate: Joi.date().allow('', null),
   processingNotes: Joi.string().allow('', null),
+  totalInwardWeight: Joi.number().min(0).allow(null),
   handlingCharges: Joi.number().min(0).allow(null),
   cgstRate: Joi.number().min(0).allow(null),
   sgstRate: Joi.number().min(0).allow(null),

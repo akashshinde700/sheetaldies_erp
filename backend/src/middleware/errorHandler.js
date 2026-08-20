@@ -3,6 +3,8 @@
  * Converts all errors to standardized API responses with error codes
  */
 
+const { capture } = require('../utils/errorTracker');
+
 const ERROR_CODES = {
   // Client errors (4xx)
   INVALID_INPUT: { code: 'INVALID_INPUT', status: 400 },
@@ -90,15 +92,30 @@ const errorHandler = (err, req, res, next) => {
     });
   }
 
-  // Log error in development
-  if (process.env.NODE_ENV !== 'production') {
-    console.error('❌ Error:', {
-      code,
-      status,
-      message,
+  // Server-side failures must leave a trace in production too — previously
+  // this only logged in development, so a live 500 vanished silently and the
+  // only signal was a user reporting that something "didn't work".
+  if (status >= 500) {
+    console.error('[error]', {
+      code, status, message,
+      method: req.method,
+      url: req.originalUrl,
       stack: err.stack,
       timestamp: new Date().toISOString(),
     });
+    // Fire and forget: recording an error must never delay or break the
+    // response the user is waiting for.
+    capture(err, {
+      source: 'backend',
+      code,
+      statusCode: status,
+      method: req.method,
+      url: req.originalUrl,
+      userAgent: req.get?.('user-agent'),
+      userId: req.user?.id ?? null,
+    });
+  } else if (process.env.NODE_ENV !== 'production') {
+    console.error('❌ Error:', { code, status, message, stack: err.stack });
   }
 
   // Build response

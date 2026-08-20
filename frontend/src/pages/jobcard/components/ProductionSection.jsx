@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import SearchSelect from '../../../components/SearchSelect';
 
 const HARDNESS_UNITS = ['HRC', 'HRB', 'HRA', 'HV', 'HVN', 'HS'];
 
@@ -23,10 +22,9 @@ const F = ({ label, children, className = '' }) => (
   </div>
 );
 
-export default function ProductionSection({ form, setForm, machines }) {
+export default function ProductionSection({ form, setForm, weightSummary }) {
   const [showUnit, setShowUnit] = useState(() => hasUnitSuffix(form.hrcRange));
 
-  // When form loads from API (edit mode), show unit dropdown if unit already stored
   useEffect(() => {
     if (hasUnitSuffix(form.hrcRange)) setShowUnit(true);
   }, [form.hrcRange]);
@@ -35,11 +33,7 @@ export default function ProductionSection({ form, setForm, machines }) {
 
   const onRangeChange = (e) => {
     const range = e.target.value;
-    if (showUnit) {
-      setForm(p => ({ ...p, hrcRange: range ? `${range} ${parsed.unit}` : '' }));
-    } else {
-      setForm(p => ({ ...p, hrcRange: range }));
-    }
+    setForm(p => ({ ...p, hrcRange: showUnit && parsed.unit ? (range ? `${range} ${parsed.unit}` : '') : range }));
   };
 
   const onUnitChange = (e) => {
@@ -49,15 +43,11 @@ export default function ProductionSection({ form, setForm, machines }) {
 
   const onAddUnit = () => {
     setShowUnit(true);
-    // Append default HRC to whatever is in the range
-    if (parsed.range) {
-      setForm(p => ({ ...p, hrcRange: `${parsed.range} HRC` }));
-    }
+    if (parsed.range) setForm(p => ({ ...p, hrcRange: `${parsed.range} HRC` }));
   };
 
   const onRemoveUnit = () => {
     setShowUnit(false);
-    // Strip unit from stored value
     setForm(p => ({ ...p, hrcRange: parsed.range }));
   };
 
@@ -69,7 +59,38 @@ export default function ProductionSection({ form, setForm, machines }) {
           <input type="number" min="1" value={form.quantity} onChange={e => setForm(p => ({...p, quantity: e.target.value}))} required className="form-input" placeholder="1" />
         </F>
         <F label="Total Weight (kg)">
-          <input type="number" step="0.001" value={form.totalWeight} onChange={e => setForm(p => ({...p, totalWeight: e.target.value}))} className="form-input" placeholder="0.000" />
+          <input
+            type="number" step="0.001"
+            value={form.totalWeight}
+            onChange={e => setForm(p => ({...p, totalWeight: e.target.value}))}
+            className={`form-input ${weightSummary && weightSummary.inwardTotalWeight > 0 && parseFloat(form.totalWeight) > (weightSummary.inwardTotalWeight - (weightSummary.consumedWeight - (weightSummary.thisJobCardWeight || 0))) ? 'border-rose-400 focus:ring-rose-400/30' : ''}`}
+            placeholder="0.000"
+          />
+          {weightSummary && weightSummary.inwardTotalWeight > 0 && (() => {
+            const inward    = Number(weightSummary.inwardTotalWeight);
+            const otherUsed = Math.max(0, Number(weightSummary.consumedWeight || 0) - Number(weightSummary.thisJobCardWeight || 0));
+            const entered   = parseFloat(form.totalWeight) || 0;
+            const remaining = inward - otherUsed - entered;
+            const overLimit = entered > 0 && remaining < -0.0001;
+            return (
+              <div className={`mt-1.5 rounded-lg px-3 py-2 text-[11px] space-y-1 border ${overLimit ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'}`}>
+                <div className="flex justify-between text-slate-500">
+                  <span>Inward Total</span>
+                  <span className="font-semibold text-slate-700 tabular-nums">{inward.toFixed(3)} kg</span>
+                </div>
+                {otherUsed > 0 && (
+                  <div className="flex justify-between text-slate-500">
+                    <span>Used by other JCs</span>
+                    <span className="font-semibold text-amber-700 tabular-nums">− {otherUsed.toFixed(3)} kg</span>
+                  </div>
+                )}
+                <div className={`flex justify-between font-bold border-t pt-1 ${overLimit ? 'text-rose-600 border-rose-200' : remaining < 0.001 && inward > 0 ? 'text-amber-600 border-slate-200' : 'text-emerald-700 border-slate-200'}`}>
+                  <span>{overLimit ? '⚠ Exceeds limit' : 'Remaining after save'}</span>
+                  <span className="tabular-nums">{remaining.toFixed(3)} kg</span>
+                </div>
+              </div>
+            );
+          })()}
         </F>
         <F label="Hardness Range">
           <div className="flex gap-1 items-center">
@@ -82,53 +103,48 @@ export default function ProductionSection({ form, setForm, machines }) {
             />
             {showUnit ? (
               <>
-                <select
-                  value={parsed.unit}
-                  onChange={onUnitChange}
-                  className="form-input"
-                  style={{ width: 72 }}
-                >
+                <select value={parsed.unit} onChange={onUnitChange} className="form-input" style={{ width: 72 }}>
                   {HARDNESS_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
                 </select>
-                <button
-                  type="button"
-                  onClick={onRemoveUnit}
-                  title="Remove unit"
-                  className="text-slate-400 hover:text-red-500 text-lg leading-none px-1"
-                >×</button>
+                <button type="button" onClick={onRemoveUnit} title="Remove unit"
+                  className="text-slate-400 hover:text-red-500 text-lg leading-none px-1">×</button>
               </>
             ) : (
-              <button
-                type="button"
-                onClick={onAddUnit}
-                className="text-xs text-indigo-500 hover:text-indigo-700 whitespace-nowrap px-1 border border-indigo-200 rounded hover:bg-indigo-50"
-              >+ unit</button>
+              <button type="button" onClick={onAddUnit}
+                className="text-xs text-indigo-500 hover:text-indigo-700 whitespace-nowrap px-1 border border-indigo-200 rounded hover:bg-indigo-50">
+                + unit
+              </button>
             )}
           </div>
         </F>
-        <F label="Operation No">
-          <input value={form.operationNo} onChange={e => setForm(p => ({...p, operationNo: e.target.value}))} className="form-input" placeholder="OP-01" />
-        </F>
       </div>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <F label="Drawing No (DRG NO)">
           <input value={form.drawingNo} onChange={e => setForm(p => ({...p, drawingNo: e.target.value}))} className="form-input" placeholder="SDT-2309-V4" />
         </F>
-        <F label="WM No">
-          <input value={form.woNo || ''} onChange={e => setForm(p => ({...p, woNo: e.target.value}))} className="form-input" placeholder="WM-28389" />
+        <F label="Show Value in Print">
+          <label className="flex items-center gap-2 h-[38px] cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={form.showDrawingNoInPrint !== false}
+              onChange={e => setForm(p => ({ ...p, showDrawingNoInPrint: e.target.checked }))}
+              className="w-4 h-4 accent-indigo-500 cursor-pointer"
+            />
+            <span className="text-xs text-slate-500">{form.showDrawingNoInPrint !== false ? 'Visible on print' : 'Hidden on print'}</span>
+          </label>
         </F>
-        <F label="Machine">
-          <SearchSelect
-            value={form.machineId}
-            onChange={v => setForm(p => ({...p, machineId: v}))}
-            options={machines.map(m => ({ value: m.id, label: `${m.code} – ${m.name}` }))}
-            placeholder="— Select Machine —"
-          />
+        <F label="Show Label in Print">
+          <label className="flex items-center gap-2 h-[38px] cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={form.showDrawingNoLabelInPrint !== false}
+              onChange={e => setForm(p => ({ ...p, showDrawingNoLabelInPrint: e.target.checked }))}
+              className="w-4 h-4 accent-indigo-500 cursor-pointer"
+            />
+            <span className="text-xs text-slate-500">{form.showDrawingNoLabelInPrint !== false ? 'Visible on print' : 'Hidden on print'}</span>
+          </label>
         </F>
       </div>
-      <F label="Operator Name">
-        <input value={form.operatorName} onChange={e => setForm(p => ({...p, operatorName: e.target.value}))} className="form-input" placeholder="Operator Name" />
-      </F>
     </div>
   );
 }

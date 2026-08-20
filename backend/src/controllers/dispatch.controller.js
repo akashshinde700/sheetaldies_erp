@@ -87,9 +87,9 @@ exports.list = async (req, res) => {
     const searchText = String(search || '').trim();
     if (searchText) {
       where.OR = [
-        { challanNo: { contains: searchText, mode: 'insensitive' } },
-        { fromParty: { is: { name: { contains: searchText, mode: 'insensitive' } } } },
-        { toParty: { is: { name: { contains: searchText, mode: 'insensitive' } } } },
+        { challanNo: { contains: searchText } },
+        { fromParty: { is: { name: { contains: searchText } } } },
+        { toParty: { is: { name: { contains: searchText } } } },
       ];
     }
 
