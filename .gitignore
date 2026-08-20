@@ -73,3 +73,18 @@ sheetal_dump.sql
 
 # Misc generated dirs
 caveman-main/
+
+# Deployment scripts hold live server credentials — never commit them.
+deploy.py
+check_cert.py
+DEPLOY-NOW.sh
+deploy_all.py
+deploy_frontend.py
+deploy-to-vps.sh
+seed_live.py
+server-setup.sh
+
+# Stray files from Windows shells / Python
+nul_
+**/nul_
+__pycache__/
