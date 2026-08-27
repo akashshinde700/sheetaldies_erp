@@ -169,7 +169,7 @@ input[type=number] { -moz-appearance: textfield; }
   }
 
   .form-input {
-    @apply w-full min-h-[44px] sm:min-h-0 border border-slate-200/90 rounded-lg px-3.5 py-2.5 text-sm
+    @apply w-full min-h-[40px] sm:min-h-[34px] border border-slate-200/90 rounded-lg px-2.5 py-1 text-[13px]
            bg-white text-slate-800 placeholder-slate-400
            hover:border-slate-300/90
            focus:outline-none focus:ring-2 focus:ring-sky-400/30 focus:border-sky-400
@@ -841,7 +841,10 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* Readable-type floor for the modernized UI only (legacy pages + every
    print sheet keep their own sizing). Specificity kept at 0 with :where(). */
-.font-app :where([class*="text-[10px]"], [class*="text-[11px]"]) { font-size: 12px; }
+.font-app :where([class*="text-[10px]"]) { font-size: 11px; }
+/* Compact body text on the modernized pages (only elements with no explicit
+   text-size class inherit this — headings, buttons, badges keep theirs) */
+.font-app { font-size: 13px; }
 
 /* List tables that opt in with `list-cards`: on phones each row becomes a
    stacked card instead of a horizontally-scrolling grid. Desktop unchanged.

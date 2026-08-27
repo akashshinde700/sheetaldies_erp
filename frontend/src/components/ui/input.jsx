@@ -8,7 +8,7 @@ const Input = React.forwardRef(({ className, type = 'text', invalid = false, ...
       ref={ref}
       aria-invalid={invalid || undefined}
       className={cn(
-        'flex w-full min-h-[44px] sm:min-h-0 sm:h-9 rounded-lg border border-slate-200/90 bg-white px-3 py-1.5 text-sm text-slate-800',
+        'flex w-full min-h-[40px] sm:min-h-0 sm:h-8 rounded-lg border border-slate-200/90 bg-white px-2.5 py-1 text-[13px] text-slate-800',
         'placeholder:text-slate-400 hover:border-slate-300/90',
         'focus:outline-none focus:ring-2 focus:ring-sky-400/30 focus:border-sky-400',
         'transition-all duration-200 ease-out',
