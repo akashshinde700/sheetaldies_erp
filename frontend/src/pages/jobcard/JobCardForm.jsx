@@ -322,9 +322,13 @@ export default function JobCardForm() {
     const errs = validate();
     setFormErrors(errs);
     if (Object.keys(errs).length) {
-      if (isEdit) wiz.goto(0);
-      setTimeout(() => focusField(Object.keys(errs)[0]), 0);
-      toast.error('Please fix the highlighted fields on the Details step.');
+      const firstKey = Object.keys(errs)[0];
+      if (isEdit) {
+        const stepByKey = { customerId: 0, customerNameSnapshot: 0, quantity: 2 };
+        wiz.goto(stepByKey[firstKey] ?? 0);
+      }
+      setTimeout(() => focusField(firstKey), 0);
+      toast.error('Please fix the highlighted fields before saving.');
       return;
     }
     setLoading(true);
@@ -458,7 +462,9 @@ export default function JobCardForm() {
     : 0;
 
   const JC_STEPS = [
-    { key: 'details', label: 'Details' },
+    { key: 'customer', label: 'Customer' },
+    { key: 'jobinfo', label: 'Job info' },
+    { key: 'production', label: 'Production' },
     { key: 'inspection', label: 'Inspection' },
     { key: 'items', label: linkedItemCount ? `Items (${linkedItemCount})` : 'Items' },
     { key: 'docs', label: 'Document control' },
@@ -466,7 +472,7 @@ export default function JobCardForm() {
   const wiz = useStepper(JC_STEPS.length);
   const LAST = JC_STEPS.length - 1;
 
-  const detailSections = (
+  const stepCustomer = (
     <>
       <FormErrorSummary
         errors={Object.fromEntries(Object.entries(formErrors).map(([k, v]) => [k, { message: v }]))}
@@ -479,8 +485,18 @@ export default function JobCardForm() {
         applyCustomerFromParty={applyCustomerFromParty}
         errors={formErrors}
       />
+    </>
+  );
+
+  const stepJobInfo = (
+    <>
       <JobCardHeaderInfoSection form={form} setForm={setForm} cardData={cardData} />
       <IssueInstructionsSection form={form} setForm={setForm} />
+    </>
+  );
+
+  const stepProduction = (
+    <>
       <ProductionSection form={form} setForm={setForm} weightSummary={cardData?.weightSummary} errors={formErrors} />
       <StatusRemarksSection form={form} setForm={setForm} />
       <PhotoSection handleImageChange={handleImageChange} existingImages={cardData} savingSlot={savingSlot} />
@@ -683,11 +699,13 @@ export default function JobCardForm() {
           </Card>
 
           <form id="job-card-form" onSubmit={handleSubmit} className="space-y-3">
-            <div hidden={wiz.current !== 0} className="space-y-3">{detailSections}</div>
-            <div hidden={wiz.current !== 3} className="space-y-3">{docControlSection}</div>
+            <div hidden={wiz.current !== 0} className="space-y-3">{stepCustomer}</div>
+            <div hidden={wiz.current !== 1} className="space-y-3">{stepJobInfo}</div>
+            <div hidden={wiz.current !== 2} className="space-y-3">{stepProduction}</div>
+            <div hidden={wiz.current !== 5} className="space-y-3">{docControlSection}</div>
           </form>
 
-          <div hidden={wiz.current !== 1} className="space-y-3">
+          <div hidden={wiz.current !== 3} className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
               <p className="text-xs text-slate-600">
                 Quick categorization &amp; required-hardness edits — use <strong>Save Inspection</strong> here, or they are also saved with <strong>Save job card</strong>.
@@ -701,9 +719,9 @@ export default function JobCardForm() {
             )}
           </div>
 
-          <div hidden={wiz.current !== 2} className="space-y-3">
+          <div hidden={wiz.current !== 4} className="space-y-3">
             <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-              Each item row saves with its own <strong>Save</strong>. Total weight can also be set on <strong>Details</strong> — both write the same field.
+              Each item row saves with its own <strong>Save</strong>. Total weight can also be set on <strong>Production</strong> — both write the same field.
             </p>
             <LinkedDataSection
               ref={linkedDataRef}
@@ -736,7 +754,9 @@ export default function JobCardForm() {
       ) : (
         <>
           <form id="job-card-form" onSubmit={handleSubmit} className="space-y-3">
-            {detailSections}
+            {stepCustomer}
+            {stepJobInfo}
+            {stepProduction}
             {docControlSection}
           </form>
           <div className="sticky bottom-0 z-30 mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white/95 px-4 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] shadow-card backdrop-blur sm:px-5">
