@@ -8,7 +8,6 @@ export default function InspectorDetailsSection({ form, set }) {
     <Card>
       <CardHeader>
         <CardTitle>Inspector Details</CardTitle>
-        <CardDescription>Who inspected, packed and signed off.</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">

@@ -20,7 +20,6 @@ export default function InvoiceTaxTotalsSection({
     <Card>
       <CardHeader>
         <CardTitle>Tax &amp; Totals</CardTitle>
-        <CardDescription>GST rates, freight, TCS and extra charges applied on this invoice.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-4 gap-y-3">

@@ -190,7 +190,7 @@ export default function DispatchChallanForm() {
   const totalWeight = items.reduce((sum, it) => sum + toNum(it.weightKg, 0), 0);
 
   return (
-    <div className="font-app w-full space-y-4 pb-4">
+    <div className="font-app w-full space-y-3 pb-4">
       <PageHeader
         title={isEdit ? 'Edit dispatch challan' : 'New dispatch challan'}
         backTo="/dispatch"
@@ -201,9 +201,8 @@ export default function DispatchChallanForm() {
         <Card>
           <CardHeader>
             <CardTitle>Challan Details</CardTitle>
-            <CardDescription>Dispatch date, parties, transport and status.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3">
             {/* ── Basics & parties ── */}
             <div className="space-y-3">
               <GroupTitle>Challan &amp; Parties</GroupTitle>
@@ -299,13 +298,12 @@ export default function DispatchChallanForm() {
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <div className="space-y-1">
               <CardTitle>Items</CardTitle>
-              <CardDescription>{items.length} item{items.length !== 1 ? 's' : ''} on this dispatch</CardDescription>
             </div>
             <Button type="button" variant="secondary" size="sm" onClick={addItem}>
               <Plus /> Add Item
             </Button>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3">
             {items.map((item, idx) => (
               <div key={idx} className="rounded-xl border border-slate-200/90 bg-white overflow-hidden">
                 {/* Row header */}

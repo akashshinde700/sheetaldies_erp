@@ -59,7 +59,7 @@ export default function JobCardDetail() {
 
   if (loading) {
     return (
-      <div className="font-app w-full space-y-4">
+      <div className="font-app w-full space-y-3">
         <Skeleton className="h-9 w-64" />
         <Skeleton className="h-40 w-full rounded-xl" />
         <Skeleton className="h-40 w-full rounded-xl" />
@@ -117,7 +117,7 @@ export default function JobCardDetail() {
     .map((u) => (u.startsWith('http') ? u : `${API_BASE}${u}`));
 
   return (
-    <div className="font-app w-full space-y-4 pb-6">
+    <div className="font-app w-full space-y-3 pb-6">
       <PageHeader
         title={`Job Card ${jc.jobCardNo || ''}`.trim()}
         backTo="/jobcards"

@@ -32,9 +32,8 @@ export default function ProcessHardnessSection({ form, set, processes, inRange }
     <Card>
       <CardHeader>
         <CardTitle>Process &amp; Inspection</CardTitle>
-        <CardDescription>Processes performed, checks and hardness results.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
         <FormField label="Primary Process">
           <SearchSelect
             value={String(form.processTypeId || '')}

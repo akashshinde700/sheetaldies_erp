@@ -15,7 +15,6 @@ export default function CertHardnessSection({ form, set, jcData }) {
       <CardHeader className="flex-row items-start justify-between space-y-0 gap-3">
         <div className="space-y-1 min-w-0">
           <CardTitle>Hardness Specification</CardTitle>
-          <CardDescription>Required range and achieved readings.</CardDescription>
         </div>
         {locked && (
           <Badge className="bg-indigo-100 text-indigo-700 text-[10px] shrink-0">from Job Card (editable)</Badge>

@@ -355,7 +355,6 @@ export default function JobworkForm() {
         <Card>
           <CardHeader>
             <CardTitle>Processing Notes</CardTitle>
-            <CardDescription>Special instructions for the heat treatment process.</CardDescription>
           </CardHeader>
           <CardContent>
             <FormField htmlFor="processingNotes" hint="e.g. pre-heat temperature, required hardness, vacuum level">

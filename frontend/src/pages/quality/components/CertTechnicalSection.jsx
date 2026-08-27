@@ -33,7 +33,6 @@ export default function CertTechnicalSection({ form, set, updateTemperatureCycle
     <Card>
       <CardHeader>
         <CardTitle>Technical Details</CardTitle>
-        <CardDescription>Material, heat treatment specification, and special instructions.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         {/* ── Material & treatment ── */}
@@ -95,7 +94,7 @@ export default function CertTechnicalSection({ form, set, updateTemperatureCycle
             </FormField>
             <FormField label="Special Requirements">
               <Textarea value={form.specialRequirements} disabled={locked} onChange={e => set('specialRequirements', e.target.value)}
-                className={`text-xs ${locked ? JC : ''}`} rows="3" style={{ minHeight: '64px' }} />
+                className={`text-xs ${locked ? JC : ''}`} rows="2" style={{ minHeight: '64px' }} />
             </FormField>
           </div>
         </div>
@@ -106,7 +105,7 @@ export default function CertTechnicalSection({ form, set, updateTemperatureCycle
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
             <FormField label="Precautions During Production & Final Inspection">
               <Textarea value={form.precautions} disabled={locked} onChange={e => set('precautions', e.target.value)}
-                className={`text-xs ${locked ? JC : ''}`} rows="3" style={{ minHeight: '64px' }} />
+                className={`text-xs ${locked ? JC : ''}`} rows="2" style={{ minHeight: '64px' }} />
             </FormField>
             <FormField label="Special Instruction">
               <Textarea value={form.specialInstruction} onChange={e => set('specialInstruction', e.target.value)}

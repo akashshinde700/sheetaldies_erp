@@ -6,7 +6,6 @@ export default function InspectionPhotosSection({ images, handleImageChange, Ima
     <Card>
       <CardHeader>
         <CardTitle>Part Photos</CardTitle>
-        <CardDescription>Up to 5 images · JPG/PNG/WebP · Max 5MB each</CardDescription>
       </CardHeader>
       <CardContent>
         {/* Five fixed columns crush the slots on a phone — collapse to 2/3. */}

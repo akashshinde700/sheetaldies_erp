@@ -131,7 +131,6 @@ const InspectionEditSection = forwardRef(function InspectionEditSection({ id, in
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <div className="space-y-1">
           <CardTitle>Incoming Inspection</CardTitle>
-          <CardDescription>Categorization, process, visual / MPI checks and required hardness.</CardDescription>
         </div>
         <Button type="button" variant="secondary" size="sm" onClick={save} disabled={saving} loading={saving}>
           {saving ? 'Saving…' : 'Save Inspection'}

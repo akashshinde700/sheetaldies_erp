@@ -56,7 +56,6 @@ export default function CertPhotosSection({ handleImageChange, existingImages = 
     <Card>
       <CardHeader>
         <CardTitle>Part Photos</CardTitle>
-        <CardDescription>Upload up to 5 images for this certificate.</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">

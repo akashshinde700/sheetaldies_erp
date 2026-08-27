@@ -20,9 +20,8 @@ export default function ChallanSelectionSection({
     <Card>
       <CardHeader>
         <CardTitle>Link to Challan</CardTitle>
-        <CardDescription>Auto-fills items and checks for duplicate billing.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
         <FormField
           label="Select Challan"
           hint={loadingChallan ? 'Loading challan details...' : undefined}

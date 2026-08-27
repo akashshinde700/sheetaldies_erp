@@ -15,7 +15,7 @@ const Textarea = React.forwardRef(({ className, invalid = false, ...props }, ref
         invalid && 'border-rose-400 bg-rose-50/50 focus:ring-rose-400/30 focus:border-rose-400',
         className
       )}
-      style={{ minHeight: '80px', ...props.style }}
+      style={{ minHeight: '52px', ...props.style }}
       {...props}
     />
   );

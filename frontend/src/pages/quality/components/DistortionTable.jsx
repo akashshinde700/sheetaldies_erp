@@ -7,7 +7,6 @@ export default function DistortionTable({ form, setForm, set }) {
     <Card>
       <CardHeader>
         <CardTitle>Distortion Measurements (8 Points)</CardTitle>
-        <CardDescription>Readings before and after heat treatment; the difference is computed automatically.</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">

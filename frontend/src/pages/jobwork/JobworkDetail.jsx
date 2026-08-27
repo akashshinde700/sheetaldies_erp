@@ -290,7 +290,6 @@ export default function JobworkDetail() {
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <div className="space-y-1">
             <CardTitle>Items Received</CardTitle>
-            <CardDescription>{ch.items?.length || 0} item{(ch.items?.length || 0) !== 1 ? 's' : ''} on this challan</CardDescription>
           </div>
           <Button variant="outline" size="sm" asChild>
             <Link to={`/jobwork/${id}/edit`}>

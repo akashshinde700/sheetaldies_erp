@@ -30,7 +30,6 @@ export default function CertHeaderSection({ form, set, parties, jobCards, jcData
       <CardHeader className="flex-row items-start justify-between space-y-0 gap-3">
         <div className="space-y-1 min-w-0">
           <CardTitle>Certificate Details</CardTitle>
-          <CardDescription>Link a Job Card, customer, and certificate metadata in one section.</CardDescription>
         </div>
         {locked && (
           <Badge className="bg-indigo-100 text-indigo-700 uppercase tracking-wider text-[10px] shrink-0">

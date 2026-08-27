@@ -552,7 +552,7 @@ export default function InwardEntryForm() {
   const totalAmount = items.reduce((sum, it) => sum + toNum(it.amount, 0), 0);
 
   return (
-    <div className="font-app w-full space-y-4 pb-4 animate-slide-up">
+    <div className="font-app w-full space-y-3 pb-4 animate-slide-up">
       <PageHeader
         title="Inward Entry"
         backTo="/jobwork/register"
@@ -564,9 +564,8 @@ export default function InwardEntryForm() {
         <Card>
           <CardHeader>
             <CardTitle>Challan Details</CardTitle>
-            <CardDescription>Customer, challan references and transport details.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3">
             {/* ── Challan basics ── */}
             <div className="space-y-3">
               <GroupTitle>Challan</GroupTitle>
@@ -696,13 +695,12 @@ export default function InwardEntryForm() {
                   </Badge>
                 )}
               </div>
-              <CardDescription>Parts and material received with this challan.</CardDescription>
             </div>
             <Button type="button" variant="secondary" size="sm" onClick={handleAddItem}>
               <Plus /> Add Item
             </Button>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3">
             {items.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-8">
                 <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
@@ -1047,7 +1045,7 @@ export default function InwardEntryForm() {
                   id="pm-address"
                   value={partyModal.address}
                   onChange={(e) => setPartyModal(p => ({ ...p, address: e.target.value }))}
-                  rows={3}
+                  rows={2}
                   placeholder="Full address"
                 />
               </FormField>

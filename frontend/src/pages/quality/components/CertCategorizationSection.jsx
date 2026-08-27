@@ -24,7 +24,6 @@ export default function CertCategorizationSection({ form, set, jcData }) {
     <Card>
       <CardHeader>
         <CardTitle>Categorization &amp; Process</CardTitle>
-        <CardDescription>Choose the right certificate classification and inspection status for this item.</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-5">

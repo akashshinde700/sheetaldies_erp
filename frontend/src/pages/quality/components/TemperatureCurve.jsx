@@ -18,7 +18,6 @@ export default function TemperatureCurve({ tempRows, setTempRows, form, masterGr
       <CardHeader className="flex-row items-start justify-between space-y-0 gap-3 flex-wrap">
         <div className="space-y-1 min-w-0">
           <CardTitle>Temperature Cycle Data</CardTitle>
-          <CardDescription>Edit values to update the heat treatment curve.</CardDescription>
         </div>
         <div className="flex flex-col gap-1 items-end">
           <div className="flex flex-wrap gap-1.5 justify-end">
@@ -39,7 +38,7 @@ export default function TemperatureCurve({ tempRows, setTempRows, form, masterGr
           <p className="text-[10px] text-slate-500 italic">Current cycle: {form.operatorMode || 'Auto-loaded'}</p>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
         {noDefaultTemplate && (
           <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 font-medium">
             No default Temperature Cycle Graph configured. Pick one from <strong>Select Graph</strong> above, or manage graphs under Admin → Temp Cycle Graphs.

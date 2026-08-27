@@ -28,9 +28,8 @@ export default function ChallanDetailsSection({
     <Card>
       <CardHeader>
         <CardTitle>Challan Details</CardTitle>
-        <CardDescription>Basic challan info, parties and transport details.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
         {/* ── Challan basics ── */}
         <div className="space-y-3">
           <GroupTitle>Challan</GroupTitle>

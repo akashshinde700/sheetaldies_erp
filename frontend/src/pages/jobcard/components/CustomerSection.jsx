@@ -10,7 +10,6 @@ export default function CustomerSection({ form, setForm, customers, applyCustome
     <Card>
       <CardHeader>
         <CardTitle>Company &amp; Customer Details</CardTitle>
-        <CardDescription>Pick a party from the master, or type the customer details directly.</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
@@ -58,7 +57,7 @@ export default function CustomerSection({ form, setForm, customers, applyCustome
               id="customerAddressSnapshot"
               value={form.customerAddressSnapshot}
               onChange={e => setForm(p => ({ ...p, customerAddressSnapshot: e.target.value }))}
-              rows={3}
+              rows={2}
               placeholder="Billing / delivery address"
             />
           </FormField>

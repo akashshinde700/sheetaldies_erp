@@ -27,7 +27,6 @@ export default function ProcessLogSection({ heatRows, setHeatRows, processes, em
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <div className="space-y-1">
           <CardTitle>Heat Treatment Process Log</CardTitle>
-          <CardDescription>{heatRows.length} cycle{heatRows.length !== 1 ? 's' : ''} recorded for this job card</CardDescription>
         </div>
         <Button
           type="button"

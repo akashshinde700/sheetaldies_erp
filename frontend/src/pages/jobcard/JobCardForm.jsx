@@ -513,7 +513,7 @@ export default function JobCardForm() {
   );
 
   return (
-    <div className="font-app w-full space-y-4 pb-4 animate-slide-up">
+    <div className="font-app w-full space-y-3 pb-4 animate-slide-up">
       <PageHeader
         title={isEdit ? `Edit Job Card ${cardData?.jobCardNo ?? ''}`.trim() : 'Create Job Card'}
         backTo={isEdit && id ? `/jobcards/${id}` : '/jobcards'}
@@ -561,7 +561,6 @@ export default function JobCardForm() {
         <Card className="mb-5">
           <CardHeader>
             <CardTitle>Create from Inward</CardTitle>
-            <CardDescription>Poore inward ka job card banao, ya neeche se items chuno.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-[1.5fr_auto] gap-x-4 gap-y-3 items-end">

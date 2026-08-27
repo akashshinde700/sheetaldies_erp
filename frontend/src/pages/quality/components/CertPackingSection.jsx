@@ -22,7 +22,6 @@ export default function CertPackingSection({ form, set, jcData }) {
     <Card>
       <CardHeader>
         <CardTitle>Packing &amp; Approval</CardTitle>
-        <CardDescription>Packing details, sign-offs, and dispatch information.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         {/* ── Cert-specific editable fields ── */}

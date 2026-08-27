@@ -63,9 +63,8 @@ export default function ProductionSection({ form, setForm, weightSummary, errors
     <Card>
       <CardHeader>
         <CardTitle>Production Details</CardTitle>
-        <CardDescription>Quantity, weight, hardness and drawing reference.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
         {/* ── Quantity, weight & hardness ── */}
         <div className="space-y-3">
           <GroupTitle>Quantity &amp; Hardness</GroupTitle>

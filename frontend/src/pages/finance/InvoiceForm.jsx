@@ -589,7 +589,7 @@ export default function InvoiceForm() {
   const fromParty = parties.find(p => String(p.id) === String(form.fromPartyId));
 
   return (
-    <div className="font-app w-full space-y-4 pb-4 animate-slide-up">
+    <div className="font-app w-full space-y-3 pb-4 animate-slide-up">
       <PageHeader
         title={isEdit ? 'Edit Tax Invoice' : 'Create Tax Invoice'}
         backTo="/invoices"
@@ -619,7 +619,6 @@ export default function InvoiceForm() {
           <Card>
             <CardHeader>
               <CardTitle>Lookup by Job Card No</CardTitle>
-              <CardDescription>Find the linked challan by typing a job card number, or pick a challan directly below.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -702,7 +701,6 @@ export default function InvoiceForm() {
         {/* ── Step 5 · Review ── */}
         <div hidden={wiz.current !== 4} className="space-y-4">
           <Card>
-            <CardHeader><CardTitle>Review</CardTitle><CardDescription>Confirm the invoice, then {isEdit ? 'save' : 'create'} it.</CardDescription></CardHeader>
             <CardContent>
               <dl className="grid grid-cols-1 gap-x-6 gap-y-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
                 <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">From</dt><dd className="mt-0.5 text-slate-800">{fromParty?.name || '—'}</dd></div>

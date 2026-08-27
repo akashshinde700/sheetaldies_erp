@@ -13,9 +13,8 @@ export default function InvoiceDetailsSection({ form, setForm, parties, invoiceS
     <Card>
       <CardHeader>
         <CardTitle>Invoice Details</CardTitle>
-        <CardDescription>Series, dates, parties and document references.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
         {/* ── Invoice basics ── */}
         <div className="space-y-3">
           <GroupTitle>Invoice</GroupTitle>

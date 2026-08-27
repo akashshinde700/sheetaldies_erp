@@ -10,7 +10,6 @@ export default function CertItemsTable({ certItems, setCertItems }) {
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <div className="space-y-1">
           <CardTitle>Items / Parts</CardTitle>
-          <CardDescription>{certItems.length} item{certItems.length !== 1 ? 's' : ''} on this certificate</CardDescription>
         </div>
         <Button
           type="button"

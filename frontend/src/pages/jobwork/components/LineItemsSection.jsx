@@ -23,7 +23,6 @@ export default function LineItemsSection({ lineItems, setLineItems, items, updat
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <div className="space-y-1">
           <CardTitle>Line Items</CardTitle>
-          <CardDescription>{lineItems.length} item{lineItems.length !== 1 ? 's' : ''} on this challan</CardDescription>
         </div>
         <Button
           type="button"
@@ -34,7 +33,7 @@ export default function LineItemsSection({ lineItems, setLineItems, items, updat
           <Plus /> Add Item
         </Button>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
         {lineItems.map((row, i) => (
           <div key={i} className="rounded-xl border border-slate-200/90 bg-white overflow-hidden">
             {/* Row header */}

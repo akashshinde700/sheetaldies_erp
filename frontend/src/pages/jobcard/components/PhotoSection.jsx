@@ -83,7 +83,6 @@ export default function PhotoSection({ handleImageChange, existingImages, saving
     <Card>
       <CardHeader>
         <CardTitle>Part Photos</CardTitle>
-        <CardDescription>Click any slot to upload or change — saves immediately.</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">

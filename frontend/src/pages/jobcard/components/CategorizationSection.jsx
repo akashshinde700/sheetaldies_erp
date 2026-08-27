@@ -15,7 +15,6 @@ export default function CategorizationSection({ form, set }) {
     <Card>
       <CardHeader>
         <CardTitle>Categorization</CardTitle>
-        <CardDescription>Incoming part condition flags.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="space-y-1.5">

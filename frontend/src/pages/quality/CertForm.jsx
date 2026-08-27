@@ -632,7 +632,7 @@ export default function CertForm() {
   const goNext = () => { if (wiz.current < LAST_STEP) wiz.next(); };
 
   return (
-    <div className="font-app w-full space-y-4 pb-4 animate-slide-up">
+    <div className="font-app w-full space-y-3 pb-4 animate-slide-up">
       <PageHeader
         title={isEdit ? 'Edit Test Certificate' : 'Create Test Certificate'}
         backTo="/quality/certificates"
@@ -716,7 +716,6 @@ export default function CertForm() {
         {/* ── Step 5 · Review ── */}
         <div hidden={wiz.current !== 4} className="space-y-4">
           <Card>
-            <CardHeader><CardTitle>Review</CardTitle><CardDescription>Check everything, then {isEdit ? 'save' : 'create'} the certificate.</CardDescription></CardHeader>
             <CardContent>
               <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3 text-sm">
                 <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Certificate no</dt><dd className="mt-0.5 font-app-mono text-slate-800">{form.issueNo || '—'}</dd></div>
@@ -740,7 +739,6 @@ export default function CertForm() {
             <CardHeader className="flex-row items-center justify-between space-y-0 gap-3">
               <div className="space-y-1 min-w-0">
                 <CardTitle>Select Items to Certify</CardTitle>
-                <CardDescription>Only pending items shown. Already certified items are locked.</CardDescription>
               </div>
               {pendingCertItems.length > 0 && (
                 <Button type="button" variant="link" size="sm" className="shrink-0"

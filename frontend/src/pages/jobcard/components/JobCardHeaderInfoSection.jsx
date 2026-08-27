@@ -23,9 +23,8 @@ export default function JobCardHeaderInfoSection({ form, setForm, cardData }) {
     <Card>
       <CardHeader>
         <CardTitle>Job Card Info</CardTitle>
-        <CardDescription>Document numbers, heat treatment specification and dispatch mode.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
         {/* ── References ── */}
         <div className="space-y-3">
           <GroupTitle>References</GroupTitle>

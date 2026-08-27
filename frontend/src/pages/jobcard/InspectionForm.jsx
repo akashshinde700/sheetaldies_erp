@@ -216,7 +216,7 @@ export default function InspectionForm() {
     Number(form.achievedHardness) <= Number(form.requiredHardnessMax);
 
   return (
-    <div className="font-app w-full space-y-4 pb-4 animate-slide-up">
+    <div className="font-app w-full space-y-3 pb-4 animate-slide-up">
       <PageHeader
         title="Final Inspection"
         backTo={`/jobcards/${id}`}
