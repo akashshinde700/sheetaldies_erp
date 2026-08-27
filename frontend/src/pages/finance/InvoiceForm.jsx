@@ -589,7 +589,7 @@ export default function InvoiceForm() {
   const fromParty = parties.find(p => String(p.id) === String(form.fromPartyId));
 
   return (
-    <div className="font-app w-full space-y-3 pb-4 animate-slide-up">
+    <div className="font-app flex flex-col h-full min-h-0">
       <PageHeader
         title={isEdit ? 'Edit Tax Invoice' : 'Create Tax Invoice'}
         backTo="/invoices"
@@ -606,14 +606,15 @@ export default function InvoiceForm() {
         }
       />
 
-      <Card className="p-3 sm:p-4">
+      <div className="mt-2 shrink-0 rounded-xl border border-slate-200 bg-white p-2 shadow-card">
         <Stepper steps={INV_STEPS} current={wiz.current} completed={wiz.completed} onStepClick={(i) => wiz.goto(i)} />
-      </Card>
+      </div>
 
       <form
         onSubmit={(e) => { if (wiz.current !== LAST_STEP) { e.preventDefault(); return; } handleSubmit(e); }}
-        className="space-y-4"
+        className="flex-1 min-h-0 flex flex-col"
       >
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-3 pr-0.5 space-y-4">
         {/* ── Step 1 · Source ── */}
         <div hidden={wiz.current !== 0} className="space-y-4">
           <Card>
@@ -735,9 +736,10 @@ export default function InvoiceForm() {
           <option value="Stress Relieving" />
           <option value="Annealing" />
         </datalist>
+        </div>
 
         {/* ── Wizard navigation ── */}
-        <div className="sticky bottom-0 z-30 mt-6 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-card backdrop-blur sm:px-5">
+        <div className="shrink-0 mt-2 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-card sm:px-5">
           <Button type="button" variant="ghost" disabled={wiz.isFirst} onClick={wiz.back}>
             <ChevronLeft className="h-4 w-4" /> Back
           </Button>

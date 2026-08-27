@@ -280,6 +280,7 @@ input[type=number] { -moz-appearance: textfield; }
     @apply border-slate-300/70 shadow-card-hover;
   }
 
+
   /* Legacy tables (without .th/.td utility classes) get unified styling */
   .card table:not(.unstyled-table) {
     @apply w-full border-separate border-spacing-0;
@@ -871,3 +872,40 @@ input[type=number] { -moz-appearance: textfield; }
 @keyframes sheetInLeft  { from { transform: translateX(-100%); } to { transform: translateX(0); } }
 @keyframes sheetInUp    { from { transform: translateY(100%); } to { transform: translateY(0); } }
 
+
+/* ------------------------------------------------------------------ *
+ * Full-height list pages — the page fills the viewport, header +
+ * filters stay put, and only the table body scrolls (its <thead> is
+ * already sticky, the pager sits pinned below it). Screen only; falls
+ * back to normal page scroll where :has() is unsupported.
+ * ------------------------------------------------------------------ */
+@media screen {
+  @supports selector(:has(*)) {
+    .page-stack:has(> .card > .table-responsive),
+    .page-stack-wide:has(> .card > .table-responsive),
+    .page-fill:has(> .card > .table-responsive) {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      height: 100%;
+    }
+
+    .page-stack:has(> .card > .table-responsive) > .card:has(> .table-responsive),
+    .page-stack-wide:has(> .card > .table-responsive) > .card:has(> .table-responsive),
+    .page-fill:has(> .card > .table-responsive) > .card:has(> .table-responsive) {
+      flex: 1 1 0%;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 0;
+    }
+
+    .page-stack:has(> .card > .table-responsive) > .card > .table-responsive,
+    .page-stack-wide:has(> .card > .table-responsive) > .card > .table-responsive,
+    .page-fill:has(> .card > .table-responsive) > .card > .table-responsive {
+      flex: 1 1 0%;
+      min-height: 0;
+      overflow-y: auto;
+    }
+  }
+}

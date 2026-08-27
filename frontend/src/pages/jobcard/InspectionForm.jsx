@@ -216,7 +216,7 @@ export default function InspectionForm() {
     Number(form.achievedHardness) <= Number(form.requiredHardnessMax);
 
   return (
-    <div className="font-app w-full space-y-3 pb-4 animate-slide-up">
+    <div className="font-app flex flex-col h-full min-h-0">
       <PageHeader
         title="Final Inspection"
         backTo={`/jobcards/${id}`}
@@ -233,7 +233,8 @@ export default function InspectionForm() {
         }
       />
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-3 pr-0.5 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <CategorizationSection form={form} set={set} />
           <ProcessHardnessSection form={form} set={set} processes={processes} inRange={inRange} />
@@ -248,9 +249,10 @@ export default function InspectionForm() {
         <DistortionSection form={form} set={set} />
         <ProcessLogSection heatRows={heatRows} setHeatRows={setHeatRows} processes={processes} emptyHeatRow={emptyHeatRow} />
         <InspectionPhotosSection images={images} handleImageChange={handleImageChange} ImageUploadSlot={ImageUploadSlot} />
+        </div>
 
         {/* Actions */}
-        <div className="flex flex-wrap gap-3 pb-4">
+        <div className="shrink-0 mt-2 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-card sm:px-5">
           <Button type="submit" loading={loading} disabled={loading}>
             {!loading && <Save />}
             {loading ? 'Saving...' : 'Save Inspection'}

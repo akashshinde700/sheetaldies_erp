@@ -552,14 +552,15 @@ export default function InwardEntryForm() {
   const totalAmount = items.reduce((sum, it) => sum + toNum(it.amount, 0), 0);
 
   return (
-    <div className="font-app w-full space-y-3 pb-4 animate-slide-up">
+    <div className="font-app flex flex-col h-full min-h-0">
       <PageHeader
         title="Inward Entry"
         backTo="/jobwork/register"
         breadcrumbs={[{ label: 'Inwards', to: '/jobwork/register' }, { label: 'New' }]}
       />
 
-      <form onSubmit={handleSubmit} className="space-y-5" id="inward-form">
+      <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col" id="inward-form">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-3 pr-0.5 space-y-5">
         {/* Challan Details */}
         <Card>
           <CardHeader>
@@ -975,9 +976,10 @@ export default function InwardEntryForm() {
             )}
           </CardContent>
         </Card>
+        </div>
 
         {/* Actions */}
-        <div className="flex flex-col gap-3 pt-3 sm:flex-row sm:items-center">
+        <div className="shrink-0 mt-2 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-card sm:flex-row sm:items-center sm:px-5">
           <Button type="submit" disabled={creatingFullFlow} className="flex-1">
             {creatingFullFlow ? (
               <>
