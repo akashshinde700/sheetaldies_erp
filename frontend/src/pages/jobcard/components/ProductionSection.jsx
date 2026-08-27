@@ -21,10 +21,6 @@ const parseHrc = (val = '') => {
 const hasUnitSuffix = (val = '') =>
   HARDNESS_UNITS.some(u => val.trim().toUpperCase().endsWith(u.toUpperCase()));
 
-const GroupTitle = ({ children }) => (
-  <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">{children}</p>
-);
-
 export default function ProductionSection({ form, setForm, weightSummary, errors = {} }) {
   const [showUnit, setShowUnit] = useState(() => hasUnitSuffix(form.hrcRange));
 
@@ -65,10 +61,8 @@ export default function ProductionSection({ form, setForm, weightSummary, errors
         <CardTitle>Production Details</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {/* ── Quantity, weight & hardness ── */}
-        <div className="space-y-3">
-          <GroupTitle>Quantity &amp; Hardness</GroupTitle>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+        <div>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-2 lg:grid-cols-4">
             <FormField label="Quantity" htmlFor="quantity" required error={errors.quantity}>
               <Input
                 id="quantity"
@@ -169,41 +163,25 @@ export default function ProductionSection({ form, setForm, weightSummary, errors
                 )}
               </div>
             </FormField>
+
+            <FormField label="Drawing No (DRG NO)" htmlFor="drawingNo" className="col-span-2 lg:col-span-2">
+              <Input id="drawingNo" value={form.drawingNo}
+                onChange={e => setForm(p => ({ ...p, drawingNo: e.target.value }))} placeholder="SDT-2309-V4" />
+            </FormField>
           </div>
-        </div>
 
-        {/* ── Drawing reference ── */}
-        <div className="space-y-3">
-          <GroupTitle>Drawing</GroupTitle>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
-            <FormField label="Drawing No (DRG NO)" htmlFor="drawingNo">
-              <Input
-                id="drawingNo"
-                value={form.drawingNo}
-                onChange={e => setForm(p => ({ ...p, drawingNo: e.target.value }))}
-                placeholder="SDT-2309-V4"
-              />
-            </FormField>
-
-            <FormField label="Show Value in Print">
-              <label className="flex items-center gap-2.5 h-9 cursor-pointer select-none">
-                <Checkbox
-                  checked={form.showDrawingNoInPrint !== false}
-                  onCheckedChange={checked => setForm(p => ({ ...p, showDrawingNoInPrint: checked === true }))}
-                />
-                <span className="text-xs text-slate-500">{form.showDrawingNoInPrint !== false ? 'Visible on print' : 'Hidden on print'}</span>
-              </label>
-            </FormField>
-
-            <FormField label="Show Label in Print">
-              <label className="flex items-center gap-2.5 h-9 cursor-pointer select-none">
-                <Checkbox
-                  checked={form.showDrawingNoLabelInPrint !== false}
-                  onCheckedChange={checked => setForm(p => ({ ...p, showDrawingNoLabelInPrint: checked === true }))}
-                />
-                <span className="text-xs text-slate-500">{form.showDrawingNoLabelInPrint !== false ? 'Visible on print' : 'Hidden on print'}</span>
-              </label>
-            </FormField>
+          <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-slate-100 pt-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Drawing no on print</span>
+            <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-slate-700">
+              <Checkbox checked={form.showDrawingNoInPrint !== false}
+                onCheckedChange={checked => setForm(p => ({ ...p, showDrawingNoInPrint: checked === true }))} />
+              Show value
+            </label>
+            <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-slate-700">
+              <Checkbox checked={form.showDrawingNoLabelInPrint !== false}
+                onCheckedChange={checked => setForm(p => ({ ...p, showDrawingNoLabelInPrint: checked === true }))} />
+              Show label
+            </label>
           </div>
         </div>
       </CardContent>

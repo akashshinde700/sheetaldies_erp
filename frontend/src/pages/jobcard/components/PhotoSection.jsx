@@ -85,20 +85,21 @@ export default function PhotoSection({ handleImageChange, existingImages, saving
         <CardTitle>Part Photos</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+        <div className="flex flex-wrap gap-2.5">
           {[1, 2, 3, 4, 5].map(i => (
-            <ImageSlot
-              key={i}
-              index={i}
-              initialUrl={images[`image${i}`]}
-              onChange={handleImageChange}
-              saving={savingSlot === i}
-            />
+            <div key={i} className="w-24 sm:w-28">
+              <ImageSlot
+                index={i}
+                initialUrl={images[`image${i}`]}
+                onChange={handleImageChange}
+                saving={savingSlot === i}
+              />
+            </div>
           ))}
+          <p className="w-full text-[10px] italic text-slate-400">
+            Photos appear in the printed job card. JPG / PNG / WEBP, max 5 MB.
+          </p>
         </div>
-        <p className="text-[10px] text-slate-400 mt-3 italic">
-          * Photos appear in the printed job card. Accepted: JPG, JPEG, PNG, WEBP (max 5 MB each).
-        </p>
       </CardContent>
     </Card>
   );
