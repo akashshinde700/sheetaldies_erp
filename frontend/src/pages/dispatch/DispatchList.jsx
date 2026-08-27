@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { RowActions, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/row-actions';
 
 // draft = neutral, sent = info, received = warning, complete = success, cancelled = error
 const STATUS_VARIANT = {
@@ -241,22 +240,25 @@ export default function DispatchChallanList() {
                     <Badge variant={STATUS_VARIANT[challan.status] || 'neutral'}>{challan.status}</Badge>
                   </td>
                   <td className="td">
-                    <div className="flex items-center justify-end gap-1">
+                    <div className="flex items-center justify-end gap-0.5">
                       <Button variant="ghost" size="icon-sm" asChild
                         className="text-slate-400 hover:text-sky-700 hover:bg-sky-50">
-                        <Link to={`/dispatch/${challan.id}`} aria-label={`View challan ${challan.challanNo}`}>
+                        <Link to={`/dispatch/${challan.id}`} title="View" aria-label={`View challan ${challan.challanNo}`}>
                           <Eye />
                         </Link>
                       </Button>
-                      <RowActions label={`Actions for challan ${challan.challanNo}`}>
-                        <DropdownMenuItem asChild>
-                          <Link to={`/dispatch/${challan.id}/print`} target="_blank"><Printer /> Print</Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem destructive onSelect={() => handleDelete(challan.id)}>
-                          <Trash2 /> Delete challan
-                        </DropdownMenuItem>
-                      </RowActions>
+                      <Button variant="ghost" size="icon-sm" asChild
+                        className="text-slate-400 hover:text-sky-700">
+                        <Link to={`/dispatch/${challan.id}/print`} target="_blank" title="Print" aria-label={`Print challan ${challan.challanNo}`}>
+                          <Printer />
+                        </Link>
+                      </Button>
+                      <Button type="button" variant="ghost" size="icon-sm"
+                        onClick={() => handleDelete(challan.id)}
+                        title="Delete" aria-label={`Delete challan ${challan.challanNo}`}
+                        className="text-slate-400 hover:text-rose-600 hover:bg-rose-50">
+                        <Trash2 />
+                      </Button>
                     </div>
                   </td>
                 </tr>

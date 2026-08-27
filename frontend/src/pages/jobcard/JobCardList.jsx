@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
-  Plus, Download, Pencil, Printer, BadgeCheck, Trash2, X, Eye, ClipboardCheck,
+  Plus, Download, Pencil, Printer, BadgeCheck, Trash2, Loader2, X,
   FileText, Clock, AlertCircle,
 } from 'lucide-react';
 import api from '../../utils/api';
@@ -16,7 +16,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { RowActions, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/row-actions';
 
 const PAGE_LIMIT = 10;
 const STATUS_OPTS = ['CREATED', 'IN_PROGRESS', 'SENT_FOR_JOBWORK', 'INSPECTION', 'COMPLETED', 'ON_HOLD'];
@@ -341,31 +340,31 @@ export default function JobCardList() {
 
                   {/* Actions */}
                   <td className="td">
-                    <div className="flex items-center justify-end gap-1">
+                    <div className="flex items-center justify-end gap-0.5">
                       <Button variant="ghost" size="icon-sm" asChild
                         className="text-slate-400 hover:text-sky-700 hover:bg-sky-50">
-                        <Link to={`/jobcards/${card.id}/edit`} aria-label={`Edit job card ${card.jobCardNo}`}>
+                        <Link to={`/jobcards/${card.id}/edit`} title="Edit" aria-label={`Edit job card ${card.jobCardNo}`}>
                           <Pencil />
                         </Link>
                       </Button>
-                      <RowActions label={`Actions for job card ${card.jobCardNo}`}>
-                        <DropdownMenuItem asChild>
-                          <Link to={`/jobcards/${card.id}`}><Eye /> View</Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link to={`/jobcards/${card.id}/inspection`}><ClipboardCheck /> Inspection</Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link to={`/jobcards/${card.id}/print`}><Printer /> Print</Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link to={`/quality/certificates/new?jobCardId=${card.id}`}><BadgeCheck /> Create certificate</Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem destructive onSelect={() => handleDelete(card)}>
-                          <Trash2 /> Delete job card
-                        </DropdownMenuItem>
-                      </RowActions>
+                      <Button variant="ghost" size="icon-sm" asChild
+                        className="text-slate-400 hover:text-sky-700">
+                        <Link to={`/jobcards/${card.id}/print`} title="Print" aria-label={`Print job card ${card.jobCardNo}`}>
+                          <Printer />
+                        </Link>
+                      </Button>
+                      <Button variant="ghost" size="icon-sm" asChild
+                        className="text-slate-400 hover:text-emerald-600 hover:bg-emerald-50">
+                        <Link to={`/quality/certificates/new?jobCardId=${card.id}`} title="Send to Certificate" aria-label={`Create certificate for job card ${card.jobCardNo}`}>
+                          <BadgeCheck />
+                        </Link>
+                      </Button>
+                      <Button type="button" variant="ghost" size="icon-sm"
+                        onClick={() => handleDelete(card)} disabled={deletingId === card.id}
+                        title="Delete" aria-label={`Delete job card ${card.jobCardNo}`}
+                        className="text-slate-400 hover:text-rose-600 hover:bg-rose-50">
+                        {deletingId === card.id ? <Loader2 className="animate-spin" /> : <Trash2 />}
+                      </Button>
                     </div>
                   </td>
 

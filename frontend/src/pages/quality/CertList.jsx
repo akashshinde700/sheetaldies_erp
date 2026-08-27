@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import {
-  Plus, Download, Pencil, Printer, ReceiptText, Trash2, X, Eye,
+  Plus, Download, Pencil, Printer, ReceiptText, Trash2, X,
   BadgeCheck, AlertCircle,
 } from 'lucide-react';
 import api from '../../utils/api';
@@ -16,7 +16,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { RowActions, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/row-actions';
 
 // draft = neutral, in-progress = info, complete = success
 const STATUS_VARIANT = {
@@ -299,34 +298,35 @@ export default function CertList() {
                     <Badge variant={STATUS_VARIANT[c.status] || 'neutral'}>{c.status}</Badge>
                   </td>
                   <td className="td">
-                    <div className="flex items-center justify-end gap-1">
+                    <div className="flex items-center justify-end gap-0.5">
                       <Button variant="ghost" size="icon-sm" asChild
                         className="text-slate-400 hover:text-sky-700 hover:bg-sky-50">
-                        <Link to={`/quality/certificates/${c.id}/edit`} aria-label={`Edit certificate ${c.certNo}`}>
+                        <Link to={`/quality/certificates/${c.id}/edit`} title="Edit" aria-label={`Edit certificate ${c.certNo}`}>
                           <Pencil />
                         </Link>
                       </Button>
-                      <RowActions label={`Actions for certificate ${c.certNo}`}>
-                        <DropdownMenuItem asChild>
-                          <Link to={`/quality/certificates/${c.id}`}><Eye /> View</Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link to={`/quality/certificates/${c.id}/print`} target="_blank"><Printer /> Print</Link>
-                        </DropdownMenuItem>
-                        {c.jobCard && (
-                          <DropdownMenuItem asChild>
-                            <Link to={`/invoices/new?jobCardId=${c.jobCard.id}`}><ReceiptText /> Create invoice</Link>
-                          </DropdownMenuItem>
-                        )}
-                        {isManager && (
-                          <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem destructive onSelect={() => setConfirmDelete(c)}>
-                              <Trash2 /> Delete certificate
-                            </DropdownMenuItem>
-                          </>
-                        )}
-                      </RowActions>
+                      <Button variant="ghost" size="icon-sm" asChild
+                        className="text-slate-400 hover:text-emerald-600 hover:bg-emerald-50">
+                        <Link to={`/quality/certificates/${c.id}/print`} target="_blank" title="Print Certificate" aria-label={`Print certificate ${c.certNo}`}>
+                          <Printer />
+                        </Link>
+                      </Button>
+                      {c.jobCard && (
+                        <Button variant="ghost" size="icon-sm" asChild
+                          className="text-slate-400 hover:text-violet-600 hover:bg-violet-50">
+                          <Link to={`/invoices/new?jobCardId=${c.jobCard.id}`} title="Send to Invoice" aria-label={`Create invoice for certificate ${c.certNo}`}>
+                            <ReceiptText />
+                          </Link>
+                        </Button>
+                      )}
+                      {isManager && (
+                        <Button type="button" variant="ghost" size="icon-sm"
+                          onClick={() => setConfirmDelete(c)}
+                          title="Delete Certificate" aria-label={`Delete certificate ${c.certNo}`}
+                          className="text-slate-400 hover:text-rose-600 hover:bg-rose-50">
+                          <Trash2 />
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>

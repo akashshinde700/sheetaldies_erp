@@ -21,7 +21,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
-import { RowActions, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/row-actions';
 
 const PAY_VARIANT = {
   PENDING: 'warning',
@@ -577,48 +576,66 @@ export default function InvoiceList() {
                     )}
                   </td>
                   <td className="td">
-                    <div className="flex items-center justify-end gap-1">
+                    <div className="flex items-center justify-end gap-0.5">
                       <Button variant="ghost" size="icon-sm" asChild
                         className="text-slate-400 hover:text-sky-700 hover:bg-sky-50">
-                        <Link to={`/invoices/${inv.id}`} aria-label={`View invoice ${inv.invoiceNo}`}>
+                        <Link to={`/invoices/${inv.id}/print`} title="Print Invoice" aria-label={`Print invoice ${inv.invoiceNo}`}>
+                          <Printer />
+                        </Link>
+                      </Button>
+                      <Button variant="ghost" size="icon-sm" asChild
+                        className="text-slate-400 hover:text-sky-700 hover:bg-sky-50">
+                        <Link to={`/invoices/${inv.id}`} title="View" aria-label={`View invoice ${inv.invoiceNo}`}>
                           <Eye />
                         </Link>
                       </Button>
-                      <RowActions label={`Actions for invoice ${inv.invoiceNo}`}>
-                        <DropdownMenuItem asChild>
-                          <Link to={`/invoices/${inv.id}/print`}><Printer /> Print</Link>
-                        </DropdownMenuItem>
-                        {isAdmin && !inv.sentToTally && !inv.irnNo && (
-                          <DropdownMenuItem asChild>
-                            <Link to={`/invoices/${inv.id}/edit`}><Pencil /> Edit</Link>
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onSelect={() => handleDownloadEInvoiceJson(inv)}>
-                          {inv.irnNo ? <BadgeCheck /> : <FileJson />}
-                          {inv.irnNo ? 'e-Invoice JSON (IRN ready)' : 'Download e-Invoice JSON'}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => handleDownloadXml(inv)}>
-                          {inv.xmlDownloadedAt ? <FileCheck2 /> : <FileDown />}
-                          {inv.xmlDownloadedAt ? 'Tally XML (downloaded)' : 'Download Tally XML'}
-                        </DropdownMenuItem>
-                        {inv.paymentStatus !== 'PAID' && !inv.sentToTally && (
-                          <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onSelect={() => { setPaidDate(new Date().toISOString().split('T')[0]); setPaidModal({ id: inv.id, invoiceNo: inv.invoiceNo }); }}>
-                              <Banknote /> Mark paid
-                            </DropdownMenuItem>
-                          </>
-                        )}
-                        {!inv.sentToTally && (
-                          <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem destructive onSelect={() => handleDeleteInvoice(inv)}>
-                              <Trash2 /> Delete invoice
-                            </DropdownMenuItem>
-                          </>
-                        )}
-                      </RowActions>
+                      {/* Edit sirf ADMIN ko, aur sirf tab tak jab tak invoice
+                          Tally bhej na di ho ya uska IRN na ban gaya ho. */}
+                      {isAdmin && !inv.sentToTally && !inv.irnNo && (
+                        <Button variant="ghost" size="icon-sm" asChild
+                          className="text-slate-400 hover:text-amber-600 hover:bg-amber-50">
+                          <Link to={`/invoices/${inv.id}/edit`} title="Edit Invoice" aria-label={`Edit invoice ${inv.invoiceNo}`}>
+                            <Pencil />
+                          </Link>
+                        </Button>
+                      )}
+                      <Button type="button" variant="ghost" size="icon-sm"
+                        onClick={() => handleDownloadEInvoiceJson(inv)}
+                        title={inv.irnNo
+                          ? `IRN mil chuka hai (${inv.irnNo.slice(0, 12)}…) — click karke JSON dobara download karein`
+                          : 'Download e-Invoice JSON — GST portal par upload karne ke liye'}
+                        aria-label={`Download e-Invoice JSON for invoice ${inv.invoiceNo}`}
+                        className={inv.irnNo
+                          ? 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'
+                          : 'text-slate-400 hover:text-sky-600 hover:bg-sky-50'}>
+                        {inv.irnNo ? <BadgeCheck /> : <FileJson />}
+                      </Button>
+                      <Button type="button" variant="ghost" size="icon-sm"
+                        onClick={() => handleDownloadXml(inv)}
+                        title={inv.xmlDownloadedAt
+                          ? `Already downloaded on ${formatDate(inv.xmlDownloadedAt, true)} — click to download again`
+                          : 'Download Tally XML — Option B: Download XML & Import Manually'}
+                        aria-label={`Download Tally XML for invoice ${inv.invoiceNo}`}
+                        className={inv.xmlDownloadedAt
+                          ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50'
+                          : 'text-slate-400 hover:text-violet-600 hover:bg-violet-50'}>
+                        {inv.xmlDownloadedAt ? <FileCheck2 /> : <FileDown />}
+                      </Button>
+                      {inv.paymentStatus !== 'PAID' && !inv.sentToTally && (
+                        <Button type="button" variant="ghost" size="sm"
+                          onClick={() => { setPaidDate(new Date().toISOString().split('T')[0]); setPaidModal({ id: inv.id, invoiceNo: inv.invoiceNo }); }}
+                          className="text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-800 px-2 h-7 min-h-0 text-[11px] font-bold">
+                          Mark Paid
+                        </Button>
+                      )}
+                      {!inv.sentToTally && (
+                        <Button type="button" variant="ghost" size="icon-sm"
+                          onClick={() => handleDeleteInvoice(inv)}
+                          title="Delete Invoice" aria-label={`Delete invoice ${inv.invoiceNo}`}
+                          className="text-slate-400 hover:text-rose-600 hover:bg-rose-50">
+                          <Trash2 />
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>
