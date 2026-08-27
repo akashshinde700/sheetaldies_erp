@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import api from '../../utils/api';
 import { toNum, toInt } from '../../utils/normalize';
 import SearchSelect from '../../components/SearchSelect';
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { PageHeader } from '@/components/ui/page-header';
 import {
   Select,
   SelectContent,
@@ -189,21 +190,12 @@ export default function DispatchChallanForm() {
   const totalWeight = items.reduce((sum, it) => sum + toNum(it.weightKg, 0), 0);
 
   return (
-    <div className="page-stack w-full min-w-0 max-w-5xl mx-auto space-y-4">
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={() => navigate('/dispatch')}
-        className="-ml-2 text-sky-800"
-      >
-        <ArrowLeft /> Back to dispatch challans
-      </Button>
-
-      <div className="space-y-1">
-        <h1 className="page-title">{isEdit ? 'Edit dispatch challan' : 'New dispatch challan'}</h1>
-        <p className="page-subtitle">Parties, transport, and line items</p>
-      </div>
+    <div className="font-app mx-auto w-full max-w-5xl space-y-5 pb-4">
+      <PageHeader
+        title={isEdit ? 'Edit dispatch challan' : 'New dispatch challan'}
+        backTo="/dispatch"
+        breadcrumbs={[{ label: 'Dispatch', to: '/dispatch' }, { label: isEdit ? 'Edit' : 'New' }]}
+      />
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <Card>
@@ -341,9 +333,9 @@ export default function DispatchChallanForm() {
                 </div>
 
                 <div className="p-4">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-12 gap-x-3 gap-y-3">
+                  <div className="grid grid-cols-1 gap-x-3 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
                     {formData.jobworkChallanId && (
-                      <FormField label="Source Challan Line" className="col-span-2 sm:col-span-4 lg:col-span-12">
+                      <FormField label="Source Challan Line" className="sm:col-span-2 lg:col-span-3">
                         <SearchSelect
                           value={String(item.sourceChallanItemId || '')}
                           onChange={v => updateItem(idx, 'sourceChallanItemId', v)}
@@ -357,7 +349,7 @@ export default function DispatchChallanForm() {
                         />
                       </FormField>
                     )}
-                    <FormField label="Item" className="col-span-2 sm:col-span-2 lg:col-span-3">
+                    <FormField label="Item">
                       <SearchSelect
                         value={String(item.itemId || '')}
                         onChange={v => updateItem(idx, 'itemId', v)}
@@ -367,7 +359,7 @@ export default function DispatchChallanForm() {
                         className="w-full"
                       />
                     </FormField>
-                    <FormField label="Description" className="col-span-2 sm:col-span-2 lg:col-span-5">
+                    <FormField label="Description" className="sm:col-span-2">
                       <Input
                         value={item.description}
                         onChange={(e) => updateItem(idx, 'description', e.target.value)}
@@ -375,7 +367,7 @@ export default function DispatchChallanForm() {
                         className="font-semibold"
                       />
                     </FormField>
-                    <FormField label="Qty" className="col-span-1 sm:col-span-2 lg:col-span-2">
+                    <FormField label="Qty">
                       <Input
                         type="number"
                         min="0"
@@ -387,7 +379,7 @@ export default function DispatchChallanForm() {
                         className="text-right tabular-nums"
                       />
                     </FormField>
-                    <FormField label="Weight (kg)" className="col-span-1 sm:col-span-2 lg:col-span-2">
+                    <FormField label="Weight (kg)">
                       <Input
                         type="number"
                         min="0"
@@ -399,7 +391,7 @@ export default function DispatchChallanForm() {
                         className="text-right tabular-nums"
                       />
                     </FormField>
-                    <FormField label="Item Remarks" className="col-span-2 sm:col-span-4 lg:col-span-12">
+                    <FormField label="Item Remarks" className="sm:col-span-2 lg:col-span-3">
                       <Input
                         value={item.remarks}
                         onChange={(e) => updateItem(idx, 'remarks', e.target.value)}

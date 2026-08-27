@@ -6,6 +6,8 @@ import ListSearchInput from '../../components/ListSearchInput';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
+import { Sheet, SheetContent, SheetHeader, SheetFooter, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -123,52 +125,41 @@ export default function MachineList() {
   const totalPages = Math.max(1, Math.ceil(filteredMachines.length / PAGE_SIZE));
   const pagedMachines = filteredMachines.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  const closeForm = () => { setShowForm(false); setEditingId(null); setFormData({ code: '', name: '' }); };
+
   return (
-    <div className="page-stack w-full space-y-5 animate-slide-up">
+    <div className="font-app mx-auto w-full max-w-5xl space-y-5 animate-slide-up">
+      <PageHeader
+        title="Machines"
+        breadcrumbs={[{ label: 'Admin' }, { label: 'Machines' }]}
+        actions={
+          <Button type="button" onClick={() => { setEditingId(null); setFormData({ code: '', name: '' }); setShowForm(true); }}>
+            <Plus /> Add machine
+          </Button>
+        }
+      />
 
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="page-title">Machines</h1>
-          <p className="page-subtitle">Shop floor equipment master</p>
-        </div>
-        <Button
-          type="button"
-          onClick={() => {
-            setShowForm(!showForm);
-            if (editingId) {
-              setEditingId(null);
-              setFormData({ code: '', name: '' });
-            }
-          }}
-          className="shrink-0"
-        >
-          <Plus /> Add machine
-        </Button>
-      </div>
-
-      {/* Add / Edit form */}
-      {showForm && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{editingId ? 'Edit machine' : 'New machine'}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField label="Code" htmlFor="machine-code" required>
-                <Input id="machine-code" placeholder="e.g. VF-01" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} required className="font-mono" />
-              </FormField>
-              <FormField label="Machine name" htmlFor="machine-name" required>
-                <Input id="machine-name" placeholder="e.g. Vacuum Furnace 1" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required />
-              </FormField>
-              <div className="col-span-1 md:col-span-2 flex flex-wrap gap-2">
-                <Button type="submit">{editingId ? 'Update' : 'Create'}</Button>
-                <Button type="button" variant="ghost" onClick={() => { setShowForm(false); setEditingId(null); setFormData({ code: '', name: '' }); }}>Cancel</Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
+      {/* Add / Edit form — side sheet */}
+      <Sheet open={showForm} onOpenChange={(o) => { if (!o) closeForm(); }}>
+        <SheetContent side="right" className="font-app sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>{editingId ? 'Edit machine' : 'New machine'}</SheetTitle>
+            <SheetDescription>Shop-floor equipment master.</SheetDescription>
+          </SheetHeader>
+          <form id="machine-form" onSubmit={handleSubmit} className="mt-4 grid grid-cols-1 gap-4">
+            <FormField label="Code" htmlFor="machine-code" required>
+              <Input id="machine-code" placeholder="e.g. VF-01" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} required className="font-app-mono" />
+            </FormField>
+            <FormField label="Machine name" htmlFor="machine-name" required>
+              <Input id="machine-name" placeholder="e.g. Vacuum Furnace 1" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required />
+            </FormField>
+          </form>
+          <SheetFooter>
+            <Button type="button" variant="ghost" onClick={closeForm}>Cancel</Button>
+            <Button type="submit" form="machine-form">{editingId ? 'Update' : 'Create'}</Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       {/* Filters */}
       <Card>

@@ -123,7 +123,7 @@ export default function Login() {
             </button>
             <button
               type="button"
-              onClick={() => { setMode('otp'); setOtpSent(false); resetForm(); }}
+              onClick={() => setMode('otp')}
               className={`flex-1 min-h-[48px] py-3 text-xs font-bold uppercase tracking-wider transition-all duration-200
                 ${mode === 'otp'
                   ? 'text-sky-950 border-b-2 border-sky-600 bg-sky-50/80'

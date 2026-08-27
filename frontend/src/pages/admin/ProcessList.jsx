@@ -6,7 +6,9 @@ import ListSearchInput from '../../components/ListSearchInput';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
+import { Sheet, SheetContent, SheetHeader, SheetFooter, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -167,26 +169,21 @@ export default function ProcessList() {
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
-    <div className="page-stack w-full space-y-5 animate-slide-up">
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="page-title">Process Types</h1>
-          <p className="page-subtitle">Heat treatment process master — rates used in inwards and invoicing</p>
-        </div>
-        <Button type="button" onClick={openCreate} className="shrink-0">
-          <Plus /> Add Process
-        </Button>
-      </div>
+    <div className="font-app mx-auto w-full max-w-5xl space-y-5 animate-slide-up">
+      <PageHeader
+        title="Process Types"
+        breadcrumbs={[{ label: 'Admin' }, { label: 'Processes' }]}
+        actions={<Button type="button" onClick={openCreate}><Plus /> Add Process</Button>}
+      />
 
-      {/* Add / Edit form */}
-      {showForm && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{editingId ? 'Edit process' : 'New process'}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Add / Edit form — side sheet */}
+      <Sheet open={showForm} onOpenChange={(o) => { if (!o) closeForm(); }}>
+        <SheetContent side="right" className="font-app sm:max-w-lg">
+          <SheetHeader>
+            <SheetTitle>{editingId ? 'Edit process' : 'New process'}</SheetTitle>
+            <SheetDescription>Heat-treatment process master — rates used in inwards and invoicing.</SheetDescription>
+          </SheetHeader>
+          <form id="process-form" onSubmit={handleSubmit} className="mt-4 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField label="Code" htmlFor="proc-code" required>
                   <Input
@@ -263,16 +260,15 @@ export default function ProcessList() {
                 />
               </FormField>
 
-              <div className="flex flex-wrap gap-2 pt-1">
-                <Button type="submit" disabled={saving}>
-                  {saving ? 'Saving…' : editingId ? 'Update' : 'Create'}
-                </Button>
-                <Button type="button" variant="ghost" onClick={closeForm}>Cancel</Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
+          </form>
+          <SheetFooter>
+            <Button type="button" variant="ghost" onClick={closeForm}>Cancel</Button>
+            <Button type="submit" form="process-form" disabled={saving}>
+              {saving ? 'Saving…' : editingId ? 'Update' : 'Create'}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       {/* Filters */}
       <Card>

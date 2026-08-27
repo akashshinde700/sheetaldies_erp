@@ -6,6 +6,8 @@ import ListSearchInput from '../../components/ListSearchInput';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
+import { Sheet, SheetContent, SheetHeader, SheetFooter, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -146,38 +148,28 @@ export default function ItemList() {
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
   const pagedItems = items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  const closeForm = () => { setShowForm(false); setEditingId(null); setFormData(emptyForm()); };
+
   return (
-    <div className="page-stack w-full space-y-5 animate-slide-up">
+    <div className="font-app mx-auto w-full max-w-5xl space-y-5 animate-slide-up">
+      <PageHeader
+        title="Items"
+        breadcrumbs={[{ label: 'Admin' }, { label: 'Items' }]}
+        actions={
+          <Button type="button" onClick={() => { setEditingId(null); setFormData(emptyForm()); setShowForm(true); }}>
+            <Plus /> Add item
+          </Button>
+        }
+      />
 
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="page-title">Items</h1>
-          <p className="page-subtitle">Parts, units, and HSN</p>
-        </div>
-        <Button
-          type="button"
-          onClick={() => {
-            setShowForm(!showForm);
-            if (editingId) {
-              setEditingId(null);
-              setFormData(emptyForm());
-            }
-          }}
-          className="shrink-0"
-        >
-          <Plus /> Add item
-        </Button>
-      </div>
-
-      {/* Add / Edit form */}
-      {showForm && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{editingId ? 'Edit item' : 'New item'}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Add / Edit form — side sheet */}
+      <Sheet open={showForm} onOpenChange={(o) => { if (!o) closeForm(); }}>
+        <SheetContent side="right" className="font-app sm:max-w-lg">
+          <SheetHeader>
+            <SheetTitle>{editingId ? 'Edit item' : 'New item'}</SheetTitle>
+            <SheetDescription>Parts, units and HSN.</SheetDescription>
+          </SheetHeader>
+          <form id="item-form" onSubmit={handleSubmit} className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField label="Part no" htmlFor="item-partno" required>
                 <Input id="item-partno" placeholder="Part no" value={formData.partNo} onChange={(e) => setFormData({ ...formData, partNo: e.target.value })} required className="font-mono" />
               </FormField>
@@ -199,14 +191,13 @@ export default function ItemList() {
               <FormField label="Description" htmlFor="item-desc" className="col-span-1 md:col-span-2">
                 <Textarea id="item-desc" placeholder="Description" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={3} className="min-h-[88px]" />
               </FormField>
-              <div className="col-span-1 md:col-span-2 flex flex-wrap gap-2">
-                <Button type="submit">{editingId ? 'Update' : 'Create'}</Button>
-                <Button type="button" variant="ghost" onClick={() => { setShowForm(false); setEditingId(null); setFormData(emptyForm()); }}>Cancel</Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
+          </form>
+          <SheetFooter>
+            <Button type="button" variant="ghost" onClick={closeForm}>Cancel</Button>
+            <Button type="submit" form="item-form">{editingId ? 'Update' : 'Create'}</Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       {/* Filters */}
       <Card>
