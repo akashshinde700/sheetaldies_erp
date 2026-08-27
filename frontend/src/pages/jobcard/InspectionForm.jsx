@@ -3,10 +3,11 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { useProcesses } from '../../hooks/useMasterData';
-import { ArrowLeft, ImagePlus, Save, X } from 'lucide-react';
+import { ImagePlus, Save, X } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/ui/page-header';
 
 // Subcomponents
 import CategorizationSection from './components/CategorizationSection';
@@ -215,23 +216,22 @@ export default function InspectionForm() {
     Number(form.achievedHardness) <= Number(form.requiredHardnessMax);
 
   return (
-    <div className="page-stack w-full animate-slide-up">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <Button variant="outline" size="icon-sm" asChild className="text-slate-400 hover:text-indigo-600">
-          <Link to={`/jobcards/${id}`} aria-label="Back to job card">
-            <ArrowLeft />
-          </Link>
-        </Button>
-        <div className="flex-1 min-w-0">
-          <h2 className="text-xl font-extrabold text-slate-800 font-headline">Final Inspection</h2>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Job Card: <span className="font-bold text-slate-600">{jobCard?.jobCardNo}</span>
-            {jobCard?.part?.description && <> — {jobCard.part.description}</>}
-          </p>
-        </div>
-        <Badge variant={STATUS_VARIANT[form.inspectionStatus] || 'neutral'}>{form.inspectionStatus}</Badge>
-      </div>
+    <div className="font-app mx-auto w-full max-w-5xl space-y-5 pb-4 animate-slide-up">
+      <PageHeader
+        title="Final Inspection"
+        backTo={`/jobcards/${id}`}
+        breadcrumbs={[
+          { label: 'Job Cards', to: '/jobcards' },
+          { label: jobCard?.jobCardNo || 'Job card', to: `/jobcards/${id}` },
+          { label: 'Inspection' },
+        ]}
+        meta={
+          <>
+            <Badge variant={STATUS_VARIANT[form.inspectionStatus] || 'neutral'}>{form.inspectionStatus}</Badge>
+            {jobCard?.part?.description && <span className="text-slate-600">{jobCard.part.description}</span>}
+          </>
+        }
+      />
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
