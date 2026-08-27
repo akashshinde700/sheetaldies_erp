@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { ArrowRight } from 'lucide-react';
 import api from '../utils/api';
 import { formatDate } from '../utils/formatters';
+import { useAuth } from '../context/AuthContext';
 import KpiCard from '../components/KpiCard';
 import PageNav from '../components/PageNav';
 import { statusColor } from '../utils/statusColors';
@@ -23,6 +26,13 @@ const TableSkeleton = ({ rows = 4, cols = 5 }) => (
 );
 
 export default function Dashboard() {
+  const { isManager } = useAuth();
+  const { data: pending } = useQuery({
+    queryKey: ['pending-items'],
+    queryFn: async () => (await api.get('/analytics/pending-items')).data.data,
+    staleTime: 60 * 1000,
+  });
+  const pendingSummary = pending?.summary || {};
   const [stats,       setStats]       = useState(null);
   const [recentCards, setRecentCards] = useState([]);
   const [cardsTotal,  setCardsTotal]  = useState(0);
@@ -132,6 +142,30 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* ── Needs attention — the operator's real worklist ── */}
+      {(pendingSummary.totalPending ?? 0) > 0 && (
+        <Link
+          to="/pending"
+          className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900 transition-colors hover:border-amber-300 hover:bg-amber-100/70"
+        >
+          <span className="material-symbols-outlined text-xl text-amber-600">pending_actions</span>
+          <div className="min-w-0 flex-1 text-sm">
+            <span className="font-bold">{pendingSummary.totalPending} item{pendingSummary.totalPending === 1 ? '' : 's'} need attention</span>
+            <span className="ml-2 text-amber-700">
+              {[
+                pendingSummary.challansNeedJobCard && `${pendingSummary.challansNeedJobCard} → job card`,
+                pendingSummary.jobCardsNeedCert && `${pendingSummary.jobCardsNeedCert} → certificate`,
+                pendingSummary.certsNeedInvoice && `${pendingSummary.certsNeedInvoice} → invoice`,
+                isManager && pendingSummary.invoicesPendingPayment && `${pendingSummary.invoicesPendingPayment} payment`,
+              ].filter(Boolean).join(' · ')}
+            </span>
+          </div>
+          <span className="inline-flex shrink-0 items-center gap-1 text-xs font-bold">
+            Review <ArrowRight className="h-3.5 w-3.5" />
+          </span>
+        </Link>
+      )}
+
       {/* ── KPIs ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard
@@ -169,24 +203,28 @@ export default function Dashboard() {
           iconBg="bg-emerald-100 text-emerald-700"
           to="/jobcards"
         />
-        <KpiCard
-          label="Pending Invoices" value={invoiceMeta.pending} loading={kpiLoading}
-          badge={invoiceMeta.partial > 0 ? `${invoiceMeta.partial} Partial` : invoiceMeta.pending > 0 ? 'Follow up' : 'All clear'}
-          badgeColor={invoiceMeta.partial > 0 ? 'bg-amber-100 text-amber-900' : invoiceMeta.pending > 0 ? 'bg-orange-100 text-orange-900' : 'bg-emerald-100 text-emerald-800'}
-          sub={`${invoiceMeta.partial > 0 ? `${invoiceMeta.partial} partial · ` : ''}Tap to view`}
-          icon="receipt_long"
-          iconBg="bg-orange-100 text-orange-700"
-          to="/invoices"
-        />
-        <KpiCard
-          label="Overdue Invoices" value={invoiceMeta.overdue} loading={kpiLoading}
-          badge={invoiceMeta.overdue > 0 ? 'Overdue!' : 'All clear'}
-          badgeColor={invoiceMeta.overdue > 0 ? 'bg-rose-100 text-rose-900' : 'bg-emerald-100 text-emerald-800'}
-          sub="Unpaid &gt;30 days — follow up"
-          icon="schedule"
-          iconBg={invoiceMeta.overdue > 0 ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-500'}
-          to="/invoices"
-        />
+        {isManager && (
+          <KpiCard
+            label="Pending Invoices" value={invoiceMeta.pending} loading={kpiLoading}
+            badge={invoiceMeta.partial > 0 ? `${invoiceMeta.partial} Partial` : invoiceMeta.pending > 0 ? 'Follow up' : 'All clear'}
+            badgeColor={invoiceMeta.partial > 0 ? 'bg-amber-100 text-amber-900' : invoiceMeta.pending > 0 ? 'bg-orange-100 text-orange-900' : 'bg-emerald-100 text-emerald-800'}
+            sub={`${invoiceMeta.partial > 0 ? `${invoiceMeta.partial} partial · ` : ''}Tap to view`}
+            icon="receipt_long"
+            iconBg="bg-orange-100 text-orange-700"
+            to="/invoices"
+          />
+        )}
+        {isManager && (
+          <KpiCard
+            label="Overdue Invoices" value={invoiceMeta.overdue} loading={kpiLoading}
+            badge={invoiceMeta.overdue > 0 ? 'Overdue!' : 'All clear'}
+            badgeColor={invoiceMeta.overdue > 0 ? 'bg-rose-100 text-rose-900' : 'bg-emerald-100 text-emerald-800'}
+            sub="Unpaid &gt;30 days — follow up"
+            icon="schedule"
+            iconBg={invoiceMeta.overdue > 0 ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-500'}
+            to="/invoices"
+          />
+        )}
         <KpiCard
           label="On Hold" value={stats?.onHold} loading={kpiLoading}
           badge={!kpiLoading && stats?.onHold > 0 ? 'Review' : 'None'}
@@ -296,9 +334,11 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
         {[
           { label: 'New Inward Entry', icon: 'engineering', to: '/jobwork/inward-entry', color: 'text-amber-600', bg: 'bg-amber-50' },
+          { label: 'New Job Card', icon: 'description', to: '/jobcards/new', color: 'text-sky-600', bg: 'bg-sky-50' },
           { label: 'New Certificate', icon: 'verified',      to: '/quality/certificates/new', color: 'text-emerald-600', bg: 'bg-emerald-50' },
-          { label: 'New Invoice',     icon: 'receipt_long',  to: '/invoices/new',             color: 'text-sky-600', bg: 'bg-sky-50' },
-          { label: 'Manage Parties',  icon: 'group',         to: '/admin/parties',            color: 'text-violet-600', bg: 'bg-violet-50' },
+          ...(isManager
+            ? [{ label: 'New Invoice', icon: 'receipt_long', to: '/invoices/new', color: 'text-orange-600', bg: 'bg-orange-50' }]
+            : [{ label: 'Manage Parties', icon: 'group', to: '/admin/parties', color: 'text-violet-600', bg: 'bg-violet-50' }]),
         ].map(q => (
           <Link key={q.to} to={q.to}
             className="card flex items-center gap-2.5 p-3 min-w-0 border border-slate-200/90 hover:border-slate-300 hover:shadow transition-all duration-150 group">

@@ -5,6 +5,14 @@ import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { formatDate, formatCurrency } from '../../utils/formatters';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+
+const PENDING_TABS = [
+  { key: 's1', label: 'Job Card', dataKey: 'challansNeedJobCard' },
+  { key: 's2', label: 'Certificate', dataKey: 'jobCardsNeedCert' },
+  { key: 's3', label: 'Invoice', dataKey: 'certsNeedInvoice' },
+  { key: 's4', label: 'Payment', dataKey: 'invoicesPendingPayment' },
+];
 
 function SectionHeader({ icon, iconBg, iconColor, title, count, countColor }) {
   return (
@@ -34,6 +42,10 @@ export default function PendingDashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [creating, setCreating] = useState({});
+  const [tab, setTab] = useState(() => {
+    try { return localStorage.getItem('svt_pending_tab') || 's1'; } catch { return 's1'; }
+  });
+  const onTab = (v) => { setTab(v); try { localStorage.setItem('svt_pending_tab', v); } catch { /* ignore */ } };
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['pending-items'],
@@ -136,6 +148,24 @@ export default function PendingDashboard() {
         </div>
       </div>
 
+      <Tabs value={tab} onValueChange={onTab} className="space-y-0">
+        <TabsList className="w-full justify-start overflow-x-auto">
+          {PENDING_TABS.map((t) => {
+            const n = data?.[t.dataKey]?.length ?? 0;
+            return (
+              <TabsTrigger key={t.key} value={t.key}>
+                {t.label}
+                {n > 0 && (
+                  <span className="ml-1.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-100 px-1.5 text-[10px] font-bold text-rose-700">
+                    {n}
+                  </span>
+                )}
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
+
+      <TabsContent value="s1">
       {/* Section 1: Challans needing Job Card */}
       <div className="card p-4">
         <SectionHeader
@@ -194,7 +224,9 @@ export default function PendingDashboard() {
           </div>
         )}
       </div>
+      </TabsContent>
 
+      <TabsContent value="s2">
       {/* Section 2: Job Cards needing Certificate */}
       <div className="card p-4">
         <SectionHeader
@@ -261,7 +293,9 @@ export default function PendingDashboard() {
           </div>
         )}
       </div>
+      </TabsContent>
 
+      <TabsContent value="s3">
       {/* Section 3: Certificates needing Invoice */}
       <div className="card p-4">
         <SectionHeader
@@ -320,7 +354,9 @@ export default function PendingDashboard() {
           </div>
         )}
       </div>
+      </TabsContent>
 
+      <TabsContent value="s4">
       {/* Section 4: Invoices pending payment */}
       <div className="card p-4">
         <SectionHeader
@@ -374,6 +410,8 @@ export default function PendingDashboard() {
           </div>
         )}
       </div>
+      </TabsContent>
+      </Tabs>
 
     </div>
   );
