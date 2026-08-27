@@ -4,11 +4,16 @@ import api from '../../utils/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMachines, useParties } from '../../hooks/useMasterData';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Printer, Save, Plus } from 'lucide-react';
+import { Printer, Plus, ClipboardCheck, Package, ExternalLink, FileText } from 'lucide-react';
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
+import { PageHeader } from '@/components/ui/page-header';
+import { StatusPill } from '@/components/ui/status-pill';
+import { FormActionBar } from '@/components/ui/form-action-bar';
 
 // Subcomponents
 import CustomerSection from './components/CustomerSection';
@@ -20,6 +25,7 @@ import PhotoSection from './components/PhotoSection';
 import LinkedDataSection from './components/LinkedDataSection';
 import InspectionEditSection from './components/InspectionEditSection';
 import SearchSelect from '../../components/SearchSelect';
+import { Input } from '@/components/ui/input';
 
 export default function JobCardForm() {
   const { id }   = useParams();
@@ -424,61 +430,104 @@ export default function JobCardForm() {
     ? (cardData.challanItemLinks?.[0]?.challan || cardData.challans?.[0] || null)
     : null;
 
-  const STATUS_COLOR = {
-    CREATED: 'bg-slate-100 text-slate-600', IN_PROGRESS: 'bg-blue-100 text-blue-700',
-    SENT_FOR_JOBWORK: 'bg-amber-100 text-amber-700', INSPECTION: 'bg-violet-100 text-violet-700',
-    COMPLETED: 'bg-emerald-100 text-emerald-700', ON_HOLD: 'bg-rose-100 text-rose-700',
-  };
+  const linkedItemCount = cardData
+    ? (cardData.challanItemLinks?.length
+      || cardData.challans?.reduce((n, c) => n + (c.items?.length || 0), 0)
+      || 0)
+    : 0;
+
+  const detailSections = (
+    <>
+      <CustomerSection
+        form={form}
+        setForm={setForm}
+        customers={customers}
+        applyCustomerFromParty={applyCustomerFromParty}
+      />
+      <JobCardHeaderInfoSection form={form} setForm={setForm} cardData={cardData} />
+      <IssueInstructionsSection form={form} setForm={setForm} />
+      <ProductionSection form={form} setForm={setForm} weightSummary={cardData?.weightSummary} />
+      <StatusRemarksSection form={form} setForm={setForm} />
+      <PhotoSection handleImageChange={handleImageChange} existingImages={cardData} savingSlot={savingSlot} />
+      <Card>
+        <CardContent className="px-4 py-0 sm:px-6">
+          <Accordion type="single" collapsible>
+            <AccordionItem value="adv">
+              <AccordionTrigger>Advanced — document control</AccordionTrigger>
+              <AccordionContent>
+                <p className="mb-3 text-xs text-slate-500">
+                  These fields appear in the printed job-card header. Change only when the quality
+                  form revision changes.
+                </p>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <FormField label="Document No" htmlFor="jc-documentNo">
+                    <Input id="jc-documentNo" value={form.documentNo}
+                      onChange={e => setForm(p => ({ ...p, documentNo: e.target.value }))} className="font-app-mono" />
+                  </FormField>
+                  <FormField label="Revision No" htmlFor="jc-revisionNo">
+                    <Input id="jc-revisionNo" value={form.revisionNo}
+                      onChange={e => setForm(p => ({ ...p, revisionNo: e.target.value }))} className="font-app-mono" />
+                  </FormField>
+                  <FormField label="Revision Date" htmlFor="jc-revisionDate">
+                    <Input id="jc-revisionDate" type="date" value={form.revisionDate}
+                      onChange={e => setForm(p => ({ ...p, revisionDate: e.target.value }))} />
+                  </FormField>
+                  <FormField label="Page No" htmlFor="jc-pageNo">
+                    <Input id="jc-pageNo" value={form.pageNo}
+                      onChange={e => setForm(p => ({ ...p, pageNo: e.target.value }))} className="font-app-mono" />
+                  </FormField>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </CardContent>
+      </Card>
+    </>
+  );
 
   return (
-    <div className="page-stack w-full animate-slide-up">
-      {/* ── Page header ── */}
-      <div className="page-header">
-        <div className="flex items-start gap-3">
-          <Button asChild variant="outline" size="icon" className="rounded-xl shrink-0 text-slate-500 hover:text-slate-900">
-            <Link to="/jobcards" aria-label="Back to job cards">
-              <ArrowLeft />
-            </Link>
-          </Button>
-          <div className="space-y-2">
-            <h1 className="page-title">{isEdit ? 'Edit Job Card' : 'Create Job Card'}</h1>
-            {isEdit && cardData && (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-slate-500">
-                <span className="font-medium">Job Card No.: <span className="font-semibold text-slate-700">{cardData.jobCardNo}</span></span>
-                <span className={`badge ${STATUS_COLOR[cardData.status] || 'bg-slate-100 text-slate-600'}`}>{cardData.status?.replace(/_/g, ' ')}</span>
-                {linkedChallan?.inwardNo && (
-                  <span className="text-slate-400">·<span className="ml-3 font-medium">Inward No.: </span>
-                    {linkedChallan.id ? (
-                      <Link to={`/jobwork/${linkedChallan.id}`} className="font-mono font-semibold text-sky-700 hover:text-sky-900 hover:underline">
-                        {linkedChallan.inwardNo}
-                      </Link>
-                    ) : (
-                      <span className="font-mono font-semibold text-slate-700">{linkedChallan.inwardNo}</span>
-                    )}
-                  </span>
-                )}
-                {cardData.partName && (
-                  <span className="text-slate-400">·<span className="ml-3 text-slate-600">{cardData.partName}</span></span>
-                )}
-                {cardData.updatedAt && (
-                  <span className="text-slate-400">·<span className="ml-3">Updated {cardData.updatedAt.split('T')[0]}</span></span>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {isEdit && cardData ? (
-          <div className="flex flex-wrap items-center gap-3 justify-end">
+    <div className="font-app mx-auto w-full max-w-5xl space-y-5 pb-4 animate-slide-up">
+      <PageHeader
+        title={isEdit ? `Edit Job Card ${cardData?.jobCardNo ?? ''}`.trim() : 'Create Job Card'}
+        backTo={isEdit && id ? `/jobcards/${id}` : '/jobcards'}
+        breadcrumbs={
+          isEdit
+            ? [
+                { label: 'Job Cards', to: '/jobcards' },
+                { label: cardData?.jobCardNo || 'Job card', to: id ? `/jobcards/${id}` : undefined },
+                { label: 'Edit' },
+              ]
+            : [{ label: 'Job Cards', to: '/jobcards' }, { label: 'New' }]
+        }
+        meta={
+          isEdit && cardData ? (
+            <>
+              <StatusPill status={cardData.status} />
+              {linkedChallan?.inwardNo && (
+                <span>
+                  Inward{' '}
+                  {linkedChallan.id ? (
+                    <Link to={`/jobwork/${linkedChallan.id}`} className="font-app-mono font-semibold text-sky-700 hover:underline">
+                      {linkedChallan.inwardNo}
+                    </Link>
+                  ) : (
+                    <span className="font-app-mono font-semibold text-slate-700">{linkedChallan.inwardNo}</span>
+                  )}
+                </span>
+              )}
+              {cardData.partName && <span className="text-slate-600">{cardData.partName}</span>}
+              {cardData.updatedAt && <span className="text-slate-400">Updated {cardData.updatedAt.split('T')[0]}</span>}
+            </>
+          ) : null
+        }
+        actions={
+          isEdit && cardData ? (
             <Button asChild variant="outline">
-              <Link to={`/jobcards/${id}/print`}>
-                <Printer />
-                Print
-              </Link>
+              <Link to={`/jobcards/${id}/print`}><Printer /> Print</Link>
             </Button>
-          </div>
-        ) : null}
-      </div>
+          ) : null
+        }
+      />
 
       {/* ── Create from inward (create mode) ── */}
       {!isEdit && (
@@ -597,86 +646,82 @@ export default function JobCardForm() {
         </Card>
       )}
 
-      <form id="job-card-form" onSubmit={handleSubmit} className="space-y-4">
-        <CustomerSection
-          form={form}
-          setForm={setForm}
-          customers={customers}
-          applyCustomerFromParty={applyCustomerFromParty}
-        />
+      {isEdit ? (
+        <Tabs defaultValue="details" className="space-y-0">
+          <TabsList className="font-app">
+            <TabsTrigger value="details">
+              <FileText className="h-4 w-4" />
+              Details
+            </TabsTrigger>
+            <TabsTrigger value="inspection">
+              <ClipboardCheck className="h-4 w-4" />
+              Inspection
+            </TabsTrigger>
+            <TabsTrigger value="items">
+              <Package className="h-4 w-4" />
+              Items{linkedItemCount ? ` (${linkedItemCount})` : ''}
+            </TabsTrigger>
+          </TabsList>
 
-        <JobCardHeaderInfoSection
-          form={form}
-          setForm={setForm}
-          cardData={cardData}
-        />
-
-        <IssueInstructionsSection form={form} setForm={setForm} />
-
-        <ProductionSection form={form} setForm={setForm} weightSummary={cardData?.weightSummary} />
-
-        <StatusRemarksSection form={form} setForm={setForm} />
-
-        <PhotoSection handleImageChange={handleImageChange} existingImages={cardData} savingSlot={savingSlot} />
-
-        {/* Actions */}
-        <Card>
-          <CardContent className="p-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-slate-700">Ready to save?</p>
-              <p className="text-xs text-slate-500">Use the buttons below after reviewing the job details.</p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Button type="submit" disabled={loading} loading={loading}>
-                {!loading && <Save />}
-                {loading ? 'Saving...' : (isEdit ? 'Update' : 'Create Job Card')}
-              </Button>
-              {isEdit && (
+          <TabsContent value="details" forceMount>
+            <form id="job-card-form" onSubmit={handleSubmit} className="space-y-4">
+              {detailSections}
+            </form>
+            <FormActionBar
+              formId="job-card-form"
+              submitLabel={loading ? 'Saving…' : 'Save job card'}
+              submitting={loading}
+              onCancel={() => navigate(`/jobcards/${id}`)}
+              secondary={
                 <Button asChild variant="outline">
-                  <Link to={`/jobcards/${id}/print`}>
-                    <Printer /> Print
-                  </Link>
+                  <Link to={`/jobcards/${id}/print`}><Printer /> Print</Link>
                 </Button>
-              )}
-              <Button asChild variant="ghost">
-                <Link to="/jobcards">Cancel</Link>
+              }
+              note="Saves the job-card details, photos and document control — and also commits any unsaved Inspection or Item edits."
+            />
+          </TabsContent>
+
+          <TabsContent value="inspection" forceMount className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-xs text-slate-600">
+                Quick categorization &amp; required-hardness edits — use <strong>Save Inspection</strong> below, or they are also saved when you save the job card.
+              </p>
+              <Button asChild variant="outline" size="sm">
+                <Link to={`/jobcards/${id}/inspection`}><ExternalLink className="h-3.5 w-3.5" /> Full final inspection</Link>
               </Button>
             </div>
-          </CardContent>
-        </Card>
-      </form>
+            {cardData && (
+              <InspectionEditSection ref={inspectionRef} id={id} inspection={cardData.inspection} hrcRange={form.hrcRange} />
+            )}
+          </TabsContent>
 
-      {isEdit && cardData && (
-        <InspectionEditSection ref={inspectionRef} id={id} inspection={cardData.inspection} hrcRange={form.hrcRange} />
+          <TabsContent value="items" forceMount className="space-y-3">
+            <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              Each item row saves with its own <strong>Save</strong>. Total weight can be set here or on the <strong>Details</strong> tab — both write the same field.
+            </p>
+            <LinkedDataSection
+              ref={linkedDataRef}
+              isEdit={isEdit}
+              cardData={cardData}
+              id={id}
+              onRefresh={loadCard}
+              onTotalWeightSaved={(w) => setForm(prev => ({ ...prev, totalWeight: String(w) }))}
+            />
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <>
+          <form id="job-card-form" onSubmit={handleSubmit} className="space-y-4">
+            {detailSections}
+          </form>
+          <FormActionBar
+            formId="job-card-form"
+            submitLabel={loading ? 'Creating…' : 'Create Job Card'}
+            submitting={loading}
+            onCancel={() => navigate('/jobcards')}
+          />
+        </>
       )}
-
-      <LinkedDataSection
-        ref={linkedDataRef}
-        isEdit={isEdit}
-        cardData={cardData}
-        id={id}
-        onRefresh={loadCard}
-        onTotalWeightSaved={(w) => setForm(prev => ({ ...prev, totalWeight: String(w) }))}
-      />
-
-      {/* Bottom actions — same Update/Print as the top bar, reachable without
-          scrolling back up after editing the Inspection/Linked Data sections below the form. */}
-      <div className="flex flex-wrap gap-3 pt-1 pb-4">
-        <Button type="submit" form="job-card-form" disabled={loading} loading={loading}>
-          {!loading && <Save />}
-          {loading ? 'Saving...' : (isEdit ? 'Update' : 'Create Job Card')}
-        </Button>
-        {isEdit && (
-          <Button asChild variant="outline">
-            <Link to={`/jobcards/${id}/print`}>
-              <Printer /> Print
-            </Link>
-          </Button>
-        )}
-        <Button asChild variant="ghost">
-          <Link to="/jobcards">Cancel</Link>
-        </Button>
-      </div>
     </div>
   );
 }
