@@ -2,6 +2,7 @@ const router = require('express').Router();
 const multer = require('multer');
 const ctrl   = require('../controllers/invoice.controller');
 const einv   = require('../controllers/einvoice.controller');
+const salesReg = require('../controllers/salesRegister.controller');
 const auth   = require('../middleware/auth');
 const { requireRole } = require('../middleware/role');
 const validate = require('../middleware/validate');
@@ -23,6 +24,7 @@ router.get   ('/series',                  auth, ctrl.listSeries);
 router.post  ('/series',                  auth, requireRole('MANAGER'), ctrl.createSeries);
 router.patch ('/series/:id',              auth, requireRole('MANAGER'), ctrl.updateSeries);
 router.get   ('/export/:format',          auth, ctrl.exportInvoices);       // Export invoices (pdf/xlsx) — must be before /:id
+router.get   ('/sales-gst-register',      auth, salesReg.salesGstRegister); // CA / GSTR-1 sales register Excel — must be before /:id
 
 // ── GST e-Invoice (IRP / NIC) ──
 // Bulk import /:id se pehle rehna chahiye, warna "einvoice-import" ko id samjha jayega.

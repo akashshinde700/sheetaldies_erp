@@ -155,6 +155,38 @@ export default function InvoiceList() {
     }
   };
 
+  // ── Sales GST Register (CA / GSTR-1) — uses the From/To date filter ──
+  const [gstRegBusy, setGstRegBusy] = useState(false);
+  const downloadGstRegister = async () => {
+    if (!fromDate || !toDate) {
+      toast.error('Pehle upar From aur To date chuniye — us range ka register banega.');
+      return;
+    }
+    setGstRegBusy(true);
+    try {
+      const r = await api.get('/invoices/sales-gst-register', {
+        params: { from: fromDate, to: toDate },
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(new Blob([r.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `SalesGSTRegister_${fromDate}_to_${toDate}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Sales GST Register download ho gaya.');
+    } catch (err) {
+      const msg = err.response?.data instanceof Blob
+        ? JSON.parse(await err.response.data.text())?.message
+        : err.response?.data?.message;
+      toast.error(msg || 'Register nahi ban paya.');
+    } finally {
+      setGstRegBusy(false);
+    }
+  };
+
   const handleDownloadXml = (inv) => {
     if (inv.xmlDownloadedAt) {
       setConfirmDialog({
@@ -347,6 +379,11 @@ export default function InvoiceList() {
             disabled={einvImporting}
             className="border-sky-300 text-sky-700 hover:bg-sky-50 hover:border-sky-400">
             <FileUp /> {einvImporting ? 'Import ho raha hai…' : 'Import e-Invoice Excel'}
+          </Button>
+          <Button type="button" variant="outline" onClick={downloadGstRegister} disabled={gstRegBusy}
+            title="From/To date range ka sales register — CA / GSTR-1 ke liye"
+            className="border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-400">
+            <FileDown /> {gstRegBusy ? 'Ban raha hai…' : 'GST Register (CA)'}
           </Button>
           <Button type="button" variant="outline" onClick={exportInvoices}>
             <Download /> Export Excel
