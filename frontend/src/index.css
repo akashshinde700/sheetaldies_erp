@@ -855,6 +855,10 @@ input[type=number] { -moz-appearance: textfield; }
 .font-app { font-family: var(--font-app); }
 .font-app-mono { font-family: var(--font-app-mono); font-variant-numeric: tabular-nums; }
 
+/* Readable-type floor for the modernized UI only (legacy pages + every
+   print sheet keep their own sizing). Specificity kept at 0 with :where(). */
+.font-app :where([class*="text-[10px]"], [class*="text-[11px]"]) { font-size: 12px; }
+
 /* Accordion (Radix) open/close animations
    (the existing prefers-reduced-motion block already neutralises these) */
 @keyframes accordionDown { from { height: 0; opacity: 0; } to { height: var(--radix-accordion-content-height); opacity: 1; } }

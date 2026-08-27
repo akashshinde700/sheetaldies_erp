@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, useId } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, Loader2, Save, Package, Layers } from 'lucide-react';
@@ -50,6 +50,9 @@ function AutocompleteInput({ value, onChange, suggestions, placeholder, classNam
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [menuStyle, setMenuStyle] = useState({});
   const inputRef = useRef(null);
+  const rid = useId();
+  const listId = `ac-list-${rid}`;
+  const optId = (i) => `ac-opt-${rid}-${i}`;
   const filtered = value
     ? suggestions.filter(s => s.toLowerCase().includes(value.toLowerCase()))
     : suggestions;
@@ -117,17 +120,29 @@ function AutocompleteInput({ value, onChange, suggestions, placeholder, classNam
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         autoComplete="off"
+        role="combobox"
+        aria-expanded={open && visible.length > 0}
+        aria-autocomplete="list"
+        aria-controls={listId}
+        aria-label={placeholder}
+        aria-activedescendant={open && visible[highlightedIndex] ? optId(highlightedIndex) : undefined}
         className={className}
       />
       {open && visible.length > 0 && (
-        <div
+        <ul
+          id={listId}
+          role="listbox"
+          aria-label={placeholder}
           style={menuStyle}
-          className="bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden max-h-40 overflow-y-auto w-max"
+          className="m-0 list-none bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden max-h-40 overflow-y-auto w-max p-0"
         >
           {visible.map((s, index) => (
+            <li key={s} role="none">
             <button
-              key={s}
               type="button"
+              role="option"
+              id={optId(index)}
+              aria-selected={index === highlightedIndex}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleSelect(s)}
               onMouseEnter={() => setHighlightedIndex(index)}
@@ -135,8 +150,9 @@ function AutocompleteInput({ value, onChange, suggestions, placeholder, classNam
             >
               {highlightMatch(s, value)}
             </button>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
   );

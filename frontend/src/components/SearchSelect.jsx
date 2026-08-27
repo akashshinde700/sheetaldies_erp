@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useId } from 'react';
 
 // Fixed-position dropdown floor width — keeps long option labels (e.g. long
 // process names) readable even when the trigger itself is a narrow table cell.
@@ -29,6 +29,9 @@ export default function SearchSelect({
   const wrapRef   = useRef(null);
   const inputRef  = useRef(null);
   const buttonRef = useRef(null);
+  const rid = useId();
+  const listboxId = `ss-list-${rid}`;
+  const optionId = (i) => `ss-opt-${rid}-${i}`;
 
   const selectedLabel = options.find(o => String(o.value) === String(value))?.label || '';
 
@@ -121,14 +124,22 @@ export default function SearchSelect({
       style={useFixed ? menuStyle : undefined}
     >
       <div className="bg-white border border-slate-200/90 rounded-xl shadow-card-hover overflow-hidden">
-        <div className="max-h-[min(14rem,50dvh)] overflow-y-auto overscroll-contain">
+        <ul
+          role="listbox"
+          id={listboxId}
+          aria-label={placeholder}
+          className="max-h-[min(14rem,50dvh)] overflow-y-auto overscroll-contain m-0 list-none p-0"
+        >
           {filtered.length === 0 ? (
-            <div className="px-4 py-4 text-xs text-slate-500 text-center">No results found</div>
+            <li className="px-4 py-4 text-xs text-slate-500 text-center">No results found</li>
           ) : (
             filtered.map((opt, index) => (
+              <li key={opt.value} role="none">
               <button
-                key={opt.value}
                 type="button"
+                role="option"
+                id={optionId(index)}
+                aria-selected={String(opt.value) === String(value)}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => handleSelect(opt)}
                 className={`w-full text-left flex items-center gap-2 transition-colors duration-150
@@ -144,9 +155,10 @@ export default function SearchSelect({
                 )}
                 <span className={String(opt.value) === String(value) ? '' : (dense ? 'ml-[15px]' : 'ml-[22px]')}>{opt.label}</span>
               </button>
+              </li>
             ))
           )}
-        </div>
+        </ul>
       </div>
     </div>
   );
@@ -159,6 +171,10 @@ export default function SearchSelect({
           type="button"
           onClick={handleOpen}
           disabled={disabled}
+          role="combobox"
+          aria-expanded={false}
+          aria-haspopup="listbox"
+          aria-label={value ? `${placeholder}: ${selectedLabel}` : placeholder}
           className={`form-input w-full text-left flex items-center justify-between gap-2
             ${dense ? 'py-1 px-2 text-xs' : ''}
             ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
@@ -189,6 +205,12 @@ export default function SearchSelect({
             onChange={e => setQuery(e.target.value)}
             placeholder="Type to search..."
             autoComplete="off"
+            role="combobox"
+            aria-expanded="true"
+            aria-autocomplete="list"
+            aria-controls={listboxId}
+            aria-label={placeholder}
+            aria-activedescendant={filtered[highlightedIndex] ? optionId(highlightedIndex) : undefined}
             className={`flex-1 pr-3 bg-transparent outline-none text-slate-900 placeholder-slate-400 ${dense ? 'py-1 text-xs' : 'py-2 text-sm'}`}
             onKeyDown={handleInputKeyDown}
           />
