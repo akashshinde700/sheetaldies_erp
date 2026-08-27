@@ -123,7 +123,8 @@ export default function CertForm() {
   const CERT_STEPS = [
     { key: 'job',    label: 'Job card',   full: 'Job card & customer' },
     { key: 'items',  label: 'Items',      full: 'Items' },
-    { key: 'cat',    label: 'Technical',  full: 'Technical & categorization' },
+    { key: 'tech',   label: 'Technical',  full: 'Technical details' },
+    { key: 'cat',    label: 'Category',   full: 'Categorization & process' },
     { key: 'hard',   label: 'Hardness',   full: 'Hardness & distortion' },
     { key: 'temp',   label: 'Temp cycle', full: 'Temperature cycle' },
     { key: 'pack',   label: 'Packing',    full: 'Packing & photos' },
@@ -772,9 +773,13 @@ export default function CertForm() {
           <CertItemsTable certItems={certItems} setCertItems={setCertItems} />
         </div>
 
-        {/* ── Step 3 · Technical & categorization ── */}
+        {/* ── Step 3 · Technical details ── */}
         <div hidden={wiz.current !== 2} className="space-y-4">
           <CertTechnicalSection form={form} set={set} updateTemperatureCycle={updateTemperatureCycle} jcData={jcData} />
+        </div>
+
+        {/* ── Step 4 · Categorization & process ── */}
+        <div hidden={wiz.current !== 3} className="space-y-4">
           {form.jobCardId && (
             <div className="flex items-start gap-2 rounded-lg border border-info-200 bg-info-50 px-3 py-2 text-xs text-info-800">
               <Link2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -787,14 +792,14 @@ export default function CertForm() {
           <CertCategorizationSection form={form} set={set} jcData={jcData} />
         </div>
 
-        {/* ── Step 4 · Hardness & distortion ── */}
-        <div hidden={wiz.current !== 3} className="space-y-4">
+        {/* ── Step 5 · Hardness & distortion ── */}
+        <div hidden={wiz.current !== 4} className="space-y-4">
           <CertHardnessSection form={form} set={set} jcData={jcData} />
           <DistortionTable form={form} setForm={setForm} set={set} />
         </div>
 
-        {/* ── Step 5 · Temperature cycle ── */}
-        <div hidden={wiz.current !== 4} className="space-y-4">
+        {/* ── Step 6 · Temperature cycle ── */}
+        <div hidden={wiz.current !== 5} className="space-y-4">
           <TemperatureCurve
             tempRows={tempRows}
             setTempRows={(rows) => { tempRowsUserEdited.current = true; setTempRows(rows); }}
@@ -806,14 +811,14 @@ export default function CertForm() {
           />
         </div>
 
-        {/* ── Step 6 · Packing & photos ── */}
-        <div hidden={wiz.current !== 5} className="space-y-4">
+        {/* ── Step 7 · Packing & photos ── */}
+        <div hidden={wiz.current !== 6} className="space-y-4">
           <CertPackingSection form={form} set={set} jcData={jcData} />
           <CertPhotosSection handleImageChange={handleImageChange} existingImages={{ ...jcImages, ...existingImages }} />
         </div>
 
-        {/* ── Step 7 · Review & save ── */}
-        <div hidden={wiz.current !== 6} className="space-y-4">
+        {/* ── Step 8 · Review & save ── */}
+        <div hidden={wiz.current !== 7} className="space-y-4">
           <Card>
             <CardHeader><CardTitle>Review — nothing is saved until you press “{isEdit ? 'Update' : 'Create'} Certificate”</CardTitle></CardHeader>
             <CardContent>
