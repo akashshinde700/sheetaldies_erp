@@ -13,137 +13,58 @@ export default {
       '3xl': '1920px',
     },
     extend: {
-      colors: {
+      colors: (() => {
         // ─────────────────────────────────────────────────────────────
-        //  SVT ERP palette
-        //
-        //  Chhe roles, aur bas. Pehle 12 rang family bikhri hui thi
-        //  (sky/blue/indigo/violet primary jaise, emerald/green/teal
-        //  success jaise) — ek hi kaam ke liye kai rang.
-        //
-        //  Har wo shade jo TEXT ke liye use hota hai, white background par
-        //  WCAG AA (4.5:1) paar karta hai. Jaanch: scratchpad/palette.js
+        //  SVT ERP palette — 6 roles, wired through CSS variables so the
+        //  same class works in light AND dark mode. The `--c-<role>-<n>`
+        //  vars live in index.css (:root = light, :root.dark = dark,
+        //  scoped @media screen so PRINT is always the light palette).
+        //  Legacy hue names (sky/emerald/rose/…) are remapped onto the
+        //  roles here, so `text-sky-700` etc. keep working everywhere.
         // ─────────────────────────────────────────────────────────────
+        const ramp = (ns) => Object.fromEntries(
+          ['50','100','200','300','400','500','600','700','800','900','950']
+            .map((k) => [k, `rgb(var(--c-${ns}-${k}) / <alpha-value>)`])
+        );
+        const primary = ramp('primary');
+        const neutral = ramp('neutral');
+        const success = ramp('success');
+        const warning = ramp('warning');
+        const danger  = ramp('danger');
+        const accent  = ramp('accent');
+        const info    = ramp('info');
+        const heat    = ramp('heat');
+        return {
+          white: 'rgb(var(--c-white) / <alpha-value>)',
+          black: 'rgb(var(--c-black) / <alpha-value>)',
+          primary, neutral, success, warning, danger, accent, info, heat,
 
-        // PRIMARY — links, active nav, primary buttons.
-        // Purana sky cyan-ish tha aur sky-600 sirf 4.10:1 deta tha (fail).
-        primary: {
-          50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd',
-          400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8',
-          800: '#1e40af', 900: '#1e3a8a', 950: '#172554',
-        },
+          // legacy hue aliases → roles
+          sky: primary, blue: primary, indigo: primary, cyan: primary, brand: primary,
+          slate: neutral, gray: neutral, zinc: neutral,
+          emerald: success, green: success, teal: success,
+          amber: warning, yellow: warning, orange: warning,
+          rose: danger, red: danger, pink: danger,
+          violet: accent, purple: accent,
 
-        // NEUTRAL — text, borders, surfaces.
-        // 400 sirf text ke liye istemal hota tha (345 jagah) aur 2.56:1 par
-        // padhna mushkil tha; ab 4.62:1 — 500 se halka, par AA pass.
-        neutral: {
-          50: '#f8fafc', 100: '#f1f5f9', 200: '#e2e8f0', 300: '#cbd5e1',
-          400: '#687689', 500: '#64748b', 600: '#475569', 700: '#334155',
-          800: '#1e293b', 900: '#0f172a', 950: '#020617',
-        },
-
-        // SUCCESS — paid, completed, passed
-        success: {
-          50: '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0', 300: '#6ee7b7',
-          400: '#34d399', 500: '#10b981', 600: '#047857', 700: '#046c50',
-          800: '#065f46', 900: '#064e3b', 950: '#022c22',
-        },
-
-        // WARNING — pending, partial, dhyan dene layak
-        warning: {
-          50: '#fffbeb', 100: '#fef3c7', 200: '#fde68a', 300: '#fcd34d',
-          400: '#fbbf24', 500: '#f59e0b', 600: '#b45309', 700: '#a04606',
-          800: '#92400e', 900: '#78350f', 950: '#451a03',
-        },
-
-        // DANGER — delete, overdue, fail
-        danger: {
-          50: '#fff1f2', 100: '#ffe4e6', 200: '#fecdd3', 300: '#fda4af',
-          400: '#fb7185', 500: '#f43f5e', 600: '#e11d48', 700: '#be123c',
-          800: '#9f1239', 900: '#881337', 950: '#4c0519',
-        },
-
-        // ACCENT — un flows ke liye jinhe primary se alag dikhna hai
-        // (jaise Tally box), taaki wo primary actions me na ghul jayen.
-        accent: {
-          50: '#f5f3ff', 100: '#ede9fe', 200: '#ddd6fe', 300: '#c4b5fd',
-          400: '#a78bfa', 500: '#8b5cf6', 600: '#7c3aed', 700: '#6d28d9',
-          800: '#5b21b6', 900: '#4c1d95', 950: '#2e1065',
-        },
-
-        // ─────────────────────────────────────────────────────────────
-        //  Purane utility naam upar wale roles par bhej diye gaye hain.
-        //  Codebase me 2712 jagah raw rang likhe hain — unhe haath se
-        //  badalne ke bajaye yahin remap kar diya, isliye `text-sky-700`
-        //  jaisa har purana class waise hi chalta hai, bas ab sahi rang
-        //  deta hai. Naya code seedha primary/neutral/... use kare.
-        // ─────────────────────────────────────────────────────────────
-        sky:     { 50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a', 950: '#172554' },
-        blue:    { 50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a', 950: '#172554' },
-        indigo:  { 50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a', 950: '#172554' },
-        cyan:    { 50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a', 950: '#172554' },
-
-        slate:   { 50: '#f8fafc', 100: '#f1f5f9', 200: '#e2e8f0', 300: '#cbd5e1', 400: '#687689', 500: '#64748b', 600: '#475569', 700: '#334155', 800: '#1e293b', 900: '#0f172a', 950: '#020617' },
-        gray:    { 50: '#f8fafc', 100: '#f1f5f9', 200: '#e2e8f0', 300: '#cbd5e1', 400: '#687689', 500: '#64748b', 600: '#475569', 700: '#334155', 800: '#1e293b', 900: '#0f172a', 950: '#020617' },
-        zinc:    { 50: '#f8fafc', 100: '#f1f5f9', 200: '#e2e8f0', 300: '#cbd5e1', 400: '#687689', 500: '#64748b', 600: '#475569', 700: '#334155', 800: '#1e293b', 900: '#0f172a', 950: '#020617' },
-
-        emerald: { 50: '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0', 300: '#6ee7b7', 400: '#34d399', 500: '#10b981', 600: '#047857', 700: '#046c50', 800: '#065f46', 900: '#064e3b', 950: '#022c22' },
-        green:   { 50: '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0', 300: '#6ee7b7', 400: '#34d399', 500: '#10b981', 600: '#047857', 700: '#046c50', 800: '#065f46', 900: '#064e3b', 950: '#022c22' },
-        teal:    { 50: '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0', 300: '#6ee7b7', 400: '#34d399', 500: '#10b981', 600: '#047857', 700: '#046c50', 800: '#065f46', 900: '#064e3b', 950: '#022c22' },
-
-        amber:   { 50: '#fffbeb', 100: '#fef3c7', 200: '#fde68a', 300: '#fcd34d', 400: '#fbbf24', 500: '#f59e0b', 600: '#b45309', 700: '#a04606', 800: '#92400e', 900: '#78350f', 950: '#451a03' },
-        yellow:  { 50: '#fffbeb', 100: '#fef3c7', 200: '#fde68a', 300: '#fcd34d', 400: '#fbbf24', 500: '#f59e0b', 600: '#b45309', 700: '#a04606', 800: '#92400e', 900: '#78350f', 950: '#451a03' },
-        orange:  { 50: '#fffbeb', 100: '#fef3c7', 200: '#fde68a', 300: '#fcd34d', 400: '#fbbf24', 500: '#f59e0b', 600: '#b45309', 700: '#a04606', 800: '#92400e', 900: '#78350f', 950: '#451a03' },
-
-        rose:    { 50: '#fff1f2', 100: '#ffe4e6', 200: '#fecdd3', 300: '#fda4af', 400: '#fb7185', 500: '#f43f5e', 600: '#e11d48', 700: '#be123c', 800: '#9f1239', 900: '#881337', 950: '#4c0519' },
-        red:     { 50: '#fff1f2', 100: '#ffe4e6', 200: '#fecdd3', 300: '#fda4af', 400: '#fb7185', 500: '#f43f5e', 600: '#e11d48', 700: '#be123c', 800: '#9f1239', 900: '#881337', 950: '#4c0519' },
-        pink:    { 50: '#fff1f2', 100: '#ffe4e6', 200: '#fecdd3', 300: '#fda4af', 400: '#fb7185', 500: '#f43f5e', 600: '#e11d48', 700: '#be123c', 800: '#9f1239', 900: '#881337', 950: '#4c0519' },
-
-        violet:  { 50: '#f5f3ff', 100: '#ede9fe', 200: '#ddd6fe', 300: '#c4b5fd', 400: '#a78bfa', 500: '#8b5cf6', 600: '#7c3aed', 700: '#6d28d9', 800: '#5b21b6', 900: '#4c1d95', 950: '#2e1065' },
-        purple:  { 50: '#f5f3ff', 100: '#ede9fe', 200: '#ddd6fe', 300: '#c4b5fd', 400: '#a78bfa', 500: '#8b5cf6', 600: '#7c3aed', 700: '#6d28d9', 800: '#5b21b6', 900: '#4c1d95', 950: '#2e1065' },
-
-        // ─────────────────────────────────────────────────────────────
-        //  UX-modernization additions (purely additive — no existing raw
-        //  class maps to these, so print output and existing screens are
-        //  untouched). `info` gives stage/informational chips a hue that
-        //  does not collide with `accent`; `heat` is the process /
-        //  temperature accent from the approved audit palette.
-        // ─────────────────────────────────────────────────────────────
-        info: {
-          50: '#eef0fb', 100: '#e0e2f6', 200: '#c5c9ee', 300: '#a3a8e0',
-          400: '#8480d0', 500: '#6a60c6', 600: '#5b4bc4', 700: '#4a3da3',
-          800: '#3c3382', 900: '#322c68', 950: '#201b45',
-        },
-        heat: {
-          50: '#fdf3ec', 100: '#fbe4d3', 200: '#f6c5a3', 300: '#efa06e',
-          400: '#e57d40', 500: '#d0631f', 600: '#c15511', 700: '#9e4310',
-          800: '#7c3612', 900: '#642f14', 950: '#371608',
-        },
-
-        // Purane naam jo pehle se the — ab palette se juda diye gaye,
-        // taaki do alag sach na rahen.
-        brand: {
-          50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd',
-          400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8',
-          800: '#1e40af', 900: '#1e3a8a', 950: '#172554',
-        },
-        surface: {
-          DEFAULT: '#ffffff',
-          muted: '#f8fafc',
-          subtle: '#f1f5f9',
-        },
-        ink: {
-          DEFAULT: '#0f172a',
-          secondary: '#475569',
-          muted: '#687689',
-        },
-        state: {
-          success: '#047857',
-          error: '#e11d48',
-          warning: '#b45309',
-          info: '#2563eb',
-        },
-      },
+          surface: {
+            DEFAULT: 'rgb(var(--c-white) / <alpha-value>)',
+            muted:   'rgb(var(--c-neutral-50) / <alpha-value>)',
+            subtle:  'rgb(var(--c-neutral-100) / <alpha-value>)',
+          },
+          ink: {
+            DEFAULT:   'rgb(var(--c-neutral-900) / <alpha-value>)',
+            secondary: 'rgb(var(--c-neutral-600) / <alpha-value>)',
+            muted:     'rgb(var(--c-neutral-400) / <alpha-value>)',
+          },
+          state: {
+            success: 'rgb(var(--c-success-600) / <alpha-value>)',
+            error:   'rgb(var(--c-danger-600) / <alpha-value>)',
+            warning: 'rgb(var(--c-warning-600) / <alpha-value>)',
+            info:    'rgb(var(--c-primary-600) / <alpha-value>)',
+          },
+        };
+      })(),
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
         headline: ['Manrope', 'Inter', 'system-ui', 'sans-serif'],
