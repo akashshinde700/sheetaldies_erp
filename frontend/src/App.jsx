@@ -19,6 +19,7 @@ const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 
 const JobCardList = lazy(() => import('./pages/jobcard/JobCardList'));
+const JobCardDetail = lazy(() => import('./pages/jobcard/JobCardDetail'));
 const JobCardForm = lazy(() => import('./pages/jobcard/JobCardForm'));
 const JobCardPrint = lazy(() => import('./pages/jobcard/JobCardPrint'));
 const InspectionForm = lazy(() => import('./pages/jobcard/InspectionForm'));
@@ -107,7 +108,8 @@ const AppRoutes = () => (
         <Route index element={<Dashboard />} />
       <Route path="jobcards"               element={<JobCardList />} />
       <Route path="jobcards/new"           element={<JobCardForm />} />
-      <Route path="jobcards/:id"           element={<JobCardForm />} />
+      <Route path="jobcards/:id"           element={<JobCardDetail />} />
+      <Route path="jobcards/:id/edit"      element={<JobCardForm />} />
       <Route path="jobcards/:id/print"      element={<JobCardPrint />} />
       <Route path="jobcards/:id/inspection" element={<InspectionForm />} />
       <Route path="jobwork"                element={<JobworkList />} />

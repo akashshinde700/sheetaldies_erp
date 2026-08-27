@@ -105,6 +105,9 @@ export default function Layout() {
       if (/^\/jobcards\/\d+\/inspection$/.test(location.pathname)) {
         return { title: 'Incoming inspection', icon: 'fact_check' };
       }
+      if (/^\/jobcards\/\d+\/edit$/.test(location.pathname)) {
+        return { title: 'Edit Job Card', icon: 'description' };
+      }
       if (/^\/jobcards\/\d+$/.test(location.pathname)) {
         return { title: 'Job Card', icon: 'description' };
       }

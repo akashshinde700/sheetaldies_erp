@@ -210,7 +210,7 @@ export default function JobCardForm() {
         const r = await api.post('/jobwork/jobcard-from-challan', { challanNo });
         const jobCard = r.data.data.jobCard;
         toast.success(`Job card ${jobCard.jobCardNo} created from challan ${r.data.data.challan.challanNo}.`);
-        navigate(`/jobcards/${jobCard.id}`);
+        navigate(`/jobcards/${jobCard.id}/edit`);
       } catch (err) {
         toast.error(err.response?.data?.message || 'Could not create job card from challan.');
       } finally {

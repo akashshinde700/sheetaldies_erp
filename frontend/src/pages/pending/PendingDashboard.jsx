@@ -57,7 +57,7 @@ export default function PendingDashboard() {
       const jcId = r.data.data?.jobCard?.id;
       toast.success(`Job Card ${jcNo} created from ${challanNo}!`);
       queryClient.invalidateQueries({ queryKey: ['pending-items'] });
-      if (jcId) navigate(`/jobcards/${jcId}`);
+      if (jcId) navigate(`/jobcards/${jcId}/edit`);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error creating job card');
     } finally {

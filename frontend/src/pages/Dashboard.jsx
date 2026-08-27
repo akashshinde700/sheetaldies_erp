@@ -269,7 +269,7 @@ export default function Dashboard() {
                   </td>
                   <td className="td">
                     <div className="flex gap-3">
-                      <Link to={`/jobcards/${card.id}`}
+                      <Link to={`/jobcards/${card.id}/edit`}
                         className="text-xs text-sky-800 font-semibold hover:underline">Edit</Link>
                       <Link to={`/jobcards/${card.id}/inspection`}
                         className="text-xs text-slate-700 font-semibold hover:underline">Inspect</Link>

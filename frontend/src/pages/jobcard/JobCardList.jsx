@@ -343,7 +343,7 @@ export default function JobCardList() {
                     <div className="flex items-center justify-end gap-0.5">
                       <Button variant="ghost" size="icon-sm" asChild
                         className="text-slate-400 hover:text-sky-700 hover:bg-sky-50">
-                        <Link to={`/jobcards/${card.id}`} title="Edit" aria-label={`Edit job card ${card.jobCardNo}`}>
+                        <Link to={`/jobcards/${card.id}/edit`} title="Edit" aria-label={`Edit job card ${card.jobCardNo}`}>
                           <Pencil />
                         </Link>
                       </Button>
