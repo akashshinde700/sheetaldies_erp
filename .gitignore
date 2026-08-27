@@ -67,6 +67,8 @@ DEPLOY-NOW.sh
 # Local DB dumps
 sheetal_dump.sql
 *.sql
+# …but Prisma migrations must be committed
+!backend/prisma/migrations/**/*.sql
 
 # Excel exports generated locally
 *.xlsx
