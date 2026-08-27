@@ -163,6 +163,7 @@ app.use('/api/quality',   strictLimiter, require('./routes/quality.routes'));
 app.use('/api/invoices',  strictLimiter, require('./routes/invoice.routes'));
 app.use('/api/dispatch-challans', strictLimiter, require('./routes/dispatch.routes'));
 app.use('/api/purchase',   strictLimiter, require('./routes/purchase.routes'));
+app.use('/api/stock',      strictLimiter, require('./routes/stock.routes'));
 app.use('/api/manufacturing', strictLimiter, require('./routes/manufacturing.routes'));
 app.use('/api/furnace-planning', strictLimiter, require('./routes/furnacePlanning.routes'));
 app.use('/api/analytics',  require('./routes/analytics.routes'));

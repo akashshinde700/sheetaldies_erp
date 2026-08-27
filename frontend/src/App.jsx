@@ -60,6 +60,7 @@ const DispatchChallanForm = lazy(() => import('./pages/dispatch/DispatchChallanF
 const DispatchChallanPrint = lazy(() => import('./pages/dispatch/DispatchChallanPrint'));
 
 const InventoryView = lazy(() => import('./pages/purchase/InventoryView'));
+const StockList = lazy(() => import('./pages/inventory/StockList'));
 
 const VHTRunsheetList = lazy(() => import('./pages/manufacturing/VHTRunsheetList'));
 const VHTRunsheetForm = lazy(() => import('./pages/manufacturing/VHTRunsheetForm'));
@@ -149,6 +150,7 @@ const AppRoutes = () => (
       <Route path="dispatch/new"              element={<DispatchChallanForm />} />
       <Route path="dispatch/:id/print"        element={<DispatchChallanPrint />} />
       <Route path="dispatch/:id"              element={<DispatchChallanForm />} />
+      <Route path="inventory"                 element={<PrivateRoute role="OPERATOR"><StockList /></PrivateRoute>} />
       <Route path="purchase/inventory"        element={<PrivateRoute role="MANAGER"><InventoryView /></PrivateRoute>} />
       <Route path="customer-quotes"           element={<PrivateRoute role="OPERATOR"><CustomerQuoteList /></PrivateRoute>} />
       <Route path="customer-quotes/new"       element={<PrivateRoute role="OPERATOR"><CustomerQuoteForm /></PrivateRoute>} />

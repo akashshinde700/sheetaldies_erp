@@ -30,7 +30,7 @@ const NAV_MAIN = [
 const NAV_OPERATIONS = [
   { label: 'Invoices',     icon: 'receipt_long', to: '/invoices' },
   { label: 'Analytics',    icon: 'analytics',    to: '/analytics' },
-  { label: 'Inventory', icon: 'warehouse', to: '/purchase/inventory' },
+  { label: 'Inventory', icon: 'warehouse', to: '/inventory' },
   { label: 'Customer Quotes', icon: 'request_quote', to: '/customer-quotes' },
   { label: 'Dispatch', icon: 'local_shipping', to: '/dispatch' },
 ];
