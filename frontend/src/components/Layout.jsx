@@ -264,20 +264,14 @@ export default function Layout() {
         <main
           ref={mainRef}
           style={{ touchAction: 'pan-y' }}
-          className="flex-1 mt-[calc(3.75rem+env(safe-area-inset-top,0px))] main-area-padding
-            py-3 sm:py-4 md:py-5 pb-6 overflow-x-hidden overflow-y-auto overscroll-contain animate-fade-in safe-pb
-            print:mt-0 print:overflow-visible print:p-0"
+          className="flex-1 min-h-0 flex flex-col mt-[calc(3.75rem+env(safe-area-inset-top,0px))] main-area-padding
+            py-2 sm:py-3 overflow-x-hidden overflow-y-auto overscroll-contain animate-fade-in safe-pb
+            print:mt-0 print:overflow-visible print:p-0 print:block"
         >
-          <div className="w-full animate-slide-up">
+          <div className="w-full flex-1 min-h-0 flex flex-col animate-slide-up print:block">
             <Outlet />
           </div>
         </main>
-
-        <footer className="print:hidden footer-bar-padding py-2.5 border-t border-slate-200/70 bg-white/85 backdrop-blur-sm safe-pb">
-          <p className="text-[10px] text-slate-400 text-center leading-relaxed tracking-wide">
-            Shital Vacuum Treat Pvt. Ltd. · SVT ERP
-          </p>
-        </footer>
       </div>
     </div>
   );

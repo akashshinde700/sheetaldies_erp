@@ -533,7 +533,7 @@ export default function JobCardForm() {
   );
 
   return (
-    <div className="font-app w-full space-y-3 pb-4 animate-slide-up">
+    <div className="font-app flex flex-col h-full min-h-0">
       <PageHeader
         title={isEdit ? `Edit Job Card ${cardData?.jobCardNo ?? ''}`.trim() : 'Create Job Card'}
         backTo={isEdit && id ? `/jobcards/${id}` : '/jobcards'}
@@ -576,9 +576,17 @@ export default function JobCardForm() {
         }
       />
 
+      {isEdit && (
+        <div className="mt-2 shrink-0 rounded-xl border border-slate-200 bg-white p-2 shadow-card">
+          <Stepper steps={JC_STEPS} current={wiz.current} completed={wiz.completed} onStepClick={(i) => wiz.goto(i)} />
+        </div>
+      )}
+
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-3 pr-0.5 space-y-3">
+
       {/* ── Create from inward (create mode) ── */}
       {!isEdit && (
-        <Card className="mb-5">
+        <Card className="mb-3">
           <CardHeader>
             <CardTitle>Create from Inward</CardTitle>
           </CardHeader>
@@ -694,10 +702,6 @@ export default function JobCardForm() {
 
       {isEdit ? (
         <>
-          <Card className="p-2.5 sm:p-3">
-            <Stepper steps={JC_STEPS} current={wiz.current} completed={wiz.completed} onStepClick={(i) => wiz.goto(i)} />
-          </Card>
-
           <form id="job-card-form" onSubmit={handleSubmit} className="space-y-3">
             <div hidden={wiz.current !== 0} className="space-y-3">{stepCustomer}</div>
             <div hidden={wiz.current !== 1} className="space-y-3">{stepJobInfo}</div>
@@ -734,7 +738,7 @@ export default function JobCardForm() {
           </div>
 
           {/* Sticky nav + save */}
-          <div className="sticky bottom-0 z-30 mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white/95 px-4 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] shadow-card backdrop-blur sm:px-5">
+          <div className="sticky bottom-0 z-30 mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white/95 px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-card backdrop-blur sm:px-5">
             <Button type="button" variant="ghost" disabled={wiz.isFirst} onClick={wiz.back}>
               <ChevronLeft className="h-4 w-4" /> Back
             </Button>
@@ -759,7 +763,7 @@ export default function JobCardForm() {
             {stepProduction}
             {docControlSection}
           </form>
-          <div className="sticky bottom-0 z-30 mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white/95 px-4 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] shadow-card backdrop-blur sm:px-5">
+          <div className="sticky bottom-0 z-30 mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white/95 px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-card backdrop-blur sm:px-5">
             <Button asChild variant="ghost"><Link to="/jobcards">Cancel</Link></Button>
             <Button type="submit" form="job-card-form" loading={loading} disabled={loading} className="ml-auto">
               {loading ? 'Creating…' : 'Create Job Card'}
@@ -767,6 +771,7 @@ export default function JobCardForm() {
           </div>
         </>
       )}
+      </div>
     </div>
   );
 }
