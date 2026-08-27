@@ -109,8 +109,7 @@ export default function PartyForm() {
 
   const STEPS = [
     { key: 'identity', label: 'Identity & address' },
-    { key: 'contact', label: 'Contact & banking' },
-    { key: 'rates', label: 'Process rates' },
+    { key: 'contact', label: 'Contact, banking & rates' },
   ];
   const wiz = useStepper(STEPS.length);
   const LAST = STEPS.length - 1;
@@ -353,7 +352,7 @@ export default function PartyForm() {
           {/* ── Step 2 · Contact & banking ── */}
           <div hidden={wiz.current !== 1} className="space-y-3">
             <Card>
-              <CardHeader><CardTitle>Contact &amp; Tally</CardTitle></CardHeader>
+              <CardHeader><CardTitle>Contact &amp; tax</CardTitle></CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-x-3 gap-y-3 lg:grid-cols-12">
                   <FormField label="Phone" htmlFor="party-phone" className="lg:col-span-3">
@@ -362,19 +361,7 @@ export default function PartyForm() {
                   <FormField label="Email" htmlFor="party-email" className="lg:col-span-4">
                     <Input id="party-email" type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="info@company.com" />
                   </FormField>
-                  <FormField label="Tally Ledger Name" htmlFor="party-tally" className="col-span-2 lg:col-span-5"
-                    hint={'Khali chhodo to upar wala naam hi Tally me jayega. Alag naam ho to bilkul waisa hi likho — ek space ka farak bhi "Ledger not found" de dega.'}>
-                    <Input id="party-tally" value={form.tallyLedgerName} onChange={e => set('tallyLedgerName', e.target.value)}
-                      className={form.tallyLedgerName ? 'border-violet-300 bg-violet-50/40' : ''}
-                      placeholder={form.name || 'Tally me jo naam hai'} maxLength={200} />
-                    {form.tallyLedgerName && form.tallyLedgerName.trim() !== form.name.trim() && (
-                      <p className="text-[10px] text-violet-600 mt-0.5">
-                        Invoice pe: <strong>{form.name || '—'}</strong> · Tally me: <strong>{form.tallyLedgerName.trim()}</strong>
-                      </p>
-                    )}
-                  </FormField>
-
-                  <FormField label="VAT TIN" htmlFor="party-vat" className="lg:col-span-3">
+                  <FormField label="VAT TIN" htmlFor="party-vat" className="lg:col-span-2">
                     <Input id="party-vat" value={form.vatTin} onChange={e => set('vatTin', e.target.value)} className="font-app-mono" placeholder="27501011577V" />
                   </FormField>
                   <FormField label="CST No" htmlFor="party-cst" className="lg:col-span-3">
@@ -408,10 +395,7 @@ export default function PartyForm() {
                 </div>
               </CardContent>
             </Card>
-          </div>
 
-          {/* ── Step 3 · Process rates ── */}
-          <div hidden={wiz.current !== 2} className="space-y-3">
             <Card>
               <CardHeader className="flex-row items-center gap-2 space-y-0">
                 <CardTitle>Process rates (party-specific)</CardTitle>
