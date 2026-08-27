@@ -4,8 +4,11 @@ import QRCode from 'qrcode';
 import api from '../../utils/api';
 import { formatDate } from '../../utils/formatters';
 
-// ── SVT Company Constants ─────────────────────────────────────
-const SVT = {
+// ── Seller fallback — used only when the invoice's fromParty is missing a
+// field. The ERP is run by Shital Vacuum Treat, so these are its details;
+// MSME No / CIN / bank branch / jurisdiction are not stored on Party, so
+// they always come from here.
+const SVT_FALLBACK = {
   name:    'SHITAL VACUUM TREAT PVT. LTD.',
   address: 'Plot No. 84/1, Sector No. 10, PCNTDA, Bhosari, Pune - 411020',
   gstin:   '27AATCS0577L1ZK',
@@ -193,14 +196,38 @@ export default function InvoicePrint() {
   const supplier  = inv.fromParty || {};
   const customer  = inv.toParty   || {};
   const items     = inv.items     || [];
+
+  // Seller block is driven by the invoice's own fromParty (same as the
+  // e-Invoice JSON's SellerDtls); SVT_FALLBACK only fills the blanks.
+  const seller = {
+    name:      supplier.name    || SVT_FALLBACK.name,
+    address:   supplier.address || SVT_FALLBACK.address,
+    gstin:     supplier.gstin   || SVT_FALLBACK.gstin,
+    pan:       supplier.pan     || SVT_FALLBACK.pan,
+    cin:       SVT_FALLBACK.cin,
+    msme:      SVT_FALLBACK.msme,
+    msmeType:  SVT_FALLBACK.msmeType,
+    state:     supplier.state     || SVT_FALLBACK.state,
+    stateCode: supplier.stateCode || (supplier.gstin || '').slice(0, 2) || SVT_FALLBACK.stateCode,
+    jurisdiction: supplier.city ? supplier.city.toUpperCase() : SVT_FALLBACK.jurisdiction,
+    bank: {
+      name:   supplier.bankName          || SVT_FALLBACK.bank.name,
+      holder: supplier.bankAccountHolder || SVT_FALLBACK.bank.holder,
+      acNo:   supplier.accountNo         || SVT_FALLBACK.bank.acNo,
+      ifsc:   supplier.ifscCode          || SVT_FALLBACK.bank.ifsc,
+      branch: SVT_FALLBACK.bank.branch,
+      vatTin: supplier.vatTin            || SVT_FALLBACK.bank.vatTin,
+      cstNo:  supplier.cstNo             || SVT_FALLBACK.bank.cstNo,
+    },
+  };
   // Invoices saved before this was a choice have no flag and kept showing the
   // part name, so an absent value means "show".
   const showParts = inv.showPartName !== false;
   const hasIGST   = n(inv.igstRate) > 0;
   // An out-of-state buyer must not be printed as Maharashtra — the state and
   // place of supply are what decide IGST vs CGST+SGST.
-  const custState     = customer.state     || SVT.state;
-  const custStateCode = customer.stateCode || (customer.gstin || '').slice(0, 2) || SVT.stateCode;
+  const custState     = customer.state     || seller.state;
+  const custStateCode = customer.stateCode || (customer.gstin || '').slice(0, 2) || seller.stateCode;
 
   const amtWords  = numberToWords(n(derived.grand));
   const taxWords  = numberToWords(n(derived.totalTax));
@@ -271,17 +298,17 @@ export default function InvoicePrint() {
             <tr>
               {/* Supplier details */}
               <td style={{ ...tdStyle(), width: '55%', verticalAlign: 'top', borderRight: B }}>
-                <div style={{ fontWeight: 'bold', fontSize: '11px', marginBottom: 2 }}>{SVT.name}</div>
-                <div>{SVT.address}</div>
+                <div style={{ fontWeight: 'bold', fontSize: '11px', marginBottom: 2 }}>{seller.name}</div>
+                <div>{seller.address}</div>
                 <div style={{ marginTop: 3 }}>
-                  <span>MSME / Udyam Type: {SVT.msmeType}</span>
+                  <span>MSME / Udyam Type: {seller.msmeType}</span>
                 </div>
-                <div>MSME No: {SVT.msme}</div>
+                <div>MSME No: {seller.msme}</div>
                 <div style={{ marginTop: 3 }}>
-                  <strong>GSTIN/UIN:</strong> <span style={{ fontFamily: 'monospace' }}>{SVT.gstin}</span>
+                  <strong>GSTIN/UIN:</strong> <span style={{ fontFamily: 'monospace' }}>{seller.gstin}</span>
                 </div>
-                <div><strong>State Name:</strong> {SVT.state}, <strong>Code:</strong> {SVT.stateCode}</div>
-                <div>CIN: {SVT.cin}</div>
+                <div><strong>State Name:</strong> {seller.state}, <strong>Code:</strong> {seller.stateCode}</div>
+                <div>CIN: {seller.cin}</div>
               </td>
 
               {/* Invoice ref table */}
@@ -526,9 +553,9 @@ export default function InvoicePrint() {
               {/* Left: Bank + Declaration */}
               <td style={{ ...tdStyle({ verticalAlign: 'top' }), width: '55%', borderRight: B }}>
                 <div style={{ marginBottom: 4 }}>
-                  <div><strong>Company's VAT TIN:</strong> {SVT.bank.vatTin}</div>
-                  <div><strong>Company's CST No:</strong> {SVT.bank.cstNo}</div>
-                  <div><strong>Company's PAN:</strong> {SVT.pan}</div>
+                  <div><strong>Company's VAT TIN:</strong> {seller.bank.vatTin}</div>
+                  <div><strong>Company's CST No:</strong> {seller.bank.cstNo}</div>
+                  <div><strong>Company's PAN:</strong> {seller.pan}</div>
                 </div>
                 {/* Bank details are printed once, in the right-hand block. */}
                 <div style={{ marginTop: 6, fontSize: '9px', fontStyle: 'italic', color: '#555' }}>
@@ -546,13 +573,13 @@ export default function InvoicePrint() {
                 </div>
                 <div style={{ marginTop: 6, fontSize: '9px' }}>
                   <div><strong>Company's Bank Details</strong></div>
-                  <div>Bank Name: {SVT.bank.name}</div>
-                  <div>A/c Holder's Name: {SVT.bank.holder}</div>
-                  <div>A/c No: {SVT.bank.acNo}</div>
-                  <div>Branch &amp; IFS Code: {SVT.bank.branch} &amp; {SVT.bank.ifsc}</div>
+                  <div>Bank Name: {seller.bank.name}</div>
+                  <div>A/c Holder's Name: {seller.bank.holder}</div>
+                  <div>A/c No: {seller.bank.acNo}</div>
+                  <div>Branch &amp; IFS Code: {seller.bank.branch} &amp; {seller.bank.ifsc}</div>
                 </div>
                 <div style={{ marginTop: 12, textAlign: 'right', fontWeight: 'bold', fontSize: '10px' }}>
-                  for {SVT.name}
+                  for {seller.name}
                 </div>
                 <div style={{ marginTop: 4 }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -572,7 +599,7 @@ export default function InvoicePrint() {
 
         {/* ── FOOTER ── */}
         <div style={{ padding: '4px 6px', display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: '#555' }}>
-          <span>SUBJECT TO {SVT.jurisdiction} JURISDICTION</span>
+          <span>SUBJECT TO {seller.jurisdiction} JURISDICTION</span>
           <span>This is a Computer Generated Invoice</span>
         </div>
       </div>
