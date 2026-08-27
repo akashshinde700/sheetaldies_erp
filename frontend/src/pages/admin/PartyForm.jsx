@@ -449,9 +449,6 @@ export default function PartyForm() {
 
         {/* ── Wizard navigation ── */}
         <div className="shrink-0 mt-2 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-card sm:px-5">
-          <Button type="button" variant="ghost" disabled={wiz.isFirst} onClick={wiz.back}>
-            <ChevronLeft className="h-4 w-4" /> Back
-          </Button>
           <span className="font-app-mono text-xs text-slate-400">Step {wiz.current + 1} of {STEPS.length}</span>
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <Button asChild variant="ghost">
@@ -459,6 +456,9 @@ export default function PartyForm() {
             </Button>
             <Button type="submit" disabled={saving}>
               {saving ? <><Loader2 className="animate-spin" /> Saving…</> : <><Save /> {isEdit ? 'Update Party' : 'Add Party'}</>}
+            </Button>
+            <Button type="button" variant="ghost" disabled={wiz.isFirst} onClick={wiz.back}>
+              <ChevronLeft className="h-4 w-4" /> Back
             </Button>
             {wiz.current < LAST && (
               <Button type="button" onClick={wiz.next}>Next <ChevronRight className="h-4 w-4" /></Button>

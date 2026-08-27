@@ -732,15 +732,15 @@ export default function JobCardForm() {
 
           {/* Sticky nav + save */}
           <div className="sticky bottom-0 z-30 mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white/95 px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-card backdrop-blur sm:px-5">
-            <Button type="button" variant="ghost" disabled={wiz.isFirst} onClick={wiz.back}>
-              <ChevronLeft className="h-4 w-4" /> Back
-            </Button>
             <span className="font-app-mono text-xs text-slate-400">Step {wiz.current + 1} of {JC_STEPS.length}</span>
             <div className="ml-auto flex flex-wrap items-center gap-2">
               <Button asChild variant="ghost"><Link to={`/jobcards/${id}`}>Cancel</Link></Button>
               <Button asChild variant="outline"><Link to={`/jobcards/${id}/print`}><Printer /> Print</Link></Button>
               <Button type="submit" form="job-card-form" loading={loading} disabled={loading}>
                 {loading ? 'Saving…' : 'Save job card'}
+              </Button>
+              <Button type="button" variant="ghost" disabled={wiz.isFirst} onClick={wiz.back}>
+                <ChevronLeft className="h-4 w-4" /> Back
               </Button>
               {wiz.current < LAST && (
                 <Button type="button" onClick={wiz.next}>Next <ChevronRight className="h-4 w-4" /></Button>

@@ -740,12 +740,12 @@ export default function InvoiceForm() {
 
         {/* ── Wizard navigation ── */}
         <div className="shrink-0 mt-2 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-card sm:px-5">
-          <Button type="button" variant="ghost" disabled={wiz.isFirst} onClick={wiz.back}>
-            <ChevronLeft className="h-4 w-4" /> Back
-          </Button>
           <span className="font-app-mono text-xs text-slate-400">Step {wiz.current + 1} of {INV_STEPS.length}</span>
           <div className="ml-auto flex items-center gap-2">
             <Button asChild variant="ghost"><Link to="/invoices">Cancel</Link></Button>
+            <Button type="button" variant="ghost" disabled={wiz.isFirst} onClick={wiz.back}>
+              <ChevronLeft className="h-4 w-4" /> Back
+            </Button>
             {wiz.current < LAST_STEP ? (
               <Button type="button" onClick={goNext}>Next <ChevronRight className="h-4 w-4" /></Button>
             ) : (

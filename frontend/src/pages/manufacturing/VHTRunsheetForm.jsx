@@ -10,9 +10,11 @@ import {
   CYCLE_NAMES,
   DEFAULT_GRAPH_SEGMENTS,
 } from '../../data/heatTreatmentCycles';
-import { ArrowLeft, Plus, Printer, Trash2 } from 'lucide-react';
+import { Plus, Printer, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
+import { Stepper, useStepper } from '@/components/ui/stepper';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -316,10 +318,22 @@ export default function VHTRunsheetForm() {
     [form.items]
   );
 
+  const RS_STEPS = [
+    { key: 'run',    label: 'Run details' },
+    { key: 'jobs',   label: 'Jobs' },
+    { key: 'cycle',  label: 'Cycle params' },
+    { key: 'graph',  label: 'Temp graph' },
+    { key: 'checks', label: 'Check points' },
+    { key: 'verify', label: 'Verification' },
+  ];
+  const wiz = useStepper(RS_STEPS.length);
+  const LAST = RS_STEPS.length - 1;
+
   const submit = async (e) => {
     e.preventDefault();
     if (!form.furnaceId) {
       toast.error('Select furnace.');
+      wiz.goto(0);
       return;
     }
     const lines = form.items
@@ -339,6 +353,7 @@ export default function VHTRunsheetForm() {
       }));
     if (!lines.length) {
       toast.error('Add at least one line with a job card.');
+      wiz.goto(1);
       return;
     }
 
@@ -352,6 +367,7 @@ export default function VHTRunsheetForm() {
 
     if (!validGraphPoints.length) {
       toast.error('Add at least one temperature segment for the graph.');
+      wiz.goto(3);
       return;
     }
 
@@ -416,31 +432,35 @@ export default function VHTRunsheetForm() {
   }
 
   return (
-    <div className="page-stack w-full p-4 sm:p-6 pb-24">
-      {/* Page header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-        <div>
-          <Link
-            to="/manufacturing/runsheet"
-            className="inline-flex items-center gap-1 text-xs font-semibold text-sky-700 hover:underline"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" /> Run sheets
-          </Link>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">
-            {isNew ? 'New VHT Run Sheet' : 'Edit VHT Run Sheet'}
-          </h1>
-        </div>
-        {!isNew && (
+    <div className="font-app flex flex-col h-full min-h-0">
+      <PageHeader
+        title={isNew ? 'New VHT Run Sheet' : 'Edit VHT Run Sheet'}
+        backTo="/manufacturing/runsheet"
+        breadcrumbs={[
+          { label: 'Run sheets', to: '/manufacturing/runsheet' },
+          { label: isNew ? 'New' : 'Edit' },
+        ]}
+        actions={!isNew ? (
           <Button asChild variant="outline" size="sm">
             <Link to={`/manufacturing/runsheet/${id}/print`} target="_blank" rel="noreferrer">
               <Printer /> Open print view
             </Link>
           </Button>
-        )}
+        ) : null}
+      />
+
+      <div className="mt-2 shrink-0 rounded-xl border border-slate-200 bg-white p-2 shadow-card">
+        <Stepper steps={RS_STEPS} current={wiz.current} completed={wiz.completed} onStepClick={(i) => wiz.goto(i)} />
       </div>
 
-      <form onSubmit={submit} className="space-y-4">
-        {/* ── Run details ── */}
+      <form onSubmit={(e) => { e.preventDefault(); if (wiz.current === LAST) submit(e); }} className="flex-1 min-h-0 flex flex-col">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-3 pr-0.5 space-y-4">
+        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+          Step {wiz.current + 1} of {RS_STEPS.length} · {RS_STEPS[wiz.current].label}
+        </p>
+
+        {/* ── Step 1 · Run details ── */}
+        <div hidden={wiz.current !== 0} className="space-y-4">
         <Card>
           <CardHeader>
             <CardTitle>Run Details</CardTitle>
@@ -581,8 +601,10 @@ export default function VHTRunsheetForm() {
             </div>
           </CardContent>
         </Card>
+        </div>
 
-        {/* ── Jobs in this batch ── */}
+        {/* ── Step 2 · Jobs in this batch ── */}
+        <div hidden={wiz.current !== 1} className="space-y-4">
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0 gap-3">
             <div className="space-y-1">
@@ -715,8 +737,10 @@ export default function VHTRunsheetForm() {
             </Button>
           </CardContent>
         </Card>
+        </div>
 
-        {/* ── Cycle parameters ── */}
+        {/* ── Step 3 · Cycle parameters ── */}
+        <div hidden={wiz.current !== 2} className="space-y-4">
         <Card>
           <CardHeader>
             <CardTitle>Cycle Parameters</CardTitle>
@@ -771,8 +795,10 @@ export default function VHTRunsheetForm() {
             </div>
           </CardContent>
         </Card>
+        </div>
 
-        {/* ── Temperature–time graph ── */}
+        {/* ── Step 4 · Temperature–time graph ── */}
+        <div hidden={wiz.current !== 3} className="space-y-4">
         <Card>
           <CardHeader>
             <CardTitle>Temperature–Time Graph (Steps)</CardTitle>
@@ -902,8 +928,10 @@ export default function VHTRunsheetForm() {
             <HeatCycleGraphPreview segments={form.tempGraphPoints} />
           </CardContent>
         </Card>
+        </div>
 
-        {/* ── Check points ── */}
+        {/* ── Step 5 · Check points ── */}
+        <div hidden={wiz.current !== 4} className="space-y-4">
         <Card>
           <CardHeader>
             <CardTitle>Check Points</CardTitle>
@@ -958,8 +986,10 @@ export default function VHTRunsheetForm() {
             </div>
           </CardContent>
         </Card>
+        </div>
 
-        {/* ── Verification & status ── */}
+        {/* ── Step 6 · Verification & status ── */}
+        <div hidden={wiz.current !== 5} className="space-y-4">
         <Card>
           <CardHeader>
             <CardTitle>Verification &amp; Status</CardTitle>
@@ -1025,14 +1055,26 @@ export default function VHTRunsheetForm() {
             </div>
           </CardContent>
         </Card>
+        </div>
 
-        <div className="flex gap-3">
-          <Button type="submit" disabled={saving} className="px-6">
-            {saving ? 'Saving…' : 'Save'}
-          </Button>
-          <Button asChild variant="outline">
-            <Link to="/manufacturing/runsheet">Cancel</Link>
-          </Button>
+        </div>
+
+        {/* ── Wizard navigation ── */}
+        <div className="shrink-0 mt-2 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-card sm:px-5">
+          <span className="font-app-mono text-xs text-slate-400">Step {wiz.current + 1} of {RS_STEPS.length}</span>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <Button asChild variant="ghost"><Link to="/manufacturing/runsheet">Cancel</Link></Button>
+            <Button type="button" variant="ghost" disabled={wiz.isFirst} onClick={wiz.back}>
+              <ChevronLeft className="h-4 w-4" /> Back
+            </Button>
+            {wiz.current < LAST ? (
+              <Button type="button" onClick={wiz.next}>Next <ChevronRight className="h-4 w-4" /></Button>
+            ) : (
+              <Button type="button" onClick={submit} disabled={saving}>
+                {saving ? 'Saving…' : (isNew ? 'Save Run Sheet' : 'Update Run Sheet')}
+              </Button>
+            )}
+          </div>
         </div>
       </form>
     </div>
