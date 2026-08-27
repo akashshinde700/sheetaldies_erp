@@ -14,7 +14,6 @@ import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/ui/page-header';
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { Sheet, SheetContent, SheetHeader, SheetFooter, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import {
   Select,
@@ -790,41 +789,34 @@ export default function InwardEntryForm() {
                       </div>
 
                       {/* Secondary fields — hidden until needed */}
-                      <Accordion type="single" collapsible>
-                        <AccordionItem value="more">
-                          <AccordionTrigger className="text-xs text-slate-500">More details — pieces, lot, drawing, HSN / SAC</AccordionTrigger>
-                          <AccordionContent>
-                            <div className="grid grid-cols-2 gap-x-3 gap-y-3 lg:grid-cols-12">
-                              <FormField label="Pc" className="lg:col-span-1">
-                                <Input type="number" inputMode="numeric" value={item.pcQty}
-                                  onChange={(e) => handleItemChange(item.id, 'pcQty', e.target.value.replace(/[^0-9]/g, ''))}
-                                  placeholder="0" className="text-right tabular-nums" min="0" step="1" />
-                              </FormField>
-                              <FormField label="Lot" className="lg:col-span-1">
-                                <Input type="number" inputMode="numeric" value={item.lotQty}
-                                  onChange={(e) => handleItemChange(item.id, 'lotQty', e.target.value.replace(/[^0-9]/g, ''))}
-                                  placeholder="0" className="text-right tabular-nums" min="0" step="1" />
-                              </FormField>
-                              <FormField label="Drawing No" className="lg:col-span-3">
-                                <Input value={item.drawingNo}
-                                  onChange={(e) => handleItemChange(item.id, 'drawingNo', e.target.value)} placeholder="Optional" />
-                              </FormField>
-                              <FormField label="WO / Ref No" className="lg:col-span-3">
-                                <Input value={item.woNo || ''}
-                                  onChange={(e) => handleItemChange(item.id, 'woNo', e.target.value)} placeholder="Optional" />
-                              </FormField>
-                              <FormField label="HSN Code" className="lg:col-span-2">
-                                <Input value={item.hsnCode || ''}
-                                  onChange={(e) => handleItemChange(item.id, 'hsnCode', e.target.value)} placeholder="Optional" />
-                              </FormField>
-                              <FormField label="SAC No" className="lg:col-span-2">
-                                <Input value={item.sacNo || ''}
-                                  onChange={(e) => handleItemChange(item.id, 'sacNo', e.target.value)} placeholder="Optional" />
-                              </FormField>
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-                      </Accordion>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-3 lg:grid-cols-12">
+                        <FormField label="Pc" className="lg:col-span-1">
+                          <Input type="number" inputMode="numeric" value={item.pcQty}
+                            onChange={(e) => handleItemChange(item.id, 'pcQty', e.target.value.replace(/[^0-9]/g, ''))}
+                            placeholder="0" className="text-right tabular-nums" min="0" step="1" />
+                        </FormField>
+                        <FormField label="Lot" className="lg:col-span-1">
+                          <Input type="number" inputMode="numeric" value={item.lotQty}
+                            onChange={(e) => handleItemChange(item.id, 'lotQty', e.target.value.replace(/[^0-9]/g, ''))}
+                            placeholder="0" className="text-right tabular-nums" min="0" step="1" />
+                        </FormField>
+                        <FormField label="Drawing No" className="lg:col-span-3">
+                          <Input value={item.drawingNo}
+                            onChange={(e) => handleItemChange(item.id, 'drawingNo', e.target.value)} placeholder="Optional" />
+                        </FormField>
+                        <FormField label="WO / Ref No" className="lg:col-span-3">
+                          <Input value={item.woNo || ''}
+                            onChange={(e) => handleItemChange(item.id, 'woNo', e.target.value)} placeholder="Optional" />
+                        </FormField>
+                        <FormField label="HSN Code" className="lg:col-span-2">
+                          <Input value={item.hsnCode || ''}
+                            onChange={(e) => handleItemChange(item.id, 'hsnCode', e.target.value)} placeholder="Optional" />
+                        </FormField>
+                        <FormField label="SAC No" className="lg:col-span-2">
+                          <Input value={item.sacNo || ''}
+                            onChange={(e) => handleItemChange(item.id, 'sacNo', e.target.value)} placeholder="Optional" />
+                        </FormField>
+                      </div>
                     </div>
                   </div>
                 ))}
