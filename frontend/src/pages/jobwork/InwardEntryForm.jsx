@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, useId } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Loader2, Save, Package, Layers } from 'lucide-react';
+import { Plus, Trash2, Loader2, Save, Package, Layers, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { useParties, useProcesses, useItems } from '../../hooks/useMasterData';
@@ -14,6 +14,7 @@ import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/ui/page-header';
+import { Stepper, useStepper } from '@/components/ui/stepper';
 import { Sheet, SheetContent, SheetHeader, SheetFooter, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import {
   Select,
@@ -479,7 +480,7 @@ export default function InwardEntryForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validateForm()) return;
+    if (!validateForm()) { wiz.goto(form.fromPartyId ? 1 : 0); return; }
     setCreatingFullFlow(true);
     try {
       const payload = buildPayload();
@@ -550,6 +551,13 @@ export default function InwardEntryForm() {
   const totalWeight = items.reduce((sum, it) => sum + toNum(it.weight, 0), 0);
   const totalAmount = items.reduce((sum, it) => sum + toNum(it.amount, 0), 0);
 
+  const IN_STEPS = [
+    { key: 'challan', label: 'Challan details' },
+    { key: 'items',   label: 'Items received' },
+  ];
+  const wiz = useStepper(IN_STEPS.length);
+  const LAST = IN_STEPS.length - 1;
+
   return (
     <div className="font-app flex flex-col h-full min-h-0">
       <PageHeader
@@ -558,9 +566,18 @@ export default function InwardEntryForm() {
         breadcrumbs={[{ label: 'Inwards', to: '/jobwork/register' }, { label: 'New' }]}
       />
 
-      <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col" id="inward-form">
+      <div className="mt-2 shrink-0 rounded-xl border border-slate-200 bg-white p-2 shadow-card">
+        <Stepper steps={IN_STEPS} current={wiz.current} completed={wiz.completed} onStepClick={(i) => wiz.goto(i)} />
+      </div>
+
+      <form onSubmit={(e) => { e.preventDefault(); if (wiz.current === LAST) handleSubmit(e); }} className="flex-1 min-h-0 flex flex-col" id="inward-form">
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-3 pr-0.5 space-y-5">
-        {/* Challan Details */}
+        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+          Step {wiz.current + 1} of {IN_STEPS.length} · {IN_STEPS[wiz.current].label}
+        </p>
+
+        {/* ── Step 1 · Challan Details ── */}
+        <div hidden={wiz.current !== 0} className="space-y-5">
         <Card>
           <CardHeader>
             <CardTitle>Challan Details</CardTitle>
@@ -668,8 +685,10 @@ export default function InwardEntryForm() {
             </div>
           </CardContent>
         </Card>
+        </div>
 
-        {/* Items Section */}
+        {/* ── Step 2 · Items Received ── */}
+        <div hidden={wiz.current !== 1} className="space-y-5">
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <div className="space-y-1">
@@ -953,23 +972,26 @@ export default function InwardEntryForm() {
           </CardContent>
         </Card>
         </div>
+        </div>
 
-        {/* Actions */}
-        <div className="shrink-0 mt-2 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-card sm:flex-row sm:items-center sm:px-5">
-          <Button type="submit" disabled={creatingFullFlow} className="flex-1">
-            {creatingFullFlow ? (
-              <>
-                <Loader2 className="animate-spin" /> Creating…
-              </>
+        {/* ── Wizard navigation ── */}
+        <div className="shrink-0 mt-2 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-card sm:px-5">
+          <span className="font-app-mono text-xs text-slate-400">Step {wiz.current + 1} of {IN_STEPS.length}</span>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <Button asChild variant="ghost"><Link to="/jobwork/register">Cancel</Link></Button>
+            <Button type="button" variant="ghost" disabled={wiz.isFirst} onClick={wiz.back}>
+              <ChevronLeft className="h-4 w-4" /> Back
+            </Button>
+            {wiz.current < LAST ? (
+              <Button type="button" onClick={wiz.next}>Next <ChevronRight className="h-4 w-4" /></Button>
             ) : (
-              <>
-                <Save /> Create Inward
-              </>
+              <Button type="button" onClick={handleSubmit} disabled={creatingFullFlow}>
+                {creatingFullFlow
+                  ? <><Loader2 className="animate-spin" /> Creating…</>
+                  : <><Save /> Create Inward</>}
+              </Button>
             )}
-          </Button>
-          <Button variant="ghost" asChild>
-            <Link to="/jobwork/register">Cancel</Link>
-          </Button>
+          </div>
         </div>
       </form>
 
