@@ -12,7 +12,7 @@ export default function CustomerSection({ form, setForm, customers, applyCustome
       <CardContent>
         <div className="grid grid-cols-1 gap-x-3 gap-y-2 lg:grid-cols-12">
           <FormField id="f-customerId" label="Party (bill-to / customer)" error={errors.customerId}
-            className="lg:col-span-5">
+            className="lg:col-span-4">
             <SearchSelect
               value={form.customerId}
               onChange={applyCustomerFromParty}
@@ -34,7 +34,7 @@ export default function CustomerSection({ form, setForm, customers, applyCustome
             </FormField>
           )}
 
-          <FormField label="Customer Address" htmlFor="customerAddressSnapshot" className="lg:col-span-4">
+          <FormField label="Customer Address" htmlFor="customerAddressSnapshot" className="lg:col-span-5">
             <Textarea id="customerAddressSnapshot" value={form.customerAddressSnapshot}
               onChange={e => setForm(p => ({ ...p, customerAddressSnapshot: e.target.value }))}
               rows={2} placeholder="Billing / delivery address" />

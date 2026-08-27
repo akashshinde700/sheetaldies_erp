@@ -4,16 +4,14 @@ import api from '../../utils/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMachines, useParties } from '../../hooks/useMasterData';
 import toast from 'react-hot-toast';
-import { Printer, Plus, ClipboardCheck, Package, ExternalLink, FileText } from 'lucide-react';
+import { Printer, Plus, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
 
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatusPill } from '@/components/ui/status-pill';
-import { FormActionBar } from '@/components/ui/form-action-bar';
+import { Stepper, useStepper } from '@/components/ui/stepper';
 import { FormErrorSummary, focusField } from '@/components/ui/field';
 
 // Subcomponents
@@ -324,8 +322,9 @@ export default function JobCardForm() {
     const errs = validate();
     setFormErrors(errs);
     if (Object.keys(errs).length) {
-      focusField(Object.keys(errs)[0]);
-      toast.error('Please fix the highlighted fields.');
+      if (isEdit) wiz.goto(0);
+      setTimeout(() => focusField(Object.keys(errs)[0]), 0);
+      toast.error('Please fix the highlighted fields on the Details step.');
       return;
     }
     setLoading(true);
@@ -458,6 +457,15 @@ export default function JobCardForm() {
       || 0)
     : 0;
 
+  const JC_STEPS = [
+    { key: 'details', label: 'Details' },
+    { key: 'inspection', label: 'Inspection' },
+    { key: 'items', label: linkedItemCount ? `Items (${linkedItemCount})` : 'Items' },
+    { key: 'docs', label: 'Document control' },
+  ];
+  const wiz = useStepper(JC_STEPS.length);
+  const LAST = JC_STEPS.length - 1;
+
   const detailSections = (
     <>
       <FormErrorSummary
@@ -476,40 +484,36 @@ export default function JobCardForm() {
       <ProductionSection form={form} setForm={setForm} weightSummary={cardData?.weightSummary} errors={formErrors} />
       <StatusRemarksSection form={form} setForm={setForm} />
       <PhotoSection handleImageChange={handleImageChange} existingImages={cardData} savingSlot={savingSlot} />
-      <Card>
-        <CardContent className="px-4 py-0 sm:px-6">
-          <Accordion type="single" collapsible>
-            <AccordionItem value="adv">
-              <AccordionTrigger>Advanced — document control</AccordionTrigger>
-              <AccordionContent>
-                <p className="mb-3 text-xs text-slate-500">
-                  These fields appear in the printed job-card header. Change only when the quality
-                  form revision changes.
-                </p>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <FormField label="Document No" htmlFor="jc-documentNo">
-                    <Input id="jc-documentNo" value={form.documentNo}
-                      onChange={e => setForm(p => ({ ...p, documentNo: e.target.value }))} className="font-app-mono" />
-                  </FormField>
-                  <FormField label="Revision No" htmlFor="jc-revisionNo">
-                    <Input id="jc-revisionNo" value={form.revisionNo}
-                      onChange={e => setForm(p => ({ ...p, revisionNo: e.target.value }))} className="font-app-mono" />
-                  </FormField>
-                  <FormField label="Revision Date" htmlFor="jc-revisionDate">
-                    <Input id="jc-revisionDate" type="date" value={form.revisionDate}
-                      onChange={e => setForm(p => ({ ...p, revisionDate: e.target.value }))} />
-                  </FormField>
-                  <FormField label="Page No" htmlFor="jc-pageNo">
-                    <Input id="jc-pageNo" value={form.pageNo}
-                      onChange={e => setForm(p => ({ ...p, pageNo: e.target.value }))} className="font-app-mono" />
-                  </FormField>
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
-        </CardContent>
-      </Card>
     </>
+  );
+
+  const docControlSection = (
+    <Card>
+      <CardHeader><CardTitle>Document control</CardTitle></CardHeader>
+      <CardContent>
+        <p className="mb-2 text-xs text-slate-500">
+          These fields appear in the printed job-card header. Change only when the quality form revision changes.
+        </p>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2 lg:grid-cols-4">
+          <FormField label="Document No" htmlFor="jc-documentNo">
+            <Input id="jc-documentNo" value={form.documentNo}
+              onChange={e => setForm(p => ({ ...p, documentNo: e.target.value }))} className="font-app-mono" />
+          </FormField>
+          <FormField label="Revision No" htmlFor="jc-revisionNo">
+            <Input id="jc-revisionNo" value={form.revisionNo}
+              onChange={e => setForm(p => ({ ...p, revisionNo: e.target.value }))} className="font-app-mono" />
+          </FormField>
+          <FormField label="Revision Date" htmlFor="jc-revisionDate">
+            <Input id="jc-revisionDate" type="date" value={form.revisionDate}
+              onChange={e => setForm(p => ({ ...p, revisionDate: e.target.value }))} />
+          </FormField>
+          <FormField label="Page No" htmlFor="jc-pageNo">
+            <Input id="jc-pageNo" value={form.pageNo}
+              onChange={e => setForm(p => ({ ...p, pageNo: e.target.value }))} className="font-app-mono" />
+          </FormField>
+        </div>
+      </CardContent>
+    </Card>
   );
 
   return (
@@ -673,44 +677,20 @@ export default function JobCardForm() {
       )}
 
       {isEdit ? (
-        <Tabs defaultValue="details" className="space-y-0">
-          <TabsList className="font-app">
-            <TabsTrigger value="details">
-              <FileText className="h-4 w-4" />
-              Details
-            </TabsTrigger>
-            <TabsTrigger value="inspection">
-              <ClipboardCheck className="h-4 w-4" />
-              Inspection
-            </TabsTrigger>
-            <TabsTrigger value="items">
-              <Package className="h-4 w-4" />
-              Items{linkedItemCount ? ` (${linkedItemCount})` : ''}
-            </TabsTrigger>
-          </TabsList>
+        <>
+          <Card className="p-2.5 sm:p-3">
+            <Stepper steps={JC_STEPS} current={wiz.current} completed={wiz.completed} onStepClick={(i) => wiz.goto(i)} />
+          </Card>
 
-          <TabsContent value="details" forceMount>
-            <form id="job-card-form" onSubmit={handleSubmit} className="space-y-4">
-              {detailSections}
-            </form>
-            <FormActionBar
-              formId="job-card-form"
-              submitLabel={loading ? 'Saving…' : 'Save job card'}
-              submitting={loading}
-              onCancel={() => navigate(`/jobcards/${id}`)}
-              secondary={
-                <Button asChild variant="outline">
-                  <Link to={`/jobcards/${id}/print`}><Printer /> Print</Link>
-                </Button>
-              }
-              note="Saves the job-card details, photos and document control — and also commits any unsaved Inspection or Item edits."
-            />
-          </TabsContent>
+          <form id="job-card-form" onSubmit={handleSubmit} className="space-y-3">
+            <div hidden={wiz.current !== 0} className="space-y-3">{detailSections}</div>
+            <div hidden={wiz.current !== 3} className="space-y-3">{docControlSection}</div>
+          </form>
 
-          <TabsContent value="inspection" forceMount className="space-y-4">
+          <div hidden={wiz.current !== 1} className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
               <p className="text-xs text-slate-600">
-                Quick categorization &amp; required-hardness edits — use <strong>Save Inspection</strong> below, or they are also saved when you save the job card.
+                Quick categorization &amp; required-hardness edits — use <strong>Save Inspection</strong> here, or they are also saved with <strong>Save job card</strong>.
               </p>
               <Button asChild variant="outline" size="sm">
                 <Link to={`/jobcards/${id}/inspection`}><ExternalLink className="h-3.5 w-3.5" /> Full final inspection</Link>
@@ -719,11 +699,11 @@ export default function JobCardForm() {
             {cardData && (
               <InspectionEditSection ref={inspectionRef} id={id} inspection={cardData.inspection} hrcRange={form.hrcRange} />
             )}
-          </TabsContent>
+          </div>
 
-          <TabsContent value="items" forceMount className="space-y-3">
+          <div hidden={wiz.current !== 2} className="space-y-3">
             <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-              Each item row saves with its own <strong>Save</strong>. Total weight can be set here or on the <strong>Details</strong> tab — both write the same field.
+              Each item row saves with its own <strong>Save</strong>. Total weight can also be set on <strong>Details</strong> — both write the same field.
             </p>
             <LinkedDataSection
               ref={linkedDataRef}
@@ -733,19 +713,38 @@ export default function JobCardForm() {
               onRefresh={loadCard}
               onTotalWeightSaved={(w) => setForm(prev => ({ ...prev, totalWeight: String(w) }))}
             />
-          </TabsContent>
-        </Tabs>
+          </div>
+
+          {/* Sticky nav + save */}
+          <div className="sticky bottom-0 z-30 mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white/95 px-4 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] shadow-card backdrop-blur sm:px-5">
+            <Button type="button" variant="ghost" disabled={wiz.isFirst} onClick={wiz.back}>
+              <ChevronLeft className="h-4 w-4" /> Back
+            </Button>
+            <span className="font-app-mono text-xs text-slate-400">Step {wiz.current + 1} of {JC_STEPS.length}</span>
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <Button asChild variant="ghost"><Link to={`/jobcards/${id}`}>Cancel</Link></Button>
+              <Button asChild variant="outline"><Link to={`/jobcards/${id}/print`}><Printer /> Print</Link></Button>
+              <Button type="submit" form="job-card-form" loading={loading} disabled={loading}>
+                {loading ? 'Saving…' : 'Save job card'}
+              </Button>
+              {wiz.current < LAST && (
+                <Button type="button" onClick={wiz.next}>Next <ChevronRight className="h-4 w-4" /></Button>
+              )}
+            </div>
+          </div>
+        </>
       ) : (
         <>
-          <form id="job-card-form" onSubmit={handleSubmit} className="space-y-4">
+          <form id="job-card-form" onSubmit={handleSubmit} className="space-y-3">
             {detailSections}
+            {docControlSection}
           </form>
-          <FormActionBar
-            formId="job-card-form"
-            submitLabel={loading ? 'Creating…' : 'Create Job Card'}
-            submitting={loading}
-            onCancel={() => navigate('/jobcards')}
-          />
+          <div className="sticky bottom-0 z-30 mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white/95 px-4 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] shadow-card backdrop-blur sm:px-5">
+            <Button asChild variant="ghost"><Link to="/jobcards">Cancel</Link></Button>
+            <Button type="submit" form="job-card-form" loading={loading} disabled={loading} className="ml-auto">
+              {loading ? 'Creating…' : 'Create Job Card'}
+            </Button>
+          </div>
         </>
       )}
     </div>

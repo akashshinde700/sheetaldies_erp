@@ -74,12 +74,12 @@ export default function ProductionSection({ form, setForm, weightSummary, errors
               invalid={weightOverLimit} placeholder="0.000" className="text-right tabular-nums" />
           </FormField>
 
-          <FormField label="Hardness Range" htmlFor="hrcRange" className="lg:col-span-3">
+          <FormField label="Hardness Range" htmlFor="hrcRange" className="lg:col-span-4">
             <div className="flex items-center gap-1.5">
               <Input id="hrcRange" value={parsed.range} onChange={onRangeChange} placeholder="e.g. 54-56" className="flex-1" />
               {showUnit ? (
                 <>
-                  <select value={parsed.unit} onChange={onUnitChange} className="form-input shrink-0" style={{ width: 64 }} aria-label="Hardness unit">
+                  <select value={parsed.unit} onChange={onUnitChange} className="form-input shrink-0" style={{ width: 84 }} aria-label="Hardness unit">
                     {HARDNESS_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
                   </select>
                   <Button type="button" variant="ghost" size="icon-sm" onClick={onRemoveUnit} title="Remove unit"
@@ -96,8 +96,8 @@ export default function ProductionSection({ form, setForm, weightSummary, errors
               onChange={e => setForm(p => ({ ...p, drawingNo: e.target.value }))} placeholder="SDT-2309-V4" />
           </FormField>
 
-          <FormField label="Drawing on print" className="col-span-2 lg:col-span-3">
-            <div className="flex min-h-[34px] flex-wrap items-center gap-x-4 gap-y-1">
+          <FormField label="Drawing on print" className="col-span-2 lg:col-span-2">
+            <div className="flex min-h-[34px] flex-wrap items-center gap-x-3 gap-y-1">
               <label className="flex cursor-pointer select-none items-center gap-1.5 text-sm text-slate-700">
                 <Checkbox checked={form.showDrawingNoInPrint !== false}
                   onCheckedChange={checked => setForm(p => ({ ...p, showDrawingNoInPrint: checked === true }))} />
