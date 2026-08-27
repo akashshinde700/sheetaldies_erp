@@ -847,6 +847,16 @@ input[type=number] { -moz-appearance: textfield; }
    text-size class inherit this — headings, buttons, badges keep theirs) */
 .font-app { font-size: 13px; }
 
+/* Date fields only need room for "dd-mm-yyyy" + the picker button — cap their
+   width so grid/flex cells don't stretch to hold a full-width date input.
+   Screen only; print sheets are untouched. */
+@media screen {
+  .font-app input[type="date"],
+  input[type="date"].form-input {
+    max-width: 9.5rem;
+  }
+}
+
 /* List tables that opt in with `list-cards`: on phones each row becomes a
    stacked card instead of a horizontally-scrolling grid. Desktop unchanged.
    Print never uses this class. */
