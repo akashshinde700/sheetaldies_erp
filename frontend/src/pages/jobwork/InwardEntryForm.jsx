@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Plus, Trash2, Loader2, Save, X, Package, Layers } from 'lucide-react';
+import { Plus, Trash2, Loader2, Save, Package, Layers } from 'lucide-react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { useParties, useProcesses, useItems } from '../../hooks/useMasterData';
@@ -13,6 +13,9 @@ import { Badge } from '@/components/ui/badge';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { PageHeader } from '@/components/ui/page-header';
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
+import { Sheet, SheetContent, SheetHeader, SheetFooter, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import {
   Select,
   SelectContent,
@@ -533,21 +536,12 @@ export default function InwardEntryForm() {
   const totalAmount = items.reduce((sum, it) => sum + toNum(it.amount, 0), 0);
 
   return (
-    <div className="page-stack w-full animate-slide-up">
-      {/* Header */}
-      <div className="page-header">
-        <div className="flex items-start gap-3 min-w-0">
-          <Button variant="outline" size="icon" asChild className="rounded-xl shrink-0 text-slate-500 hover:text-slate-900">
-            <Link to="/jobwork/register" aria-label="Back to register">
-              <ArrowLeft />
-            </Link>
-          </Button>
-          <div className="space-y-1 min-w-0">
-            <h1 className="page-title">Inward Entry</h1>
-            <p className="page-subtitle max-w-2xl">Record customer material received, manage challan details, and add items.</p>
-          </div>
-        </div>
-      </div>
+    <div className="font-app mx-auto w-full max-w-5xl space-y-5 pb-4 animate-slide-up">
+      <PageHeader
+        title="Inward Entry"
+        backTo="/jobwork/register"
+        breadcrumbs={[{ label: 'Inwards', to: '/jobwork/register' }, { label: 'New' }]}
+      />
 
       <form onSubmit={handleSubmit} className="space-y-5" id="inward-form">
         {/* Challan Details */}
@@ -729,10 +723,10 @@ export default function InwardEntryForm() {
                       </Button>
                     </div>
 
-                    {/* Primary fields */}
-                    <div className="p-4 space-y-4">
-                      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-12 gap-x-3 gap-y-4">
-                        <FormField label="Process" className="col-span-2 sm:col-span-2 lg:col-span-2">
+                    {/* Primary fields — Process / Part / Material, then HRC / Qty / Wt */}
+                    <div className="p-4 space-y-3">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <FormField label="Process">
                           <SearchSelect
                             value={String(item.processTypeId || '')}
                             onChange={v => handleProcessChange(item.id, v)}
@@ -743,7 +737,7 @@ export default function InwardEntryForm() {
                             className="w-full"
                           />
                         </FormField>
-                        <FormField label="Part Name" className="col-span-2 sm:col-span-2 lg:col-span-3">
+                        <FormField label="Part Name" className="sm:col-span-2">
                           <AutocompleteInput
                             value={item.partName || ''}
                             onChange={(v) => handleItemChange(item.id, 'partName', v)}
@@ -752,7 +746,7 @@ export default function InwardEntryForm() {
                             className={`${INPUT_CLS} font-semibold`}
                           />
                         </FormField>
-                        <FormField label="Material" className="col-span-1 sm:col-span-2 lg:col-span-2">
+                        <FormField label="Material">
                           <AutocompleteInput
                             value={item.material || ''}
                             onChange={(v) => handleItemChange(item.id, 'material', v)}
@@ -761,7 +755,7 @@ export default function InwardEntryForm() {
                             className={`${INPUT_CLS} font-semibold`}
                           />
                         </FormField>
-                        <FormField label="HRC" className="col-span-1 sm:col-span-2 lg:col-span-1">
+                        <FormField label="HRC">
                           <AutocompleteInput
                             value={item.hrc || ''}
                             onChange={(v) => handleItemChange(item.id, 'hrc', v)}
@@ -770,89 +764,68 @@ export default function InwardEntryForm() {
                             className={INPUT_CLS}
                           />
                         </FormField>
-                        <FormField label="Qty" className="col-span-1 sm:col-span-1 lg:col-span-1">
-                          <Input
-                            type="number"
-                            inputMode="numeric"
-                            value={item.qty}
-                            onChange={(e) => handleItemChange(item.id, 'qty', e.target.value.replace(/[^0-9]/g, ''))}
-                            placeholder="0"
-                            className="text-right tabular-nums"
-                            min="0" step="1"
-                          />
-                        </FormField>
-                        <FormField label="Wt (kg)" className="col-span-1 sm:col-span-1 lg:col-span-1">
-                          <Input
-                            type="number"
-                            inputMode="decimal"
-                            value={item.weight}
-                            onChange={(e) => handleItemChange(item.id, 'weight', e.target.value)}
-                            placeholder="0.00"
-                            className="text-right tabular-nums"
-                            min="0" step="0.01"
-                          />
-                        </FormField>
-                        <FormField label="Pc" className="col-span-1 sm:col-span-1 lg:col-span-1">
-                          <Input
-                            type="number"
-                            inputMode="numeric"
-                            value={item.pcQty}
-                            onChange={(e) => handleItemChange(item.id, 'pcQty', e.target.value.replace(/[^0-9]/g, ''))}
-                            placeholder="0"
-                            className="text-right tabular-nums"
-                            min="0" step="1"
-                          />
-                        </FormField>
-                        <FormField label="Lot" className="col-span-1 sm:col-span-1 lg:col-span-1">
-                          <Input
-                            type="number"
-                            inputMode="numeric"
-                            value={item.lotQty}
-                            onChange={(e) => handleItemChange(item.id, 'lotQty', e.target.value.replace(/[^0-9]/g, ''))}
-                            placeholder="0"
-                            className="text-right tabular-nums"
-                            min="0" step="1"
-                          />
-                        </FormField>
-                      </div>
-
-                      {/* Secondary fields */}
-                      <div className="rounded-lg bg-slate-50 p-3">
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-3">
-                          <FormField label="Drawing No">
+                        <div className="grid grid-cols-2 gap-3">
+                          <FormField label="Qty">
                             <Input
-                              value={item.drawingNo}
-                              onChange={(e) => handleItemChange(item.id, 'drawingNo', e.target.value)}
-                              placeholder="Optional"
-                              className="bg-white"
+                              type="number"
+                              inputMode="numeric"
+                              value={item.qty}
+                              onChange={(e) => handleItemChange(item.id, 'qty', e.target.value.replace(/[^0-9]/g, ''))}
+                              placeholder="0"
+                              className="text-right tabular-nums"
+                              min="0" step="1"
                             />
                           </FormField>
-                          <FormField label="WO / Ref No">
+                          <FormField label="Wt (kg)">
                             <Input
-                              value={item.woNo || ''}
-                              onChange={(e) => handleItemChange(item.id, 'woNo', e.target.value)}
-                              placeholder="Optional"
-                              className="bg-white"
-                            />
-                          </FormField>
-                          <FormField label="HSN Code">
-                            <Input
-                              value={item.hsnCode || ''}
-                              onChange={(e) => handleItemChange(item.id, 'hsnCode', e.target.value)}
-                              placeholder="Optional"
-                              className="bg-white"
-                            />
-                          </FormField>
-                          <FormField label="SAC No">
-                            <Input
-                              value={item.sacNo || ''}
-                              onChange={(e) => handleItemChange(item.id, 'sacNo', e.target.value)}
-                              placeholder="Optional"
-                              className="bg-white"
+                              type="number"
+                              inputMode="decimal"
+                              value={item.weight}
+                              onChange={(e) => handleItemChange(item.id, 'weight', e.target.value)}
+                              placeholder="0.00"
+                              className="text-right tabular-nums"
+                              min="0" step="0.01"
                             />
                           </FormField>
                         </div>
                       </div>
+
+                      {/* Secondary fields — hidden until needed */}
+                      <Accordion type="single" collapsible>
+                        <AccordionItem value="more">
+                          <AccordionTrigger className="text-xs text-slate-500">More details — pieces, lot, drawing, HSN / SAC</AccordionTrigger>
+                          <AccordionContent>
+                            <div className="grid grid-cols-2 gap-x-3 gap-y-3 lg:grid-cols-3">
+                              <FormField label="Pc">
+                                <Input type="number" inputMode="numeric" value={item.pcQty}
+                                  onChange={(e) => handleItemChange(item.id, 'pcQty', e.target.value.replace(/[^0-9]/g, ''))}
+                                  placeholder="0" className="text-right tabular-nums" min="0" step="1" />
+                              </FormField>
+                              <FormField label="Lot">
+                                <Input type="number" inputMode="numeric" value={item.lotQty}
+                                  onChange={(e) => handleItemChange(item.id, 'lotQty', e.target.value.replace(/[^0-9]/g, ''))}
+                                  placeholder="0" className="text-right tabular-nums" min="0" step="1" />
+                              </FormField>
+                              <FormField label="Drawing No">
+                                <Input value={item.drawingNo}
+                                  onChange={(e) => handleItemChange(item.id, 'drawingNo', e.target.value)} placeholder="Optional" />
+                              </FormField>
+                              <FormField label="WO / Ref No">
+                                <Input value={item.woNo || ''}
+                                  onChange={(e) => handleItemChange(item.id, 'woNo', e.target.value)} placeholder="Optional" />
+                              </FormField>
+                              <FormField label="HSN Code">
+                                <Input value={item.hsnCode || ''}
+                                  onChange={(e) => handleItemChange(item.id, 'hsnCode', e.target.value)} placeholder="Optional" />
+                              </FormField>
+                              <FormField label="SAC No">
+                                <Input value={item.sacNo || ''}
+                                  onChange={(e) => handleItemChange(item.id, 'sacNo', e.target.value)} placeholder="Optional" />
+                              </FormField>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
                     </div>
                   </div>
                 ))}
@@ -1008,22 +981,15 @@ export default function InwardEntryForm() {
         </div>
       </form>
 
-      {/* Quick Create Party Modal */}
-      {partyModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col">
-            <div className="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center justify-between shrink-0">
-              <div>
-                <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Quick Create Party</p>
-                <h3 className="text-sm font-bold text-slate-900 mt-1">New Customer with Process Rates</h3>
-              </div>
-              <Button type="button" variant="ghost" size="icon-sm" onClick={closePartyModal}
-                className="text-slate-400 hover:text-slate-700" aria-label="Close">
-                <X />
-              </Button>
-            </div>
+      {/* Quick Create Party — Sheet */}
+      <Sheet open={partyModal.open} onOpenChange={(o) => { if (!o) closePartyModal(); }}>
+        <SheetContent side="right" className="font-app sm:max-w-xl">
+          <SheetHeader>
+            <SheetTitle>New customer</SheetTitle>
+            <SheetDescription>Add a party and, optionally, its per-process rates.</SheetDescription>
+          </SheetHeader>
 
-            <div className="p-5 space-y-4 overflow-y-auto flex-1">
+          <div className="mt-4 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
                 <FormField label="Party Type">
                   <Select
@@ -1109,20 +1075,19 @@ export default function InwardEntryForm() {
                   <p className="text-[10px] text-slate-400">Leave blank to use global process rate. Party rate takes priority during inward entry.</p>
                 </div>
               )}
-            </div>
-
-            <div className="px-5 py-4 border-t border-slate-100 flex gap-2 justify-end shrink-0">
-              <Button type="button" variant="ghost" onClick={closePartyModal}>Cancel</Button>
-              <Button type="button" onClick={createPartyQuick} disabled={partyModal.saving}>
-                {partyModal.saving
-                  ? <><Loader2 className="animate-spin" /> Saving...</>
-                  : <><Save /> Create Party</>
-                }
-              </Button>
-            </div>
           </div>
-        </div>
-      )}
+
+          <SheetFooter>
+            <Button type="button" variant="ghost" onClick={closePartyModal}>Cancel</Button>
+            <Button type="button" onClick={createPartyQuick} disabled={partyModal.saving}>
+              {partyModal.saving
+                ? <><Loader2 className="animate-spin" /> Saving...</>
+                : <><Save /> Create Party</>
+              }
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
