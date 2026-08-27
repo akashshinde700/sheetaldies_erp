@@ -811,3 +811,57 @@ input[type=number] { -moz-appearance: textfield; }
   transition-duration: 150ms;
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   UX-modernization design tokens (ADDITIVE)
+
+   Nothing here changes existing screens or any print output:
+   - no @media print rule is touched
+   - `body` font-family is left as Inter (print sheets and
+     not-yet-migrated pages keep their typography)
+   - these custom properties are only consumed by the new components/ui
+     primitives and the redesigned pages, which opt in with `font-app`
+   ══════════════════════════════════════════════════════════════════ */
+:root {
+  /* Type */
+  --font-app: 'IBM Plex Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-app-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  /* Semantic colour aliases (mirror the Tailwind role ramps @ 600) */
+  --c-primary: #2563eb;
+  --c-info:    #5b4bc4;
+  --c-success: #047857;
+  --c-warning: #b45309;
+  --c-danger:  #e11d48;
+  --c-heat:    #c15511;
+  --c-ink:        #0f172a;
+  --c-ink-soft:   #475569;
+  --c-ink-muted:  #687689;
+  --c-surface:    #ffffff;
+  --c-bg:         #f8fafc;
+  --c-line:       #e2e8f0;
+
+  /* 4px spacing scale */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-6: 24px; --space-8: 32px; --space-10: 40px; --space-12: 48px;
+
+  /* Radius */
+  --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px;
+
+  /* Sticky form action-bar height (content padding-bottom offset) */
+  --action-bar-h: 64px;
+}
+
+/* Redesigned screens opt in to the app face on their own root element. */
+.font-app { font-family: var(--font-app); }
+.font-app-mono { font-family: var(--font-app-mono); font-variant-numeric: tabular-nums; }
+
+/* Accordion (Radix) open/close animations
+   (the existing prefers-reduced-motion block already neutralises these) */
+@keyframes accordionDown { from { height: 0; opacity: 0; } to { height: var(--radix-accordion-content-height); opacity: 1; } }
+@keyframes accordionUp   { from { height: var(--radix-accordion-content-height); opacity: 1; } to { height: 0; opacity: 0; } }
+
+/* Sheet / drawer entrances */
+@keyframes sheetInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes sheetInLeft  { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+@keyframes sheetInUp    { from { transform: translateY(100%); } to { transform: translateY(0); } }
+

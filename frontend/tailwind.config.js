@@ -102,6 +102,24 @@ export default {
         violet:  { 50: '#f5f3ff', 100: '#ede9fe', 200: '#ddd6fe', 300: '#c4b5fd', 400: '#a78bfa', 500: '#8b5cf6', 600: '#7c3aed', 700: '#6d28d9', 800: '#5b21b6', 900: '#4c1d95', 950: '#2e1065' },
         purple:  { 50: '#f5f3ff', 100: '#ede9fe', 200: '#ddd6fe', 300: '#c4b5fd', 400: '#a78bfa', 500: '#8b5cf6', 600: '#7c3aed', 700: '#6d28d9', 800: '#5b21b6', 900: '#4c1d95', 950: '#2e1065' },
 
+        // ─────────────────────────────────────────────────────────────
+        //  UX-modernization additions (purely additive — no existing raw
+        //  class maps to these, so print output and existing screens are
+        //  untouched). `info` gives stage/informational chips a hue that
+        //  does not collide with `accent`; `heat` is the process /
+        //  temperature accent from the approved audit palette.
+        // ─────────────────────────────────────────────────────────────
+        info: {
+          50: '#eef0fb', 100: '#e0e2f6', 200: '#c5c9ee', 300: '#a3a8e0',
+          400: '#8480d0', 500: '#6a60c6', 600: '#5b4bc4', 700: '#4a3da3',
+          800: '#3c3382', 900: '#322c68', 950: '#201b45',
+        },
+        heat: {
+          50: '#fdf3ec', 100: '#fbe4d3', 200: '#f6c5a3', 300: '#efa06e',
+          400: '#e57d40', 500: '#d0631f', 600: '#c15511', 700: '#9e4310',
+          800: '#7c3612', 900: '#642f14', 950: '#371608',
+        },
+
         // Purane naam jo pehle se the — ab palette se juda diye gaye,
         // taaki do alag sach na rahen.
         brand: {
@@ -129,6 +147,11 @@ export default {
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
         headline: ['Manrope', 'Inter', 'system-ui', 'sans-serif'],
+        // App UI face for the modernized screens. Opt-in via `font-app`;
+        // `body` stays Inter so not-yet-migrated pages and every print
+        // sheet keep their current typography.
+        app: ['"IBM Plex Sans"', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        'app-mono': ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       boxShadow: {
         card: '0 1px 2px rgb(15 23 42 / 0.04), 0 4px 16px -4px rgb(15 23 42 / 0.06)',
