@@ -919,3 +919,167 @@ input[type=number] { -moz-appearance: textfield; }
     }
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════ *
+ *  DARK MODE  —  enterprise navy + cobalt + teal
+ *  Screen only: every rule is inside @media screen, so PRINT output is
+ *  completely untouched (print always renders the base light palette).
+ *  Retrofit layer: .dark <utility> overrides for the classes the app
+ *  actually uses, so no per-component dark: variants are needed.
+ * ══════════════════════════════════════════════════════════════════════ */
+@media screen {
+  :root.dark {
+    color-scheme: dark;
+    --app-bg-1: #0B1220;
+    --app-bg-2: #0B1220;
+    --app-bg-3: #0B1220;
+    --sidebar-bg-1: #111C33;
+    --sidebar-bg-2: #111C33;
+    --sidebar-bg-3: #0E1830;
+    --text-strong: #F1F5F9;
+    --text-default: #E2E8F0;
+    --text-muted: #94A3B8;
+    --text-soft: #94A3B8;
+    --brand-glow: rgb(59 130 246 / 0.14);
+  }
+
+  :root.dark body {
+    background-color: #0B1220;
+    color: #E2E8F0;
+  }
+
+  .dark ::-webkit-scrollbar-thumb { background: rgb(148 163 184 / 0.35); }
+  .dark ::-webkit-scrollbar-thumb:hover { background: rgb(148 163 184 / 0.55); }
+  .dark ::selection { background-color: rgb(59 130 246 / 0.4); color: #F1F5F9; }
+
+  /* ── Surfaces ─────────────────────────────────────────── */
+  .dark [class~="bg-white"],
+  .dark [class*="bg-white/"] { background-color: #1B2A41; }
+  .dark [class~="bg-slate-50"],
+  .dark [class*="bg-slate-50/"],
+  .dark [class~="bg-gray-50"] { background-color: #16233D; }
+  .dark [class~="bg-slate-100"],
+  .dark [class*="bg-slate-100/"],
+  .dark [class~="bg-gray-100"] { background-color: #1B2A41; }
+  .dark [class~="bg-slate-200"],
+  .dark [class*="bg-slate-200/"] { background-color: #243349; }
+  .dark [class~="bg-slate-800"],
+  .dark [class~="bg-slate-950"] { background-color: #0B1220; }
+  .dark [class*="bg-slate-900/"],
+  .dark [class*="bg-slate-950/"] { background-color: rgb(2 6 12 / 0.6); }
+
+  .dark .card { background-color: #1B2A41; border-color: #2B3B54; }
+
+  /* ── Text ─────────────────────────────────────────────── */
+  .dark [class~="text-slate-900"], .dark [class~="text-slate-950"],
+  .dark [class~="text-slate-800"], .dark [class~="text-slate-700"],
+  .dark [class~="text-gray-900"], .dark [class~="text-gray-800"], .dark [class~="text-gray-700"],
+  .dark [class~="text-ink"] { color: #E2E8F0; }
+  .dark [class~="text-slate-600"], .dark [class~="text-slate-500"],
+  .dark [class~="text-gray-600"], .dark [class~="text-gray-500"] { color: #94A3B8; }
+  .dark [class~="text-slate-400"], .dark [class~="text-slate-300"],
+  .dark [class~="text-gray-400"], .dark [class~="text-gray-300"] { color: #64748B; }
+  .dark [class*="text-slate-800/"], .dark [class*="text-slate-700/"] { color: rgb(226 232 240 / 0.9); }
+
+  .dark h1, .dark h2, .dark h3, .dark h4 { color: #F1F5F9; }
+
+  /* ── Borders / dividers / rings ───────────────────────── */
+  .dark [class~="border-slate-100"], .dark [class*="border-slate-100/"],
+  .dark [class~="border-slate-200"], .dark [class*="border-slate-200/"],
+  .dark [class~="border-slate-300"], .dark [class*="border-slate-300/"],
+  .dark [class~="border-gray-200"], .dark [class~="border-gray-300"] { border-color: #334155; }
+  .dark [class~="border-slate-900"] { border-color: #0B1220; }
+  .dark [class*="border-white/"] { border-color: rgb(226 232 240 / 0.12); }
+  .dark [class*="divide-slate-50"] > :not([hidden]) ~ :not([hidden]),
+  .dark [class*="divide-slate-100"] > :not([hidden]) ~ :not([hidden]) { border-color: #243349; }
+  .dark [class~="ring-slate-200"], .dark [class~="ring-slate-300"],
+  .dark [class~="ring-slate-400"], .dark [class*="ring-white/"], .dark [class~="ring-white"] { --tw-ring-color: #334155; }
+
+  /* ── Form controls ───────────────────────────────────── */
+  .dark input, .dark select, .dark textarea,
+  .dark .form-input {
+    background-color: #16233D;
+    border-color: #334155;
+    color: #E2E8F0;
+  }
+  .dark input::placeholder, .dark textarea::placeholder,
+  .dark .form-input::placeholder { color: #64748B; }
+  .dark input:disabled, .dark select:disabled, .dark textarea:disabled { background-color: #111C33; color: #64748B; }
+  .dark input[readonly] { background-color: #111C33; }
+
+  /* ── Primary buttons (app uses bg-slate-900 as the primary fill) ── */
+  .dark button[class*="bg-slate-900"],
+  .dark a[class*="bg-slate-900"],
+  .dark [role="button"][class*="bg-slate-900"],
+  .dark .btn-primary,
+  .dark button[class*="bg-slate-800"] {
+    background-color: #3B82F6;
+    color: #F8FAFC;
+    box-shadow: 0 1px 2px rgb(2 6 12 / 0.4), 0 6px 18px -6px rgb(59 130 246 / 0.5);
+  }
+  .dark button[class*="bg-slate-900"]:hover,
+  .dark a[class*="bg-slate-900"]:hover,
+  .dark .btn-primary:hover,
+  .dark button[class*="bg-slate-800"]:hover { background-color: #2563EB; }
+
+  /* ── Coloured tints — badges, alert boxes, chips ──────── */
+  .dark [class*="bg-sky-50"], .dark [class*="bg-blue-50"], .dark [class*="bg-indigo-50"], .dark [class*="bg-cyan-50"],
+  .dark [class*="bg-sky-100"], .dark [class*="bg-blue-100"], .dark [class*="bg-indigo-100"], .dark [class*="bg-cyan-100"] { background-color: rgb(59 130 246 / 0.15); }
+  .dark [class*="bg-emerald-50"], .dark [class*="bg-green-50"], .dark [class*="bg-teal-50"],
+  .dark [class*="bg-emerald-100"], .dark [class*="bg-green-100"], .dark [class*="bg-teal-100"] { background-color: rgb(20 184 166 / 0.15); }
+  .dark [class*="bg-amber-50"], .dark [class*="bg-yellow-50"], .dark [class*="bg-orange-50"],
+  .dark [class*="bg-amber-100"], .dark [class*="bg-yellow-100"], .dark [class*="bg-orange-100"] { background-color: rgb(245 158 11 / 0.15); }
+  .dark [class*="bg-rose-50"], .dark [class*="bg-red-50"], .dark [class*="bg-pink-50"],
+  .dark [class*="bg-rose-100"], .dark [class*="bg-red-100"], .dark [class*="bg-pink-100"] { background-color: rgb(240 82 82 / 0.15); }
+  .dark [class*="bg-violet-50"], .dark [class*="bg-purple-50"],
+  .dark [class*="bg-violet-100"], .dark [class*="bg-purple-100"] { background-color: rgb(139 128 208 / 0.18); }
+  .dark [class*="bg-info-50"], .dark [class*="bg-info-100"] { background-color: rgb(107 96 198 / 0.2); }
+  .dark [class*="bg-heat-50"], .dark [class*="bg-heat-100"] { background-color: rgb(193 85 17 / 0.16); }
+
+  .dark [class*="text-sky-6"], .dark [class*="text-sky-7"], .dark [class*="text-sky-8"], .dark [class*="text-sky-9"],
+  .dark [class*="text-blue-6"], .dark [class*="text-blue-7"], .dark [class*="text-blue-8"], .dark [class*="text-blue-9"],
+  .dark [class*="text-indigo-6"], .dark [class*="text-indigo-7"], .dark [class*="text-indigo-8"],
+  .dark [class*="text-cyan-6"], .dark [class*="text-cyan-7"], .dark [class*="text-cyan-8"] { color: #7DB3FF; }
+  .dark [class*="text-emerald-6"], .dark [class*="text-emerald-7"], .dark [class*="text-emerald-8"], .dark [class*="text-emerald-9"],
+  .dark [class*="text-green-6"], .dark [class*="text-green-7"], .dark [class*="text-green-8"],
+  .dark [class*="text-teal-6"], .dark [class*="text-teal-7"], .dark [class*="text-teal-8"] { color: #5EEAD4; }
+  .dark [class*="text-amber-6"], .dark [class*="text-amber-7"], .dark [class*="text-amber-8"], .dark [class*="text-amber-9"],
+  .dark [class*="text-yellow-6"], .dark [class*="text-yellow-7"], .dark [class*="text-yellow-8"],
+  .dark [class*="text-orange-6"], .dark [class*="text-orange-7"], .dark [class*="text-orange-8"] { color: #FBBF24; }
+  .dark [class*="text-rose-6"], .dark [class*="text-rose-7"], .dark [class*="text-rose-8"], .dark [class*="text-rose-9"],
+  .dark [class*="text-red-6"], .dark [class*="text-red-7"], .dark [class*="text-red-8"],
+  .dark [class*="text-pink-6"], .dark [class*="text-pink-7"], .dark [class*="text-pink-8"] { color: #FB9B9B; }
+  .dark [class*="text-violet-6"], .dark [class*="text-violet-7"], .dark [class*="text-violet-8"],
+  .dark [class*="text-purple-6"], .dark [class*="text-purple-7"], .dark [class*="text-purple-8"] { color: #C4B5FD; }
+  .dark [class*="text-info-6"], .dark [class*="text-info-7"], .dark [class*="text-info-8"] { color: #A3A8E0; }
+  .dark [class*="text-heat-6"], .dark [class*="text-heat-7"], .dark [class*="text-heat-8"] { color: #EFA06E; }
+
+  .dark [class*="border-sky-2"], .dark [class*="border-blue-2"], .dark [class*="border-indigo-2"], .dark [class*="border-cyan-2"] { border-color: rgb(59 130 246 / 0.4); }
+  .dark [class*="border-emerald-2"], .dark [class*="border-green-2"], .dark [class*="border-teal-2"] { border-color: rgb(20 184 166 / 0.4); }
+  .dark [class*="border-amber-2"], .dark [class*="border-yellow-2"], .dark [class*="border-orange-2"] { border-color: rgb(245 158 11 / 0.4); }
+  .dark [class*="border-rose-2"], .dark [class*="border-red-2"], .dark [class*="border-pink-2"] { border-color: rgb(240 82 82 / 0.4); }
+  .dark [class*="border-violet-2"], .dark [class*="border-purple-2"] { border-color: rgb(139 128 208 / 0.4); }
+  .dark [class*="border-info-2"] { border-color: rgb(107 96 198 / 0.4); }
+
+  /* solid coloured fills (buttons, KPI icon chips) */
+  .dark [class*="bg-sky-6"], .dark [class*="bg-blue-6"], .dark [class*="bg-indigo-6"] { background-color: #3B82F6; }
+  .dark [class*="bg-emerald-6"], .dark [class*="bg-teal-6"], .dark [class*="bg-green-6"] { background-color: #14B8A6; }
+  .dark [class*="bg-rose-6"], .dark [class*="bg-red-6"] { background-color: #F05252; }
+  .dark [class*="bg-amber-5"], .dark [class*="bg-amber-6"] { background-color: #F59E0B; }
+
+  /* ── Shadows softer on dark ───────────────────────────── */
+  .dark .shadow-card, .dark .shadow-card-hover, .dark .shadow-soft, .dark .shadow-card-elevated {
+    box-shadow: 0 1px 2px rgb(2 6 12 / 0.4), 0 8px 24px -8px rgb(2 6 12 / 0.55);
+  }
+}
+
+/* Belt & suspenders: even if <html class="dark"> is set, printing is always light. */
+@media print {
+  :root.dark, :root.dark body {
+    color-scheme: light;
+    --app-bg-1: #ffffff; --app-bg-2: #ffffff; --app-bg-3: #ffffff;
+    --text-strong: #0b1220; --text-default: #172033; --text-muted: #4b5565; --text-soft: #5b6678;
+    background-color: #ffffff !important;
+    color: #172033 !important;
+  }
+}

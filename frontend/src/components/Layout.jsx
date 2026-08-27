@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Search, LogOut } from 'lucide-react';
+import { Search, LogOut, Sun, Moon, MonitorSmartphone } from 'lucide-react';
 
 import Sidebar from './Sidebar';
 import CommandPalette from './CommandPalette';
 import { useAuth } from '../context/AuthContext';
+import { getStoredTheme, cycleTheme } from '../utils/theme';
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
@@ -51,7 +52,12 @@ export default function Layout() {
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('svt_sidebar_collapsed') === '1'; } catch { return false; }
   });
+  const [theme, setThemeState] = useState(getStoredTheme);
   const mainRef = useRef(null);
+
+  const toggleTheme = () => setThemeState(cycleTheme());
+  const ThemeIcon = theme === 'dark' ? Moon : theme === 'light' ? Sun : MonitorSmartphone;
+  const themeLabel = theme === 'dark' ? 'Dark' : theme === 'light' ? 'Light' : 'System';
 
   const toggleCollapsed = () => setCollapsed((c) => {
     const next = !c;
@@ -228,6 +234,18 @@ export default function Layout() {
               <Search className="h-4 w-4" />
               <span className="hidden md:inline text-xs font-medium">Search</span>
               <kbd className="hidden md:inline rounded border border-slate-200 bg-slate-50 px-1 text-[10px] font-app-mono text-slate-400">Ctrl K</kbd>
+            </button>
+
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="shrink-0 min-w-[38px] min-h-[38px] flex items-center justify-center rounded-lg border border-slate-200 bg-white
+                text-slate-500 hover:border-slate-300 hover:text-slate-800 transition-colors
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+              aria-label={`Theme: ${themeLabel} — click to change`}
+              title={`Theme: ${themeLabel}`}
+            >
+              <ThemeIcon className="h-4 w-4" />
             </button>
 
             <div className="pl-2 sm:pl-3 border-l border-slate-200/80">
