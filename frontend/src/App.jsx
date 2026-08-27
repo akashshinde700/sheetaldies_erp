@@ -45,6 +45,7 @@ const Analytics = lazy(() => import('./pages/analytics/Analytics'));
 const AdvancedAnalytics = lazy(() => import('./pages/analytics/AdvancedAnalytics'));
 
 const PartyList = lazy(() => import('./pages/admin/PartyList'));
+const PartyForm = lazy(() => import('./pages/admin/PartyForm'));
 const PartyDetail = lazy(() => import('./pages/admin/PartyDetail'));
 const PartyRatesMatrix = lazy(() => import('./pages/admin/PartyRatesMatrix'));
 const UserManagement = lazy(() => import('./pages/admin/UserManagement'));
@@ -132,6 +133,8 @@ const AppRoutes = () => (
       <Route path="invoices/:id/print"     element={<InvoicePrint />} />
       <Route path="analytics"             element={<Analytics />} />
       <Route path="analytics/advanced"    element={<AdvancedAnalytics />} />
+      <Route path="admin/parties/new"          element={<PrivateRoute role="MANAGER"><PartyForm /></PrivateRoute>} />
+      <Route path="admin/parties/:partyId/edit" element={<PrivateRoute role="MANAGER"><PartyForm /></PrivateRoute>} />
       <Route path="admin/parties/:partyId"   element={<PrivateRoute role="MANAGER"><PartyDetail /></PrivateRoute>} />
       <Route path="admin/parties"            element={<PrivateRoute role="MANAGER"><PartyList /></PrivateRoute>} />
       <Route path="admin/party-rates"        element={<PrivateRoute role="MANAGER"><PartyRatesMatrix /></PrivateRoute>} />

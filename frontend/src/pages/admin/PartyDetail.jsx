@@ -211,6 +211,9 @@ export default function PartyDetail() {
             {party.gstin && <span className="text-[10px] font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded">{party.gstin}</span>}
           </div>
         </div>
+        <Button asChild variant="outline" size="sm" className="shrink-0">
+          <Link to={`/admin/parties/${partyId}/edit`}><Pencil /> Edit Party</Link>
+        </Button>
       </div>
 
       {/* Summary cards */}

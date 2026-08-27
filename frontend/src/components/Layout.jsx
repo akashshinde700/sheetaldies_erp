@@ -158,6 +158,12 @@ export default function Layout() {
       if (/^\/quality\/certificates\/\d+$/.test(location.pathname)) {
         return { title: 'Certificate', icon: 'verified' };
       }
+      if (location.pathname === '/admin/parties/new') {
+        return { title: 'Add New Party', icon: 'add_circle' };
+      }
+      if (/^\/admin\/parties\/\d+\/edit$/.test(location.pathname)) {
+        return { title: 'Edit Party', icon: 'group' };
+      }
       if (/^\/admin\/parties\/\d+$/.test(location.pathname)) {
         return { title: 'Party profile', icon: 'person' };
       }
