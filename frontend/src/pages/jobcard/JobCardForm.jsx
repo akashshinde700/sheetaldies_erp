@@ -513,7 +513,7 @@ export default function JobCardForm() {
   );
 
   return (
-    <div className="font-app mx-auto w-full max-w-5xl space-y-5 pb-4 animate-slide-up">
+    <div className="font-app w-full space-y-4 pb-4 animate-slide-up">
       <PageHeader
         title={isEdit ? `Edit Job Card ${cardData?.jobCardNo ?? ''}`.trim() : 'Create Job Card'}
         backTo={isEdit && id ? `/jobcards/${id}` : '/jobcards'}

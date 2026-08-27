@@ -169,7 +169,7 @@ export default function ProcessList() {
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
-    <div className="font-app mx-auto w-full max-w-5xl space-y-5 animate-slide-up">
+    <div className="font-app w-full space-y-4 animate-slide-up">
       <PageHeader
         title="Process Types"
         breadcrumbs={[{ label: 'Admin' }, { label: 'Processes' }]}

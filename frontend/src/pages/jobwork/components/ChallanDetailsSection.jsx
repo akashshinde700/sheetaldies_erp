@@ -30,7 +30,7 @@ export default function ChallanDetailsSection({
         <CardTitle>Challan Details</CardTitle>
         <CardDescription>Basic challan info, parties and transport details.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-4">
         {/* ── Challan basics ── */}
         <div className="space-y-3">
           <GroupTitle>Challan</GroupTitle>

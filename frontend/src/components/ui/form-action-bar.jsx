@@ -37,8 +37,8 @@ export function FormActionBar({
   return (
     <div
       className={cn(
-        'sticky bottom-0 z-30 mt-6 rounded-xl border border-slate-200 bg-white/95 shadow-card backdrop-blur',
-        'px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]',
+        'sticky bottom-0 z-30 mt-4 rounded-xl border border-slate-200 bg-white/95 shadow-card backdrop-blur',
+        'px-4 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))]',
         'sm:px-5',
         className
       )}

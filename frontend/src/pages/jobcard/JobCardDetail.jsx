@@ -59,7 +59,7 @@ export default function JobCardDetail() {
 
   if (loading) {
     return (
-      <div className="font-app mx-auto w-full max-w-5xl space-y-5">
+      <div className="font-app w-full space-y-4">
         <Skeleton className="h-9 w-64" />
         <Skeleton className="h-40 w-full rounded-xl" />
         <Skeleton className="h-40 w-full rounded-xl" />
@@ -69,7 +69,7 @@ export default function JobCardDetail() {
 
   if (error || !jc) {
     return (
-      <div className="font-app mx-auto w-full max-w-5xl">
+      <div className="font-app w-full">
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error || 'Job card not found.'}{' '}
           <button onClick={() => navigate('/jobcards')} className="font-bold underline">Back to list</button>
@@ -117,7 +117,7 @@ export default function JobCardDetail() {
     .map((u) => (u.startsWith('http') ? u : `${API_BASE}${u}`));
 
   return (
-    <div className="font-app mx-auto w-full max-w-5xl space-y-5 pb-10">
+    <div className="font-app w-full space-y-4 pb-6">
       <PageHeader
         title={`Job Card ${jc.jobCardNo || ''}`.trim()}
         backTo="/jobcards"

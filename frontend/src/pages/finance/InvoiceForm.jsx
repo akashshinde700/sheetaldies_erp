@@ -589,7 +589,7 @@ export default function InvoiceForm() {
   const fromParty = parties.find(p => String(p.id) === String(form.fromPartyId));
 
   return (
-    <div className="font-app mx-auto w-full max-w-5xl 3xl:max-w-6xl space-y-5 pb-4 animate-slide-up">
+    <div className="font-app w-full space-y-4 pb-4 animate-slide-up">
       <PageHeader
         title={isEdit ? 'Edit Tax Invoice' : 'Create Tax Invoice'}
         backTo="/invoices"

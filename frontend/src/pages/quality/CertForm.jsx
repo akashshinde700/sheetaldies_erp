@@ -632,7 +632,7 @@ export default function CertForm() {
   const goNext = () => { if (wiz.current < LAST_STEP) wiz.next(); };
 
   return (
-    <div className="font-app mx-auto w-full max-w-5xl space-y-5 pb-4 animate-slide-up">
+    <div className="font-app w-full space-y-4 pb-4 animate-slide-up">
       <PageHeader
         title={isEdit ? 'Edit Test Certificate' : 'Create Test Certificate'}
         backTo="/quality/certificates"

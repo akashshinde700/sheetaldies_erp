@@ -190,7 +190,7 @@ export default function DispatchChallanForm() {
   const totalWeight = items.reduce((sum, it) => sum + toNum(it.weightKg, 0), 0);
 
   return (
-    <div className="font-app mx-auto w-full max-w-5xl space-y-5 pb-4">
+    <div className="font-app w-full space-y-4 pb-4">
       <PageHeader
         title={isEdit ? 'Edit dispatch challan' : 'New dispatch challan'}
         backTo="/dispatch"
@@ -203,7 +203,7 @@ export default function DispatchChallanForm() {
             <CardTitle>Challan Details</CardTitle>
             <CardDescription>Dispatch date, parties, transport and status.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-4">
             {/* ── Basics & parties ── */}
             <div className="space-y-3">
               <GroupTitle>Challan &amp; Parties</GroupTitle>

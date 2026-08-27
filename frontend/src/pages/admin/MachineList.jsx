@@ -128,7 +128,7 @@ export default function MachineList() {
   const closeForm = () => { setShowForm(false); setEditingId(null); setFormData({ code: '', name: '' }); };
 
   return (
-    <div className="font-app mx-auto w-full max-w-5xl space-y-5 animate-slide-up">
+    <div className="font-app w-full space-y-4 animate-slide-up">
       <PageHeader
         title="Machines"
         breadcrumbs={[{ label: 'Admin' }, { label: 'Machines' }]}

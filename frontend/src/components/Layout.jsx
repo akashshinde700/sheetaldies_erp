@@ -265,7 +265,7 @@ export default function Layout() {
           ref={mainRef}
           style={{ touchAction: 'pan-y' }}
           className="flex-1 mt-[calc(3.75rem+env(safe-area-inset-top,0px))] main-area-padding
-            py-4 sm:py-5 md:py-7 pb-8 sm:pb-10 overflow-x-hidden overflow-y-auto overscroll-contain animate-fade-in safe-pb
+            py-3 sm:py-4 md:py-5 pb-6 overflow-x-hidden overflow-y-auto overscroll-contain animate-fade-in safe-pb
             print:mt-0 print:overflow-visible print:p-0"
         >
           <div className="w-full animate-slide-up">

@@ -28,7 +28,7 @@ export default function IssueInstructionsSection({ form, setForm }) {
         <CardTitle>Issue Details &amp; Special Instructions</CardTitle>
         <CardDescription>Who issued the job card, and which documents the customer needs.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-4">
         {/* ── Issue details ── */}
         <div className="space-y-3">
           <GroupTitle>Issue</GroupTitle>

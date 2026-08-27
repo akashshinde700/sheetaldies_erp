@@ -552,7 +552,7 @@ export default function InwardEntryForm() {
   const totalAmount = items.reduce((sum, it) => sum + toNum(it.amount, 0), 0);
 
   return (
-    <div className="font-app mx-auto w-full max-w-5xl space-y-5 pb-4 animate-slide-up">
+    <div className="font-app w-full space-y-4 pb-4 animate-slide-up">
       <PageHeader
         title="Inward Entry"
         backTo="/jobwork/register"
@@ -566,7 +566,7 @@ export default function InwardEntryForm() {
             <CardTitle>Challan Details</CardTitle>
             <CardDescription>Customer, challan references and transport details.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-4">
             {/* ── Challan basics ── */}
             <div className="space-y-3">
               <GroupTitle>Challan</GroupTitle>

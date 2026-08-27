@@ -248,13 +248,15 @@ input[type=number] { -moz-appearance: textfield; }
     @apply max-w-readable w-full mx-auto;
   }
 
-  /* Standard page wrapper inside Layout main (no extra gray full-bleed) */
+  /* Standard page wrapper inside Layout main. Full-width — the horizontal
+     gutter comes from <main>'s safe-area padding, not a centred max-width,
+     so wide screens don't leave big empty rails on the left/right. */
   .page-stack {
-    @apply space-y-6 animate-slide-up w-full max-w-7xl mx-auto;
+    @apply space-y-4 animate-slide-up w-full;
   }
 
   .page-stack-wide {
-    @apply space-y-6 animate-slide-up w-full max-w-[1600px] mx-auto;
+    @apply space-y-4 animate-slide-up w-full;
   }
 
   .page-title {

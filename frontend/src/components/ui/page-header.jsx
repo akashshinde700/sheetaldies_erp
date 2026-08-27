@@ -38,19 +38,19 @@ export function Breadcrumbs({ items = [], className }) {
 
 export function PageHeader({ title, meta, breadcrumbs, backTo, actions, className }) {
   return (
-    <div className={cn('space-y-3', className)}>
+    <div className={cn('space-y-2', className)}>
       {breadcrumbs?.length ? <Breadcrumbs items={breadcrumbs} /> : null}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-start gap-3 min-w-0">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-2.5 min-w-0">
           {backTo && (
-            <Button asChild variant="outline" size="icon" className="rounded-xl shrink-0 text-slate-500 hover:text-slate-900">
+            <Button asChild variant="outline" size="icon-sm" className="mt-0.5 rounded-lg shrink-0 text-slate-500 hover:text-slate-900">
               <Link to={backTo} aria-label="Back">
                 <ArrowLeft />
               </Link>
             </Button>
           )}
-          <div className="min-w-0 space-y-1">
-            <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">{title}</h1>
+          <div className="min-w-0 space-y-0.5">
+            <h1 className="text-lg font-bold tracking-tight text-slate-900 sm:text-xl">{title}</h1>
             {meta && <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500">{meta}</div>}
           </div>
         </div>
