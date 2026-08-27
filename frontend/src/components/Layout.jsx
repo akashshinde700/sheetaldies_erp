@@ -1,16 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Search, LogOut } from 'lucide-react';
 
 import Sidebar from './Sidebar';
+import CommandPalette from './CommandPalette';
 import { useAuth } from '../context/AuthContext';
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 
 const PAGE_TITLES = {
   '/':                         { title: 'Dashboard',         icon: 'dashboard' },
   '/jobcards':                 { title: 'Job Cards',          icon: 'description' },
   '/jobcards/new':             { title: 'New Job Card',        icon: 'add_circle' },
   '/jobwork':                  { title: 'Jobwork Challans',    icon: 'engineering' },
-  '/jobwork/register':         { title: 'Inward + Job Card',   icon: 'import_export' },
+  '/jobwork/register':         { title: 'Inwards',            icon: 'import_export' },
+  '/jobwork/inward-entry':     { title: 'Inward Entry',        icon: 'add_circle' },
   '/jobwork/new':              { title: 'New Inward + Job Card', icon: 'add_circle' },
+  '/pending':                  { title: 'Pending List',        icon: 'pending_actions' },
   '/quality/certificates':     { title: 'Test Certificates',  icon: 'verified' },
   '/quality/certificates/new': { title: 'New Certificate',    icon: 'add_circle' },
   '/invoices':                 { title: 'Tax Invoices',        icon: 'receipt_long' },
@@ -19,7 +26,13 @@ const PAGE_TITLES = {
   '/analytics/advanced':       { title: 'Advanced analytics', icon: 'insights' },
   '/dispatch':                 { title: 'Dispatch challans',   icon: 'local_shipping' },
   '/dispatch/new':             { title: 'New dispatch',        icon: 'add_circle' },
-  '/purchaserty-rates':        { title: 'Party Process Rates', icon: 'price_check' },
+  '/customer-quotes':          { title: 'Customer Quotes',     icon: 'request_quote' },
+  '/purchase/inventory':       { title: 'Inventory',           icon: 'warehouse' },
+  '/admin/parties':            { title: 'Parties',             icon: 'group' },
+  '/admin/party-rates':        { title: 'Party Process Rates', icon: 'price_check' },
+  '/admin/processes':          { title: 'Process Types',       icon: 'settings_suggest' },
+  '/admin/heat-treat-specs':   { title: 'Heat Treatment Specs', icon: 'local_fire_department' },
+  '/admin/temp-cycle-graphs':  { title: 'Temp Cycle Graphs',   icon: 'show_chart' },
   '/admin/items':              { title: 'Items',               icon: 'inventory' },
   '/admin/machines':           { title: 'Machines',            icon: 'precision_manufacturing' },
   '/admin/users':              { title: 'User Management',     icon: 'manage_accounts' },
@@ -29,10 +42,17 @@ const PAGE_TITLES = {
 };
 
 export default function Layout() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const mainRef = useRef(null);
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
 
   // Reset scroll to top on every route change
   useEffect(() => {
@@ -175,22 +195,56 @@ export default function Layout() {
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2 shrink-0 ml-auto">
-            <div className="flex items-center gap-2 sm:gap-2.5 pl-2 sm:pl-3 border-l border-slate-200/80">
-              <div
-                className="w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold
-                  bg-gradient-to-br from-slate-800 to-slate-900 shadow-sm ring-2 ring-white"
-              >
-                {initials}
-              </div>
-              <div className="hidden sm:block min-w-0">
-                <p className="text-xs font-semibold text-slate-900 leading-tight truncate max-w-[140px] md:max-w-[200px]">
-                  {user?.name}
-                </p>
-                <p className="text-[10px] text-slate-500 mt-0.5 font-semibold uppercase tracking-wide">{user?.role}</p>
-              </div>
+            <button
+              type="button"
+              onClick={() => setPaletteOpen(true)}
+              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 min-h-[38px] text-slate-500
+                hover:border-slate-300 hover:text-slate-800 transition-colors
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+              aria-label="Search (Ctrl+K)"
+            >
+              <Search className="h-4 w-4" />
+              <span className="hidden md:inline text-xs font-medium">Search</span>
+              <kbd className="hidden md:inline rounded border border-slate-200 bg-slate-50 px-1 text-[10px] font-app-mono text-slate-400">Ctrl K</kbd>
+            </button>
+
+            <div className="pl-2 sm:pl-3 border-l border-slate-200/80">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex items-center gap-2.5 rounded-lg p-1 pr-2 hover:bg-slate-100 transition-colors
+                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                    aria-label="Account menu"
+                  >
+                    <span className="w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold
+                      bg-gradient-to-br from-slate-800 to-slate-900 shadow-sm ring-2 ring-white">
+                      {initials}
+                    </span>
+                    <span className="hidden sm:block min-w-0 text-left">
+                      <span className="block text-xs font-semibold text-slate-900 leading-tight truncate max-w-[140px] md:max-w-[200px]">
+                        {user?.name}
+                      </span>
+                      <span className="block text-[10px] text-slate-500 mt-0.5 font-semibold uppercase tracking-wide">{user?.role}</span>
+                    </span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 font-app">
+                  <DropdownMenuLabel>
+                    <span className="block truncate text-sm font-semibold normal-case tracking-normal text-slate-800">{user?.name}</span>
+                    <span className="block truncate text-xs font-normal normal-case tracking-normal text-slate-500">{user?.email}</span>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem destructive onSelect={handleLogout}>
+                    <LogOut /> Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </header>
+
+        <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
 
         <main
           ref={mainRef}
