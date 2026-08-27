@@ -187,7 +187,7 @@ export default function DispatchChallanList() {
       {/* Table */}
       <div className="card overflow-hidden">
         <div className="table-responsive">
-          <table className="w-full text-left min-w-[560px]">
+          <table className="list-cards w-full text-left min-w-[560px]">
             <thead>
               <tr>
                 <th className="th">Challan</th>

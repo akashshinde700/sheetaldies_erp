@@ -493,7 +493,7 @@ export default function InvoiceList() {
       {/* Table */}
       <div className="card overflow-hidden">
         <div className="table-responsive">
-          <table className="w-full text-left min-w-[640px]">
+          <table className="list-cards w-full text-left min-w-[640px]">
             <thead>
               <tr>
                 <th className="th">Invoice No</th>

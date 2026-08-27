@@ -859,6 +859,21 @@ input[type=number] { -moz-appearance: textfield; }
    print sheet keep their own sizing). Specificity kept at 0 with :where(). */
 .font-app :where([class*="text-[10px]"], [class*="text-[11px]"]) { font-size: 12px; }
 
+/* List tables that opt in with `list-cards`: on phones each row becomes a
+   stacked card instead of a horizontally-scrolling grid. Desktop unchanged.
+   Print never uses this class. */
+@media (max-width: 767px) {
+  table.list-cards { display: block; min-width: 0 !important; }
+  table.list-cards thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  table.list-cards tbody { display: block; }
+  table.list-cards tr {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px;
+    border: 1px solid var(--c-line); border-radius: 12px; padding: 12px; margin-bottom: 8px; background: #fff;
+  }
+  table.list-cards td { display: block; border: none !important; padding: 0 !important; background: transparent !important; }
+  table.list-cards td:last-child { margin-left: auto; }
+}
+
 /* Accordion (Radix) open/close animations
    (the existing prefers-reduced-motion block already neutralises these) */
 @keyframes accordionDown { from { height: 0; opacity: 0; } to { height: var(--radix-accordion-content-height); opacity: 1; } }

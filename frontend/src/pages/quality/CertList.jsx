@@ -243,7 +243,7 @@ export default function CertList() {
       {/* Table */}
       <div className="card overflow-hidden">
         <div className="table-responsive">
-          <table className="w-full text-left table-fixed min-w-[660px]">
+          <table className="list-cards w-full text-left table-fixed min-w-[660px]">
             <thead>
               <tr>
                 <th className="th w-[16%]">Cert No</th>

@@ -260,7 +260,7 @@ export default function JobCardList() {
       {/* Table */}
       <div className="card overflow-hidden">
         <div className="table-responsive">
-          <table className="w-full text-left min-w-[560px]">
+          <table className="list-cards w-full text-left min-w-[560px]">
             <thead>
               <tr>
                 <th className="th">Job Card No</th>
