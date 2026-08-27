@@ -324,7 +324,7 @@ export default function JobCardForm() {
     if (Object.keys(errs).length) {
       const firstKey = Object.keys(errs)[0];
       if (isEdit) {
-        const stepByKey = { customerId: 0, customerNameSnapshot: 0, quantity: 2 };
+        const stepByKey = { customerId: 0, customerNameSnapshot: 0, quantity: 1 };
         wiz.goto(stepByKey[firstKey] ?? 0);
       }
       setTimeout(() => focusField(firstKey), 0);
@@ -462,8 +462,7 @@ export default function JobCardForm() {
     : 0;
 
   const JC_STEPS = [
-    { key: 'customer', label: 'Customer' },
-    { key: 'jobinfo', label: 'Job info' },
+    { key: 'customer', label: 'Customer & job' },
     { key: 'production', label: 'Production' },
     { key: 'inspection', label: 'Inspection' },
     { key: 'items', label: linkedItemCount ? `Items (${linkedItemCount})` : 'Items' },
@@ -485,11 +484,6 @@ export default function JobCardForm() {
         applyCustomerFromParty={applyCustomerFromParty}
         errors={formErrors}
       />
-    </>
-  );
-
-  const stepJobInfo = (
-    <>
       <JobCardHeaderInfoSection form={form} setForm={setForm} cardData={cardData} />
       <IssueInstructionsSection form={form} setForm={setForm} />
     </>
@@ -704,12 +698,11 @@ export default function JobCardForm() {
         <>
           <form id="job-card-form" onSubmit={handleSubmit} className="space-y-3">
             <div hidden={wiz.current !== 0} className="space-y-3">{stepCustomer}</div>
-            <div hidden={wiz.current !== 1} className="space-y-3">{stepJobInfo}</div>
-            <div hidden={wiz.current !== 2} className="space-y-3">{stepProduction}</div>
-            <div hidden={wiz.current !== 5} className="space-y-3">{docControlSection}</div>
+            <div hidden={wiz.current !== 1} className="space-y-3">{stepProduction}</div>
+            <div hidden={wiz.current !== 4} className="space-y-3">{docControlSection}</div>
           </form>
 
-          <div hidden={wiz.current !== 3} className="space-y-3">
+          <div hidden={wiz.current !== 2} className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
               <p className="text-xs text-slate-600">
                 Quick categorization &amp; required-hardness edits — use <strong>Save Inspection</strong> here, or they are also saved with <strong>Save job card</strong>.
@@ -723,7 +716,7 @@ export default function JobCardForm() {
             )}
           </div>
 
-          <div hidden={wiz.current !== 4} className="space-y-3">
+          <div hidden={wiz.current !== 3} className="space-y-3">
             <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
               Each item row saves with its own <strong>Save</strong>. Total weight can also be set on <strong>Production</strong> — both write the same field.
             </p>
@@ -759,7 +752,6 @@ export default function JobCardForm() {
         <>
           <form id="job-card-form" onSubmit={handleSubmit} className="space-y-3">
             {stepCustomer}
-            {stepJobInfo}
             {stepProduction}
             {docControlSection}
           </form>
