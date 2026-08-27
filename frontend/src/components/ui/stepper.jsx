@@ -27,7 +27,7 @@ export function Stepper({ steps, current, completed, onStepClick, className }) {
               onClick={() => clickable && onStepClick(i)}
               aria-current={isActive ? 'step' : undefined}
               className={cn(
-                'group flex flex-1 items-center gap-2 rounded-lg px-2 py-2 text-left transition-colors',
+                'group flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-2 text-left transition-colors',
                 clickable && 'hover:bg-slate-100 cursor-pointer',
                 !clickable && 'cursor-default'
               )}
@@ -44,7 +44,7 @@ export function Stepper({ steps, current, completed, onStepClick, className }) {
               </span>
               <span
                 className={cn(
-                  'hidden truncate text-xs font-semibold sm:block',
+                  'hidden min-w-0 flex-1 truncate text-xs font-semibold sm:block',
                   isActive ? 'text-slate-900' : isDone ? 'text-slate-600' : 'text-slate-400'
                 )}
               >

@@ -121,13 +121,13 @@ export default function CertForm() {
 
   // ── Wizard steps ──────────────────────────────────────────────
   const CERT_STEPS = [
-    { key: 'job',    label: 'Job card & customer' },
-    { key: 'items',  label: 'Items' },
-    { key: 'cat',    label: 'Technical & categorization' },
-    { key: 'hard',   label: 'Hardness & distortion' },
-    { key: 'temp',   label: 'Temperature cycle' },
-    { key: 'pack',   label: 'Packing & photos' },
-    { key: 'review', label: 'Review & save' },
+    { key: 'job',    label: 'Job card',   full: 'Job card & customer' },
+    { key: 'items',  label: 'Items',      full: 'Items' },
+    { key: 'cat',    label: 'Technical',  full: 'Technical & categorization' },
+    { key: 'hard',   label: 'Hardness',   full: 'Hardness & distortion' },
+    { key: 'temp',   label: 'Temp cycle', full: 'Temperature cycle' },
+    { key: 'pack',   label: 'Packing',    full: 'Packing & photos' },
+    { key: 'review', label: 'Review',     full: 'Review & save' },
   ];
   const LAST_STEP = CERT_STEPS.length - 1;
   const wiz = useStepper(CERT_STEPS.length);
@@ -672,7 +672,7 @@ export default function CertForm() {
       >
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-3 pr-0.5 space-y-4">
         <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-          Step {wiz.current + 1} of {CERT_STEPS.length} · {CERT_STEPS[wiz.current].label}
+          Step {wiz.current + 1} of {CERT_STEPS.length} · {CERT_STEPS[wiz.current].full}
         </p>
 
         {/* ── Step 1 · Job card & customer ── */}
