@@ -21,30 +21,30 @@ export default function IssueInstructionsSection({ form, setForm }) {
   return (
     <Card>
       <CardHeader><CardTitle>Issue Details &amp; Special Instructions</CardTitle></CardHeader>
-      <CardContent className="space-y-3">
-        <div className="grid grid-cols-2 gap-x-3 gap-y-2 lg:grid-cols-4">
-          <FormField label="Issue Date" htmlFor="issueDate">
+      <CardContent>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2 lg:grid-cols-12">
+          <FormField label="Issue Date" htmlFor="issueDate" className="lg:col-span-3">
             <Input id="issueDate" type="date" value={form.issueDate}
               onChange={e => setForm(p => ({ ...p, issueDate: e.target.value }))} />
           </FormField>
-          <FormField label="Issued By" htmlFor="issueBy" className="lg:col-span-3">
+          <FormField label="Issued By" htmlFor="issueBy" className="lg:col-span-4">
             <Input id="issueBy" list="issue-by-suggestions-list" value={form.issueBy}
               onChange={e => setForm(p => ({ ...p, issueBy: e.target.value }))} placeholder="Issued By" autoComplete="off" />
             <datalist id="issue-by-suggestions-list">
               {issueBySuggestions.map(name => <option key={name} value={name} />)}
             </datalist>
           </FormField>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-slate-100 pt-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Docs needed</span>
-          {SPECIAL_INSTRUCTIONS.map(({ field, label }) => (
-            <label key={field} className="flex cursor-pointer select-none items-center gap-2 text-sm text-slate-700">
-              <Checkbox checked={!!form[field]}
-                onCheckedChange={checked => setForm(p => ({ ...p, [field]: checked === true }))} />
-              {label}
-            </label>
-          ))}
+          <FormField label="Docs needed on job card" className="col-span-2 lg:col-span-5">
+            <div className="flex min-h-[34px] flex-wrap items-center gap-x-4 gap-y-1">
+              {SPECIAL_INSTRUCTIONS.map(({ field, label }) => (
+                <label key={field} className="flex cursor-pointer select-none items-center gap-1.5 text-sm text-slate-700">
+                  <Checkbox checked={!!form[field]}
+                    onCheckedChange={checked => setForm(p => ({ ...p, [field]: checked === true }))} />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </FormField>
         </div>
       </CardContent>
     </Card>
