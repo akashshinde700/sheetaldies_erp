@@ -4,11 +4,13 @@ import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { toInt, toNum } from '../../utils/normalize';
 import { useParties, useProcesses, useChallans } from '../../hooks/useMasterData';
-import { ArrowLeft, Ban, AlertTriangle, FileUp, ReceiptText, Search } from 'lucide-react';
+import { Ban, AlertTriangle, ReceiptText, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
+import { Stepper, useStepper } from '@/components/ui/stepper';
 
 // Subcomponents
 import ChallanSelectionSection from './components/ChallanSelectionSection';
@@ -563,114 +565,154 @@ export default function InvoiceForm() {
 
   const PAY_BADGE = { PENDING:'bg-orange-100 text-orange-700', PARTIAL:'bg-sky-100 text-sky-700', PAID:'bg-emerald-100 text-emerald-700' };
 
+  const INV_STEPS = [
+    { key: 'source', label: 'Source' },
+    { key: 'parties', label: 'Parties & references' },
+    { key: 'lines', label: 'Invoice lines' },
+    { key: 'tax', label: 'Tax & totals' },
+    { key: 'review', label: 'Review' },
+  ];
+  const LAST_STEP = INV_STEPS.length - 1;
+  const wiz = useStepper(INV_STEPS.length);
+  const goNext = () => { if (wiz.current < LAST_STEP) wiz.next(); };
+  const toParty = parties.find(p => String(p.id) === String(form.toPartyId));
+  const fromParty = parties.find(p => String(p.id) === String(form.fromPartyId));
+
   return (
-    <div className="page-stack w-full min-w-0 max-w-5xl 3xl:max-w-6xl mx-auto animate-slide-up">
-      {/* Header */}
-      <div className="page-header">
-        <div className="flex items-start gap-3 min-w-0 flex-1">
-          <Link to="/invoices"
-            className="w-11 h-11 shrink-0 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-colors shadow-sm">
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-          <div className="space-y-2 min-w-0">
-            <h1 className="page-title">{isEdit ? 'Edit Tax Invoice' : 'Create Tax Invoice'}</h1>
-            {isEdit ? (
-              <p className="page-subtitle max-w-2xl">
-                Invoice No.: <span className="font-semibold text-slate-700 font-mono">{editInvoiceNo || '…'}</span>
-                <span className="text-slate-400"> · number nahi badalta</span>
-              </p>
-            ) : (
-              <p className="page-subtitle max-w-2xl">Generate a GST invoice linked to challans, job cards, and customer parties.</p>
+    <div className="font-app mx-auto w-full max-w-5xl 3xl:max-w-6xl space-y-5 pb-4 animate-slide-up">
+      <PageHeader
+        title={isEdit ? 'Edit Tax Invoice' : 'Create Tax Invoice'}
+        backTo="/invoices"
+        breadcrumbs={[{ label: 'Invoices', to: '/invoices' }, { label: isEdit ? (editInvoiceNo || 'Edit') : 'New' }]}
+        meta={
+          <>
+            {isEdit && editInvoiceNo && (
+              <span className="font-app-mono">Invoice {editInvoiceNo} <span className="text-slate-400">· number is fixed</span></span>
             )}
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 sm:justify-end shrink-0">
-          <Button type="button" variant="outline" size="sm" onClick={fillFromImage} className="w-full sm:w-auto">
-            <FileUp /> Load sample data
-          </Button>
-          <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1.5 rounded-full">
-            <ReceiptText className="h-3 w-3" /> Tax Invoice
-          </span>
-        </div>
-      </div>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-info-200 bg-info-50 px-2 py-0.5 text-[11px] font-bold text-info-700">
+              <ReceiptText className="h-3 w-3" /> Tax Invoice
+            </span>
+          </>
+        }
+      />
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Lookup by Job Card No</CardTitle>
-            <CardDescription>Find the linked challan by typing a job card number.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-3 gap-y-3">
-              <FormField label="Job Card No" htmlFor="jobCardNoLookup" className="sm:col-span-2">
-                <Input
-                  id="jobCardNoLookup"
-                  type="text"
-                  value={jobCardNoInput}
-                  onChange={(e) => setJobCardNoInput(e.target.value)}
-                  placeholder="Enter job card number"
-                />
-              </FormField>
-              <div className="sm:col-span-1 flex items-end">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => lookupByJobCardNo()}
-                  loading={jobCardLookupLoading}
-                  className="w-full"
-                >
-                  {!jobCardLookupLoading && <Search />}
-                  {jobCardLookupLoading ? 'Looking up…' : 'Lookup Job Card'}
-                </Button>
+      <Card className="p-3 sm:p-4">
+        <Stepper steps={INV_STEPS} current={wiz.current} completed={wiz.completed} onStepClick={(i) => wiz.goto(i)} />
+      </Card>
+
+      <form
+        onSubmit={(e) => { if (wiz.current !== LAST_STEP) { e.preventDefault(); return; } handleSubmit(e); }}
+        className="space-y-4"
+      >
+        {/* ── Step 1 · Source ── */}
+        <div hidden={wiz.current !== 0} className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Lookup by Job Card No</CardTitle>
+              <CardDescription>Find the linked challan by typing a job card number, or pick a challan directly below.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <FormField label="Job Card No" htmlFor="jobCardNoLookup" className="sm:col-span-2">
+                  <Input
+                    id="jobCardNoLookup"
+                    type="text"
+                    value={jobCardNoInput}
+                    onChange={(e) => setJobCardNoInput(e.target.value)}
+                    placeholder="Enter job card number"
+                  />
+                </FormField>
+                <div className="flex items-end sm:col-span-1">
+                  <Button type="button" variant="secondary" onClick={() => lookupByJobCardNo()} loading={jobCardLookupLoading} className="w-full">
+                    {!jobCardLookupLoading && <Search />}
+                    {jobCardLookupLoading ? 'Looking up…' : 'Lookup Job Card'}
+                  </Button>
+                </div>
               </div>
-            </div>
-            {jobCardLookupMessage && (
-              <p className="text-sm text-slate-600">{jobCardLookupMessage}</p>
-            )}
-          </CardContent>
-        </Card>
+              {jobCardLookupMessage && <p className="text-sm text-slate-600">{jobCardLookupMessage}</p>}
+            </CardContent>
+          </Card>
 
-        <ChallanSelectionSection 
-          form={form} 
-          handleChallanChange={handleChallanChange} 
-          challans={challans} 
-          loadingChallan={loadingChallan} 
-          challanInfo={challanInfo} 
-          fullyInvoiced={fullyInvoiced} 
-          wouldExceed={wouldExceed} 
-          challanHistory={challanHistory} 
-          alreadyInvoiced={alreadyInvoiced} 
-          subtotal={subtotal} 
-          grandTotal={grandTotal} 
-          remaining={remaining} 
-          PAY_BADGE={PAY_BADGE} 
-        />
+          <ChallanSelectionSection
+            form={form}
+            handleChallanChange={handleChallanChange}
+            challans={challans}
+            loadingChallan={loadingChallan}
+            challanInfo={challanInfo}
+            fullyInvoiced={fullyInvoiced}
+            wouldExceed={wouldExceed}
+            challanHistory={challanHistory}
+            alreadyInvoiced={alreadyInvoiced}
+            subtotal={subtotal}
+            grandTotal={grandTotal}
+            remaining={remaining}
+            PAY_BADGE={PAY_BADGE}
+          />
+        </div>
 
-        <InvoiceDetailsSection form={form} setForm={setForm} parties={parties} invoiceSeries={invoiceSeries} />
+        {/* ── Step 2 · Parties & references ── */}
+        <div hidden={wiz.current !== 1} className="space-y-4">
+          <InvoiceDetailsSection form={form} setForm={setForm} parties={parties} invoiceSeries={invoiceSeries} />
+        </div>
 
-        <InvoicedItemsSection
-          lineItems={lineItems}
-          setLineItems={setLineItems}
-          processes={processes}
-          updateLine={updateLine}
-          challanInfo={challanInfo}
-          newEmptyLine={newEmptyLine}
-          remainingByChallanItem={remainingByChallanItem}
-          applyGroupTotal={applyGroupTotal}
-          showPartName={form.showPartName}
-          setShowPartName={v => setForm(f => ({ ...f, showPartName: v }))}
-        />
+        {/* ── Step 3 · Invoice lines ── */}
+        <div hidden={wiz.current !== 2} className="space-y-4">
+          <InvoicedItemsSection
+            lineItems={lineItems}
+            setLineItems={setLineItems}
+            processes={processes}
+            updateLine={updateLine}
+            challanInfo={challanInfo}
+            newEmptyLine={newEmptyLine}
+            remainingByChallanItem={remainingByChallanItem}
+            applyGroupTotal={applyGroupTotal}
+            showPartName={form.showPartName}
+            setShowPartName={v => setForm(f => ({ ...f, showPartName: v }))}
+          />
+        </div>
 
-        <InvoiceTaxTotalsSection 
-          form={form} 
-          setForm={setForm} 
-          subtotal={subtotal} 
-          cgst={cgst} 
-          sgst={sgst} 
-          igst={igst} 
-          tcsAmt={tcsAmt} 
-          grandTotal={grandTotal} 
-        />
+        {/* ── Step 4 · Tax & totals ── */}
+        <div hidden={wiz.current !== 3} className="space-y-4">
+          <InvoiceTaxTotalsSection
+            form={form}
+            setForm={setForm}
+            subtotal={subtotal}
+            cgst={cgst}
+            sgst={sgst}
+            igst={igst}
+            tcsAmt={tcsAmt}
+            grandTotal={grandTotal}
+          />
+        </div>
+
+        {/* ── Step 5 · Review ── */}
+        <div hidden={wiz.current !== 4} className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle>Review</CardTitle><CardDescription>Confirm the invoice, then {isEdit ? 'save' : 'create'} it.</CardDescription></CardHeader>
+            <CardContent>
+              <dl className="grid grid-cols-1 gap-x-6 gap-y-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">From</dt><dd className="mt-0.5 text-slate-800">{fromParty?.name || '—'}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">To (customer)</dt><dd className="mt-0.5 text-slate-800">{toParty?.name || '—'}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Invoice date</dt><dd className="mt-0.5 text-slate-800">{form.invoiceDate || '—'}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Challan / job card</dt><dd className="mt-0.5 font-app-mono text-slate-800">{[form.challanRef, form.jobCardRef].filter(Boolean).join(' · ') || '—'}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Lines</dt><dd className="mt-0.5 text-slate-800">{lineItems.filter(it => it.description).length}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Subtotal</dt><dd className="mt-0.5 font-app-mono text-slate-800">₹{subtotal.toFixed(2)}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">CGST / SGST / IGST</dt><dd className="mt-0.5 font-app-mono text-slate-800">₹{cgst.toFixed(2)} / ₹{sgst.toFixed(2)} / ₹{igst.toFixed(2)}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Grand total</dt><dd className="mt-0.5 font-app-mono text-base font-bold text-slate-900">₹{grandTotal.toFixed(2)}</dd></div>
+              </dl>
+              {fullyInvoiced && (
+                <p className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-rose-600">
+                  <Ban className="h-4 w-4 shrink-0" /> This challan is fully invoiced — cannot create a new bill.
+                </p>
+              )}
+              {wouldExceed && !fullyInvoiced && (
+                <p className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-amber-600">
+                  <AlertTriangle className="h-4 w-4 shrink-0" /> Amount exceeds the remaining challan balance.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
         <datalist id="desc-suggestions">
           {processes.map(p => <option key={p.id} value={p.name} />)}
@@ -682,27 +724,23 @@ export default function InvoiceForm() {
           <option value="Annealing" />
         </datalist>
 
-        {/* Actions stack */}
-        <div className="flex flex-wrap gap-3 items-center pb-4">
-          <Button type="submit" loading={loading} disabled={loading || editLoading || fullyInvoiced || loadingChallan}>
-            {!loading && <ReceiptText />}
-            {loading
-              ? (isEdit ? 'Saving...' : 'Creating...')
-              : (isEdit ? 'Save Changes' : 'Create Invoice')}
+        {/* ── Wizard navigation ── */}
+        <div className="sticky bottom-0 z-30 mt-6 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-card backdrop-blur sm:px-5">
+          <Button type="button" variant="ghost" disabled={wiz.isFirst} onClick={wiz.back}>
+            <ChevronLeft className="h-4 w-4" /> Back
           </Button>
-          {fullyInvoiced && (
-            <span className="inline-flex items-center gap-1.5 text-sm text-rose-600 font-semibold">
-              <Ban className="h-4 w-4 shrink-0" /> Fully invoiced — cannot create new bill
-            </span>
-          )}
-          {wouldExceed && !fullyInvoiced && (
-            <span className="inline-flex items-center gap-1.5 text-sm text-amber-600 font-semibold">
-              <AlertTriangle className="h-4 w-4 shrink-0" /> Amount exceeds remaining balance
-            </span>
-          )}
-          <Button variant="ghost" asChild className="ml-auto">
-            <Link to="/invoices">Cancel</Link>
-          </Button>
+          <span className="font-app-mono text-xs text-slate-400">Step {wiz.current + 1} of {INV_STEPS.length}</span>
+          <div className="ml-auto flex items-center gap-2">
+            <Button asChild variant="ghost"><Link to="/invoices">Cancel</Link></Button>
+            {wiz.current < LAST_STEP ? (
+              <Button type="button" onClick={goNext}>Next <ChevronRight className="h-4 w-4" /></Button>
+            ) : (
+              <Button type="submit" loading={loading} disabled={loading || editLoading || fullyInvoiced || loadingChallan}>
+                {!loading && <ReceiptText />}
+                {loading ? (isEdit ? 'Saving…' : 'Creating…') : (isEdit ? 'Save Changes' : 'Create Invoice')}
+              </Button>
+            )}
+          </div>
         </div>
       </form>
     </div>
