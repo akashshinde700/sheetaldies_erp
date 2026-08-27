@@ -45,6 +45,13 @@ export const cycleTheme = () => {
   return next;
 };
 
+// Plain 2-state flip based on what's actually showing right now.
+export const toggleDark = () => {
+  const next = resolveDark() ? 'light' : 'dark';
+  setTheme(next);
+  return next;
+};
+
 // Keep 'system' choice live when the OS flips.
 if (typeof window !== 'undefined' && window.matchMedia) {
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {

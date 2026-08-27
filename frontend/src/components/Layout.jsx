@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Search, LogOut, Sun, Moon, MonitorSmartphone } from 'lucide-react';
+import { Search, LogOut, Sun, Moon } from 'lucide-react';
 
 import Sidebar from './Sidebar';
 import CommandPalette from './CommandPalette';
 import { useAuth } from '../context/AuthContext';
-import { getStoredTheme, cycleTheme } from '../utils/theme';
+import { resolveDark, toggleDark } from '../utils/theme';
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
@@ -52,12 +52,10 @@ export default function Layout() {
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('svt_sidebar_collapsed') === '1'; } catch { return false; }
   });
-  const [theme, setThemeState] = useState(getStoredTheme);
+  const [isDark, setIsDark] = useState(resolveDark);
   const mainRef = useRef(null);
 
-  const toggleTheme = () => setThemeState(cycleTheme());
-  const ThemeIcon = theme === 'dark' ? Moon : theme === 'light' ? Sun : MonitorSmartphone;
-  const themeLabel = theme === 'dark' ? 'Dark' : theme === 'light' ? 'Light' : 'System';
+  const toggleTheme = () => { toggleDark(); setIsDark(resolveDark()); };
 
   const toggleCollapsed = () => setCollapsed((c) => {
     const next = !c;
@@ -239,13 +237,23 @@ export default function Layout() {
             <button
               type="button"
               onClick={toggleTheme}
-              className="shrink-0 min-w-[38px] min-h-[38px] flex items-center justify-center rounded-lg border border-slate-200 bg-white
-                text-slate-500 hover:border-slate-300 hover:text-slate-800 transition-colors
-                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-              aria-label={`Theme: ${themeLabel} — click to change`}
-              title={`Theme: ${themeLabel}`}
+              role="switch"
+              aria-checked={isDark}
+              aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={isDark ? 'Light mode' : 'Dark mode'}
+              style={{ background: isDark ? '#2563EB' : '#E2E8F0', borderColor: isDark ? '#3B82F6' : '#CBD5E1' }}
+              className="shrink-0 relative inline-flex h-[34px] w-[58px] items-center rounded-full border transition-colors
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
             >
-              <ThemeIcon className="h-4 w-4" />
+              <span
+                style={{ background: '#ffffff', transform: isDark ? 'translateX(24px)' : 'translateX(0)' }}
+                className="absolute left-[3px] flex h-[26px] w-[26px] items-center justify-center rounded-full shadow
+                  transition-transform duration-300 ease-out"
+              >
+                {isDark
+                  ? <Moon className="h-3.5 w-3.5 text-primary-600" />
+                  : <Sun className="h-3.5 w-3.5 text-amber-500" />}
+              </span>
             </button>
 
             <div className="pl-2 sm:pl-3 border-l border-slate-200/80">
