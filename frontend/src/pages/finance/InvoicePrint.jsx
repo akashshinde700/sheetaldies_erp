@@ -10,7 +10,7 @@ import { formatDate } from '../../utils/formatters';
 // they always come from here.
 const SVT_FALLBACK = {
   name:    'SHITAL VACUUM TREAT PVT. LTD.',
-  address: 'Plot No. 84/1, Sector No. 10, PCNTDA, Bhosari, Pune - 411020',
+  address: 'Plot No. 84/1, Sector No. 10, PCNTDA, Bhosari, Pune - 411019',
   gstin:   '27AATCS0577L1ZK',
   pan:     'AATCS0577L',
   cin:     'U29253PN2013PTC146364',
