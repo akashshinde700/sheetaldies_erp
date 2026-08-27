@@ -544,8 +544,9 @@ export default function InvoiceForm() {
     if (form.challanId) {
       for (const it of lineItems) {
         const mapped = remainingByChallanItem.get(String(it.sourceChallanItemId || ''));
-        if (!mapped) { toast.error('Each line must be mapped to challan item for partial dispatch billing.'); return; }
+        if (!mapped) { wiz.goto(2); toast.error('Each line must be mapped to a challan item for partial dispatch billing.'); return; }
         if (toNum(it.quantity, 0) > mapped.remainingQty + 0.00001) {
+          wiz.goto(2);
           toast.error(`Line qty exceeds remaining challan qty (remaining ${mapped.remainingQty}).`);
           return;
         }

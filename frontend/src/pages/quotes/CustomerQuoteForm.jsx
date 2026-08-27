@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Plus, Trash2, X } from 'lucide-react';
+import { Plus, Trash2, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../../utils/api';
 import { useParties, useProcesses } from '../../hooks/useMasterData';
 import SearchSelect from '../../components/SearchSelect';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
+import { Stepper, useStepper } from '@/components/ui/stepper';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -85,6 +87,14 @@ export default function CustomerQuoteForm() {
   const [items, setItems] = useState([emptyItem()]);
   const [saving, setSaving] = useState(false);
 
+  const QUOTE_STEPS = [
+    { key: 'details', label: 'Quote details' },
+    { key: 'terms',   label: 'Terms & commercial' },
+    { key: 'items',   label: 'Line items' },
+  ];
+  const wiz = useStepper(QUOTE_STEPS.length);
+  const LAST = QUOTE_STEPS.length - 1;
+
   useEffect(() => {
     if (isEdit) {
       api.get(`/customer-quotes/${id}`).then(r => {
@@ -146,8 +156,8 @@ export default function CustomerQuoteForm() {
 
   const handleSubmit = async e => {
     e.preventDefault();
-    if (!form.customerId) return toast.error('Select a customer.');
-    if (!items.some(i => i.partName && +i.rate > 0)) return toast.error('Add at least one item with part name and rate.');
+    if (!form.customerId) { wiz.goto(0); return toast.error('Select a customer.'); }
+    if (!items.some(i => i.partName && +i.rate > 0)) { wiz.goto(2); return toast.error('Add at least one item with part name and rate.'); }
     setSaving(true);
     try {
       const payload = { ...form, items: items.filter(i => i.partName) };
@@ -169,26 +179,28 @@ export default function CustomerQuoteForm() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto min-w-0 space-y-4 animate-slide-up">
-      <div className="flex items-center gap-3">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          onClick={() => navigate(-1)}
-          className="text-slate-400 hover:text-slate-700"
-          aria-label="Go back"
-        >
-          <ArrowLeft />
-        </Button>
-        <div className="space-y-0.5 min-w-0">
-          <h2 className="text-xl font-extrabold text-slate-800 font-headline">{isEdit ? 'Edit' : 'New'} Customer Quotation</h2>
-          <p className="text-xs text-slate-400">Price quote issued to customer for heat treatment services</p>
-        </div>
+    <div className="font-app flex flex-col h-full min-h-0">
+      <PageHeader
+        title={`${isEdit ? 'Edit' : 'New'} Customer Quotation`}
+        backTo="/customer-quotes"
+        breadcrumbs={[
+          { label: 'Customer Quotes', to: '/customer-quotes' },
+          { label: isEdit ? 'Edit' : 'New' },
+        ]}
+      />
+
+      <div className="mt-2 shrink-0 rounded-xl border border-slate-200 bg-white p-2 shadow-card">
+        <Stepper steps={QUOTE_STEPS} current={wiz.current} completed={wiz.completed} onStepClick={(i) => wiz.goto(i)} />
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Header */}
+      <form onSubmit={(e) => { e.preventDefault(); if (wiz.current === LAST) handleSubmit(e); }} className="flex-1 min-h-0 flex flex-col">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-3 pr-0.5 space-y-4">
+        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+          Step {wiz.current + 1} of {QUOTE_STEPS.length} · {QUOTE_STEPS[wiz.current].label}
+        </p>
+
+        {/* ── Step 1 · Quote details ── */}
+        <div hidden={wiz.current !== 0} className="space-y-4">
         <Card>
           <CardHeader>
             <CardTitle>Quote Details</CardTitle>
@@ -258,8 +270,10 @@ export default function CustomerQuoteForm() {
             </FormField>
           </CardContent>
         </Card>
+        </div>
 
-        {/* Terms & Commercial Details (printed on the quote) */}
+        {/* ── Step 2 · Terms & commercial ── */}
+        <div hidden={wiz.current !== 1} className="space-y-4">
         <Card>
           <CardHeader>
             <CardTitle>Terms &amp; Commercial Details</CardTitle>
@@ -294,8 +308,10 @@ export default function CustomerQuoteForm() {
             </div>
           </CardContent>
         </Card>
+        </div>
 
-        {/* Items */}
+        {/* ── Step 3 · Line items ── */}
+        <div hidden={wiz.current !== 2} className="space-y-4">
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <div className="space-y-1">
@@ -394,12 +410,26 @@ export default function CustomerQuoteForm() {
             </div>
           </CardContent>
         </Card>
+        </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2 pb-4">
-          <Button type="button" variant="outline" onClick={() => navigate(-1)}>Cancel</Button>
-          <Button type="submit" loading={saving} disabled={saving}>
-            {saving ? 'Saving...' : isEdit ? 'Update Quote' : 'Create Quote'}
-          </Button>
+        </div>
+
+        {/* ── Wizard navigation ── */}
+        <div className="shrink-0 mt-2 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-card sm:px-5">
+          <span className="font-app-mono text-xs text-slate-400">Step {wiz.current + 1} of {QUOTE_STEPS.length}</span>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <Button type="button" variant="ghost" onClick={() => navigate(-1)}>Cancel</Button>
+            <Button type="button" variant="ghost" disabled={wiz.isFirst} onClick={wiz.back}>
+              <ChevronLeft className="h-4 w-4" /> Back
+            </Button>
+            {wiz.current < LAST ? (
+              <Button type="button" onClick={wiz.next}>Next <ChevronRight className="h-4 w-4" /></Button>
+            ) : (
+              <Button type="button" onClick={handleSubmit} loading={saving} disabled={saving}>
+                {saving ? 'Saving...' : isEdit ? 'Update Quote' : 'Create Quote'}
+              </Button>
+            )}
+          </div>
         </div>
       </form>
 
