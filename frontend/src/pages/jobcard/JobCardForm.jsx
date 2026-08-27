@@ -14,6 +14,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 import { PageHeader } from '@/components/ui/page-header';
 import { StatusPill } from '@/components/ui/status-pill';
 import { FormActionBar } from '@/components/ui/form-action-bar';
+import { FormErrorSummary, focusField } from '@/components/ui/field';
 
 // Subcomponents
 import CustomerSection from './components/CustomerSection';
@@ -51,6 +52,20 @@ export default function JobCardForm() {
   const { data: machines = [] } = useMachines();
   const { data: customers = [] } = useParties();
   const [loading,    setLoading]   = useState(false);
+  const [formErrors, setFormErrors] = useState({});
+
+  // Minimal required-field validation. Runs on submit; shows inline messages
+  // next to the field plus a focusable summary. Does not touch the save path
+  // or the inspection / item flush that follows.
+  const validate = () => {
+    const errs = {};
+    const qty = Number(form.quantity);
+    if (!form.quantity || Number.isNaN(qty) || qty < 1) errs.quantity = 'Enter a quantity of 1 or more.';
+    if (!form.customerId && !form.customerNameSnapshot?.trim()) {
+      errs.customerId = 'Pick a party or type a customer name.';
+    }
+    return errs;
+  };
   const [cardData,   setCardData]  = useState(null);
   const [images,     setImages]    = useState({});
   const [savingSlot, setSavingSlot] = useState(null);
@@ -306,6 +321,13 @@ export default function JobCardForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const errs = validate();
+    setFormErrors(errs);
+    if (Object.keys(errs).length) {
+      focusField(Object.keys(errs)[0]);
+      toast.error('Please fix the highlighted fields.');
+      return;
+    }
     setLoading(true);
     let customerIdOut = form.customerId ? Number(form.customerId) : null;
     try {
@@ -438,15 +460,20 @@ export default function JobCardForm() {
 
   const detailSections = (
     <>
+      <FormErrorSummary
+        errors={Object.fromEntries(Object.entries(formErrors).map(([k, v]) => [k, { message: v }]))}
+        labels={{ customerId: 'Party / customer', quantity: 'Quantity' }}
+      />
       <CustomerSection
         form={form}
         setForm={setForm}
         customers={customers}
         applyCustomerFromParty={applyCustomerFromParty}
+        errors={formErrors}
       />
       <JobCardHeaderInfoSection form={form} setForm={setForm} cardData={cardData} />
       <IssueInstructionsSection form={form} setForm={setForm} />
-      <ProductionSection form={form} setForm={setForm} weightSummary={cardData?.weightSummary} />
+      <ProductionSection form={form} setForm={setForm} weightSummary={cardData?.weightSummary} errors={formErrors} />
       <StatusRemarksSection form={form} setForm={setForm} />
       <PhotoSection handleImageChange={handleImageChange} existingImages={cardData} savingSlot={savingSlot} />
       <Card>

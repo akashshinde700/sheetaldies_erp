@@ -7,8 +7,8 @@ import { cn } from '@/lib/utils';
  * FormField — consistent label + control + error/hint wrapper.
  * Pure presentation: does not manage state or validation itself.
  */
-const FormField = ({ label, htmlFor, required = false, error = null, hint = null, className = '', children }) => (
-  <div className={cn('space-y-1.5', className)}>
+const FormField = ({ label, htmlFor, required = false, error = null, hint = null, className = '', id, children }) => (
+  <div id={id} className={cn('space-y-1.5', id && 'scroll-mt-24', className)}>
     {label && (
       <Label htmlFor={htmlFor}>
         {label}

@@ -5,7 +5,7 @@ import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 
-export default function CustomerSection({ form, setForm, customers, applyCustomerFromParty }) {
+export default function CustomerSection({ form, setForm, customers, applyCustomerFromParty, errors = {} }) {
   return (
     <Card>
       <CardHeader>
@@ -14,7 +14,12 @@ export default function CustomerSection({ form, setForm, customers, applyCustome
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-          <FormField label="Party (bill-to / customer)" hint="Selecting a party fills the customer details below">
+          <FormField
+            id="f-customerId"
+            label="Party (bill-to / customer)"
+            hint="Selecting a party fills the customer details below"
+            error={errors.customerId}
+          >
             <SearchSelect
               value={form.customerId}
               onChange={applyCustomerFromParty}

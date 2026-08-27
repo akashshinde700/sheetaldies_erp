@@ -25,7 +25,7 @@ const GroupTitle = ({ children }) => (
   <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">{children}</p>
 );
 
-export default function ProductionSection({ form, setForm, weightSummary }) {
+export default function ProductionSection({ form, setForm, weightSummary, errors = {} }) {
   const [showUnit, setShowUnit] = useState(() => hasUnitSuffix(form.hrcRange));
 
   useEffect(() => {
@@ -70,7 +70,7 @@ export default function ProductionSection({ form, setForm, weightSummary }) {
         <div className="space-y-3">
           <GroupTitle>Quantity &amp; Hardness</GroupTitle>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
-            <FormField label="Quantity" htmlFor="quantity" required>
+            <FormField label="Quantity" htmlFor="quantity" required error={errors.quantity}>
               <Input
                 id="quantity"
                 type="number"
@@ -79,6 +79,7 @@ export default function ProductionSection({ form, setForm, weightSummary }) {
                 value={form.quantity}
                 onChange={e => setForm(p => ({ ...p, quantity: e.target.value }))}
                 required
+                invalid={Boolean(errors.quantity)}
                 placeholder="1"
                 className="text-right tabular-nums"
               />
