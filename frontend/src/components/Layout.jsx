@@ -47,7 +47,16 @@ export default function Layout() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem('svt_sidebar_collapsed') === '1'; } catch { return false; }
+  });
   const mainRef = useRef(null);
+
+  const toggleCollapsed = () => setCollapsed((c) => {
+    const next = !c;
+    try { localStorage.setItem('svt_sidebar_collapsed', next ? '1' : '0'); } catch { /* ignore */ }
+    return next;
+  });
 
   const handleLogout = async () => {
     await logout();
@@ -158,16 +167,22 @@ export default function Layout() {
 
   return (
     <div className="flex h-dvh h-screen bg-app-shell overflow-hidden print:block print:overflow-visible print:h-auto">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        collapsed={collapsed}
+        onToggleCollapsed={toggleCollapsed}
+      />
 
-      <div className="flex-1 min-w-0 w-full flex flex-col h-dvh h-screen lg:ml-64 print:ml-0 print:h-auto print:block">
+      <div className={`flex-1 min-w-0 w-full flex flex-col h-dvh h-screen print:ml-0 print:h-auto print:block transition-[margin] duration-300 ease-out ${collapsed ? 'lg:ml-[4.75rem]' : 'lg:ml-64'}`}>
 
         <header
-          className="print:hidden fixed top-0 right-0 left-0 lg:left-64 z-30 flex items-center gap-3
+          className={`print:hidden fixed top-0 right-0 left-0 z-30 flex items-center gap-3 transition-[left] duration-300 ease-out
+            ${collapsed ? 'lg:left-[4.75rem]' : 'lg:left-64'}
             h-[calc(3.75rem+env(safe-area-inset-top,0px))] header-bar-padding
             pt-[env(safe-area-inset-top,0px)]
             bg-white/90 supports-[backdrop-filter]:bg-white/75 backdrop-blur-xl backdrop-saturate-150
-            border-b border-slate-200/80 shadow-header"
+            border-b border-slate-200/80 shadow-header`}
         >
           <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink">
             <button
