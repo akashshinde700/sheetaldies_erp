@@ -566,112 +566,98 @@ export default function InwardEntryForm() {
           <CardHeader>
             <CardTitle>Challan Details</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {/* ── Challan basics ── */}
-            <div className="space-y-3">
-              <GroupTitle>Challan</GroupTitle>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-4">
-                <FormField label="Company Name" required className="sm:col-span-2">
-                  <div className="flex gap-2">
-                    <SearchSelect
-                      value={String(form.fromPartyId || '')}
-                      onChange={v => handleFormChange('fromPartyId', v)}
-                      options={parties.filter(p => p.partyType === 'CUSTOMER').map(p => ({ value: p.id, label: p.name }))}
-                      placeholder="— Select Customer —"
-                      required
-                      className="flex-1 font-semibold"
-                    />
-                    <Button type="button" variant="outline" onClick={openPartyModal} className="shrink-0">
-                      <Plus /> New
-                    </Button>
-                  </div>
-                </FormField>
-
-                <FormField label="Challan No" htmlFor="in-challan-no" hint="Tax document — auto-generated if blank">
-                  <Input
-                    id="in-challan-no"
-                    value={form.challanNo}
-                    onChange={(e) => handleFormChange('challanNo', e.target.value)}
-                    placeholder="Auto-generate if blank"
+          <CardContent>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-3 lg:grid-cols-12">
+              <FormField label="Company Name" required className="col-span-2 lg:col-span-4">
+                <div className="flex gap-2">
+                  <SearchSelect
+                    value={String(form.fromPartyId || '')}
+                    onChange={v => handleFormChange('fromPartyId', v)}
+                    options={parties.filter(p => p.partyType === 'CUSTOMER').map(p => ({ value: p.id, label: p.name }))}
+                    placeholder="— Select Customer —"
+                    required
+                    className="flex-1 font-semibold"
                   />
-                </FormField>
+                  <Button type="button" variant="outline" onClick={openPartyModal} className="shrink-0">
+                    <Plus /> New
+                  </Button>
+                </div>
+              </FormField>
 
-                <FormField label="Challan Date" htmlFor="in-challan-date">
-                  <Input
-                    id="in-challan-date"
-                    type="date"
-                    value={form.challanDate}
-                    onChange={(e) => handleFormChange('challanDate', e.target.value)}
-                  />
-                </FormField>
+              <FormField label="Challan No" htmlFor="in-challan-no" hint="Auto-generated if blank" className="lg:col-span-2">
+                <Input
+                  id="in-challan-no"
+                  value={form.challanNo}
+                  onChange={(e) => handleFormChange('challanNo', e.target.value)}
+                  placeholder="Auto if blank"
+                />
+              </FormField>
 
-                <FormField label="Material In Date" htmlFor="in-material-date">
-                  <Input
-                    id="in-material-date"
-                    type="date"
-                    value={form.materialInDate}
-                    onChange={(e) => handleFormChange('materialInDate', e.target.value)}
-                  />
-                </FormField>
+              <FormField label="Challan Date" htmlFor="in-challan-date" className="lg:col-span-2">
+                <Input
+                  id="in-challan-date"
+                  type="date"
+                  value={form.challanDate}
+                  onChange={(e) => handleFormChange('challanDate', e.target.value)}
+                />
+              </FormField>
 
-                <FormField label="PO No" htmlFor="in-po-no">
-                  <Input
-                    id="in-po-no"
-                    value={form.poNo}
-                    onChange={(e) => handleFormChange('poNo', e.target.value)}
-                    placeholder="Optional"
-                  />
-                </FormField>
+              <FormField label="Material In Date" htmlFor="in-material-date" className="lg:col-span-2">
+                <Input
+                  id="in-material-date"
+                  type="date"
+                  value={form.materialInDate}
+                  onChange={(e) => handleFormChange('materialInDate', e.target.value)}
+                />
+              </FormField>
 
-                <FormField label="PO Date" htmlFor="in-po-date">
-                  <Input
-                    id="in-po-date"
-                    type="date"
-                    value={form.poDate}
-                    onChange={(e) => handleFormChange('poDate', e.target.value)}
-                  />
-                </FormField>
-              </div>
-            </div>
+              <FormField label="PO No" htmlFor="in-po-no" className="lg:col-span-2">
+                <Input
+                  id="in-po-no"
+                  value={form.poNo}
+                  onChange={(e) => handleFormChange('poNo', e.target.value)}
+                  placeholder="Optional"
+                />
+              </FormField>
 
-            {/* ── Transport & people ── */}
-            <div className="space-y-3">
-              <GroupTitle>Transport &amp; People</GroupTitle>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-4">
-                <FormField label="Vehicle No" htmlFor="in-vehicle-no">
-                  <Input
-                    id="in-vehicle-no"
-                    value={form.vehicleNo}
-                    onChange={(e) => handleFormChange('vehicleNo', e.target.value)}
-                    placeholder="e.g. MH14HU9157"
-                  />
-                </FormField>
+              <FormField label="PO Date" htmlFor="in-po-date" className="lg:col-span-2">
+                <Input
+                  id="in-po-date"
+                  type="date"
+                  value={form.poDate}
+                  onChange={(e) => handleFormChange('poDate', e.target.value)}
+                />
+              </FormField>
 
-                <FormField label="Delivery Person" htmlFor="in-delivery-person">
-                  <Input
-                    id="in-delivery-person"
-                    value={form.deliveryPerson}
-                    onChange={(e) => handleFormChange('deliveryPerson', e.target.value)}
-                    placeholder="Optional"
-                  />
-                </FormField>
+              <FormField label="Vehicle No" htmlFor="in-vehicle-no" className="lg:col-span-3">
+                <Input
+                  id="in-vehicle-no"
+                  value={form.vehicleNo}
+                  onChange={(e) => handleFormChange('vehicleNo', e.target.value)}
+                  placeholder="e.g. MH14HU9157"
+                />
+              </FormField>
 
-                <FormField label="Issued By">
-                  <AutocompleteInput
-                    value={form.issuedBy}
-                    onChange={v => handleFormChange('issuedBy', v)}
-                    suggestions={issuedBySuggestions}
-                    placeholder="Person who issued material"
-                    className={INPUT_CLS}
-                  />
-                </FormField>
-              </div>
-            </div>
+              <FormField label="Delivery Person" htmlFor="in-delivery-person" className="lg:col-span-4">
+                <Input
+                  id="in-delivery-person"
+                  value={form.deliveryPerson}
+                  onChange={(e) => handleFormChange('deliveryPerson', e.target.value)}
+                  placeholder="Optional"
+                />
+              </FormField>
 
-            {/* ── Notes ── */}
-            <div className="space-y-3">
-              <GroupTitle>Notes</GroupTitle>
-              <FormField label="Processing Notes" htmlFor="in-processing-notes">
+              <FormField label="Issued By" className="lg:col-span-3">
+                <AutocompleteInput
+                  value={form.issuedBy}
+                  onChange={v => handleFormChange('issuedBy', v)}
+                  suggestions={issuedBySuggestions}
+                  placeholder="Person who issued material"
+                  className={INPUT_CLS}
+                />
+              </FormField>
+
+              <FormField label="Processing Notes" htmlFor="in-processing-notes" className="col-span-2 lg:col-span-12">
                 <Textarea
                   id="in-processing-notes"
                   value={form.processingNotes}
@@ -738,10 +724,10 @@ export default function InwardEntryForm() {
                       </Button>
                     </div>
 
-                    {/* Primary fields — Process / Part / Material, then HRC / Qty / Wt */}
+                    {/* Primary fields — Process / Part / Material / HRC / Qty / Wt in one line */}
                     <div className="p-4 space-y-3">
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                        <FormField label="Process">
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-3 lg:grid-cols-12">
+                        <FormField label="Process" className="lg:col-span-3">
                           <SearchSelect
                             value={String(item.processTypeId || '')}
                             onChange={v => handleProcessChange(item.id, v)}
@@ -752,7 +738,7 @@ export default function InwardEntryForm() {
                             className="w-full"
                           />
                         </FormField>
-                        <FormField label="Part Name" className="sm:col-span-2">
+                        <FormField label="Part Name" className="col-span-2 lg:col-span-3">
                           <AutocompleteInput
                             value={item.partName || ''}
                             onChange={(v) => handleItemChange(item.id, 'partName', v)}
@@ -761,7 +747,7 @@ export default function InwardEntryForm() {
                             className={`${INPUT_CLS} font-semibold`}
                           />
                         </FormField>
-                        <FormField label="Material">
+                        <FormField label="Material" className="lg:col-span-2">
                           <AutocompleteInput
                             value={item.material || ''}
                             onChange={(v) => handleItemChange(item.id, 'material', v)}
@@ -770,7 +756,7 @@ export default function InwardEntryForm() {
                             className={`${INPUT_CLS} font-semibold`}
                           />
                         </FormField>
-                        <FormField label="HRC">
+                        <FormField label="HRC" className="lg:col-span-2">
                           <AutocompleteInput
                             value={item.hrc || ''}
                             onChange={(v) => handleItemChange(item.id, 'hrc', v)}
@@ -779,30 +765,28 @@ export default function InwardEntryForm() {
                             className={INPUT_CLS}
                           />
                         </FormField>
-                        <div className="grid grid-cols-2 gap-3">
-                          <FormField label="Qty">
-                            <Input
-                              type="number"
-                              inputMode="numeric"
-                              value={item.qty}
-                              onChange={(e) => handleItemChange(item.id, 'qty', e.target.value.replace(/[^0-9]/g, ''))}
-                              placeholder="0"
-                              className="text-right tabular-nums"
-                              min="0" step="1"
-                            />
-                          </FormField>
-                          <FormField label="Wt (kg)">
-                            <Input
-                              type="number"
-                              inputMode="decimal"
-                              value={item.weight}
-                              onChange={(e) => handleItemChange(item.id, 'weight', e.target.value)}
-                              placeholder="0.00"
-                              className="text-right tabular-nums"
-                              min="0" step="0.01"
-                            />
-                          </FormField>
-                        </div>
+                        <FormField label="Qty" className="lg:col-span-1">
+                          <Input
+                            type="number"
+                            inputMode="numeric"
+                            value={item.qty}
+                            onChange={(e) => handleItemChange(item.id, 'qty', e.target.value.replace(/[^0-9]/g, ''))}
+                            placeholder="0"
+                            className="text-right tabular-nums"
+                            min="0" step="1"
+                          />
+                        </FormField>
+                        <FormField label="Wt (kg)" className="lg:col-span-1">
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            value={item.weight}
+                            onChange={(e) => handleItemChange(item.id, 'weight', e.target.value)}
+                            placeholder="0.00"
+                            className="text-right tabular-nums"
+                            min="0" step="0.01"
+                          />
+                        </FormField>
                       </div>
 
                       {/* Secondary fields — hidden until needed */}
@@ -810,30 +794,30 @@ export default function InwardEntryForm() {
                         <AccordionItem value="more">
                           <AccordionTrigger className="text-xs text-slate-500">More details — pieces, lot, drawing, HSN / SAC</AccordionTrigger>
                           <AccordionContent>
-                            <div className="grid grid-cols-2 gap-x-3 gap-y-3 lg:grid-cols-3">
-                              <FormField label="Pc">
+                            <div className="grid grid-cols-2 gap-x-3 gap-y-3 lg:grid-cols-12">
+                              <FormField label="Pc" className="lg:col-span-1">
                                 <Input type="number" inputMode="numeric" value={item.pcQty}
                                   onChange={(e) => handleItemChange(item.id, 'pcQty', e.target.value.replace(/[^0-9]/g, ''))}
                                   placeholder="0" className="text-right tabular-nums" min="0" step="1" />
                               </FormField>
-                              <FormField label="Lot">
+                              <FormField label="Lot" className="lg:col-span-1">
                                 <Input type="number" inputMode="numeric" value={item.lotQty}
                                   onChange={(e) => handleItemChange(item.id, 'lotQty', e.target.value.replace(/[^0-9]/g, ''))}
                                   placeholder="0" className="text-right tabular-nums" min="0" step="1" />
                               </FormField>
-                              <FormField label="Drawing No">
+                              <FormField label="Drawing No" className="lg:col-span-3">
                                 <Input value={item.drawingNo}
                                   onChange={(e) => handleItemChange(item.id, 'drawingNo', e.target.value)} placeholder="Optional" />
                               </FormField>
-                              <FormField label="WO / Ref No">
+                              <FormField label="WO / Ref No" className="lg:col-span-3">
                                 <Input value={item.woNo || ''}
                                   onChange={(e) => handleItemChange(item.id, 'woNo', e.target.value)} placeholder="Optional" />
                               </FormField>
-                              <FormField label="HSN Code">
+                              <FormField label="HSN Code" className="lg:col-span-2">
                                 <Input value={item.hsnCode || ''}
                                   onChange={(e) => handleItemChange(item.id, 'hsnCode', e.target.value)} placeholder="Optional" />
                               </FormField>
-                              <FormField label="SAC No">
+                              <FormField label="SAC No" className="lg:col-span-2">
                                 <Input value={item.sacNo || ''}
                                   onChange={(e) => handleItemChange(item.id, 'sacNo', e.target.value)} placeholder="Optional" />
                               </FormField>

@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
  * Pure presentation: does not manage state or validation itself.
  */
 const FormField = ({ label, htmlFor, required = false, error = null, hint = null, className = '', id, children }) => (
-  <div id={id} className={cn('space-y-1', id && 'scroll-mt-24', className)}>
+  <div id={id} className={cn('space-y-1 min-w-0', id && 'scroll-mt-24', className)}>
     {label && (
       <Label htmlFor={htmlFor}>
         {label}
