@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/ui/page-header';
 import { Stepper, useStepper } from '@/components/ui/stepper';
+import { FormErrorSummary } from '@/components/ui/field';
 
 // Master Data Hooks
 import { useParties, useMasterJobCards, useProcesses } from '../../hooks/useMasterData';
@@ -128,6 +129,7 @@ export default function CertForm() {
   ];
   const LAST_STEP = CERT_STEPS.length - 1;
   const wiz = useStepper(CERT_STEPS.length);
+  const [certErrors, setCertErrors] = useState({});
 
   const loadTempCycleFromRunsheet = async (jobCardId) => {
     if (!jobCardId) return false;
@@ -569,8 +571,15 @@ export default function CertForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.customerId) { toast.error('Customer is required.'); return; }
-    if (!isEdit && !form.jobCardId) { toast.error('Job Card is required.'); return; }
+    const errs = {};
+    if (!isEdit && !form.jobCardId) errs.jobCardId = 'Select the job card this certificate is for.';
+    if (!form.customerId) errs.customerId = 'Customer is required — it fills in from the job card.';
+    setCertErrors(errs);
+    if (Object.keys(errs).length) {
+      wiz.goto(0);
+      toast.error('Please fix the highlighted fields on step 1.');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -661,6 +670,10 @@ export default function CertForm() {
       >
         {/* ── Step 1 · Job card & items ── */}
         <div hidden={wiz.current !== 0} className="space-y-4">
+          <FormErrorSummary
+            errors={Object.fromEntries(Object.entries(certErrors).map(([k, v]) => [k, { message: v }]))}
+            labels={{ jobCardId: 'Job card', customerId: 'Customer' }}
+          />
           <CertHeaderSection form={form} set={set} parties={parties} jobCards={jobCards} jcData={jcData} />
         </div>
 

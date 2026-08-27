@@ -11,6 +11,7 @@ import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
 import { Stepper, useStepper } from '@/components/ui/stepper';
+import { FormErrorSummary } from '@/components/ui/field';
 
 // Subcomponents
 import ChallanSelectionSection from './components/ChallanSelectionSection';
@@ -528,10 +529,17 @@ export default function InvoiceForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.fromPartyId || !form.toPartyId) { toast.error('From and To party are required.'); return; }
-    if (!form.invoiceSeriesId) { toast.error('Invoice series is required.'); return; }
-    if (!lineItems.length || !lineItems.some(it => it.description && toNum(it.quantity, 0) > 0 && toNum(it.rate, 0) > 0)) {
-      toast.error('At least one line item with description, quantity and rate is required.'); return;
+    const errs = {};
+    if (!form.fromPartyId) errs.fromPartyId = 'Billing party is required.';
+    if (!form.toPartyId) errs.toPartyId = 'Customer is required.';
+    if (!form.invoiceSeriesId) errs.invoiceSeriesId = 'Pick an invoice series.';
+    const linesOk = lineItems.length && lineItems.some(it => it.description && toNum(it.quantity, 0) > 0 && toNum(it.rate, 0) > 0);
+    if (!linesOk) errs.lineItems = 'Add at least one line with a description, quantity and rate.';
+    setInvErrors(errs);
+    if (Object.keys(errs).length) {
+      wiz.goto(errs.lineItems && !errs.fromPartyId && !errs.toPartyId && !errs.invoiceSeriesId ? 2 : 1);
+      toast.error('Please fix the highlighted fields.');
+      return;
     }
     if (form.challanId) {
       for (const it of lineItems) {
@@ -574,6 +582,8 @@ export default function InvoiceForm() {
   ];
   const LAST_STEP = INV_STEPS.length - 1;
   const wiz = useStepper(INV_STEPS.length);
+  const [invErrors, setInvErrors] = useState({});
+  const invErrObj = Object.fromEntries(Object.entries(invErrors).map(([k, v]) => [k, { message: v }]));
   const goNext = () => { if (wiz.current < LAST_STEP) wiz.next(); };
   const toParty = parties.find(p => String(p.id) === String(form.toPartyId));
   const fromParty = parties.find(p => String(p.id) === String(form.fromPartyId));
@@ -652,11 +662,15 @@ export default function InvoiceForm() {
 
         {/* ── Step 2 · Parties & references ── */}
         <div hidden={wiz.current !== 1} className="space-y-4">
+          <FormErrorSummary errors={invErrObj} labels={{ fromPartyId: 'Billing party', toPartyId: 'Customer', invoiceSeriesId: 'Invoice series', lineItems: 'Invoice lines' }} />
           <InvoiceDetailsSection form={form} setForm={setForm} parties={parties} invoiceSeries={invoiceSeries} />
         </div>
 
         {/* ── Step 3 · Invoice lines ── */}
         <div hidden={wiz.current !== 2} className="space-y-4">
+          {invErrors.lineItems && (
+            <FormErrorSummary errors={{ lineItems: { message: invErrors.lineItems } }} labels={{ lineItems: 'Invoice lines' }} />
+          )}
           <InvoicedItemsSection
             lineItems={lineItems}
             setLineItems={setLineItems}
