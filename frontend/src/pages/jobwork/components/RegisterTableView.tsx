@@ -1,5 +1,8 @@
 import { Link } from 'react-router-dom';
+import { Eye, Pencil, Printer, Trash2, Loader2, FileText } from 'lucide-react';
 import type { RegisterRow } from '../InwardOutwardRegister';
+import { Button } from '../../../components/ui/button';
+import { Skeleton } from '../../../components/ui/skeleton';
 
 interface RegisterTableViewProps {
   loading: boolean;
@@ -8,115 +11,107 @@ interface RegisterTableViewProps {
   deletingId?: number | null;
 }
 
+const SkeletonRow = () => (
+  <tr>
+    <td className="td"><Skeleton className="h-3.5 w-6" /></td>
+    <td className="td"><Skeleton className="h-3.5 w-24" /></td>
+    <td className="td"><Skeleton className="h-3.5 w-20" /></td>
+    <td className="td"><Skeleton className="h-3.5 w-32" /></td>
+    <td className="td hidden md:table-cell"><Skeleton className="h-3.5 w-20" /></td>
+    <td className="td"><Skeleton className="h-7 w-28 ml-auto rounded-lg" /></td>
+  </tr>
+);
+
 export default function RegisterTableView({ loading, pagedRows, onDelete, deletingId }: RegisterTableViewProps) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs">
+    <div className="table-responsive">
+      <table className="w-full text-left table-fixed min-w-[680px]">
         <thead>
-          <tr className="bg-indigo-50/40 border-b border-indigo-100">
-            <th className="px-3 py-2.5 text-left text-[10px] font-extrabold text-indigo-800 uppercase tracking-widest leading-4 w-16">
-              <span className="block">Sr</span>
-              <span className="block">No</span>
-            </th>
-            <th className="px-3 py-2.5 text-left text-[10px] font-extrabold text-indigo-800 uppercase tracking-widest leading-4">
-              Register details (Inward & Outward)
-            </th>
+          <tr>
+            <th className="th w-12">Sr</th>
+            <th className="th w-[18%]">Inward No</th>
+            <th className="th w-[18%]">Challan No</th>
+            <th className="th w-[30%]">Company</th>
+            <th className="th w-[18%] hidden md:table-cell">Job Card</th>
+            <th className="th w-[16%] text-right">Actions</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-slate-50/80">
           {loading ? (
-            <tr><td colSpan={2} className="px-4 py-8 text-center text-slate-400">Loading register...</td></tr>
+            Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
           ) : pagedRows.length === 0 ? (
-            <tr><td colSpan={2} className="px-4 py-8 text-center text-slate-400">No register data.</td></tr>
-          ) : pagedRows.map((r, idx) => (
-            <tr key={`${r.challanItemId}-${r.srNo}`} className="align-top even:bg-slate-50/30">
-              <td className="px-2 py-3 align-top">
-                <div className="inline-flex items-center justify-center min-w-8 h-8 rounded-lg bg-slate-700 text-white text-xs font-bold">
-                  {r.srNo}
+            <tr>
+              <td colSpan={6} className="px-4 py-10 text-center">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center">
+                    <FileText className="h-5 w-5 text-sky-300" />
+                  </div>
+                  <p className="text-sm text-slate-500">No register data.</p>
                 </div>
               </td>
-              <td className="px-2 py-2">
-                <div className={`${idx === 0 ? 'border-t-0' : 'border-t-2 border-slate-500'} mb-2`} />
-                <div className="flex items-center justify-end gap-1.5 mb-2">
-                  <Link
-                    to={`/jobwork/${r.challanId}`}
-                    className="inline-flex items-center justify-center w-7 h-7 rounded-md text-indigo-600 hover:bg-indigo-50"
-                    title="View"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">visibility</span>
-                  </Link>
-                  <Link
-                    to={`/jobwork/${r.challanId}/edit`}
-                    className="inline-flex items-center justify-center w-7 h-7 rounded-md text-slate-700 hover:bg-slate-100"
-                    title="Edit / Update"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">edit</span>
-                  </Link>
-                  <Link
-                    to={`/jobwork/${r.challanId}/print`}
-                    target="_blank"
-                    className="inline-flex items-center justify-center w-7 h-7 rounded-md text-emerald-600 hover:bg-emerald-50"
-                    title="Print Challan"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">print</span>
-                  </Link>
+            </tr>
+          ) : pagedRows.map((r) => (
+            <tr key={`${r.challanItemId}-${r.srNo}`} className="tr group">
+              <td className="td text-slate-400 font-mono tabular-nums">{r.srNo}</td>
+              <td className="td">
+                <Link
+                  to={`/jobwork/${r.challanId}`}
+                  className="text-xs font-bold text-sky-800 hover:text-sky-950 hover:underline font-mono"
+                >
+                  {r.inwardNo || '—'}
+                </Link>
+              </td>
+              <td className="td">
+                <span className="text-xs font-semibold text-slate-700 font-mono">{r.challanNo || '—'}</span>
+                {r.challanDate && (
+                  <p className="text-[10px] text-slate-400 mt-0.5 whitespace-nowrap">
+                    {new Date(r.challanDate).toLocaleDateString('en-IN')}
+                  </p>
+                )}
+              </td>
+              <td className="td text-slate-700 font-medium truncate">{r.companyName || '—'}</td>
+              <td className="td hidden md:table-cell">
+                <span className="text-xs font-semibold text-slate-700 font-mono">{r.jobcardNo || '—'}</span>
+                {r.jobcardDate && (
+                  <p className="text-[10px] text-slate-400 mt-0.5 whitespace-nowrap">
+                    {new Date(r.jobcardDate).toLocaleDateString('en-IN')}
+                  </p>
+                )}
+              </td>
+              <td className="td">
+                <div className="flex items-center justify-end gap-0.5">
+                  <Button variant="ghost" size="icon-sm" asChild
+                    className="text-slate-400 hover:text-sky-700 hover:bg-sky-50">
+                    <Link to={`/jobwork/${r.challanId}`} title="View" aria-label={`View inward ${r.inwardNo || r.challanId}`}>
+                      <Eye />
+                    </Link>
+                  </Button>
+                  <Button variant="ghost" size="icon-sm" asChild
+                    className="text-slate-400 hover:text-sky-700 hover:bg-sky-50">
+                    <Link to={`/jobwork/${r.challanId}/edit`} title="Edit / Update" aria-label={`Edit inward ${r.inwardNo || r.challanId}`}>
+                      <Pencil />
+                    </Link>
+                  </Button>
+                  <Button variant="ghost" size="icon-sm" asChild
+                    className="text-slate-400 hover:text-emerald-600 hover:bg-emerald-50">
+                    <Link to={`/jobwork/${r.challanId}/print`} target="_blank" title="Print Challan" aria-label={`Print challan for inward ${r.inwardNo || r.challanId}`}>
+                      <Printer />
+                    </Link>
+                  </Button>
                   {onDelete && (
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon-sm"
                       onClick={() => onDelete(r.challanId)}
                       disabled={deletingId === r.challanId}
-                      className="inline-flex items-center justify-center w-7 h-7 rounded-md text-rose-500 hover:bg-rose-50 disabled:opacity-50"
                       title="Delete Inward"
+                      aria-label={`Delete inward ${r.inwardNo || r.challanId}`}
+                      className="text-slate-400 hover:text-rose-600 hover:bg-rose-50"
                     >
-                      <span className="material-symbols-outlined text-[18px]">
-                        {deletingId === r.challanId ? 'progress_activity' : 'delete'}
-                      </span>
-                    </button>
+                      {deletingId === r.challanId ? <Loader2 className="animate-spin" /> : <Trash2 />}
+                    </Button>
                   )}
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2">
-                  {([
-                    ['Company Name', r.companyName || '-', null],
-                    ['Material', r.material || '-', null],
-                    ['Inward No', r.inwardNo || '-', `/jobwork/${r.challanId}`],
-                    ['Challan No', r.challanNo || '-', null],
-                    ['Challan Date', r.challanDate ? new Date(r.challanDate).toLocaleDateString('en-IN') : '-', null],
-                    ['Material In Date', r.materialInDate ? new Date(r.materialInDate).toLocaleDateString('en-IN') : '-', null],
-                    ['Qty', String(r.qty ?? 0), null],
-                    ['Weight', String(r.weight ?? 0), null],
-                  ] as [string, string, string | null][]).map(([label, value, href]) => (
-                    <div key={`${r.srNo}-${label}`} className="rounded-md bg-white border border-slate-200/90 px-2.5 py-2 shadow-sm">
-                      <p className="text-[9px] font-extrabold uppercase tracking-widest text-indigo-700 border-b border-indigo-100 pb-1.5 mb-1.5">
-                        {label}
-                      </p>
-                      {href ? (
-                        <Link to={href} className="text-sm font-extrabold text-indigo-600 hover:text-indigo-800 hover:underline leading-snug break-words font-mono">
-                          {value}
-                        </Link>
-                      ) : (
-                        <p className="text-sm font-semibold text-slate-900 leading-snug break-words">{value}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2 mt-2">
-                  {[
-                    ['Jobcard No', r.jobcardNo || '-'],
-                    ['Jobcard Date', r.jobcardDate ? new Date(r.jobcardDate).toLocaleDateString('en-IN') : '-'],
-                    ['Invoice', r.invoiceNos || '-'],
-                    ['Bal Qty', r.balQty ?? 0],
-                    ['Dispatch Qty', r.dispatchQty ?? 0],
-                    ['Velocity', r.velocity ?? 0],
-                    ['Del Perf %', r.delPerfPct ?? 0],
-                    ['Delivery %', r.deliveryPct ?? 0],
-                  ].map(([label, value]) => (
-                    <div key={`${r.srNo}-${label}`} className="rounded-md bg-slate-50 border border-slate-200/90 px-2.5 py-2">
-                      <p className="text-[9px] font-extrabold uppercase tracking-widest text-indigo-700 border-b border-indigo-100/80 pb-1.5 mb-1.5">
-                        {label}
-                      </p>
-                      <p className="text-sm font-semibold text-slate-900 leading-snug break-words tabular-nums">{String(value)}</p>
-                    </div>
-                  ))}
                 </div>
               </td>
             </tr>

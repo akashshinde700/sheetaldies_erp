@@ -209,7 +209,7 @@ export default function JobworkPrint() {
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={11} style={{padding:'16px', color:'#94a3b8'}}>No items.</td>
+                <td colSpan={11} style={{padding:'16px', color:'#687689'}}>No items.</td>
               </tr>
             ) : rows.map(r => (
               <tr key={r.srNo}>

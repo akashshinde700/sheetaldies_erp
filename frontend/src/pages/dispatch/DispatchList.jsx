@@ -1,11 +1,45 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { Plus, Eye, Printer, Trash2, X, Truck } from 'lucide-react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import KpiCard from '../../components/KpiCard';
 import { formatDate } from '../../utils/formatters';
 import ListSearchInput from '../../components/ListSearchInput';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+
+// draft = neutral, sent = info, received = warning, complete = success, cancelled = error
+const STATUS_VARIANT = {
+  DRAFT:     'neutral',
+  SENT:      'info',
+  RECEIVED:  'warning',
+  COMPLETED: 'success',
+  CANCELLED: 'error',
+};
+
+const FilterLabel = ({ children, htmlFor }) => (
+  <label htmlFor={htmlFor} className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+    {children}
+  </label>
+);
+
+const SkeletonRow = () => (
+  <tr>
+    <td className="td"><Skeleton className="h-3.5 w-24" /></td>
+    <td className="td">
+      <Skeleton className="h-3.5 w-28 mb-1.5" />
+      <Skeleton className="h-2.5 w-20" />
+    </td>
+    <td className="td hidden sm:table-cell"><Skeleton className="h-3.5 w-8 ml-auto" /></td>
+    <td className="td hidden sm:table-cell"><Skeleton className="h-3.5 w-20" /></td>
+    <td className="td"><Skeleton className="h-5 w-16 rounded-full" /></td>
+    <td className="td"><Skeleton className="h-3.5 w-20 ml-auto" /></td>
+  </tr>
+);
 
 export default function DispatchChallanList() {
   const [challans, setChallans] = useState([]);
@@ -57,29 +91,27 @@ export default function DispatchChallanList() {
     });
   };
 
-  const getStatusColor = (status) => {
-    const colors = {
-      DRAFT:     'bg-slate-100 text-slate-700',
-      SENT:      'bg-blue-100 text-blue-800',
-      RECEIVED:  'bg-amber-100 text-amber-800',
-      COMPLETED: 'bg-emerald-100 text-emerald-800',
-      CANCELLED: 'bg-rose-100 text-rose-800',
-    };
-    return colors[status] || 'bg-slate-100 text-slate-700';
-  };
+  const hasFilters = Boolean(searchTerm || filters.status !== 'all');
 
   return (
-    <div className="page-stack w-full space-y-6 animate-slide-up">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="page-stack w-full space-y-5 animate-slide-up">
+
+      {/* Header */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="page-title">Dispatch Challans</h1>
           <p className="page-subtitle">Outward delivery documents</p>
         </div>
-        <Link to="/dispatch/new" className="btn-primary shrink-0 inline-flex items-center justify-center gap-2">
-          <span className="material-symbols-outlined text-[18px]">add</span> New Challan
-        </Link>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <Button asChild>
+            <Link to="/dispatch/new">
+              <Plus /> New Challan
+            </Link>
+          </Button>
+        </div>
       </div>
 
+      {/* KPIs */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <KpiCard
           label="Dispatch challans"
@@ -104,104 +136,136 @@ export default function DispatchChallanList() {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto] items-end">
-          <div className="flex gap-2 items-center">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Search</label>
-            <ListSearchInput
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Challan no or customer..."
-            />
+      {/* Filters */}
+      <Card>
+        <CardContent className="p-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:gap-3">
+            <div className="space-y-1 flex-1 min-w-[220px]">
+              <FilterLabel>Search</FilterLabel>
+              <ListSearchInput
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Challan no or customer..."
+                className="w-full"
+              />
+            </div>
+            <div className="space-y-1">
+              <FilterLabel htmlFor="dispatch-status-filter">Status</FilterLabel>
+              <select
+                id="dispatch-status-filter"
+                value={filters.status}
+                onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                className="form-input text-xs sm:w-44"
+              >
+                <option value="all">All</option>
+                <option value="DRAFT">Draft</option>
+                <option value="SENT">Sent</option>
+                <option value="RECEIVED">Received</option>
+                <option value="COMPLETED">Completed</option>
+                <option value="CANCELLED">Cancelled</option>
+              </select>
+            </div>
+            {hasFilters && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearchTerm('');
+                  setFilters({ status: 'all' });
+                }}
+                className="text-slate-500 hover:text-rose-600"
+              >
+                <X /> Clear
+              </Button>
+            )}
           </div>
-          <div className="flex gap-2 items-center">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider" htmlFor="dispatch-status-filter">Status</label>
-            <select
-              id="dispatch-status-filter"
-              value={filters.status}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-              className="form-input text-xs w-auto min-w-[180px]"
-            >
-              <option value="all">All</option>
-              <option value="DRAFT">Draft</option>
-              <option value="SENT">Sent</option>
-              <option value="RECEIVED">Received</option>
-              <option value="COMPLETED">Completed</option>
-              <option value="CANCELLED">Cancelled</option>
-            </select>
-          </div>
-          {(searchTerm || filters.status !== 'all') ? (
-            <button
-              type="button"
-              onClick={() => {
-                setSearchTerm('');
-                setFilters({ status: 'all' });
-              }}
-              className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-500 transition-colors font-medium"
-            >
-              <span className="material-symbols-outlined text-sm">close</span> Clear
-            </button>
-          ) : <div />}
-      </div>
+        </CardContent>
+      </Card>
 
+      {/* Table */}
       <div className="card overflow-hidden">
-
-        {loading ? (
-          <div className="text-center py-12 text-slate-500 text-sm">Loading…</div>
-        ) : challans.length === 0 ? (
-          <div className="text-center py-12 text-slate-500 text-sm">No challans found</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left min-w-[420px]">
-              <thead>
-                <tr className="border-b border-slate-200/80">
-                  <th className="th text-left">Challan</th>
-                  <th className="th text-left">From / To</th>
-                  <th className="th text-left hidden sm:table-cell">Items</th>
-                  <th className="th text-left hidden sm:table-cell">Dispatch</th>
-                  <th className="th text-left">Status</th>
-                  <th className="th text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {challans.map((challan) => (
-                  <tr key={challan.id} className="tr">
-                    <td className="td font-semibold text-slate-800">{challan.challanNo}</td>
-                    <td className="td text-xs">
-                      <div className="font-semibold text-slate-800 truncate max-w-[120px]">{challan.fromParty?.name || '—'}</div>
-                      <div className="text-slate-400 text-[10px] mt-0.5">↓ to: {challan.toParty?.name || '—'}</div>
-                    </td>
-                    <td className="td text-slate-600 hidden sm:table-cell">{challan.itemCount || 0} items</td>
-                    <td className="td text-slate-500">
-                      {formatDate(challan.challanDate)}
-                    </td>
-                    <td className="td">
-                      <span className={`badge ${getStatusColor(challan.status)}`}>{challan.status}</span>
-                    </td>
-                    <td className="td">
-                      <div className="flex flex-wrap gap-1.5">
-                        <Link to={`/dispatch/${challan.id}`}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-sky-800 bg-sky-50 hover:bg-sky-100">
-                          <span className="material-symbols-outlined text-[14px]">visibility</span>
-                          View
-                        </Link>
-                        <Link to={`/dispatch/${challan.id}/print`} target="_blank"
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-sky-700 bg-sky-50 hover:bg-sky-100">
-                          <span className="material-symbols-outlined text-[14px]">print</span>
-                          Print
-                        </Link>
-                        <button type="button" onClick={() => handleDelete(challan.id)}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100">
-                          <span className="material-symbols-outlined text-[14px]">delete</span>
-                          Delete
-                        </button>
+        <div className="table-responsive">
+          <table className="w-full text-left min-w-[560px]">
+            <thead>
+              <tr>
+                <th className="th">Challan</th>
+                <th className="th">From / To</th>
+                <th className="th hidden sm:table-cell text-right">Items</th>
+                <th className="th hidden sm:table-cell">Dispatch Date</th>
+                <th className="th">Status</th>
+                <th className="th text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50/80">
+              {loading ? (
+                Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
+              ) : challans.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-10 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+                        <Truck className="h-5 w-5 text-amber-300" />
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                      <p className="text-sm text-slate-500">
+                        {hasFilters ? 'No challans match your filters.' : 'No dispatch challans yet.'}
+                      </p>
+                      {!hasFilters && (
+                        <Button variant="outline" size="sm" asChild>
+                          <Link to="/dispatch/new">
+                            <Plus /> Create first challan
+                          </Link>
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ) : challans.map((challan) => (
+                <tr key={challan.id} className="tr">
+                  <td className="td">
+                    <Link to={`/dispatch/${challan.id}`}
+                      className="font-bold text-sky-800 hover:text-sky-950 hover:underline font-mono">
+                      {challan.challanNo}
+                    </Link>
+                  </td>
+                  <td className="td">
+                    <div className="font-semibold text-slate-800 truncate max-w-[140px]">{challan.fromParty?.name || '—'}</div>
+                    <div className="text-slate-400 text-[10px] mt-0.5 truncate max-w-[140px]">↓ to: {challan.toParty?.name || '—'}</div>
+                  </td>
+                  <td className="td text-slate-600 hidden sm:table-cell text-right tabular-nums">{challan.itemCount || 0}</td>
+                  <td className="td text-slate-500 hidden sm:table-cell whitespace-nowrap">
+                    {formatDate(challan.challanDate)}
+                  </td>
+                  <td className="td">
+                    <Badge variant={STATUS_VARIANT[challan.status] || 'neutral'}>{challan.status}</Badge>
+                  </td>
+                  <td className="td">
+                    <div className="flex items-center justify-end gap-0.5">
+                      <Button variant="ghost" size="icon-sm" asChild
+                        className="text-slate-400 hover:text-sky-700 hover:bg-sky-50">
+                        <Link to={`/dispatch/${challan.id}`} title="View" aria-label={`View challan ${challan.challanNo}`}>
+                          <Eye />
+                        </Link>
+                      </Button>
+                      <Button variant="ghost" size="icon-sm" asChild
+                        className="text-slate-400 hover:text-sky-700">
+                        <Link to={`/dispatch/${challan.id}/print`} target="_blank" title="Print" aria-label={`Print challan ${challan.challanNo}`}>
+                          <Printer />
+                        </Link>
+                      </Button>
+                      <Button type="button" variant="ghost" size="icon-sm"
+                        onClick={() => handleDelete(challan.id)}
+                        title="Delete" aria-label={`Delete challan ${challan.challanNo}`}
+                        className="text-slate-400 hover:text-rose-600 hover:bg-rose-50">
+                        <Trash2 />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {confirmDialog && <ConfirmDialog {...confirmDialog} onCancel={() => setConfirmDialog(null)} />}

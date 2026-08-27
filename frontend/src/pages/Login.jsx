@@ -1,8 +1,14 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
+import { Eye, EyeOff, LogIn, Send, ShieldCheck } from 'lucide-react';
+import toast from 'react-hot-toast';
+
+import { Card, CardContent } from '@/components/ui/card';
+import { FormField } from '@/components/ui/form-field';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { useAuth } from '../context/AuthContext';
 import { useFormValidation, validators } from '../hooks/useFormValidation';
-import toast from 'react-hot-toast';
 
 export default function Login() {
   const { user, initializing, login, requestOtp, loginWithOtp } = useAuth();
@@ -103,7 +109,7 @@ export default function Login() {
           <p className="text-slate-500 text-xs mt-1.5 px-2">Shital Vacuum Treat Pvt. Ltd.</p>
         </div>
 
-        <div className="bg-white rounded-xl shadow-lg shadow-slate-900/8 overflow-hidden border border-slate-200/90">
+        <Card className="overflow-hidden shadow-lg shadow-slate-900/8">
           <div className="flex border-b border-slate-200/80">
             <button
               type="button"
@@ -127,115 +133,147 @@ export default function Login() {
             </button>
           </div>
 
-          <div className="p-5 sm:p-7">
+          <CardContent className="p-5 sm:p-7">
             {mode === 'password' ? (
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="form-label">Email</label>
-                  <input
+                <FormField
+                  label="Email"
+                  htmlFor="login-email"
+                  error={touched.email && errors.email ? errors.email : null}
+                >
+                  <Input
+                    id="login-email"
                     type="email"
                     name="email"
                     value={values.email}
                     onChange={handleChange}
                     onBlur={handleBlur}
-                    className="form-input"
+                    invalid={Boolean(touched.email && errors.email)}
                     placeholder="admin@shitalvaccumtreat.com"
+                    autoComplete="email"
                   />
-                  {touched.email && errors.email && (
-                    <p className="mt-2 text-sm text-red-600">{errors.email}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="form-label">Password</label>
+                </FormField>
+
+                <FormField
+                  label="Password"
+                  htmlFor="login-password"
+                  error={touched.password && errors.password ? errors.password : null}
+                >
                   <div className="relative">
-                    <input
+                    <Input
+                      id="login-password"
                       type={showPass ? 'text' : 'password'}
                       name="password"
                       value={values.password}
                       onChange={handleChange}
                       onBlur={handleBlur}
-                      className="form-input pr-10"
+                      invalid={Boolean(touched.password && errors.password)}
+                      className="pr-12"
                       placeholder="••••••••"
+                      autoComplete="current-password"
                     />
-                    <button type="button" onClick={() => setShowPass(p => !p)} tabIndex={-1}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] flex items-center justify-center
-                        text-slate-400 hover:text-brand-600 rounded-lg transition-colors">
-                      <span className="material-symbols-outlined text-lg">{showPass ? 'visibility_off' : 'visibility'}</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowPass(p => !p)}
+                      tabIndex={-1}
+                      aria-label={showPass ? 'Hide password' : 'Show password'}
+                      className="absolute right-1 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 sm:h-7 sm:w-9
+                        flex items-center justify-center rounded-md
+                        text-slate-400 hover:text-slate-700 transition-colors"
+                    >
+                      {showPass ? <EyeOff className="h-[18px] w-[18px]" /> : <Eye className="h-[18px] w-[18px]" />}
                     </button>
                   </div>
-                  {touched.password && errors.password && (
-                    <p className="mt-2 text-sm text-red-600">{errors.password}</p>
-                  )}
-                </div>
-                {submitError && <p className="text-sm text-red-600">{submitError}</p>}
-                <button type="submit" disabled={isSubmitting} className="w-full btn-primary !justify-center">
-                  {isSubmitting
-                    ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Signing in...</>
-                    : <><span className="material-symbols-outlined text-sm">login</span> Sign In</>
-                  }
-                </button>
+                </FormField>
+
+                {submitError && (
+                  <p className="text-sm font-medium text-rose-600" role="alert">{submitError}</p>
+                )}
+
+                <Button type="submit" loading={isSubmitting} className="w-full">
+                  {!isSubmitting && <LogIn aria-hidden="true" />}
+                  {isSubmitting ? 'Signing in...' : 'Sign In'}
+                </Button>
               </form>
             ) : (
               <div className="space-y-4">
-                <div>
-                  <label className="form-label">Email</label>
-                  <input
+                <FormField
+                  label="Email"
+                  htmlFor="otp-email"
+                  error={touched.email && errors.email ? errors.email : null}
+                >
+                  <Input
+                    id="otp-email"
                     type="email"
                     name="email"
                     value={values.email}
                     onChange={handleChange}
                     onBlur={handleBlur}
-                    className="form-input"
+                    invalid={Boolean(touched.email && errors.email)}
                     placeholder="your@email.com"
+                    autoComplete="email"
                     disabled={otpSent}
                   />
-                  {touched.email && errors.email && (
-                    <p className="mt-2 text-sm text-red-600">{errors.email}</p>
-                  )}
-                </div>
+                </FormField>
+
                 {!otpSent ? (
-                  <button type="button" onClick={handleSendOtp} disabled={isSubmitting || Boolean(errors.email)} className="w-full btn-primary justify-center">
-                    {isSubmitting
-                      ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Sending...</>
-                      : <><span className="material-symbols-outlined text-sm">send</span> Send OTP</>
-                    }
-                  </button>
+                  <Button
+                    type="button"
+                    onClick={handleSendOtp}
+                    loading={isSubmitting}
+                    disabled={Boolean(errors.email)}
+                    className="w-full"
+                  >
+                    {!isSubmitting && <Send aria-hidden="true" />}
+                    {isSubmitting ? 'Sending...' : 'Send OTP'}
+                  </Button>
                 ) : (
                   <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                      <label className="form-label">Enter OTP</label>
-                      <input
+                    <FormField
+                      label="Enter OTP"
+                      htmlFor="login-otp"
+                      error={touched.otp && errors.otp ? errors.otp : null}
+                    >
+                      <Input
+                        id="login-otp"
                         type="text"
                         name="otp"
                         value={values.otp}
                         onChange={handleChange}
                         onBlur={handleBlur}
                         maxLength={6}
-                        className="form-input text-center text-xl font-mono tracking-[0.5em]"
+                        invalid={Boolean(touched.otp && errors.otp)}
+                        className="text-center text-xl font-mono tracking-[0.5em]"
                         placeholder="000000"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
                       />
-                      {touched.otp && errors.otp && (
-                        <p className="mt-2 text-sm text-red-600">{errors.otp}</p>
-                      )}
                       <p className="text-[10px] text-slate-400 mt-1.5 text-center">
                         OTP sent to {values.email}.{' '}
                         <button type="button" onClick={() => { setOtpSent(false); resetForm(); }}
                           className="text-sky-800 hover:text-sky-950 hover:underline font-semibold py-1 px-1 rounded-md">Resend</button>
                       </p>
-                    </div>
-                    {submitError && <p className="text-sm text-red-600">{submitError}</p>}
-                    <button type="submit" disabled={isSubmitting || Boolean(errors.otp)} className="w-full btn-primary justify-center">
-                      {isSubmitting
-                        ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Verifying...</>
-                        : <><span className="material-symbols-outlined text-sm">verified</span> Verify & Login</>
-                      }
-                    </button>
+                    </FormField>
+
+                    {submitError && (
+                      <p className="text-sm font-medium text-rose-600" role="alert">{submitError}</p>
+                    )}
+
+                    <Button
+                      type="submit"
+                      loading={isSubmitting}
+                      disabled={Boolean(errors.otp)}
+                      className="w-full"
+                    >
+                      {!isSubmitting && <ShieldCheck aria-hidden="true" />}
+                      {isSubmitting ? 'Verifying...' : 'Verify & Login'}
+                    </Button>
                   </form>
                 )}
               </div>
             )}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         <p className="text-center text-slate-500 text-xs mt-5">
           © {new Date().getFullYear()} Shital Vacuum Treat Pvt. Ltd.

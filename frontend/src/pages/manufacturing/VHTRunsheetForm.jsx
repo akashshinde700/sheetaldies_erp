@@ -10,8 +10,25 @@ import {
   CYCLE_NAMES,
   DEFAULT_GRAPH_SEGMENTS,
 } from '../../data/heatTreatmentCycles';
+import { ArrowLeft, Plus, Printer, Trash2 } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { FormField } from '@/components/ui/form-field';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const DEFAULT_GRAPH = DEFAULT_GRAPH_SEGMENTS;
+
+const GroupTitle = ({ children }) => (
+  <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">{children}</p>
+);
 
 const emptyLine = () => ({
   _id: Math.random(),
@@ -332,7 +349,7 @@ export default function VHTRunsheetForm() {
         holdMin: toNum(p.holdMin, 0),
         label: p.label || null,
       }));
-    
+
     if (!validGraphPoints.length) {
       toast.error('Add at least one temperature segment for the graph.');
       return;
@@ -399,550 +416,623 @@ export default function VHTRunsheetForm() {
   }
 
   return (
-    <div className="page-stack w-full p-6 pb-24">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+    <div className="page-stack w-full p-4 sm:p-6 pb-24">
+      {/* Page header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
         <div>
-          <Link to="/manufacturing/runsheet" className="text-sm text-sky-600 hover:underline">
-            ← Run sheets
+          <Link
+            to="/manufacturing/runsheet"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-sky-700 hover:underline"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" /> Run sheets
           </Link>
-          <h1 className="text-2xl font-bold text-slate-800 mt-2">{isNew ? 'New VHT Run Sheet' : 'Edit VHT Run Sheet'}</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">
+            {isNew ? 'New VHT Run Sheet' : 'Edit VHT Run Sheet'}
+          </h1>
         </div>
         {!isNew && (
-          <Link
-            to={`/manufacturing/runsheet/${id}/print`}
-            target="_blank"
-            rel="noreferrer"
-            className="text-sm font-medium text-slate-600 hover:text-sky-600"
-          >
-            Open print view
-          </Link>
+          <Button asChild variant="outline" size="sm">
+            <Link to={`/manufacturing/runsheet/${id}/print`} target="_blank" rel="noreferrer">
+              <Printer /> Open print view
+            </Link>
+          </Button>
         )}
       </div>
 
-      <form onSubmit={submit} className="space-y-8">
-        <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
-          <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Header</h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <label className="block text-xs">
-              <span className="text-slate-500">Run date *</span>
-              <input
-                type="date"
-                required
-                value={form.runDate}
-                onChange={(e) => setForm({ ...form, runDate: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="text-slate-500">Furnace *</span>
-              <SearchSelect
-                value={String(form.furnaceId || '')}
-                onChange={v => setForm({ ...form, furnaceId: v })}
-                options={machines.map(m => ({ value: m.id, label: m.name || m.code }))}
-                placeholder="Select furnace"
-                required
-                className="mt-1"
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="text-slate-500">Cycle start time</span>
-              <input
-                type="time"
-                value={form.cycleStartTime}
-                onChange={(e) => setForm({ ...form, cycleStartTime: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="text-slate-500">Cycle end time</span>
-              <input
-                type="time"
-                value={form.cycleEndTime}
-                onChange={(e) => setForm({ ...form, cycleEndTime: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="text-slate-500">Total time <span className="text-slate-400">(auto, from start/end)</span></span>
-              <input
-                type="text"
-                readOnly
-                placeholder="e.g. 8:00"
-                value={form.totalTimeDisplay}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-slate-50 text-slate-500"
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="text-slate-500">Cycle (minutes)</span>
-              <input
-                type="number"
-                value={form.cycleTime}
-                onChange={(e) => setForm({ ...form, cycleTime: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="text-slate-500">M.R. start</span>
-              <input
-                type="number"
-                value={form.mrStart}
-                onChange={(e) => setForm({ ...form, mrStart: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="text-slate-500">M.R. end</span>
-              <input
-                type="number"
-                value={form.mrEnd}
-                onChange={(e) => setForm({ ...form, mrEnd: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="text-slate-500">Total M.R. <span className="text-slate-400">(auto, end − start)</span></span>
-              <input
-                type="text"
-                readOnly
-                value={form.totalMr}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-slate-50 text-slate-500"
-              />
-            </label>
-            <label className="block text-xs sm:col-span-2">
-              <span className="text-slate-500">Loading operator</span>
-              <input
-                type="text"
-                value={form.loadingOperatorName}
-                onChange={(e) => setForm({ ...form, loadingOperatorName: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-              />
-            </label>
-          </div>
-          <div className="grid sm:grid-cols-3 gap-4">
-            <label className="block text-xs">
-              <span className="text-slate-500">Doc rev.</span>
-              <input
-                type="text"
-                value={form.docRevNo}
-                onChange={(e) => setForm({ ...form, docRevNo: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="text-slate-500">Effective date</span>
-              <input
-                type="date"
-                value={form.docEffectiveDate}
-                onChange={(e) => setForm({ ...form, docEffectiveDate: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="text-slate-500">Page</span>
-              <input
-                type="text"
-                value={form.docPageOf}
-                onChange={(e) => setForm({ ...form, docPageOf: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-              />
-            </label>
-          </div>
-        </section>
-
-        <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-            <div>
-              <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Jobs in this batch</h2>
-              <p className="text-xs text-slate-500">Select job cards or load one by number.</p>
-            </div>
-            <span className="text-xs text-slate-500">Total weight: <strong>{totalWeight.toFixed(2)}</strong> kg</span>
-          </div>
-          <div className="grid sm:grid-cols-[1fr_auto] gap-3 items-end">
-            <label className="block text-xs">
-              <span className="text-slate-500">Job card number</span>
-              <input
-                type="text"
-                value={jobCardNoLookup}
-                onChange={(e) => setJobCardNoLookup(e.target.value)}
-                placeholder="Enter job card number"
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-              />
-            </label>
-            <button
-              type="button"
-              onClick={fillFromJobCardNumber}
-              className="px-4 py-2 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-700"
-            >
-              Load from job card
-            </button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs min-w-[800px]">
-              <thead>
-                <tr className="text-left text-slate-500 border-b">
-                  <th className="py-2 pr-2">Job card *</th>
-                  <th className="py-2 pr-2">Customer</th>
-                  <th className="py-2 pr-2">Description</th>
-                  <th className="py-2 pr-2">Material</th>
-                  <th className="py-2 pr-2">HRC req</th>
-                  <th className="py-2 pr-2">Qty</th>
-                  <th className="py-2 pr-2">Wt (kg)</th>
-                  <th className="py-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {form.items.map((it, idx) => (
-                  <tr key={it._id} className="border-b border-slate-50">
-                    <td className="py-2 pr-2">
-                      <SearchSelect
-                        value={String(it.jobCardId || '')}
-                        onChange={v => onSelectJobCard(idx, v)}
-                        options={jobCards.map(jc => ({ value: jc.id, label: jc.jobCardNo }))}
-                        placeholder="Select job card"
-                        required={idx === 0}
-                        useFixed
-                        className="max-w-[200px]"
-                      />
-                    </td>
-                    <td className="py-2 pr-2">
-                      <input
-                        className="w-full border rounded px-2 py-1.5"
-                        value={it.customerName}
-                        onChange={(e) => updateItem(idx, 'customerName', e.target.value)}
-                      />
-                    </td>
-                    <td className="py-2 pr-2">
-                      <input
-                        className="w-full border rounded px-2 py-1.5"
-                        value={it.jobDescription}
-                        onChange={(e) => updateItem(idx, 'jobDescription', e.target.value)}
-                      />
-                    </td>
-                    <td className="py-2 pr-2">
-                      <input
-                        className="w-full border rounded px-2 py-1.5"
-                        value={it.materialGrade}
-                        onChange={(e) => updateItem(idx, 'materialGrade', e.target.value)}
-                      />
-                    </td>
-                    <td className="py-2 pr-2">
-                      <input
-                        className="w-full border rounded px-2 py-1.5 max-w-[90px]"
-                        value={it.hrcRequired}
-                        onChange={(e) => updateItem(idx, 'hrcRequired', e.target.value)}
-                      />
-                    </td>
-                    <td className="py-2 pr-2">
-                      <input
-                        type="number"
-                        className="w-16 border rounded px-2 py-1.5"
-                        value={it.quantity}
-                        onChange={(e) => updateItem(idx, 'quantity', e.target.value)}
-                      />
-                    </td>
-                    <td className="py-2 pr-2">
-                      <input
-                        type="number"
-                        step="0.01"
-                        className="w-20 border rounded px-2 py-1.5"
-                        value={it.weightKg}
-                        onChange={(e) => updateItem(idx, 'weightKg', e.target.value)}
-                      />
-                    </td>
-                    <td className="py-2">
-                      <button
-                        type="button"
-                        onClick={() => setForm(prev => {
-                          const next = prev.items.filter((_, i) => i !== idx);
-                          return { ...prev, items: next.length ? next : [emptyLine()] };
-                        })}
-                        className="text-red-600 text-xs"
-                      >
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <button
-            type="button"
-            onClick={() => setForm(prev => ({ ...prev, items: [...prev.items, emptyLine()] }))}
-            className="text-sm text-sky-600 font-medium"
-          >
-            + Add line
-          </button>
-        </section>
-
-        <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
-          <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Cycle parameters</h2>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <label className="block text-xs">
-              <span className="text-slate-500">Type of hardening / mix</span>
-              <input
-                value={form.hardeningType}
-                onChange={(e) => setForm({ ...form, hardeningType: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-                placeholder="e.g. D2, SS303 + D2"
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="text-slate-500">Temp profile (text)</span>
-              <input
-                value={form.tempProfile}
-                onChange={(e) => setForm({ ...form, tempProfile: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="text-slate-500">Quenching pressure (bar)</span>
-              <input
-                type="number"
-                step="0.01"
-                value={form.quenchPressureBar}
-                onChange={(e) => setForm({ ...form, quenchPressureBar: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="text-slate-500">Fan speed (RPM)</span>
-              <input
-                type="number"
-                value={form.fanRpm}
-                onChange={(e) => setForm({ ...form, fanRpm: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="block text-xs sm:col-span-2">
-              <span className="text-slate-500">Fixtures / T.C. position</span>
-              <input
-                value={form.fixturesPosition}
-                onChange={(e) => setForm({ ...form, fixturesPosition: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-                placeholder="e.g. LH-02"
-              />
-            </label>
-          </div>
-        </section>
-
-        <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
-          <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Temperature–time graph (steps)</h2>
-          <p className="text-xs text-slate-500">
-            Select a material cycle preset or enter custom segments. Graph on the test certificate will reflect these values.
-          </p>
-          {masterGraphs.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500 font-semibold whitespace-nowrap">Load from Graph Master:</span>
-              <SearchSelect
-                value=""
-                onChange={loadMasterGraph}
-                options={masterGraphs.map(g => ({ value: g.id, label: g.isDefault ? `${g.name} ★` : g.name }))}
-                placeholder="— Select a saved graph —"
-                useFixed
-                className="max-w-xs"
-              />
-            </div>
-          )}
-          <div className="flex flex-wrap gap-2">
-            <span className="text-xs text-slate-500 self-center font-semibold">Load preset:</span>
-            {CYCLE_NAMES.map(name => (
-              <button
-                key={name}
-                type="button"
-                className="px-3 py-1 text-xs font-bold rounded-lg border border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100 transition-colors"
-                onClick={() => setForm(f => ({ ...f, tempGraphPoints: CYCLE_PRESETS[name].map(p => ({ ...p })) }))}
-              >
-                {name}
-              </button>
-            ))}
-          </div>
-          <div className="space-y-2">
-            {(form.tempGraphPoints || []).map((row, idx) => (
-              <div key={idx} className="flex flex-wrap gap-2 items-center">
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  className="w-24 border rounded px-2 py-1.5 text-sm"
-                  placeholder="°C *"
-                  value={row.tempC}
-                  onChange={(e) => updateGraphRow(idx, 'tempC', e.target.value)}
-                  required
-                />
-                <span className="text-xs text-slate-500">for</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  className="w-20 border rounded px-2 py-1.5 text-sm"
-                  placeholder="min *"
-                  value={row.holdMin}
-                  onChange={(e) => updateGraphRow(idx, 'holdMin', e.target.value)}
-                  required
-                />
-                <input
-                  type="text"
-                  className="flex-1 min-w-[120px] border rounded px-2 py-1.5 text-sm"
-                  placeholder="Label (optional)"
-                  value={row.label || ''}
-                  onChange={(e) => updateGraphRow(idx, 'label', e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="text-xs text-red-600"
-                  onClick={() => setForm(prev => {
-                    const next = (prev.tempGraphPoints || []).filter((_, i) => i !== idx);
-                    return { ...prev, tempGraphPoints: next.length ? next : DEFAULT_GRAPH };
-                  })}
-                >
-                  Remove
-                </button>
+      <form onSubmit={submit} className="space-y-4">
+        {/* ── Run details ── */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Run Details</CardTitle>
+            <CardDescription>Furnace, cycle timing, meter readings and document control.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="space-y-3">
+              <GroupTitle>Schedule &amp; Furnace</GroupTitle>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+                <FormField label="Run Date" htmlFor="runDate" required>
+                  <Input
+                    id="runDate"
+                    type="date"
+                    required
+                    value={form.runDate}
+                    onChange={(e) => setForm({ ...form, runDate: e.target.value })}
+                  />
+                </FormField>
+                <FormField label="Furnace" required>
+                  <SearchSelect
+                    value={String(form.furnaceId || '')}
+                    onChange={v => setForm({ ...form, furnaceId: v })}
+                    options={machines.map(m => ({ value: m.id, label: m.name || m.code }))}
+                    placeholder="Select furnace"
+                    required
+                  />
+                </FormField>
+                <FormField label="Cycle (minutes)" htmlFor="cycleTime">
+                  <Input
+                    id="cycleTime"
+                    type="number"
+                    inputMode="numeric"
+                    value={form.cycleTime}
+                    onChange={(e) => setForm({ ...form, cycleTime: e.target.value })}
+                    className="text-right tabular-nums"
+                  />
+                </FormField>
+                <FormField label="Cycle Start Time" htmlFor="cycleStartTime">
+                  <Input
+                    id="cycleStartTime"
+                    type="time"
+                    value={form.cycleStartTime}
+                    onChange={(e) => setForm({ ...form, cycleStartTime: e.target.value })}
+                  />
+                </FormField>
+                <FormField label="Cycle End Time" htmlFor="cycleEndTime">
+                  <Input
+                    id="cycleEndTime"
+                    type="time"
+                    value={form.cycleEndTime}
+                    onChange={(e) => setForm({ ...form, cycleEndTime: e.target.value })}
+                  />
+                </FormField>
+                <FormField label="Total Time" htmlFor="totalTimeDisplay" hint="Auto — from start/end">
+                  <Input
+                    id="totalTimeDisplay"
+                    type="text"
+                    readOnly
+                    placeholder="e.g. 8:00"
+                    value={form.totalTimeDisplay}
+                    className="bg-slate-50 text-slate-500 tabular-nums"
+                  />
+                </FormField>
               </div>
-            ))}
-            <button
+            </div>
+
+            <div className="space-y-3">
+              <GroupTitle>Meter Reading &amp; Operator</GroupTitle>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-4 gap-y-3">
+                <FormField label="M.R. Start" htmlFor="mrStart">
+                  <Input
+                    id="mrStart"
+                    type="number"
+                    inputMode="decimal"
+                    value={form.mrStart}
+                    onChange={(e) => setForm({ ...form, mrStart: e.target.value })}
+                    className="text-right tabular-nums"
+                  />
+                </FormField>
+                <FormField label="M.R. End" htmlFor="mrEnd">
+                  <Input
+                    id="mrEnd"
+                    type="number"
+                    inputMode="decimal"
+                    value={form.mrEnd}
+                    onChange={(e) => setForm({ ...form, mrEnd: e.target.value })}
+                    className="text-right tabular-nums"
+                  />
+                </FormField>
+                <FormField label="Total M.R." htmlFor="totalMr" hint="Auto — end − start">
+                  <Input
+                    id="totalMr"
+                    type="text"
+                    readOnly
+                    value={form.totalMr}
+                    className="bg-slate-50 text-slate-500 text-right tabular-nums"
+                  />
+                </FormField>
+                <FormField label="Loading Operator" htmlFor="loadingOperatorName" className="col-span-2">
+                  <Input
+                    id="loadingOperatorName"
+                    type="text"
+                    value={form.loadingOperatorName}
+                    onChange={(e) => setForm({ ...form, loadingOperatorName: e.target.value })}
+                  />
+                </FormField>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <GroupTitle>Document Control</GroupTitle>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
+                <FormField label="Doc Rev." htmlFor="docRevNo">
+                  <Input
+                    id="docRevNo"
+                    type="text"
+                    value={form.docRevNo}
+                    onChange={(e) => setForm({ ...form, docRevNo: e.target.value })}
+                  />
+                </FormField>
+                <FormField label="Effective Date" htmlFor="docEffectiveDate">
+                  <Input
+                    id="docEffectiveDate"
+                    type="date"
+                    value={form.docEffectiveDate}
+                    onChange={(e) => setForm({ ...form, docEffectiveDate: e.target.value })}
+                  />
+                </FormField>
+                <FormField label="Page" htmlFor="docPageOf">
+                  <Input
+                    id="docPageOf"
+                    type="text"
+                    value={form.docPageOf}
+                    onChange={(e) => setForm({ ...form, docPageOf: e.target.value })}
+                  />
+                </FormField>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Jobs in this batch ── */}
+        <Card>
+          <CardHeader className="flex-row items-center justify-between space-y-0 gap-3">
+            <div className="space-y-1">
+              <CardTitle>Jobs in this Batch</CardTitle>
+              <CardDescription>Select job cards or load one by number.</CardDescription>
+            </div>
+            <span className="shrink-0 rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+              Total weight: <span className="tabular-nums font-bold text-slate-800">{totalWeight.toFixed(2)}</span> kg
+            </span>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,320px)_auto] gap-x-3 gap-y-3 items-end">
+              <FormField label="Job Card Number" htmlFor="jobCardNoLookup">
+                <Input
+                  id="jobCardNoLookup"
+                  type="text"
+                  value={jobCardNoLookup}
+                  onChange={(e) => setJobCardNoLookup(e.target.value)}
+                  placeholder="Enter job card number"
+                />
+              </FormField>
+              <Button type="button" variant="secondary" onClick={fillFromJobCardNumber}>
+                Load from job card
+              </Button>
+            </div>
+
+            <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+              <table className="w-full text-xs min-w-[860px]">
+                <thead>
+                  <tr className="text-left border-b border-slate-200">
+                    <th className="py-2 pr-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Job Card *</th>
+                    <th className="py-2 pr-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Customer</th>
+                    <th className="py-2 pr-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Description</th>
+                    <th className="py-2 pr-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Material</th>
+                    <th className="py-2 pr-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">HRC Req</th>
+                    <th className="py-2 pr-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-right">Qty</th>
+                    <th className="py-2 pr-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-right">Wt (kg)</th>
+                    <th className="py-2 w-8" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {form.items.map((it, idx) => (
+                    <tr key={it._id} className="border-b border-slate-100 last:border-0">
+                      <td className="py-1.5 pr-2 align-middle">
+                        <SearchSelect
+                          value={String(it.jobCardId || '')}
+                          onChange={v => onSelectJobCard(idx, v)}
+                          options={jobCards.map(jc => ({ value: jc.id, label: jc.jobCardNo }))}
+                          placeholder="Select job card"
+                          required={idx === 0}
+                          useFixed
+                          className="max-w-[200px]"
+                        />
+                      </td>
+                      <td className="py-1.5 pr-2 align-middle">
+                        <Input
+                          className="h-8 sm:h-8 min-h-0 text-xs"
+                          value={it.customerName}
+                          onChange={(e) => updateItem(idx, 'customerName', e.target.value)}
+                        />
+                      </td>
+                      <td className="py-1.5 pr-2 align-middle">
+                        <Input
+                          className="h-8 sm:h-8 min-h-0 text-xs"
+                          value={it.jobDescription}
+                          onChange={(e) => updateItem(idx, 'jobDescription', e.target.value)}
+                        />
+                      </td>
+                      <td className="py-1.5 pr-2 align-middle">
+                        <Input
+                          className="h-8 sm:h-8 min-h-0 text-xs"
+                          value={it.materialGrade}
+                          onChange={(e) => updateItem(idx, 'materialGrade', e.target.value)}
+                        />
+                      </td>
+                      <td className="py-1.5 pr-2 align-middle">
+                        <Input
+                          className="h-8 sm:h-8 min-h-0 text-xs max-w-[90px]"
+                          value={it.hrcRequired}
+                          onChange={(e) => updateItem(idx, 'hrcRequired', e.target.value)}
+                        />
+                      </td>
+                      <td className="py-1.5 pr-2 align-middle">
+                        <Input
+                          type="number"
+                          inputMode="numeric"
+                          className="h-8 sm:h-8 min-h-0 text-xs w-16 text-right tabular-nums"
+                          value={it.quantity}
+                          onChange={(e) => updateItem(idx, 'quantity', e.target.value)}
+                        />
+                      </td>
+                      <td className="py-1.5 pr-2 align-middle">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          inputMode="decimal"
+                          className="h-8 sm:h-8 min-h-0 text-xs w-20 text-right tabular-nums"
+                          value={it.weightKg}
+                          onChange={(e) => updateItem(idx, 'weightKg', e.target.value)}
+                        />
+                      </td>
+                      <td className="py-1.5 align-middle">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => setForm(prev => {
+                            const next = prev.items.filter((_, i) => i !== idx);
+                            return { ...prev, items: next.length ? next : [emptyLine()] };
+                          })}
+                          className="text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                          aria-label={`Remove line ${idx + 1}`}
+                        >
+                          <Trash2 />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <Button
               type="button"
-              className="text-sm text-sky-600"
-              onClick={() =>
-                setForm(prev => ({
-                  ...prev,
-                  tempGraphPoints: [...(prev.tempGraphPoints || []), { tempC: '', holdMin: '', label: '' }],
-                }))
-              }
+              variant="outline"
+              size="sm"
+              onClick={() => setForm(prev => ({ ...prev, items: [...prev.items, emptyLine()] }))}
             >
-              + Add segment
-            </button>
-          </div>
-          <HeatCycleGraphPreview segments={form.tempGraphPoints} />
-        </section>
+              <Plus /> Add line
+            </Button>
+          </CardContent>
+        </Card>
 
-        <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
-          <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Check points</h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <label className="block text-xs">
-              <span className="text-slate-500">Gas pressure</span>
-              <input
-                value={form.gasPressure}
-                onChange={(e) => setForm({ ...form, gasPressure: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="text-slate-500">Water circulation</span>
-              <select
-                value={form.waterCirculationFrom}
-                onChange={(e) => setForm({ ...form, waterCirculationFrom: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-              >
-                <option value="">—</option>
-                <option value="OK">OK</option>
-                <option value="NOT OK">NOT OK</option>
-              </select>
-            </label>
-            <label className="block text-xs">
-              <span className="text-slate-500">Power failure — from</span>
-              <input
-                type="time"
-                value={form.powerFailureFrom}
-                onChange={(e) => setForm({ ...form, powerFailureFrom: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="text-slate-500">Power failure — to</span>
-              <input
-                type="time"
-                value={form.powerFailureTo}
-                onChange={(e) => setForm({ ...form, powerFailureTo: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="block text-xs sm:col-span-2 lg:col-span-3">
-              <span className="text-slate-500">Other</span>
-              <textarea
-                value={form.otherCheckpoint}
-                onChange={(e) => setForm({ ...form, otherCheckpoint: e.target.value })}
-                rows={2}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-              />
-            </label>
-          </div>
-        </section>
+        {/* ── Cycle parameters ── */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Cycle Parameters</CardTitle>
+            <CardDescription>Hardening mix, quench and fixture setup for this run.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-3">
+              <FormField label="Type of Hardening / Mix" htmlFor="hardeningType">
+                <Input
+                  id="hardeningType"
+                  value={form.hardeningType}
+                  onChange={(e) => setForm({ ...form, hardeningType: e.target.value })}
+                  placeholder="e.g. D2, SS303 + D2"
+                />
+              </FormField>
+              <FormField label="Temp Profile (text)" htmlFor="tempProfile">
+                <Input
+                  id="tempProfile"
+                  value={form.tempProfile}
+                  onChange={(e) => setForm({ ...form, tempProfile: e.target.value })}
+                />
+              </FormField>
+              <FormField label="Quenching Pressure (bar)" htmlFor="quenchPressureBar">
+                <Input
+                  id="quenchPressureBar"
+                  type="number"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={form.quenchPressureBar}
+                  onChange={(e) => setForm({ ...form, quenchPressureBar: e.target.value })}
+                  className="text-right tabular-nums"
+                />
+              </FormField>
+              <FormField label="Fan Speed (RPM)" htmlFor="fanRpm">
+                <Input
+                  id="fanRpm"
+                  type="number"
+                  inputMode="numeric"
+                  value={form.fanRpm}
+                  onChange={(e) => setForm({ ...form, fanRpm: e.target.value })}
+                  className="text-right tabular-nums"
+                />
+              </FormField>
+              <FormField label="Fixtures / T.C. Position" htmlFor="fixturesPosition" className="sm:col-span-2">
+                <Input
+                  id="fixturesPosition"
+                  value={form.fixturesPosition}
+                  onChange={(e) => setForm({ ...form, fixturesPosition: e.target.value })}
+                  placeholder="e.g. LH-02"
+                />
+              </FormField>
+            </div>
+          </CardContent>
+        </Card>
 
-        <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
-          <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Verification & status</h2>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <label className="block text-xs">
-              <span className="text-slate-500">Operator sign</span>
-              <input
-                value={form.operatorSign}
-                onChange={(e) => setForm({ ...form, operatorSign: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="text-slate-500">Production supervisor sign</span>
-              <input
-                value={form.supervisorSign}
-                onChange={(e) => setForm({ ...form, supervisorSign: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="text-slate-500">Supervisor verified at</span>
-              <input
-                type="datetime-local"
-                value={form.supervisorVerifiedAt}
-                onChange={(e) => setForm({ ...form, supervisorVerifiedAt: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="text-slate-500">Status</span>
-              <select
-                value={form.status}
-                onChange={(e) => setForm({ ...form, status: e.target.value })}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
+        {/* ── Temperature–time graph ── */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Temperature–Time Graph (Steps)</CardTitle>
+            <CardDescription>
+              Select a material cycle preset or enter custom segments. Graph on the test certificate will reflect these values.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {masterGraphs.length > 0 && (
+              <div className="space-y-3">
+                <GroupTitle>Load from Graph Master</GroupTitle>
+                <SearchSelect
+                  value=""
+                  onChange={loadMasterGraph}
+                  options={masterGraphs.map(g => ({ value: g.id, label: g.isDefault ? `${g.name} ★` : g.name }))}
+                  placeholder="— Select a saved graph —"
+                  useFixed
+                  className="max-w-xs"
+                />
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <GroupTitle>Load Preset</GroupTitle>
+              <div className="flex flex-wrap gap-2">
+                {CYCLE_NAMES.map(name => (
+                  <Button
+                    key={name}
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setForm(f => ({ ...f, tempGraphPoints: CYCLE_PRESETS[name].map(p => ({ ...p })) }))}
+                  >
+                    {name}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <GroupTitle>Segments</GroupTitle>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs min-w-[480px]">
+                  <thead>
+                    <tr className="text-left border-b border-slate-200">
+                      <th className="py-2 pr-2 w-10 text-[10px] font-bold text-slate-500 uppercase tracking-wider">#</th>
+                      <th className="py-2 pr-2 w-28 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-right">Temp (°C) *</th>
+                      <th className="py-2 pr-2 w-24 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-right">Hold (min) *</th>
+                      <th className="py-2 pr-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Label</th>
+                      <th className="py-2 w-8" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(form.tempGraphPoints || []).map((row, idx) => (
+                      <tr key={idx} className="border-b border-slate-100 last:border-0">
+                        <td className="py-1.5 pr-2 align-middle text-slate-400 font-semibold tabular-nums">{idx + 1}</td>
+                        <td className="py-1.5 pr-2 align-middle">
+                          <Input
+                            type="number"
+                            min="0"
+                            step="1"
+                            inputMode="numeric"
+                            className="h-8 sm:h-8 min-h-0 text-xs text-right tabular-nums"
+                            placeholder="°C *"
+                            value={row.tempC}
+                            onChange={(e) => updateGraphRow(idx, 'tempC', e.target.value)}
+                            required
+                          />
+                        </td>
+                        <td className="py-1.5 pr-2 align-middle">
+                          <Input
+                            type="number"
+                            min="0"
+                            step="1"
+                            inputMode="numeric"
+                            className="h-8 sm:h-8 min-h-0 text-xs text-right tabular-nums"
+                            placeholder="min *"
+                            value={row.holdMin}
+                            onChange={(e) => updateGraphRow(idx, 'holdMin', e.target.value)}
+                            required
+                          />
+                        </td>
+                        <td className="py-1.5 pr-2 align-middle">
+                          <Input
+                            type="text"
+                            className="h-8 sm:h-8 min-h-0 text-xs min-w-[120px]"
+                            placeholder="Label (optional)"
+                            value={row.label || ''}
+                            onChange={(e) => updateGraphRow(idx, 'label', e.target.value)}
+                          />
+                        </td>
+                        <td className="py-1.5 align-middle">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => setForm(prev => {
+                              const next = (prev.tempGraphPoints || []).filter((_, i) => i !== idx);
+                              return { ...prev, tempGraphPoints: next.length ? next : DEFAULT_GRAPH };
+                            })}
+                            className="text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                            aria-label={`Remove segment ${idx + 1}`}
+                          >
+                            <Trash2 />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setForm(prev => ({
+                    ...prev,
+                    tempGraphPoints: [...(prev.tempGraphPoints || []), { tempC: '', holdMin: '', label: '' }],
+                  }))
+                }
               >
-                <option value="PLANNED">Planned</option>
-                <option value="IN_PROGRESS">In progress</option>
-                <option value="COMPLETED">Completed</option>
-                <option value="CANCELLED">Cancelled</option>
-              </select>
-            </label>
-            <label className="block text-xs sm:col-span-2">
-              <span className="text-slate-500">Verification note</span>
-              <textarea
-                value={form.verificationNote}
-                onChange={(e) => setForm({ ...form, verificationNote: e.target.value })}
-                rows={2}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-                placeholder="After processing within 24 hrs, supervisor shall verify process parameter (graph) & sign."
-              />
-            </label>
-            <label className="block text-xs sm:col-span-2">
-              <span className="text-slate-500">Remarks</span>
-              <textarea
-                value={form.remarks}
-                onChange={(e) => setForm({ ...form, remarks: e.target.value })}
-                rows={2}
-                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-              />
-            </label>
-          </div>
-        </section>
+                <Plus /> Add segment
+              </Button>
+            </div>
+
+            <HeatCycleGraphPreview segments={form.tempGraphPoints} />
+          </CardContent>
+        </Card>
+
+        {/* ── Check points ── */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Check Points</CardTitle>
+            <CardDescription>Utilities and interruptions observed during the run.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-3">
+              <FormField label="Gas Pressure" htmlFor="gasPressure">
+                <Input
+                  id="gasPressure"
+                  value={form.gasPressure}
+                  onChange={(e) => setForm({ ...form, gasPressure: e.target.value })}
+                />
+              </FormField>
+              <FormField label="Water Circulation" htmlFor="waterCirculationFrom">
+                {/* Native select kept: has a value="" placeholder option (Radix Select breaks on '') */}
+                <select
+                  id="waterCirculationFrom"
+                  value={form.waterCirculationFrom}
+                  onChange={(e) => setForm({ ...form, waterCirculationFrom: e.target.value })}
+                  className="form-input"
+                >
+                  <option value="">—</option>
+                  <option value="OK">OK</option>
+                  <option value="NOT OK">NOT OK</option>
+                </select>
+              </FormField>
+              <FormField label="Power Failure — From" htmlFor="powerFailureFrom">
+                <Input
+                  id="powerFailureFrom"
+                  type="time"
+                  value={form.powerFailureFrom}
+                  onChange={(e) => setForm({ ...form, powerFailureFrom: e.target.value })}
+                />
+              </FormField>
+              <FormField label="Power Failure — To" htmlFor="powerFailureTo">
+                <Input
+                  id="powerFailureTo"
+                  type="time"
+                  value={form.powerFailureTo}
+                  onChange={(e) => setForm({ ...form, powerFailureTo: e.target.value })}
+                />
+              </FormField>
+              <FormField label="Other" htmlFor="otherCheckpoint" className="sm:col-span-2 lg:col-span-4">
+                <Textarea
+                  id="otherCheckpoint"
+                  value={form.otherCheckpoint}
+                  onChange={(e) => setForm({ ...form, otherCheckpoint: e.target.value })}
+                  rows={2}
+                />
+              </FormField>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Verification & status ── */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Verification &amp; Status</CardTitle>
+            <CardDescription>Sign-offs, supervisor verification and run status.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-3">
+              <FormField label="Operator Sign" htmlFor="operatorSign">
+                <Input
+                  id="operatorSign"
+                  value={form.operatorSign}
+                  onChange={(e) => setForm({ ...form, operatorSign: e.target.value })}
+                />
+              </FormField>
+              <FormField label="Production Supervisor Sign" htmlFor="supervisorSign">
+                <Input
+                  id="supervisorSign"
+                  value={form.supervisorSign}
+                  onChange={(e) => setForm({ ...form, supervisorSign: e.target.value })}
+                />
+              </FormField>
+              <FormField label="Supervisor Verified At" htmlFor="supervisorVerifiedAt">
+                <Input
+                  id="supervisorVerifiedAt"
+                  type="datetime-local"
+                  value={form.supervisorVerifiedAt}
+                  onChange={(e) => setForm({ ...form, supervisorVerifiedAt: e.target.value })}
+                />
+              </FormField>
+              <FormField label="Status">
+                <Select
+                  value={form.status}
+                  onValueChange={(v) => setForm({ ...form, status: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PLANNED">Planned</SelectItem>
+                    <SelectItem value="IN_PROGRESS">In progress</SelectItem>
+                    <SelectItem value="COMPLETED">Completed</SelectItem>
+                    <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <FormField label="Verification Note" htmlFor="verificationNote" className="sm:col-span-2">
+                <Textarea
+                  id="verificationNote"
+                  value={form.verificationNote}
+                  onChange={(e) => setForm({ ...form, verificationNote: e.target.value })}
+                  rows={2}
+                  placeholder="After processing within 24 hrs, supervisor shall verify process parameter (graph) & sign."
+                />
+              </FormField>
+              <FormField label="Remarks" htmlFor="remarks" className="sm:col-span-2">
+                <Textarea
+                  id="remarks"
+                  value={form.remarks}
+                  onChange={(e) => setForm({ ...form, remarks: e.target.value })}
+                  rows={2}
+                />
+              </FormField>
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="flex gap-3">
-          <button
-            type="submit"
-            disabled={saving}
-            className="px-6 py-2.5 rounded-lg bg-sky-600 text-white text-sm font-semibold hover:bg-sky-700 disabled:opacity-50"
-          >
+          <Button type="submit" disabled={saving} className="px-6">
             {saving ? 'Saving…' : 'Save'}
-          </button>
-          <Link to="/manufacturing/runsheet" className="px-6 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-600">
-            Cancel
-          </Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link to="/manufacturing/runsheet">Cancel</Link>
+          </Button>
         </div>
       </form>
     </div>

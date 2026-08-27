@@ -125,6 +125,7 @@ const AppRoutes = () => (
       <Route path="quality/certificates/:id/print" element={<CertPrint />} />
       <Route path="invoices"               element={<InvoiceList />} />
       <Route path="invoices/new"           element={<InvoiceForm />} />
+      <Route path="invoices/:id/edit"      element={<InvoiceForm />} />
       <Route path="invoices/:id"           element={<InvoiceDetail />} />
       <Route path="invoices/:id/print"     element={<InvoicePrint />} />
       <Route path="analytics"             element={<Analytics />} />

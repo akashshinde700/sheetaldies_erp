@@ -1,8 +1,28 @@
 import { useState, useEffect } from 'react';
-import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import { Plus, Eye, Pencil, Trash2, X, Cog } from 'lucide-react';
+import api from '../../utils/api';
 import ListSearchInput from '../../components/ListSearchInput';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { FormField } from '@/components/ui/form-field';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+
+const FilterLabel = ({ children, htmlFor }) => (
+  <label htmlFor={htmlFor} className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+    {children}
+  </label>
+);
+
+const SkeletonRow = () => (
+  <tr>
+    <td className="td"><Skeleton className="h-3.5 w-16" /></td>
+    <td className="td"><Skeleton className="h-3.5 w-40" /></td>
+    <td className="td"><Skeleton className="h-3.5 w-24 ml-auto" /></td>
+  </tr>
+);
 
 export default function MachineList() {
   const PAGE_SIZE = 10;
@@ -104,13 +124,15 @@ export default function MachineList() {
   const pagedMachines = filteredMachines.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
-    <div className="page-stack w-full space-y-6 animate-slide-up">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="page-stack w-full space-y-5 animate-slide-up">
+
+      {/* Header */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="page-title">Machines</h1>
           <p className="page-subtitle">Shop floor equipment master</p>
         </div>
-        <button
+        <Button
           type="button"
           onClick={() => {
             setShowForm(!showForm);
@@ -119,116 +141,164 @@ export default function MachineList() {
               setFormData({ code: '', name: '' });
             }
           }}
-          className="btn-primary shrink-0 inline-flex items-center gap-2"
+          className="shrink-0"
         >
-          <span className="material-symbols-outlined text-[20px]">add</span> Add machine
-        </button>
+          <Plus /> Add machine
+        </Button>
       </div>
 
+      {/* Add / Edit form */}
       {showForm && (
-        <div className="card p-5 sm:p-6">
-          <h2 className="text-lg font-bold text-slate-900 font-headline mb-4">{editingId ? 'Edit machine' : 'New machine'}</h2>
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input type="text" placeholder="Code *" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} className="form-input" required />
-            <input type="text" placeholder="Machine name *" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="form-input" required />
-            <div className="col-span-1 md:col-span-2 flex flex-wrap gap-2">
-              <button type="submit" className="btn-primary">{editingId ? 'Update' : 'Create'}</button>
-              <button type="button" onClick={() => { setShowForm(false); setEditingId(null); setFormData({ code: '', name: '' }); }} className="btn-ghost">Cancel</button>
-            </div>
-          </form>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>{editingId ? 'Edit machine' : 'New machine'}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField label="Code" htmlFor="machine-code" required>
+                <Input id="machine-code" placeholder="e.g. VF-01" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} required className="font-mono" />
+              </FormField>
+              <FormField label="Machine name" htmlFor="machine-name" required>
+                <Input id="machine-name" placeholder="e.g. Vacuum Furnace 1" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required />
+              </FormField>
+              <div className="col-span-1 md:col-span-2 flex flex-wrap gap-2">
+                <Button type="submit">{editingId ? 'Update' : 'Create'}</Button>
+                <Button type="button" variant="ghost" onClick={() => { setShowForm(false); setEditingId(null); setFormData({ code: '', name: '' }); }}>Cancel</Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
       )}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] items-end">
-        <div className="flex items-center gap-2">
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Search</label>
-          <ListSearchInput
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search code, name..."
-          />
-        </div>
-        {searchTerm && (
-          <button
-            type="button"
-            onClick={() => setSearchTerm('')}
-            className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-500 transition-colors font-medium"
-          >
-            <span className="material-symbols-outlined text-sm">close</span> Clear
-          </button>
-        )}
-      </div>
-      <div className="card overflow-hidden">
-        {loading ? (
-          <div className="text-center py-10 text-slate-500 text-sm">Loading…</div>
-        ) : filteredMachines.length === 0 ? (
-          <div className="text-center py-10 text-slate-500 text-sm">No machines found</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead>
-                <tr className="border-b border-slate-200/80">
-                  <th className="th text-left">Code</th>
-                  <th className="th text-left">Name</th>
-                  <th className="th text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {pagedMachines.map((machine) => (
-                  <tr key={machine.id} className="tr">
-                    <td className="td font-mono font-medium text-slate-800">{machine.code}</td>
-                    <td className="td font-medium">{machine.name}</td>
-                    <td className="td">
-                      <div className="flex justify-center gap-1">
-                        <button type="button" onClick={() => setViewMachine(machine)} className="p-2 rounded-lg text-slate-700 hover:bg-slate-100" aria-label="View"><span className="material-symbols-outlined text-[18px]">visibility</span></button>
-                        <button type="button" onClick={() => handleEdit(machine)} className="p-2 rounded-lg text-sky-800 hover:bg-sky-50" aria-label="Edit"><span className="material-symbols-outlined text-[18px]">edit</span></button>
-                        <button type="button" onClick={() => handleDelete(machine.id)} className="p-2 rounded-lg text-rose-600 hover:bg-rose-50" aria-label="Delete"><span className="material-symbols-outlined text-[18px]">delete</span></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {/* Filters */}
+      <Card>
+        <CardContent className="p-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:gap-3">
+            <div className="space-y-1 flex-1 min-w-[220px]">
+              <FilterLabel>Search</FilterLabel>
+              <ListSearchInput
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search code, name..."
+                className="w-full"
+              />
+            </div>
+            {searchTerm && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setSearchTerm('')}
+                className="text-slate-500 hover:text-rose-600"
+              >
+                <X /> Clear
+              </Button>
+            )}
           </div>
-        )}
+        </CardContent>
+      </Card>
+
+      {/* Table */}
+      <div className="card overflow-hidden">
+        <div className="table-responsive">
+          <table className="w-full text-left min-w-[420px]">
+            <thead>
+              <tr>
+                <th className="th">Code</th>
+                <th className="th">Name</th>
+                <th className="th text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50/80">
+              {loading ? (
+                Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
+              ) : filteredMachines.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="px-4 py-10 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center">
+                        <Cog className="h-5 w-5 text-sky-300" />
+                      </div>
+                      <p className="text-sm text-slate-500">
+                        {searchTerm ? 'No machines match your search.' : 'No machines yet.'}
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : pagedMachines.map((machine) => (
+                <tr key={machine.id} className="tr">
+                  <td className="td font-mono text-xs font-semibold text-slate-700">{machine.code}</td>
+                  <td className="td font-medium text-slate-800">{machine.name}</td>
+                  <td className="td">
+                    <div className="flex items-center justify-end gap-0.5">
+                      <Button type="button" variant="ghost" size="icon-sm"
+                        onClick={() => setViewMachine(machine)}
+                        title="View" aria-label={`View machine ${machine.name}`}
+                        className="text-slate-400 hover:text-slate-700">
+                        <Eye />
+                      </Button>
+                      <Button type="button" variant="ghost" size="icon-sm"
+                        onClick={() => handleEdit(machine)}
+                        title="Edit" aria-label={`Edit machine ${machine.name}`}
+                        className="text-slate-400 hover:text-sky-700 hover:bg-sky-50">
+                        <Pencil />
+                      </Button>
+                      <Button type="button" variant="ghost" size="icon-sm"
+                        onClick={() => handleDelete(machine.id)}
+                        title="Delete" aria-label={`Delete machine ${machine.name}`}
+                        className="text-slate-400 hover:text-rose-600 hover:bg-rose-50">
+                        <Trash2 />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         {!loading && filteredMachines.length > 0 && (
           <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 tabular-nums">
               {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredMachines.length)} of {filteredMachines.length}
             </p>
             <div className="flex items-center gap-2">
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="btn-outline text-xs disabled:opacity-40"
               >
                 Prev
-              </button>
-              <span className="text-xs font-semibold text-slate-600">{page} / {totalPages}</span>
-              <button
+              </Button>
+              <span className="text-xs font-semibold text-slate-600 tabular-nums">{page} / {totalPages}</span>
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="btn-outline text-xs disabled:opacity-40"
               >
                 Next
-              </button>
+              </Button>
             </div>
           </div>
         )}
       </div>
 
+      {/* View modal */}
       {viewMachine && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/50 p-4" role="dialog" aria-modal="true">
-          <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl border border-slate-200">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/40 backdrop-blur-[2px] p-4 animate-backdrop-in" role="dialog" aria-modal="true">
+          <div className="w-full max-w-xl rounded-2xl bg-white shadow-card-elevated border border-slate-200 animate-scale-in">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-800">Machine details</h3>
-              <button type="button" onClick={() => setViewMachine(null)} className="btn-ghost">Close</button>
+              <h3 className="text-base font-bold text-slate-900 leading-none tracking-tight">Machine details</h3>
+              <Button type="button" variant="ghost" size="icon-sm" onClick={() => setViewMachine(null)} aria-label="Close" className="text-slate-400 hover:text-slate-700">
+                <X />
+              </Button>
             </div>
-            <div className="p-5 grid grid-cols-2 gap-3 text-sm">
-              <div><p className="text-slate-400 text-xs">Code</p><p className="font-semibold">{viewMachine.code || '—'}</p></div>
-              <div><p className="text-slate-400 text-xs">Name</p><p className="font-semibold">{viewMachine.name || '—'}</p></div>
+            <div className="p-5 grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Code</p><p className="font-semibold text-slate-800 font-mono mt-0.5">{viewMachine.code || '—'}</p></div>
+              <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Name</p><p className="font-semibold text-slate-800 mt-0.5">{viewMachine.name || '—'}</p></div>
             </div>
           </div>
         </div>

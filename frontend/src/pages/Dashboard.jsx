@@ -13,7 +13,7 @@ const TableSkeleton = ({ rows = 4, cols = 5 }) => (
     {Array.from({ length: rows }).map((_, i) => (
       <tr key={i} className="animate-pulse">
         {Array.from({ length: cols }).map((_, j) => (
-          <td key={j} className="px-4 py-3.5">
+          <td key={j} className="px-4 py-2.5">
             <div className={`h-3 bg-slate-100 rounded ${j === 0 ? 'w-24' : j === 1 ? 'w-32' : 'w-16'}`} />
           </td>
         ))}
@@ -105,15 +105,15 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-5 sm:space-y-6 animate-slide-up min-w-0 w-full">
+    <div className="space-y-4 animate-slide-up min-w-0 w-full">
 
       {/* ── Page Title (industrial header: title + primary CTA, stacks on small screens) ── */}
-      <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-end sm:justify-between min-w-0">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between min-w-0">
         <div className="min-w-0 pr-1">
-          <h2 className="text-lg xs:text-xl sm:text-2xl font-extrabold text-slate-900 font-headline tracking-tight">
+          <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 font-headline tracking-tight">
             Production Dashboard
           </h2>
-          <p className="text-slate-500 text-xs sm:text-sm mt-1 leading-snug">Sheetal Dies &amp; Tools Pvt. Ltd. — live overview</p>
+          <p className="text-slate-500 text-xs mt-0.5 leading-snug">Sheetal Dies &amp; Tools Pvt. Ltd. — live overview</p>
         </div>
         <div className="flex flex-wrap gap-2 shrink-0 w-full sm:w-auto">
           <Link to="/jobcards/new" className="btn-primary w-full sm:w-auto justify-center">
@@ -132,8 +132,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── KPIs Row 1 ── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 3xl:gap-5">
+      {/* ── KPIs ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard
           label="Total Job Cards" value={stats?.total} loading={kpiLoading}
           badge="All time" badgeColor="bg-sky-100 text-sky-900"
@@ -163,10 +163,6 @@ export default function Dashboard() {
           iconBg={!kpiLoading && stats?.qualityAlerts > 0 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}
           to="/quality/certificates"
         />
-      </div>
-
-      {/* ── KPIs Row 2 ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 3xl:gap-5">
         <KpiCard
           label="Completed Jobs" value={stats?.completed} loading={kpiLoading}
           sub="All time completions" icon="task_alt"
@@ -203,7 +199,7 @@ export default function Dashboard() {
 
       {/* ── Recent Job Cards ── */}
       <div className="card overflow-hidden min-w-0">
-        <div className="px-3 sm:px-5 py-3 sm:py-4 flex flex-col xs:flex-row xs:justify-between xs:items-center gap-2 border-b border-slate-200/80">
+        <div className="px-3 sm:px-4 py-2.5 sm:py-3 flex flex-col xs:flex-row xs:justify-between xs:items-center gap-2 border-b border-slate-200/80">
           <div>
             <h3 className="text-sm font-bold text-slate-900 font-headline">Recent Job Cards</h3>
             <p className="text-[11px] text-slate-500 mt-0.5">
@@ -229,11 +225,11 @@ export default function Dashboard() {
                 <TableSkeleton rows={5} cols={6} />
               ) : recentCards.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-14 text-center">
-                    <div className="w-14 h-14 rounded-xl bg-sky-100 flex items-center justify-center mx-auto mb-3">
-                      <span className="material-symbols-outlined text-2xl text-sky-400">description</span>
+                  <td colSpan={6} className="px-5 py-8 text-center">
+                    <div className="w-9 h-9 rounded-lg bg-sky-50 flex items-center justify-center mx-auto mb-2">
+                      <span className="material-symbols-outlined text-lg text-sky-400">description</span>
                     </div>
-                    <p className="text-sm text-slate-500 mb-2">No job cards yet.</p>
+                    <p className="text-xs text-slate-500 mb-1.5">No job cards yet.</p>
                     <Link to="/jobcards/new"
                       className="inline-flex items-center gap-1 text-xs text-sky-800 font-semibold hover:underline">
                       <span className="material-symbols-outlined text-sm">add</span> Create first job card
@@ -297,20 +293,20 @@ export default function Dashboard() {
       </div>
 
       {/* ── Quick Actions ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3 3xl:gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
         {[
-          { label: 'New Inward Entry', icon: 'engineering', to: '/jobwork/inward-entry', color: 'text-amber-600', bg: 'bg-amber-50', ring: 'ring-amber-100' },
-          { label: 'New Certificate', icon: 'verified',      to: '/quality/certificates/new', color: 'text-emerald-600', bg: 'bg-emerald-50', ring: 'ring-emerald-100' },
-          { label: 'New Invoice',     icon: 'receipt_long',  to: '/invoices/new',             color: 'text-sky-600', bg: 'bg-sky-50',  ring: 'ring-sky-100' },
-          { label: 'Manage Parties',  icon: 'group',         to: '/admin/parties',            color: 'text-violet-600', bg: 'bg-violet-50',  ring: 'ring-violet-100' },
+          { label: 'New Inward Entry', icon: 'engineering', to: '/jobwork/inward-entry', color: 'text-amber-600', bg: 'bg-amber-50' },
+          { label: 'New Certificate', icon: 'verified',      to: '/quality/certificates/new', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'New Invoice',     icon: 'receipt_long',  to: '/invoices/new',             color: 'text-sky-600', bg: 'bg-sky-50' },
+          { label: 'Manage Parties',  icon: 'group',         to: '/admin/parties',            color: 'text-violet-600', bg: 'bg-violet-50' },
         ].map(q => (
           <Link key={q.to} to={q.to}
-            className={`card flex items-center gap-2 sm:gap-3 p-3 sm:p-4 min-w-0 border border-slate-200/90 hover:shadow-card-hover transition-all duration-200 group ring-1 ring-transparent ${q.ring} hover:ring-2`}>
-            <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${q.bg} ${q.color} group-hover:scale-110 transition-transform`}>
-              <span className="material-symbols-outlined text-[17px] sm:text-[18px]">{q.icon}</span>
+            className="card flex items-center gap-2.5 p-3 min-w-0 border border-slate-200/90 hover:border-slate-300 hover:shadow transition-all duration-150 group">
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${q.bg} ${q.color}`}>
+              <span className="material-symbols-outlined text-[16px]">{q.icon}</span>
             </div>
-            <span className="text-xs sm:text-sm font-semibold text-slate-700 group-hover:text-slate-900 transition-colors truncate">{q.label}</span>
-            <span className="material-symbols-outlined text-slate-300 text-sm ml-auto shrink-0 group-hover:translate-x-0.5 transition-transform">chevron_right</span>
+            <span className="text-xs font-semibold text-slate-700 group-hover:text-slate-900 transition-colors truncate">{q.label}</span>
+            <span className="material-symbols-outlined text-slate-300 text-sm ml-auto shrink-0">chevron_right</span>
           </Link>
         ))}
       </div>

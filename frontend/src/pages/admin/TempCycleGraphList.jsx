@@ -1,11 +1,21 @@
 import { useEffect, useState } from 'react';
-import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import { Plus, Pencil, Trash2, X, Copy, Star, LineChart } from 'lucide-react';
+import api from '../../utils/api';
 import ListSearchInput from '../../components/ListSearchInput';
 import SearchSelect from '../../components/SearchSelect';
 import HeatCycleGraphPreview from '../../components/HeatCycleGraphPreview';
 import { useProcesses } from '../../hooks/useMasterData';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { FormField } from '@/components/ui/form-field';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const PAGE_SIZE = 15;
 const EMPTY_SEGMENT = () => ({ tempC: '', holdMin: '', label: '' });
@@ -14,6 +24,23 @@ const EMPTY_FORM = {
   isDefault: false, isActive: true,
   segments: [EMPTY_SEGMENT()],
 };
+
+const FilterLabel = ({ children, htmlFor }) => (
+  <label htmlFor={htmlFor} className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+    {children}
+  </label>
+);
+
+const SkeletonRow = () => (
+  <tr>
+    <td className="td"><Skeleton className="h-3.5 w-36" /></td>
+    <td className="td"><Skeleton className="h-3.5 w-16" /></td>
+    <td className="td"><Skeleton className="h-3.5 w-24" /></td>
+    <td className="td"><Skeleton className="h-5 w-14 rounded-full mx-auto" /></td>
+    <td className="td"><Skeleton className="h-3.5 w-16 mx-auto" /></td>
+    <td className="td"><Skeleton className="h-3.5 w-24 ml-auto" /></td>
+  </tr>
+);
 
 export default function TempCycleGraphList() {
   const { data: processes = [] } = useProcesses();
@@ -162,223 +189,276 @@ export default function TempCycleGraphList() {
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
-    <div className="page-stack w-full space-y-6 animate-slide-up">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="page-stack w-full space-y-5 animate-slide-up">
+
+      {/* Header */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="page-title">Temperature Cycle Graphs</h1>
           <p className="page-subtitle">Reusable heat-treatment graph master — used by Certificates &amp; VHT Run Sheets</p>
         </div>
-        <button type="button" onClick={openCreate} className="btn-primary shrink-0 inline-flex items-center gap-2">
-          <span className="material-symbols-outlined text-[20px]">add</span> Create Graph
-        </button>
+        <Button type="button" onClick={openCreate} className="shrink-0">
+          <Plus /> Create Graph
+        </Button>
       </div>
 
+      {/* Add / Edit form */}
       {showForm && (
-        <div className="card p-5 sm:p-6">
-          <h2 className="text-lg font-bold text-slate-900 font-headline mb-5">
-            {editingId ? 'Edit graph' : 'New graph'}
-          </h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="form-label">Graph Name <span className="text-rose-500">*</span></label>
-                <input
-                  className="form-input"
-                  placeholder="e.g. D2 Hardening"
-                  value={form.name}
-                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  required
-                />
-              </div>
-              <div>
-                <label className="form-label">Material</label>
-                <input
-                  className="form-input"
-                  placeholder="e.g. D2"
-                  value={form.material}
-                  onChange={(e) => setForm((f) => ({ ...f, material: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="form-label">Process</label>
-                <SearchSelect
-                  value={form.processTypeId}
-                  onChange={(v) => setForm((f) => ({ ...f, processTypeId: v }))}
-                  options={processes.map(p => ({ value: p.id, label: p.name }))}
-                  placeholder="— None —"
-                  useFixed
-                />
-              </div>
-              <div className="flex items-end gap-5 pb-1.5">
-                <label className="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={form.isActive}
-                    onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))}
-                    className="accent-sky-600 h-4 w-4 rounded"
+        <Card>
+          <CardHeader>
+            <CardTitle>{editingId ? 'Edit graph' : 'New graph'}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField label="Graph Name" htmlFor="graph-name" required>
+                  <Input
+                    id="graph-name"
+                    placeholder="e.g. D2 Hardening"
+                    value={form.name}
+                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    required
                   />
-                  Active
-                </label>
-                <label className="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={form.isDefault}
-                    onChange={(e) => setForm((f) => ({ ...f, isDefault: e.target.checked }))}
-                    className="accent-emerald-600 h-4 w-4 rounded"
+                </FormField>
+                <FormField label="Material" htmlFor="graph-material">
+                  <Input
+                    id="graph-material"
+                    placeholder="e.g. D2"
+                    value={form.material}
+                    onChange={(e) => setForm((f) => ({ ...f, material: e.target.value }))}
                   />
-                  Set as Default{form.processTypeId ? '' : ' (general)'}
-                </label>
+                </FormField>
+                <FormField label="Process">
+                  <SearchSelect
+                    value={form.processTypeId}
+                    onChange={(v) => setForm((f) => ({ ...f, processTypeId: v }))}
+                    options={processes.map(p => ({ value: p.id, label: p.name }))}
+                    placeholder="— None —"
+                    useFixed
+                  />
+                </FormField>
+                <div className="flex items-end gap-5 pb-1.5">
+                  <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer select-none">
+                    <Checkbox
+                      checked={form.isActive}
+                      onCheckedChange={(c) => setForm((f) => ({ ...f, isActive: c === true }))}
+                    />
+                    Active
+                  </label>
+                  <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer select-none">
+                    <Checkbox
+                      checked={form.isDefault}
+                      onCheckedChange={(c) => setForm((f) => ({ ...f, isDefault: c === true }))}
+                      className="data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
+                    />
+                    Set as Default{form.processTypeId ? '' : ' (general)'}
+                  </label>
+                </div>
               </div>
-            </div>
 
-            <div>
-              <label className="form-label">Description</label>
-              <textarea
-                className="form-input resize-none"
-                rows={2}
-                placeholder="Optional notes…"
-                value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              />
-            </div>
+              <FormField label="Description" htmlFor="graph-desc">
+                <Textarea
+                  id="graph-desc"
+                  rows={2}
+                  placeholder="Optional notes…"
+                  value={form.description}
+                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                  className="min-h-[64px]"
+                />
+              </FormField>
 
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="form-label mb-0">Graph Points</label>
-                <button type="button" onClick={() => setForm(f => ({ ...f, segments: [...f.segments, EMPTY_SEGMENT()] }))}
-                  className="btn-secondary text-xs px-3 py-1.5">
-                  <span className="material-symbols-outlined text-sm">add</span> Add Point
-                </button>
-              </div>
-              <div className="overflow-x-auto rounded-lg border border-slate-200">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="bg-slate-100 text-slate-700 border-b border-slate-300">
-                      <th className="px-2 py-2 w-8 text-center font-bold text-[10px] uppercase">#</th>
-                      <th className="px-2 py-2 font-bold text-[10px] uppercase">Temperature (°C)</th>
-                      <th className="px-2 py-2 font-bold text-[10px] uppercase">Duration (min)</th>
-                      <th className="px-2 py-2 font-bold text-[10px] uppercase">Step Name</th>
-                      <th className="px-2 py-2 w-8"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {form.segments.map((row, i) => (
-                      <tr key={i}>
-                        <td className="px-2 py-1.5 text-center text-slate-400 font-mono">{i + 1}</td>
-                        <td className="px-2 py-1.5"><input type="number" step="1" value={row.tempC} onChange={e => updateSegment(i, 'tempC', e.target.value)} className="form-input text-xs py-1 w-24" placeholder="°C" /></td>
-                        <td className="px-2 py-1.5"><input type="number" step="1" min="0" value={row.holdMin} onChange={e => updateSegment(i, 'holdMin', e.target.value)} className="form-input text-xs py-1 w-24" placeholder="min" /></td>
-                        <td className="px-2 py-1.5"><input value={row.label} onChange={e => updateSegment(i, 'label', e.target.value)} className="form-input text-xs py-1 w-full" placeholder="e.g. Preheat 1" /></td>
-                        <td className="px-2 py-1.5 text-center">
-                          {form.segments.length > 1 && (
-                            <button type="button" onClick={() => setForm(f => ({ ...f, segments: f.segments.filter((_, idx) => idx !== i) }))}
-                              className="text-rose-400 hover:text-rose-600">
-                              <span className="material-symbols-outlined text-sm">delete</span>
-                            </button>
-                          )}
-                        </td>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="mb-0">Graph Points</Label>
+                  <Button type="button" variant="secondary" size="sm"
+                    onClick={() => setForm(f => ({ ...f, segments: [...f.segments, EMPTY_SEGMENT()] }))}>
+                    <Plus /> Add Point
+                  </Button>
+                </div>
+                <div className="table-responsive rounded-lg border border-slate-200">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr>
+                        <th className="th w-8 text-center">#</th>
+                        <th className="th">Temperature (°C)</th>
+                        <th className="th">Duration (min)</th>
+                        <th className="th">Step Name</th>
+                        <th className="th w-8"></th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50/80">
+                      {form.segments.map((row, i) => (
+                        <tr key={i}>
+                          <td className="px-2 py-1.5 text-center text-slate-400 font-mono tabular-nums">{i + 1}</td>
+                          <td className="px-2 py-1.5">
+                            <Input type="number" step="1" value={row.tempC}
+                              onChange={e => updateSegment(i, 'tempC', e.target.value)}
+                              className="h-8 min-h-0 text-xs text-right tabular-nums w-24" placeholder="°C"
+                              aria-label={`Point ${i + 1} temperature`} />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <Input type="number" step="1" min="0" value={row.holdMin}
+                              onChange={e => updateSegment(i, 'holdMin', e.target.value)}
+                              className="h-8 min-h-0 text-xs text-right tabular-nums w-24" placeholder="min"
+                              aria-label={`Point ${i + 1} duration`} />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <Input value={row.label}
+                              onChange={e => updateSegment(i, 'label', e.target.value)}
+                              className="h-8 min-h-0 text-xs w-full" placeholder="e.g. Preheat 1"
+                              aria-label={`Point ${i + 1} step name`} />
+                          </td>
+                          <td className="px-2 py-1.5 text-center">
+                            {form.segments.length > 1 && (
+                              <Button type="button" variant="ghost" size="icon-sm"
+                                onClick={() => setForm(f => ({ ...f, segments: f.segments.filter((_, idx) => idx !== i) }))}
+                                title="Remove point" aria-label={`Remove point ${i + 1}`}
+                                className="h-7 w-7 text-rose-400 hover:text-rose-600 hover:bg-rose-50">
+                                <Trash2 />
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-3">
+                  <HeatCycleGraphPreview segments={form.segments} />
+                </div>
               </div>
-              <div className="mt-3">
-                <HeatCycleGraphPreview segments={form.segments} />
-              </div>
-            </div>
 
-            <div className="flex flex-wrap gap-2 pt-1">
-              <button type="submit" disabled={saving} className="btn-primary">
-                {saving ? 'Saving…' : editingId ? 'Update' : 'Create'}
-              </button>
-              <button type="button" onClick={closeForm} className="btn-ghost">Cancel</button>
-            </div>
-          </form>
-        </div>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Button type="submit" disabled={saving}>
+                  {saving ? 'Saving…' : editingId ? 'Update' : 'Create'}
+                </Button>
+                <Button type="button" variant="ghost" onClick={closeForm}>Cancel</Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
       )}
 
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-        <ListSearchInput
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search name, material, process…"
-          className="flex-1"
-        />
-      </div>
-
-      <div className="card overflow-hidden">
-        {loading ? (
-          <div className="text-center py-10 text-slate-500 text-sm">Loading…</div>
-        ) : paged.length === 0 ? (
-          <div className="text-center py-10 text-slate-500 text-sm">No graphs found</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead>
-                <tr className="border-b border-slate-200/80">
-                  <th className="th">Name</th>
-                  <th className="th">Material</th>
-                  <th className="th">Process</th>
-                  <th className="th text-center">Status</th>
-                  <th className="th text-center">Default</th>
-                  <th className="th text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {paged.map((g) => (
-                  <tr key={g.id} className={`tr ${!g.isActive ? 'opacity-50' : ''}`}>
-                    <td className="td font-semibold text-slate-800">
-                      {g.name}
-                      {g.description && <p className="text-xs text-slate-400 truncate max-w-[240px]">{g.description}</p>}
-                    </td>
-                    <td className="td text-slate-600">{g.material || '—'}</td>
-                    <td className="td text-slate-600">{g.processType?.name || '—'}</td>
-                    <td className="td text-center">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${g.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                        {g.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="td text-center">
-                      {g.isDefault ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">★ Default</span>
-                      ) : (
-                        <button type="button" onClick={() => handleSetDefault(g)} disabled={busyId === g.id}
-                          className="text-xs text-slate-400 hover:text-amber-600 font-semibold disabled:opacity-50">
-                          Set Default
-                        </button>
-                      )}
-                    </td>
-                    <td className="td">
-                      <div className="flex justify-center gap-1">
-                        <button type="button" title="Edit" aria-label={`Edit graph ${g.name}`} onClick={() => openEdit(g)}
-                          className="p-2 rounded-lg text-sky-700 hover:bg-sky-50">
-                          <span className="material-symbols-outlined text-[18px]">edit</span>
-                        </button>
-                        <button type="button" title="Duplicate" aria-label={`Duplicate graph ${g.name}`} onClick={() => handleDuplicate(g)} disabled={busyId === g.id}
-                          className="p-2 rounded-lg text-sky-600 hover:bg-sky-50 disabled:opacity-50">
-                          <span className="material-symbols-outlined text-[18px]">content_copy</span>
-                        </button>
-                        <button type="button" title="Delete" aria-label={`Delete graph ${g.name}`} onClick={() => handleDelete(g)} disabled={busyId === g.id}
-                          className="p-2 rounded-lg text-rose-600 hover:bg-rose-50 disabled:opacity-50">
-                          <span className="material-symbols-outlined text-[18px]">delete</span>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {/* Filters */}
+      <Card>
+        <CardContent className="p-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:gap-3">
+            <div className="space-y-1 flex-1 min-w-[220px]">
+              <FilterLabel>Search</FilterLabel>
+              <ListSearchInput
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search name, material, process…"
+                className="w-full"
+              />
+            </div>
+            {search && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setSearch('')}
+                className="text-slate-500 hover:text-rose-600"
+              >
+                <X /> Clear
+              </Button>
+            )}
           </div>
-        )}
+        </CardContent>
+      </Card>
+
+      {/* Table */}
+      <div className="card overflow-hidden">
+        <div className="table-responsive">
+          <table className="w-full text-left min-w-[640px]">
+            <thead>
+              <tr>
+                <th className="th">Name</th>
+                <th className="th">Material</th>
+                <th className="th">Process</th>
+                <th className="th text-center">Status</th>
+                <th className="th text-center">Default</th>
+                <th className="th text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50/80">
+              {loading ? (
+                Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
+              ) : paged.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-10 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center">
+                        <LineChart className="h-5 w-5 text-sky-300" />
+                      </div>
+                      <p className="text-sm text-slate-500">
+                        {search ? 'No graphs match your search.' : 'No graphs yet.'}
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : paged.map((g) => (
+                <tr key={g.id} className={`tr ${!g.isActive ? 'opacity-50' : ''}`}>
+                  <td className="td font-semibold text-slate-800">
+                    {g.name}
+                    {g.description && <p className="text-xs text-slate-400 truncate max-w-[240px]">{g.description}</p>}
+                  </td>
+                  <td className="td text-slate-600">{g.material || '—'}</td>
+                  <td className="td text-slate-600">{g.processType?.name || '—'}</td>
+                  <td className="td text-center">
+                    <Badge variant={g.isActive ? 'success' : 'neutral'} className="px-2 py-0.5 text-[10px]">
+                      {g.isActive ? 'Active' : 'Inactive'}
+                    </Badge>
+                  </td>
+                  <td className="td text-center">
+                    {g.isDefault ? (
+                      <Badge variant="warning" className="px-2 py-0.5 text-[10px]">
+                        <Star className="h-3 w-3" /> Default
+                      </Badge>
+                    ) : (
+                      <Button type="button" variant="ghost" size="sm"
+                        onClick={() => handleSetDefault(g)} disabled={busyId === g.id}
+                        className="h-7 px-2 text-[11px] text-slate-400 hover:text-amber-600 hover:bg-amber-50">
+                        Set Default
+                      </Button>
+                    )}
+                  </td>
+                  <td className="td">
+                    <div className="flex items-center justify-end gap-0.5">
+                      <Button type="button" variant="ghost" size="icon-sm"
+                        title="Edit" aria-label={`Edit graph ${g.name}`} onClick={() => openEdit(g)}
+                        className="text-slate-400 hover:text-sky-700 hover:bg-sky-50">
+                        <Pencil />
+                      </Button>
+                      <Button type="button" variant="ghost" size="icon-sm"
+                        title="Duplicate" aria-label={`Duplicate graph ${g.name}`}
+                        onClick={() => handleDuplicate(g)} disabled={busyId === g.id}
+                        className="text-slate-400 hover:text-sky-700 hover:bg-sky-50">
+                        <Copy />
+                      </Button>
+                      <Button type="button" variant="ghost" size="icon-sm"
+                        title="Delete" aria-label={`Delete graph ${g.name}`}
+                        onClick={() => handleDelete(g)} disabled={busyId === g.id}
+                        className="text-slate-400 hover:text-rose-600 hover:bg-rose-50">
+                        <Trash2 />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
         {!loading && filtered.length > PAGE_SIZE && (
           <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 tabular-nums">
               {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
             </p>
             <div className="flex items-center gap-2">
-              <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="btn-outline text-xs disabled:opacity-40">Prev</button>
-              <span className="text-xs font-semibold text-slate-600">{page} / {totalPages}</span>
-              <button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn-outline text-xs disabled:opacity-40">Next</button>
+              <Button type="button" variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>Prev</Button>
+              <span className="text-xs font-semibold text-slate-600 tabular-nums">{page} / {totalPages}</span>
+              <Button type="button" variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}>Next</Button>
             </div>
           </div>
         )}

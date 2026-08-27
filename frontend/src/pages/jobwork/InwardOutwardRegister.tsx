@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Plus, Download } from 'lucide-react';
 import api from '../../utils/api';
 import { exportToExcel } from '../../utils/export';
 import toast from 'react-hot-toast';
+import { Button } from '../../components/ui/button';
 
 // Subcomponents
 import RegisterFilters from './components/RegisterFilters';
@@ -147,23 +149,23 @@ export default function InwardOutwardRegister() {
   };
 
   return (
-    <div className="space-y-5 animate-slide-up">
-      <div className="flex items-center justify-between">
+    <div className="page-stack w-full space-y-5 animate-slide-up">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-xl font-extrabold text-slate-800 font-headline">Inward + Job Card Register</h2>
-          <p className="text-xs text-slate-400 mt-0.5 max-w-3xl leading-relaxed">
-            Company → Challan → Material in → Job Card → Invoice → Dispatch → Balance & performance
+          <h1 className="page-title">Inward + Job Card Register</h1>
+          <p className="page-subtitle max-w-3xl">
+            Company → Challan → Job Card
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link to="/jobwork/inward-entry" className="btn-primary whitespace-nowrap">
-            <span className="material-symbols-outlined text-[18px] shrink-0">input</span>
-            New Inward
-          </Link>
-          <button type="button" onClick={exportRows} className="btn-outline whitespace-nowrap">
-            <span className="material-symbols-outlined text-[18px] shrink-0">file_download</span>
-            Export Excel
-          </button>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <Button type="button" variant="outline" onClick={exportRows}>
+            <Download /> Export Excel
+          </Button>
+          <Button asChild>
+            <Link to="/jobwork/inward-entry">
+              <Plus /> New Inward
+            </Link>
+          </Button>
         </div>
       </div>
 

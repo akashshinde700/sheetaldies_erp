@@ -4,6 +4,11 @@ import api from '../../utils/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMachines, useParties } from '../../hooks/useMasterData';
 import toast from 'react-hot-toast';
+import { ArrowLeft, Printer, Save, Plus } from 'lucide-react';
+
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { FormField } from '@/components/ui/form-field';
 
 // Subcomponents
 import CustomerSection from './components/CustomerSection';
@@ -113,7 +118,7 @@ export default function JobCardForm() {
           if (cancelled) return;
           const d = jr.data.data;
           setCardData(d);
-          
+
           setForm({
             partId:       d.partId       || '',
             dieNo:        d.dieNo        || '',
@@ -414,6 +419,11 @@ export default function JobCardForm() {
     setForm(p => ({ ...p, status: STATUS_TRANSITIONS[p.status] || p.status }));
   };
 
+  // Jis inward challan se ye job card bana — header me dikhane ke liye
+  const linkedChallan = cardData
+    ? (cardData.challanItemLinks?.[0]?.challan || cardData.challans?.[0] || null)
+    : null;
+
   const STATUS_COLOR = {
     CREATED: 'bg-slate-100 text-slate-600', IN_PROGRESS: 'bg-blue-100 text-blue-700',
     SENT_FOR_JOBWORK: 'bg-amber-100 text-amber-700', INSPECTION: 'bg-violet-100 text-violet-700',
@@ -422,19 +432,37 @@ export default function JobCardForm() {
 
   return (
     <div className="page-stack w-full animate-slide-up">
+      {/* ── Page header ── */}
       <div className="page-header">
         <div className="flex items-start gap-3">
-          <Link to="/jobcards"
-            className="w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-colors shadow-sm">
-            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-          </Link>
+          <Button asChild variant="outline" size="icon" className="rounded-xl shrink-0 text-slate-500 hover:text-slate-900">
+            <Link to="/jobcards" aria-label="Back to job cards">
+              <ArrowLeft />
+            </Link>
+          </Button>
           <div className="space-y-2">
             <h1 className="page-title">{isEdit ? 'Edit Job Card' : 'Create Job Card'}</h1>
-            <p className="page-subtitle max-w-2xl">Fill customer, material, and production details here. The form saves the complete job card and keeps linked inward items in sync.</p>
             {isEdit && cardData && (
-              <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-slate-500">
                 <span className="font-medium">Job Card No.: <span className="font-semibold text-slate-700">{cardData.jobCardNo}</span></span>
                 <span className={`badge ${STATUS_COLOR[cardData.status] || 'bg-slate-100 text-slate-600'}`}>{cardData.status?.replace(/_/g, ' ')}</span>
+                {linkedChallan?.inwardNo && (
+                  <span className="text-slate-400">·<span className="ml-3 font-medium">Inward No.: </span>
+                    {linkedChallan.id ? (
+                      <Link to={`/jobwork/${linkedChallan.id}`} className="font-mono font-semibold text-sky-700 hover:text-sky-900 hover:underline">
+                        {linkedChallan.inwardNo}
+                      </Link>
+                    ) : (
+                      <span className="font-mono font-semibold text-slate-700">{linkedChallan.inwardNo}</span>
+                    )}
+                  </span>
+                )}
+                {cardData.partName && (
+                  <span className="text-slate-400">·<span className="ml-3 text-slate-600">{cardData.partName}</span></span>
+                )}
+                {cardData.updatedAt && (
+                  <span className="text-slate-400">·<span className="ml-3">Updated {cardData.updatedAt.split('T')[0]}</span></span>
+                )}
               </div>
             )}
           </div>
@@ -442,153 +470,139 @@ export default function JobCardForm() {
 
         {isEdit && cardData ? (
           <div className="flex flex-wrap items-center gap-3 justify-end">
-            <Link to={`/jobcards/${id}/print`} className="btn-outline">
-              <span className="material-symbols-outlined text-sm">print</span>
-              Print
-            </Link>
+            <Button asChild variant="outline">
+              <Link to={`/jobcards/${id}/print`}>
+                <Printer />
+                Print
+              </Link>
+            </Button>
           </div>
         ) : null}
       </div>
 
-      {isEdit && cardData && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="card p-4">
-            <p className="section-title">Job Card</p>
-            <p className="mt-3 font-semibold text-slate-900">{cardData.jobCardNo}</p>
-            <p className="text-xs text-slate-500 mt-2">{cardData.partName || 'Job card details'}</p>
-          </div>
-          <div className="card p-4">
-            <p className="section-title">Status</p>
-            <p className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
-              <span className={`badge ${STATUS_COLOR[cardData.status] || 'bg-slate-100 text-slate-600'}`}>{cardData.status?.replace(/_/g, ' ')}</span>
-            </p>
-            <p className="text-xs text-slate-500 mt-2">Updated {cardData.updatedAt ? cardData.updatedAt.split('T')[0] : 'recently'}</p>
-          </div>
-          <div className="card p-4">
-            <p className="section-title">Customer</p>
-            <p className="mt-3 font-semibold text-slate-900">{cardData.customerNameSnapshot || form.customerNameSnapshot || 'Customer not set'}</p>
-            <p className="text-xs text-slate-500 mt-2 truncate max-w-full">{cardData.customerAddressSnapshot || form.customerAddressSnapshot || 'Address pending'}</p>
-          </div>
-        </div>
-      )}
-
+      {/* ── Create from inward (create mode) ── */}
       {!isEdit && (
-        <div className="card p-5 mb-5">
-          <div className="grid gap-4 sm:grid-cols-[1.5fr_1fr] items-end">
-            <div>
-              <label className="form-label">Inward No / Challan No</label>
-              <SearchSelect
-                value={challanNoLookup}
-                onChange={selectInward}
-                options={inwardOptions.map(c => ({
-                  value: c.inwardNo || c.challanNo,
-                  label: [c.inwardNo, c.challanNo, c.fromParty?.name].filter(Boolean).join('  ·  ')
-                    + (c.jobCardStatus === 'DONE' ? '   (job card ban chuka)' : ''),
-                }))}
-                placeholder="Type 0004, INW/26-27/0004 ya party ka naam"
-                useFixed
-              />
-            </div>
-            <div className="flex flex-col gap-2 sm:items-end">
+        <Card className="mb-5">
+          <CardHeader>
+            <CardTitle>Create from Inward</CardTitle>
+            <CardDescription>Poore inward ka job card banao, ya neeche se items chuno.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-[1.5fr_auto] gap-x-4 gap-y-3 items-end">
+              <FormField label="Inward No / Challan No">
+                <SearchSelect
+                  value={challanNoLookup}
+                  onChange={selectInward}
+                  options={inwardOptions.map(c => ({
+                    value: c.inwardNo || c.challanNo,
+                    label: [c.inwardNo, c.challanNo, c.fromParty?.name].filter(Boolean).join('  ·  ')
+                      + (c.jobCardStatus === 'DONE' ? '   (job card ban chuka)' : ''),
+                  }))}
+                  placeholder="Type 0004, INW/26-27/0004 ya party ka naam"
+                  useFixed
+                />
+              </FormField>
               <div className="flex gap-2">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
                   onClick={fillFromChallan}
                   disabled={creatingFromChallan}
-                  className="btn-outline"
                 >
                   {creatingFromChallan ? 'Loading...' : 'Fill Form'}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   onClick={handleCreateFromChallan}
                   disabled={creatingFromChallan}
-                  className="btn-primary"
                 >
                   {creatingFromChallan ? 'Creating...' : 'Create Job Card'}
-                </button>
+                </Button>
               </div>
-              <p className="text-[11px] text-slate-400 text-right">
-                Poore inward ka job card banao, ya neeche se items chuno.
-              </p>
             </div>
-          </div>
 
-          {pickedChallan && (
-            <div className="mt-4 border-t border-slate-100 pt-4">
-              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                <div>
-                  <p className="text-xs font-bold text-slate-700">
-                    {pickedChallan.inwardNo || pickedChallan.challanNo}
-                    <span className="text-slate-400 font-normal"> · {pickedChallan.fromParty?.name || '—'}</span>
-                  </p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
-                    Jin items ka job card banana hai wo chuno — baaki baad me bana sakte ho.
-                  </p>
+            {pickedChallan && (
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <div>
+                    <p className="text-xs font-bold text-slate-700">
+                      {pickedChallan.inwardNo || pickedChallan.challanNo}
+                      <span className="text-slate-400 font-normal"> · {pickedChallan.fromParty?.name || '—'}</span>
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      Jin items ka job card banana hai wo chuno — baaki baad me bana sakte ho.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    onClick={() => setPickedItemIds(prev => {
+                      const open = (pickedChallan.items || []).filter(it => !it.jobCardId).map(it => it.id);
+                      return prev.size === open.length ? new Set() : new Set(open);
+                    })}
+                    className="text-xs font-bold"
+                  >
+                    Select All / None
+                  </Button>
                 </div>
-                <button type="button"
-                  onClick={() => setPickedItemIds(prev => {
-                    const open = (pickedChallan.items || []).filter(it => !it.jobCardId).map(it => it.id);
-                    return prev.size === open.length ? new Set() : new Set(open);
+
+                <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                  {(pickedChallan.items || []).map((it, i) => {
+                    const taken = !!it.jobCardId;
+                    return (
+                      <label key={it.id}
+                        className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-xs transition-colors ${
+                          taken ? 'border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed'
+                                : 'border-slate-200 hover:border-sky-300 hover:bg-sky-50/40 cursor-pointer'}`}>
+                        <input type="checkbox" disabled={taken}
+                          checked={pickedItemIds.has(it.id)}
+                          onChange={e => setPickedItemIds(prev => {
+                            const n = new Set(prev);
+                            e.target.checked ? n.add(it.id) : n.delete(it.id);
+                            return n;
+                          })}
+                          className="accent-sky-600 w-4 h-4" />
+                        <span className="text-slate-400 font-mono w-5 tabular-nums">{i + 1}</span>
+                        <span className="font-semibold text-slate-700 flex-1 truncate">
+                          {it.partName || it.description || 'Item'}
+                        </span>
+                        <span className="text-slate-500">{it.material || '—'}</span>
+                        <span className="text-slate-500 font-mono tabular-nums">{it.quantity} {it.uom || ''}</span>
+                        {taken && (
+                          <span className="text-[10px] font-bold text-emerald-600 uppercase">job card ban chuka</span>
+                        )}
+                      </label>
+                    );
                   })}
-                  className="text-xs font-bold text-sky-600 hover:underline">
-                  Select All / None
-                </button>
-              </div>
+                </div>
 
-              <div className="space-y-1.5 max-h-64 overflow-y-auto">
-                {(pickedChallan.items || []).map((it, i) => {
-                  const taken = !!it.jobCardId;
-                  return (
-                    <label key={it.id}
-                      className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-xs ${
-                        taken ? 'border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed'
-                              : 'border-slate-200 hover:border-sky-300 cursor-pointer'}`}>
-                      <input type="checkbox" disabled={taken}
-                        checked={pickedItemIds.has(it.id)}
-                        onChange={e => setPickedItemIds(prev => {
-                          const n = new Set(prev);
-                          e.target.checked ? n.add(it.id) : n.delete(it.id);
-                          return n;
-                        })}
-                        className="accent-sky-600 w-4 h-4" />
-                      <span className="text-slate-400 font-mono w-5">{i + 1}</span>
-                      <span className="font-semibold text-slate-700 flex-1 truncate">
-                        {it.partName || it.description || 'Item'}
-                      </span>
-                      <span className="text-slate-500">{it.material || '—'}</span>
-                      <span className="text-slate-500 font-mono">{it.quantity} {it.uom || ''}</span>
-                      {taken && (
-                        <span className="text-[10px] font-bold text-emerald-600 uppercase">job card ban chuka</span>
-                      )}
-                    </label>
-                  );
-                })}
+                <div className="flex flex-wrap items-center justify-between gap-2 mt-3">
+                  <p className="text-[11px] text-slate-500">
+                    <strong>{pickedItemIds.size}</strong> item chune
+                    {' '}({(pickedChallan.items || []).filter(it => it.jobCardId).length} pehle se job card me)
+                  </p>
+                  <Button
+                    type="button"
+                    onClick={createFromPickedItems}
+                    disabled={creatingFromChallan || !pickedItemIds.size}
+                  >
+                    <Plus />
+                    {creatingFromChallan ? 'Creating...' : `Create Job Card (${pickedItemIds.size})`}
+                  </Button>
+                </div>
               </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-2 mt-3">
-                <p className="text-[11px] text-slate-500">
-                  <strong>{pickedItemIds.size}</strong> item chune
-                  {' '}({(pickedChallan.items || []).filter(it => it.jobCardId).length} pehle se job card me)
-                </p>
-                <button type="button" onClick={createFromPickedItems}
-                  disabled={creatingFromChallan || !pickedItemIds.size}
-                  className="btn-primary disabled:opacity-50">
-                  <span className="material-symbols-outlined text-sm">add</span>
-                  {creatingFromChallan ? 'Creating...' : `Create Job Card (${pickedItemIds.size})`}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       <form id="job-card-form" onSubmit={handleSubmit} className="space-y-4">
-        <CustomerSection 
-          form={form} 
-          setForm={setForm} 
-          customers={customers} 
-          applyCustomerFromParty={applyCustomerFromParty} 
+        <CustomerSection
+          form={form}
+          setForm={setForm}
+          customers={customers}
+          applyCustomerFromParty={applyCustomerFromParty}
         />
 
         <JobCardHeaderInfoSection
@@ -606,23 +620,30 @@ export default function JobCardForm() {
         <PhotoSection handleImageChange={handleImageChange} existingImages={cardData} savingSlot={savingSlot} />
 
         {/* Actions */}
-        <div className="card p-4 flex flex-wrap items-center justify-between gap-3 border-slate-200 shadow-sm">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-slate-700">Ready to save?</p>
-          <p className="text-xs text-slate-500">Use the buttons below after reviewing the job details.</p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <button type="submit" disabled={loading} className="btn-primary">
-            {loading ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Saving...</> : <><span className="material-symbols-outlined text-sm">save</span> {isEdit ? 'Update' : 'Create Job Card'}</>}
-          </button>
-          {isEdit && (
-            <Link to={`/jobcards/${id}/print`} className="btn-outline">
-              <span className="material-symbols-outlined text-sm">print</span> Print
-            </Link>
-          )}
-          <Link to="/jobcards" className="btn-ghost">Cancel</Link>
-        </div>
-      </div>
+        <Card>
+          <CardContent className="p-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-700">Ready to save?</p>
+              <p className="text-xs text-slate-500">Use the buttons below after reviewing the job details.</p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Button type="submit" disabled={loading} loading={loading}>
+                {!loading && <Save />}
+                {loading ? 'Saving...' : (isEdit ? 'Update' : 'Create Job Card')}
+              </Button>
+              {isEdit && (
+                <Button asChild variant="outline">
+                  <Link to={`/jobcards/${id}/print`}>
+                    <Printer /> Print
+                  </Link>
+                </Button>
+              )}
+              <Button asChild variant="ghost">
+                <Link to="/jobcards">Cancel</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </form>
 
       {isEdit && cardData && (
@@ -640,16 +661,21 @@ export default function JobCardForm() {
 
       {/* Bottom actions — same Update/Print as the top bar, reachable without
           scrolling back up after editing the Inspection/Linked Data sections below the form. */}
-      <div className="flex gap-3 pt-1 pb-4">
-        <button type="submit" form="job-card-form" disabled={loading} className="btn-primary">
-          {loading ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Saving...</> : <><span className="material-symbols-outlined text-sm">save</span> {isEdit ? 'Update' : 'Create Job Card'}</>}
-        </button>
+      <div className="flex flex-wrap gap-3 pt-1 pb-4">
+        <Button type="submit" form="job-card-form" disabled={loading} loading={loading}>
+          {!loading && <Save />}
+          {loading ? 'Saving...' : (isEdit ? 'Update' : 'Create Job Card')}
+        </Button>
         {isEdit && (
-          <Link to={`/jobcards/${id}/print`} className="btn-outline">
-            <span className="material-symbols-outlined text-sm">print</span> Print
-          </Link>
+          <Button asChild variant="outline">
+            <Link to={`/jobcards/${id}/print`}>
+              <Printer /> Print
+            </Link>
+          </Button>
         )}
-        <Link to="/jobcards" className="btn-ghost">Cancel</Link>
+        <Button asChild variant="ghost">
+          <Link to="/jobcards">Cancel</Link>
+        </Button>
       </div>
     </div>
   );

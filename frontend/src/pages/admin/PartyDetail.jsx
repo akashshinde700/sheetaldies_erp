@@ -1,45 +1,53 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import { ArrowLeft, Loader2, Pencil, Save, Search, RotateCcw, BadgeIndianRupee } from 'lucide-react';
+import api from '../../utils/api';
 import { formatDate, formatCurrency } from '../../utils/formatters';
 import { useAuth } from '../../context/AuthContext';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const PAGE_SIZE = 10;
 
 const TYPE_BADGE = {
-  CUSTOMER: 'bg-sky-100 text-sky-700',
-  VENDOR: 'bg-violet-100 text-violet-700',
-  BOTH: 'bg-emerald-100 text-emerald-700',
+  CUSTOMER: 'bg-sky-100 text-sky-800',
+  VENDOR: 'bg-violet-100 text-violet-800',
+  BOTH: 'bg-emerald-100 text-emerald-800',
 };
 
 const MiniPagination = ({ page, setPage, total }) => {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   if (total <= PAGE_SIZE) return null;
   return (
-    <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between">
-      <p className="text-xs text-slate-500">
+    <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
+      <p className="text-xs text-slate-500 tabular-nums">
         {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
       </p>
       <div className="flex items-center gap-2">
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={() => setPage((p) => Math.max(1, p - 1))}
           disabled={page === 1}
-          className="btn-outline text-xs disabled:opacity-40"
         >
           Prev
-        </button>
-        <span className="text-xs font-semibold text-slate-600">{page} / {totalPages}</span>
-        <button
+        </Button>
+        <span className="text-xs font-semibold text-slate-600 tabular-nums">{page} / {totalPages}</span>
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
           disabled={page === totalPages}
-          className="btn-outline text-xs disabled:opacity-40"
         >
           Next
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -169,7 +177,7 @@ export default function PartyDetail() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 text-slate-400 gap-2">
-        <span className="material-symbols-outlined animate-spin">progress_activity</span>
+        <Loader2 className="h-4 w-4 animate-spin" />
         <span className="text-sm">Loading…</span>
       </div>
     );
@@ -187,21 +195,25 @@ export default function PartyDetail() {
   const pagedDispatchFrom = dispatchFromParty.slice((dispatchFromPage - 1) * PAGE_SIZE, dispatchFromPage * PAGE_SIZE);
 
   return (
-    <div className="page-stack w-full space-y-6 animate-slide-up">
+    <div className="page-stack w-full space-y-5 animate-slide-up">
+
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
-          <button type="button" onClick={() => navigate('/admin/parties')} className="text-xs font-semibold text-sky-600 hover:underline mb-2">
-            ← Back to Parties
-          </button>
-          <h2 className="text-xl font-extrabold text-slate-800 font-headline">{party.name}</h2>
-          <p className="text-xs text-slate-500 mt-1 max-w-xl">{[party.address, party.city, party.state].filter(Boolean).join(' · ')}</p>
-          <div className="flex flex-wrap gap-2 mt-2">
-            <span className={`badge ${TYPE_BADGE[party.partyType] || 'bg-slate-100'}`}>{party.partyType}</span>
-            {party.gstin && <span className="text-[10px] font-mono bg-slate-100 px-2 py-0.5 rounded">{party.gstin}</span>}
+          <Button type="button" variant="ghost" size="sm" onClick={() => navigate('/admin/parties')}
+            className="mb-2 -ml-2 h-7 px-2 text-xs text-sky-700 hover:text-sky-900 hover:bg-sky-50">
+            <ArrowLeft /> Back to Parties
+          </Button>
+          <h1 className="page-title">{party.name}</h1>
+          <p className="page-subtitle max-w-xl">{[party.address, party.city, party.state].filter(Boolean).join(' · ')}</p>
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <Badge className={`px-2 py-0.5 text-[10px] ${TYPE_BADGE[party.partyType] || 'bg-slate-100 text-slate-600'}`}>{party.partyType}</Badge>
+            {party.gstin && <span className="text-[10px] font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded">{party.gstin}</span>}
           </div>
         </div>
       </div>
 
+      {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           ['Job cards', summary.jobCards],
@@ -209,50 +221,50 @@ export default function PartyDetail() {
           ['Certificates', summary.certificates],
           ['Total billed', formatCurrency(summary.billedTotal)],
         ].map(([label, val]) => (
-          <div key={label} className="card p-4">
+          <Card key={label} className="p-4">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
-            <p className="text-xl font-extrabold text-slate-800 mt-1">{val}</p>
-          </div>
+            <p className="text-xl font-extrabold text-slate-800 mt-1 tabular-nums">{val}</p>
+          </Card>
         ))}
       </div>
 
       {summary.jobCardsByOperationMode?.length > 0 && (
-        <div className="card p-5">
+        <Card className="p-5">
           <p className="section-title border-b border-slate-100 pb-2 mb-3">Heat treatment / job type mix</p>
           <div className="flex flex-wrap gap-2">
             {summary.jobCardsByOperationMode.map((row) => (
-              <span key={row.name} className="badge bg-slate-100 text-slate-700">
-                {row.name}: <strong>{row.count}</strong>
-              </span>
+              <Badge key={row.name} variant="neutral" className="bg-slate-100 text-slate-700 font-medium">
+                {row.name}: <strong className="tabular-nums">{row.count}</strong>
+              </Badge>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
       {summary.invoiceLinesByProcess?.length > 0 && (
-        <div className="card p-5">
+        <Card className="p-5">
           <p className="section-title border-b border-slate-100 pb-2 mb-3">Billable services (from invoice lines)</p>
-          <div className="overflow-x-auto">
+          <div className="table-responsive">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-100 text-xs text-slate-500">
-                  <th className="py-2 pr-3">Process / line</th>
-                  <th className="py-2 pr-3">Lines</th>
-                  <th className="py-2">Amount</th>
+                  <th className="py-2 pr-3 font-semibold">Process / line</th>
+                  <th className="py-2 pr-3 font-semibold text-right">Lines</th>
+                  <th className="py-2 font-semibold text-right">Amount</th>
                 </tr>
               </thead>
               <tbody>
                 {summary.invoiceLinesByProcess.map((row) => (
                   <tr key={row.name} className="border-b border-slate-50">
                     <td className="py-2 pr-3 font-medium text-slate-800">{row.name}</td>
-                    <td className="py-2 pr-3">{row.count}</td>
-                    <td className="py-2">{formatCurrency(row.amount)}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">{row.count}</td>
+                    <td className="py-2 text-right tabular-nums">{formatCurrency(row.amount)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Process Rates Master Card — MANAGER/ADMIN view, ADMIN edit only */}
@@ -289,13 +301,13 @@ export default function PartyDetail() {
         };
 
         return (
-          <div className="card overflow-hidden p-0">
+          <Card className="overflow-hidden p-0">
             {/* Header */}
-            <div className="flex flex-wrap items-center gap-3 justify-between px-5 pt-5 pb-3 border-b border-slate-100">
+            <div className="flex flex-wrap items-center gap-3 justify-between px-4 sm:px-5 pt-4 pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-sky-600 text-[20px]">price_change</span>
+                <BadgeIndianRupee className="h-5 w-5 text-sky-600" />
                 <p className="section-title">Process Rates (Party-Specific)</p>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full tabular-nums ${
                   configuredCount === allProcesses.length ? 'bg-emerald-100 text-emerald-700'
                   : configuredCount > 0 ? 'bg-amber-100 text-amber-700'
                   : 'bg-slate-100 text-slate-500'
@@ -306,67 +318,59 @@ export default function PartyDetail() {
               <div className="flex items-center gap-2">
                 {!editingRates ? (
                   isAdmin && (
-                    <button
-                      type="button"
-                      onClick={startEditRates}
-                      className="flex items-center gap-1.5 text-xs font-semibold text-sky-600 hover:text-sky-700 border border-sky-200 hover:border-sky-400 px-3 py-1.5 rounded-xl transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-sm">edit</span> Edit Rates
-                    </button>
+                    <Button type="button" variant="outline" size="sm" onClick={startEditRates}
+                      className="text-sky-700 border-sky-200 hover:border-sky-400 hover:bg-sky-50">
+                      <Pencil /> Edit Rates
+                    </Button>
                   )
                 ) : (
                   <div className="flex gap-2">
-                    <button type="button" onClick={cancelEditRates} className="btn-ghost text-xs">Cancel</button>
-                    <button
-                      type="button"
-                      onClick={saveRates}
-                      disabled={savingRates}
-                      className="flex items-center gap-1 text-xs btn-primary py-1.5 px-3"
-                    >
+                    <Button type="button" variant="ghost" size="sm" onClick={cancelEditRates}>Cancel</Button>
+                    <Button type="button" size="sm" onClick={saveRates} disabled={savingRates}>
                       {savingRates
-                        ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Saving…</>
-                        : <><span className="material-symbols-outlined text-sm">save</span> Save</>}
-                    </button>
+                        ? <><Loader2 className="animate-spin" /> Saving…</>
+                        : <><Save /> Save</>}
+                    </Button>
                   </div>
                 )}
               </div>
             </div>
 
             {/* Search + filter toolbar */}
-            <div className="px-5 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3 bg-slate-50/40">
+            <div className="px-4 sm:px-5 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3 bg-slate-50/40">
               <div className="relative">
-                <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[15px]">search</span>
-                <input
+                <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Input
                   type="text"
                   value={ratesSearch}
                   onChange={e => setRatesSearch(e.target.value)}
                   placeholder="Search process…"
-                  className="form-input py-1 text-xs pl-7 w-44"
+                  aria-label="Search process"
+                  className="h-8 min-h-0 text-xs pl-8 w-44"
                 />
               </div>
-              <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none">
-                <input
-                  type="checkbox"
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 cursor-pointer select-none">
+                <Checkbox
                   checked={showOnlyConfigured}
-                  onChange={e => setShowOnlyConfigured(e.target.checked)}
-                  className="rounded"
+                  onCheckedChange={c => setShowOnlyConfigured(c === true)}
+                  className="h-3.5 w-3.5"
                 />
                 Show only configured
               </label>
               {(ratesSearch || showOnlyConfigured) && (
-                <span className="text-xs text-slate-400">{filteredProcesses.length} shown</span>
+                <span className="text-xs text-slate-400 tabular-nums">{filteredProcesses.length} shown</span>
               )}
             </div>
 
             {/* Rates table */}
-            <div className="overflow-x-auto">
+            <div className="table-responsive">
               <table className="w-full text-left text-xs min-w-[600px]">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-100 text-slate-500">
+                  <tr>
                     <th className="th w-48">Process</th>
-                    <th className="th">Rate/Kg (₹)</th>
-                    <th className="th">Rate/Pc (₹)</th>
-                    <th className="th">Lot Charge (₹)</th>
+                    <th className="th text-right">Rate/Kg (₹)</th>
+                    <th className="th text-right">Rate/Pc (₹)</th>
+                    <th className="th text-right">Lot Charge (₹)</th>
                     {!editingRates
                       ? <th className="th text-slate-400">Global Default</th>
                       : <th className="th w-8"></th>
@@ -411,64 +415,68 @@ export default function PartyDetail() {
 
                         {editingRates ? (
                           <>
-                            <td className="td">
-                              <input
+                            <td className="td text-right">
+                              <Input
                                 type="number" step="0.01" min="0"
                                 value={ratesMap[pt.id]?.pricePerKg ?? ''}
                                 onChange={e => setRate(pt.id, 'pricePerKg', e.target.value)}
-                                className="form-input py-1 text-xs w-24"
+                                className="h-8 min-h-0 text-xs text-right tabular-nums w-24 ml-auto"
                                 placeholder={pt.pricePerKg != null ? `${Number(pt.pricePerKg).toFixed(2)} (global)` : '—'}
+                                aria-label={`Rate per kg for ${pt.name}`}
                               />
                             </td>
-                            <td className="td">
-                              <input
+                            <td className="td text-right">
+                              <Input
                                 type="number" step="0.01" min="0"
                                 value={ratesMap[pt.id]?.pricePerPc ?? ''}
                                 onChange={e => setRate(pt.id, 'pricePerPc', e.target.value)}
-                                className="form-input py-1 text-xs w-24"
+                                className="h-8 min-h-0 text-xs text-right tabular-nums w-24 ml-auto"
                                 placeholder={pt.pricePerPc != null ? `${Number(pt.pricePerPc).toFixed(2)} (global)` : '—'}
+                                aria-label={`Rate per piece for ${pt.name}`}
                               />
                             </td>
-                            <td className="td">
-                              <input
+                            <td className="td text-right">
+                              <Input
                                 type="number" step="0.01" min="0"
                                 value={ratesMap[pt.id]?.lotPrice ?? ''}
                                 onChange={e => setRate(pt.id, 'lotPrice', e.target.value)}
-                                className="form-input py-1 text-xs w-24"
+                                className="h-8 min-h-0 text-xs text-right tabular-nums w-24 ml-auto"
                                 placeholder={pt.lotPrice != null ? `${Number(pt.lotPrice).toFixed(2)} (global)` : '—'}
+                                aria-label={`Lot charge for ${pt.name}`}
                               />
                             </td>
                             <td className="td text-center">
                               {hasEditVal && (
-                                <button
-                                  type="button"
+                                <Button
+                                  type="button" variant="ghost" size="icon-sm"
                                   onClick={() => resetToGlobal(pt.id)}
                                   title="Reset to global rate"
-                                  className="text-rose-400 hover:text-rose-600 transition-colors"
+                                  aria-label={`Reset ${pt.name} to global rate`}
+                                  className="h-7 w-7 text-rose-400 hover:text-rose-600 hover:bg-rose-50"
                                 >
-                                  <span className="material-symbols-outlined text-sm">restart_alt</span>
-                                </button>
+                                  <RotateCcw />
+                                </Button>
                               )}
                             </td>
                           </>
                         ) : (
                           <>
-                            <td className="td font-mono">
+                            <td className="td font-mono text-right tabular-nums">
                               {saved?.pricePerKg != null
                                 ? <span className="text-sky-700 font-semibold">₹{Number(saved.pricePerKg).toFixed(2)}</span>
                                 : <span className="text-slate-300">—</span>}
                             </td>
-                            <td className="td font-mono">
+                            <td className="td font-mono text-right tabular-nums">
                               {saved?.pricePerPc != null
                                 ? <span className="text-sky-700 font-semibold">₹{Number(saved.pricePerPc).toFixed(2)}</span>
                                 : <span className="text-slate-300">—</span>}
                             </td>
-                            <td className="td font-mono">
+                            <td className="td font-mono text-right tabular-nums">
                               {saved?.lotPrice != null
                                 ? <span className="text-sky-700 font-semibold">₹{Number(saved.lotPrice).toFixed(2)}</span>
                                 : <span className="text-slate-300">—</span>}
                             </td>
-                            <td className="td text-slate-400 text-[10px]">{globalStr}</td>
+                            <td className="td text-slate-400 text-[10px] tabular-nums">{globalStr}</td>
                           </>
                         )}
                       </tr>
@@ -477,171 +485,180 @@ export default function PartyDetail() {
                 </tbody>
               </table>
             </div>
-            <div className="px-5 py-2.5 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between gap-3">
+            <div className="px-4 sm:px-5 py-2.5 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between gap-3">
               <p className="text-[10px] text-slate-400">
                 Party-specific rates apply during inward entry and invoicing. Leave blank to use global rate.
                 {!isAdmin && <span className="ml-1 text-amber-600 font-semibold">Read-only — contact Admin to change rates.</span>}
               </p>
             </div>
-          </div>
+          </Card>
         );
       })()}
 
-      <div className="card overflow-hidden p-0">
-        <p className="section-title px-5 pt-5 pb-2">Job cards</p>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+      {/* Job cards */}
+      <Card className="overflow-hidden p-0">
+        <p className="section-title px-4 sm:px-5 pt-4 pb-2">Job cards</p>
+        <div className="table-responsive">
+          <table className="w-full text-left text-sm min-w-[560px]">
             <thead>
-              <tr className="bg-slate-50 text-xs text-slate-500">
+              <tr>
                 <th className="th">No.</th>
                 <th className="th">Part</th>
                 <th className="th">Mode</th>
                 <th className="th">Status</th>
-                <th className="th">Qty</th>
+                <th className="th text-right">Qty</th>
                 <th className="th">Received</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-50/80">
               {jobCards.length === 0 ? (
-                <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">No job cards linked.</td></tr>
+                <tr><td colSpan={6} className="px-5 py-8 text-center text-sm text-slate-400">No job cards linked.</td></tr>
               ) : pagedJobCards.map((jc) => (
                 <tr key={jc.id} className="tr">
                   <td className="td">
-                    <Link className="font-semibold text-sky-600 hover:underline" to={`/jobcards/${jc.id}`}>{jc.jobCardNo}</Link>
+                    <Link className="text-xs font-bold text-sky-800 hover:text-sky-950 hover:underline font-mono" to={`/jobcards/${jc.id}`}>{jc.jobCardNo}</Link>
                   </td>
-                  <td className="td text-xs">{jc.part?.partNo || '—'}{jc.part?.description ? ` · ${jc.part.description}` : ''}</td>
-                  <td className="td text-xs">{jc.operationMode || '—'}</td>
-                  <td className="td text-xs">{jc.status?.replace(/_/g, ' ')}</td>
-                  <td className="td">{jc.quantity}</td>
-                  <td className="td text-xs">{formatDate(jc.receivedDate)}</td>
+                  <td className="td text-xs text-slate-600">{jc.part?.partNo || '—'}{jc.part?.description ? ` · ${jc.part.description}` : ''}</td>
+                  <td className="td text-xs text-slate-600">{jc.operationMode || '—'}</td>
+                  <td className="td">
+                    <Badge variant="outline" className="px-2 py-0.5 text-[10px] whitespace-nowrap">{jc.status?.replace(/_/g, ' ')}</Badge>
+                  </td>
+                  <td className="td text-right tabular-nums font-semibold text-slate-700">{jc.quantity}</td>
+                  <td className="td text-xs text-slate-600 whitespace-nowrap">{formatDate(jc.receivedDate)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
         <MiniPagination page={jobCardsPage} setPage={setJobCardsPage} total={jobCards.length} />
-      </div>
+      </Card>
 
-      <div className="card overflow-hidden p-0">
-        <p className="section-title px-5 pt-5 pb-2">Tax invoices (this party as buyer)</p>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+      {/* Invoices */}
+      <Card className="overflow-hidden p-0">
+        <p className="section-title px-4 sm:px-5 pt-4 pb-2">Tax invoices (this party as buyer)</p>
+        <div className="table-responsive">
+          <table className="w-full text-left text-sm min-w-[480px]">
             <thead>
-              <tr className="bg-slate-50 text-xs text-slate-500">
+              <tr>
                 <th className="th">Invoice</th>
                 <th className="th">Date</th>
-                <th className="th">Amount</th>
+                <th className="th text-right">Amount</th>
                 <th className="th">Payment</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-50/80">
               {invoices.length === 0 ? (
-                <tr><td colSpan={4} className="px-5 py-8 text-center text-slate-400">No invoices.</td></tr>
+                <tr><td colSpan={4} className="px-5 py-8 text-center text-sm text-slate-400">No invoices.</td></tr>
               ) : pagedInvoices.map((inv) => (
                 <tr key={inv.id} className="tr">
                   <td className="td">
-                    <Link className="font-semibold text-sky-600 hover:underline" to={`/invoices/${inv.id}`}>{inv.invoiceNo}</Link>
+                    <Link className="text-xs font-bold text-sky-800 hover:text-sky-950 hover:underline font-mono" to={`/invoices/${inv.id}`}>{inv.invoiceNo}</Link>
                   </td>
-                  <td className="td text-xs">{formatDate(inv.invoiceDate)}</td>
-                  <td className="td">{formatCurrency(inv.grandTotal)}</td>
-                  <td className="td text-xs">{inv.paymentStatus}</td>
+                  <td className="td text-xs text-slate-600 whitespace-nowrap">{formatDate(inv.invoiceDate)}</td>
+                  <td className="td text-right tabular-nums font-semibold text-slate-700">{formatCurrency(inv.grandTotal)}</td>
+                  <td className="td">
+                    <Badge variant={inv.paymentStatus === 'PAID' ? 'success' : 'outline'} className="px-2 py-0.5 text-[10px]">{inv.paymentStatus}</Badge>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
         <MiniPagination page={invoicesPage} setPage={setInvoicesPage} total={invoices.length} />
-      </div>
+      </Card>
 
-      <div className="card overflow-hidden p-0">
-        <p className="section-title px-5 pt-5 pb-2">Test certificates</p>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+      {/* Certificates */}
+      <Card className="overflow-hidden p-0">
+        <p className="section-title px-4 sm:px-5 pt-4 pb-2">Test certificates</p>
+        <div className="table-responsive">
+          <table className="w-full text-left text-sm min-w-[480px]">
             <thead>
-              <tr className="bg-slate-50 text-xs text-slate-500">
+              <tr>
                 <th className="th">Cert</th>
                 <th className="th">Job card</th>
                 <th className="th">Issue date</th>
                 <th className="th">Status</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-50/80">
               {certificates.length === 0 ? (
-                <tr><td colSpan={4} className="px-5 py-8 text-center text-slate-400">No certificates.</td></tr>
+                <tr><td colSpan={4} className="px-5 py-8 text-center text-sm text-slate-400">No certificates.</td></tr>
               ) : pagedCerts.map((c) => (
                 <tr key={c.id} className="tr">
                   <td className="td">
-                    <Link className="font-semibold text-sky-600 hover:underline" to={`/quality/certificates/${c.id}`}>
+                    <Link className="text-xs font-bold text-sky-800 hover:text-sky-950 hover:underline font-mono" to={`/quality/certificates/${c.id}`}>
                       {c.certNo}
                     </Link>
                   </td>
-                  <td className="td text-xs">{c.jobCard?.jobCardNo || '—'}</td>
-                  <td className="td text-xs">{formatDate(c.issueDate)}</td>
-                  <td className="td text-xs">{c.status}</td>
+                  <td className="td text-xs text-slate-600 font-mono">{c.jobCard?.jobCardNo || '—'}</td>
+                  <td className="td text-xs text-slate-600 whitespace-nowrap">{formatDate(c.issueDate)}</td>
+                  <td className="td">
+                    <Badge variant="outline" className="px-2 py-0.5 text-[10px]">{c.status}</Badge>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
         <MiniPagination page={certsPage} setPage={setCertsPage} total={certificates.length} />
-      </div>
+      </Card>
 
       {(jobworkAsFromParty.length + jobworkAsToParty.length + dispatchToParty.length + dispatchFromParty.length) > 0 && (
         <div className="grid md:grid-cols-2 gap-4">
           {jobworkAsFromParty.length > 0 && (
-            <div className="card p-4">
-              <p className="text-xs font-bold text-slate-600 mb-2">Jobwork (party = sender)</p>
+            <Card className="p-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Jobwork (party = sender)</p>
               <ul className="text-sm space-y-1">
                 {pagedJobworkFrom.map((ch) => (
                   <li key={ch.id}>
-                    <Link className="text-sky-600 hover:underline" to={`/jobwork/${ch.id}`}>{ch.challanNo}</Link>
+                    <Link className="text-sky-700 font-semibold hover:underline font-mono text-xs" to={`/jobwork/${ch.id}`}>{ch.challanNo}</Link>
                     <span className="text-slate-400 text-xs"> → {ch.toParty?.name}</span>
                   </li>
                 ))}
               </ul>
               <MiniPagination page={jobworkFromPage} setPage={setJobworkFromPage} total={jobworkAsFromParty.length} />
-            </div>
+            </Card>
           )}
           {jobworkAsToParty.length > 0 && (
-            <div className="card p-4">
-              <p className="text-xs font-bold text-slate-600 mb-2">Jobwork (party = receiver / processor)</p>
+            <Card className="p-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Jobwork (party = receiver / processor)</p>
               <ul className="text-sm space-y-1">
                 {pagedJobworkTo.map((ch) => (
                   <li key={ch.id}>
                     <span className="text-slate-400 text-xs">{ch.fromParty?.name} → </span>
-                    <Link className="text-sky-600 hover:underline" to={`/jobwork/${ch.id}`}>{ch.challanNo}</Link>
+                    <Link className="text-sky-700 font-semibold hover:underline font-mono text-xs" to={`/jobwork/${ch.id}`}>{ch.challanNo}</Link>
                   </li>
                 ))}
               </ul>
               <MiniPagination page={jobworkToPage} setPage={setJobworkToPage} total={jobworkAsToParty.length} />
-            </div>
+            </Card>
           )}
           {dispatchToParty.length > 0 && (
-            <div className="card p-4">
-              <p className="text-xs font-bold text-slate-600 mb-2">Dispatch (delivered to party)</p>
+            <Card className="p-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Dispatch (delivered to party)</p>
               <ul className="text-sm space-y-1">
                 {pagedDispatchTo.map((d) => (
                   <li key={d.id}>
-                    <Link className="text-sky-600 hover:underline" to={`/dispatch/${d.id}`}>{d.challanNo}</Link>
-                    <span className="text-slate-400 text-xs"> {formatDate(d.challanDate)}</span>
+                    <Link className="text-sky-700 font-semibold hover:underline font-mono text-xs" to={`/dispatch/${d.id}`}>{d.challanNo}</Link>
+                    <span className="text-slate-400 text-xs whitespace-nowrap"> {formatDate(d.challanDate)}</span>
                   </li>
                 ))}
               </ul>
               <MiniPagination page={dispatchToPage} setPage={setDispatchToPage} total={dispatchToParty.length} />
-            </div>
+            </Card>
           )}
           {dispatchFromParty.length > 0 && (
-            <div className="card p-4">
-              <p className="text-xs font-bold text-slate-600 mb-2">Dispatch (sent from party)</p>
+            <Card className="p-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Dispatch (sent from party)</p>
               <ul className="text-sm space-y-1">
                 {pagedDispatchFrom.map((d) => (
                   <li key={d.id}>
-                    <Link className="text-sky-600 hover:underline" to={`/dispatch/${d.id}`}>{d.challanNo}</Link>
+                    <Link className="text-sky-700 font-semibold hover:underline font-mono text-xs" to={`/dispatch/${d.id}`}>{d.challanNo}</Link>
                   </li>
                 ))}
               </ul>
               <MiniPagination page={dispatchFromPage} setPage={setDispatchFromPage} total={dispatchFromParty.length} />
-            </div>
+            </Card>
           )}
         </div>
       )}

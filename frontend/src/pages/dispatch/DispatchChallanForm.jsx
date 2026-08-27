@@ -1,9 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import api from '../../utils/api';
 import { toNum, toInt } from '../../utils/normalize';
 import SearchSelect from '../../components/SearchSelect';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { FormField } from '@/components/ui/form-field';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const STATUS_OPTIONS = ['DRAFT', 'SENT', 'RECEIVED', 'COMPLETED', 'CANCELLED'];
 
@@ -15,6 +28,10 @@ const EMPTY_ITEM = {
   weightKg: '',
   remarks: '',
 };
+
+const GroupTitle = ({ children }) => (
+  <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">{children}</p>
+);
 
 export default function DispatchChallanForm() {
   const { id } = useParams();
@@ -172,167 +189,252 @@ export default function DispatchChallanForm() {
   const totalWeight = items.reduce((sum, it) => sum + toNum(it.weightKg, 0), 0);
 
   return (
-    <div className="page-stack w-full space-y-6">
-      <button type="button" onClick={() => navigate('/dispatch')} className="btn-ghost -ml-2 inline-flex items-center gap-2 text-sky-800">
-        <span className="material-symbols-outlined text-[20px]">arrow_back</span> Back to dispatch challans
-      </button>
+    <div className="page-stack w-full min-w-0 max-w-5xl mx-auto space-y-4">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={() => navigate('/dispatch')}
+        className="-ml-2 text-sky-800"
+      >
+        <ArrowLeft /> Back to dispatch challans
+      </Button>
 
-      <div className="card p-5 sm:p-6">
-        <h1 className="page-title mb-1">{isEdit ? 'Edit dispatch challan' : 'New dispatch challan'}</h1>
-        <p className="page-subtitle mb-6">Parties, transport, and line items</p>
+      <div className="space-y-1">
+        <h1 className="page-title">{isEdit ? 'Edit dispatch challan' : 'New dispatch challan'}</h1>
+        <p className="page-subtitle">Parties, transport, and line items</p>
+      </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="border-b border-slate-200/80 pb-6">
-            <h2 className="text-sm font-bold text-slate-800 font-headline mb-4">Challan details</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div>
-                <label className="form-label">Challan date *</label>
-                <input type="date" required value={formData.challanDate} onChange={(e) => handleChange('challanDate', e.target.value)} className="form-input w-full" />
-              </div>
-              <div>
-                <label className="form-label">From party *</label>
-                <SearchSelect
-                  value={String(formData.fromPartyId || '')}
-                  onChange={v => handleChange('fromPartyId', v)}
-                  options={(parties || []).map(p => ({ value: p.id, label: p.name }))}
-                  placeholder="Select from party"
-                  required
-                  className="w-full"
-                />
-              </div>
-              <div>
-                <label className="form-label">To party *</label>
-                <SearchSelect
-                  value={String(formData.toPartyId || '')}
-                  onChange={v => handleChange('toPartyId', v)}
-                  options={(parties || []).map(p => ({ value: p.id, label: p.name }))}
-                  placeholder="Select to party"
-                  required
-                  className="w-full"
-                />
-              </div>
-              <div>
-                <label className="form-label">Jobwork challan</label>
-                <SearchSelect
-                  value={String(formData.jobworkChallanId || '')}
-                  onChange={v => handleChange('jobworkChallanId', v)}
-                  options={[{ value: '', label: 'Optional link' }, ...(jobworkChallans || []).map(j => ({ value: j.id, label: j.challanNo || `JW-${j.id}` }))]}
-                  placeholder="Optional link"
-                  className="w-full"
-                />
-              </div>
-              <div>
-                <label className="form-label">Dispatch mode</label>
-                <input
-                  value={formData.dispatchMode}
-                  onChange={(e) => handleChange('dispatchMode', e.target.value)}
-                  className="form-input w-full"
-                  placeholder="Transport / courier"
-                />
-              </div>
-              <div>
-                <label className="form-label">Vehicle no.</label>
-                <input value={formData.vehicleNo} onChange={(e) => handleChange('vehicleNo', e.target.value)} className="form-input w-full" />
-              </div>
-              <div>
-                <label className="form-label">Status</label>
-                <select value={formData.status} onChange={(e) => handleChange('status', e.target.value)} className="form-input w-full">
-                  {STATUS_OPTIONS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="md:col-span-2 lg:col-span-3">
-                <label className="form-label">Remarks</label>
-                <textarea rows={2} value={formData.remarks} onChange={(e) => handleChange('remarks', e.target.value)} className="form-input w-full min-h-[72px]" />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <h2 className="text-sm font-bold text-slate-800 font-headline">Items</h2>
-              <button type="button" onClick={addItem} className="btn-primary inline-flex items-center gap-2 shrink-0">
-                <span className="material-symbols-outlined text-[16px]">add</span> Add item
-              </button>
-            </div>
-
-            {items.map((item, idx) => (
-              <div key={idx} className="grid grid-cols-1 md:grid-cols-6 gap-3 p-4 rounded-xl border border-slate-200/80 bg-slate-50/60">
-                {formData.jobworkChallanId && (
-                  <div className="md:col-span-2">
-                    <label className="form-label text-xs">Source challan line</label>
-                    <SearchSelect
-                      value={String(item.sourceChallanItemId || '')}
-                      onChange={v => updateItem(idx, 'sourceChallanItemId', v)}
-                      options={(selectedJwItems || []).map(chIt => ({
-                        value: chIt.id,
-                        label: `${chIt.description || `Line ${chIt.id}`} (Qty ${chIt.quantity})`,
-                      }))}
-                      placeholder="Select line"
-                      useFixed
-                      className="w-full"
-                    />
-                  </div>
-                )}
-                <div>
-                  <label className="form-label text-xs">Item</label>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Challan Details</CardTitle>
+            <CardDescription>Dispatch date, parties, transport and status.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* ── Basics & parties ── */}
+            <div className="space-y-3">
+              <GroupTitle>Challan &amp; Parties</GroupTitle>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+                <FormField label="Challan Date" htmlFor="dcChallanDate" required>
+                  <Input
+                    id="dcChallanDate"
+                    type="date"
+                    required
+                    value={formData.challanDate}
+                    onChange={(e) => handleChange('challanDate', e.target.value)}
+                  />
+                </FormField>
+                <FormField label="From Party" required>
                   <SearchSelect
-                    value={String(item.itemId || '')}
-                    onChange={v => updateItem(idx, 'itemId', v)}
-                    options={(itemsMaster || []).map(m => ({ value: m.id, label: m.partNo || m.description || `Item ${m.id}` }))}
-                    placeholder="Select item"
-                    useFixed
+                    value={String(formData.fromPartyId || '')}
+                    onChange={v => handleChange('fromPartyId', v)}
+                    options={(parties || []).map(p => ({ value: p.id, label: p.name }))}
+                    placeholder="Select from party"
+                    required
                     className="w-full"
                   />
+                </FormField>
+                <FormField label="To Party" required>
+                  <SearchSelect
+                    value={String(formData.toPartyId || '')}
+                    onChange={v => handleChange('toPartyId', v)}
+                    options={(parties || []).map(p => ({ value: p.id, label: p.name }))}
+                    placeholder="Select to party"
+                    required
+                    className="w-full"
+                  />
+                </FormField>
+                <FormField label="Jobwork Challan" hint="Optional — links dispatch back to the inward challan">
+                  <SearchSelect
+                    value={String(formData.jobworkChallanId || '')}
+                    onChange={v => handleChange('jobworkChallanId', v)}
+                    options={[{ value: '', label: 'Optional link' }, ...(jobworkChallans || []).map(j => ({ value: j.id, label: j.challanNo || `JW-${j.id}` }))]}
+                    placeholder="Optional link"
+                    className="w-full"
+                  />
+                </FormField>
+              </div>
+            </div>
+
+            {/* ── Transport & status ── */}
+            <div className="space-y-3">
+              <GroupTitle>Transport &amp; Status</GroupTitle>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+                <FormField label="Dispatch Mode" htmlFor="dcDispatchMode">
+                  <Input
+                    id="dcDispatchMode"
+                    value={formData.dispatchMode}
+                    onChange={(e) => handleChange('dispatchMode', e.target.value)}
+                    placeholder="Transport / courier"
+                  />
+                </FormField>
+                <FormField label="Vehicle No" htmlFor="dcVehicleNo">
+                  <Input
+                    id="dcVehicleNo"
+                    value={formData.vehicleNo}
+                    onChange={(e) => handleChange('vehicleNo', e.target.value)}
+                    placeholder="MH12 AB 1234"
+                  />
+                </FormField>
+                <FormField label="Status">
+                  <Select value={formData.status} onValueChange={(v) => handleChange('status', v)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STATUS_OPTIONS.map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormField>
+                <FormField label="Remarks" htmlFor="dcRemarks" className="sm:col-span-2 lg:col-span-3">
+                  <Textarea
+                    id="dcRemarks"
+                    rows={2}
+                    value={formData.remarks}
+                    onChange={(e) => handleChange('remarks', e.target.value)}
+                    style={{ minHeight: '72px' }}
+                  />
+                </FormField>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <div className="space-y-1">
+              <CardTitle>Items</CardTitle>
+              <CardDescription>{items.length} item{items.length !== 1 ? 's' : ''} on this dispatch</CardDescription>
+            </div>
+            <Button type="button" variant="secondary" size="sm" onClick={addItem}>
+              <Plus /> Add Item
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {items.map((item, idx) => (
+              <div key={idx} className="rounded-xl border border-slate-200/90 bg-white overflow-hidden">
+                {/* Row header */}
+                <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-slate-50/80 border-b border-slate-100">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-sky-100 text-xs font-bold text-sky-700 tabular-nums">
+                      {idx + 1}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-600 truncate">
+                      {item.description || 'New item'}
+                    </span>
+                  </div>
+                  {items.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => removeItem(idx)}
+                      className="text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                      aria-label={`Remove item ${idx + 1}`}
+                    >
+                      <Trash2 />
+                    </Button>
+                  )}
                 </div>
-                <div className="md:col-span-2">
-                  <label className="form-label text-xs">Description</label>
-                  <input value={item.description} onChange={(e) => updateItem(idx, 'description', e.target.value)} className="form-input w-full text-sm" />
-                </div>
-                <div>
-                  <label className="form-label text-xs">Qty</label>
-                  <input type="number" min="0" step="0.01" value={item.quantity} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} className="form-input w-full text-sm tabular-nums" />
-                </div>
-                <div>
-                  <label className="form-label text-xs">Weight (kg)</label>
-                  <input type="number" min="0" step="0.01" value={item.weightKg} onChange={(e) => updateItem(idx, 'weightKg', e.target.value)} className="form-input w-full text-sm tabular-nums" />
-                </div>
-                <div className="flex items-end">
-                  <button type="button" onClick={() => removeItem(idx)} className="btn-danger w-full inline-flex items-center justify-center gap-2">
-                    <span className="material-symbols-outlined text-[16px]">delete</span> Remove
-                  </button>
-                </div>
-                <div className="md:col-span-6">
-                  <label className="form-label text-xs">Item remarks</label>
-                  <input value={item.remarks} onChange={(e) => updateItem(idx, 'remarks', e.target.value)} className="form-input w-full text-sm" />
+
+                <div className="p-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-12 gap-x-3 gap-y-3">
+                    {formData.jobworkChallanId && (
+                      <FormField label="Source Challan Line" className="col-span-2 sm:col-span-4 lg:col-span-12">
+                        <SearchSelect
+                          value={String(item.sourceChallanItemId || '')}
+                          onChange={v => updateItem(idx, 'sourceChallanItemId', v)}
+                          options={(selectedJwItems || []).map(chIt => ({
+                            value: chIt.id,
+                            label: `${chIt.description || `Line ${chIt.id}`} (Qty ${chIt.quantity})`,
+                          }))}
+                          placeholder="Select line"
+                          useFixed
+                          className="w-full"
+                        />
+                      </FormField>
+                    )}
+                    <FormField label="Item" className="col-span-2 sm:col-span-2 lg:col-span-3">
+                      <SearchSelect
+                        value={String(item.itemId || '')}
+                        onChange={v => updateItem(idx, 'itemId', v)}
+                        options={(itemsMaster || []).map(m => ({ value: m.id, label: m.partNo || m.description || `Item ${m.id}` }))}
+                        placeholder="Select item"
+                        useFixed
+                        className="w-full"
+                      />
+                    </FormField>
+                    <FormField label="Description" className="col-span-2 sm:col-span-2 lg:col-span-5">
+                      <Input
+                        value={item.description}
+                        onChange={(e) => updateItem(idx, 'description', e.target.value)}
+                        placeholder="Part / item description"
+                        className="font-semibold"
+                      />
+                    </FormField>
+                    <FormField label="Qty" className="col-span-1 sm:col-span-2 lg:col-span-2">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        inputMode="decimal"
+                        value={item.quantity}
+                        onChange={(e) => updateItem(idx, 'quantity', e.target.value)}
+                        placeholder="0"
+                        className="text-right tabular-nums"
+                      />
+                    </FormField>
+                    <FormField label="Weight (kg)" className="col-span-1 sm:col-span-2 lg:col-span-2">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        inputMode="decimal"
+                        value={item.weightKg}
+                        onChange={(e) => updateItem(idx, 'weightKg', e.target.value)}
+                        placeholder="0.00"
+                        className="text-right tabular-nums"
+                      />
+                    </FormField>
+                    <FormField label="Item Remarks" className="col-span-2 sm:col-span-4 lg:col-span-12">
+                      <Input
+                        value={item.remarks}
+                        onChange={(e) => updateItem(idx, 'remarks', e.target.value)}
+                        placeholder="Optional"
+                      />
+                    </FormField>
+                  </div>
                 </div>
               </div>
             ))}
-          </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-slate-200/80 pt-5">
-            <div className="text-sm text-slate-600">
-              <span className="mr-4 tabular-nums">
-                Total qty: <strong className="text-slate-900">{totalQty.toFixed(2)}</strong>
-              </span>
-              <span className="tabular-nums">
-                Total weight: <strong className="text-slate-900">{totalWeight.toFixed(2)} kg</strong>
-              </span>
+            {/* Totals */}
+            <div className="rounded-xl bg-slate-50 p-4 space-y-2 sm:max-w-sm sm:ml-auto">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500">Total Qty</span>
+                <span className="font-semibold tabular-nums text-slate-800">{totalQty.toFixed(2)}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500">Total Weight</span>
+                <span className="font-semibold tabular-nums text-slate-800">{totalWeight.toFixed(2)} kg</span>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => navigate('/dispatch')} className="btn-outline">
-                Cancel
-              </button>
-              <button type="submit" disabled={loading} className="btn-primary disabled:opacity-50">
-                {loading ? 'Saving…' : isEdit ? 'Update challan' : 'Create challan'}
-              </button>
-            </div>
-          </div>
-        </form>
-      </div>
+          </CardContent>
+        </Card>
+
+        {/* Actions */}
+        <div className="flex flex-wrap items-center justify-end gap-2 pb-4">
+          <Button type="button" variant="outline" onClick={() => navigate('/dispatch')}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={loading} disabled={loading}>
+            {loading ? 'Saving…' : isEdit ? 'Update challan' : 'Create challan'}
+          </Button>
+        </div>
+      </form>
     </div>
   );
 }

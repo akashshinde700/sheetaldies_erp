@@ -1,9 +1,14 @@
 import { useEffect, useState, useRef } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, useParams, Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { toInt, toNum } from '../../utils/normalize';
 import { useParties, useProcesses, useChallans } from '../../hooks/useMasterData';
+import { ArrowLeft, Ban, AlertTriangle, FileUp, ReceiptText, Search } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { FormField } from '@/components/ui/form-field';
+import { Input } from '@/components/ui/input';
 
 // Subcomponents
 import ChallanSelectionSection from './components/ChallanSelectionSection';
@@ -35,6 +40,10 @@ const rateForType = (rateObj, type) => {
 export default function InvoiceForm() {
   const navigate    = useNavigate();
   const [searchParams] = useSearchParams();
+  const { id }      = useParams();
+  const isEdit      = Boolean(id);
+  const [editInvoiceNo, setEditInvoiceNo] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
   const { data: parties = [] } = useParties();
   const { data: processes = [] } = useProcesses();
   const { data: challans = [], isSuccess: challansLoaded } = useChallans();
@@ -74,6 +83,58 @@ export default function InvoiceForm() {
   const [jobCardNoInput, setJobCardNoInput] = useState('');
   const [jobCardLookupLoading, setJobCardLookupLoading] = useState(false);
   const [jobCardLookupMessage, setJobCardLookupMessage] = useState('');
+
+  // ── Edit mode: maujooda invoice form me bharna ──
+  useEffect(() => {
+    if (!isEdit) return;
+    setEditLoading(true);
+    api.get(`/invoices/${id}`)
+      .then((r) => {
+        const d = r.data.data;
+        if (!d) return;
+        setEditInvoiceNo(d.invoiceNo || '');
+        const dateOnly = (v) => (v ? String(v).split('T')[0] : '');
+        setForm({
+          invoiceDate:      dateOnly(d.invoiceDate),
+          dispatchDate:     dateOnly(d.dispatchDate),
+          fromPartyId:      d.fromPartyId ? String(d.fromPartyId) : '',
+          toPartyId:        d.toPartyId   ? String(d.toPartyId)   : '',
+          invoiceSeriesId:  d.invoiceSeriesId ? String(d.invoiceSeriesId) : '',
+          challanId:        d.challanId ? String(d.challanId) : '',
+          challanRef:       d.challanRef      || '',
+          poRef:            d.poRef           || '',
+          jobCardRef:       d.jobCardRef      || '',
+          otherReferences:  d.otherReferences || '',
+          dispatchDocNo:    d.dispatchDocNo   || '',
+          eWayBillNo:       d.eWayBillNo      || '',
+          cgstRate:         String(d.cgstRate ?? '9'),
+          sgstRate:         String(d.sgstRate ?? '9'),
+          igstRate:         String(d.igstRate ?? '0'),
+          transportFreight: String(d.transportFreight ?? '0'),
+          tcsRate:          String(d.tcsRate ?? '0'),
+          extraAmt:         String(d.extraAmt ?? '0'),
+          showPartName:     d.showPartName !== false,
+        });
+        setLineItems((d.items || []).map((it) => ({
+          _id: it.id,
+          description:  it.description  || '',
+          material:     it.material     || '',
+          hrc:          it.hrc          || '',
+          woNo:         it.woNo         || '',
+          hsnSac:       it.hsnSac       || '998898',
+          quantity:     it.quantity != null ? String(it.quantity) : '',
+          unit:         it.unit         || 'KGS',
+          billingType:  it.unit         || 'KGS',
+          weight:       it.weight != null ? String(it.weight) : '',
+          rate:         it.rate   != null ? String(it.rate)   : '',
+          amount:       it.amount != null ? String(it.amount) : '',
+          processTypeId: it.processTypeId ? String(it.processTypeId) : '',
+          sourceChallanItemId: it.sourceChallanItemId ? String(it.sourceChallanItemId) : '',
+        })));
+      })
+      .catch((err) => toast.error(err.response?.data?.message || 'Invoice load nahi ho payi.'))
+      .finally(() => setEditLoading(false));
+  }, [isEdit, id]);
 
   useEffect(() => {
     if (parties.length > 0 && !form.fromPartyId) {
@@ -163,7 +224,11 @@ export default function InvoiceForm() {
       const [detailRes, histRes, billRes] = await Promise.all([
         api.get(`/jobwork/${val}`),
         api.get('/invoices', { params: { challanId: val } }),
-        api.get(`/invoices/challan/${val}/billing-status`),
+        // Edit me apni hi invoice ko ginti se bahar rakho, warna wo khud ko
+        // "already fully invoiced" bata kar save block kar degi.
+        api.get(`/invoices/challan/${val}/billing-status`, {
+          params: isEdit ? { excludeInvoiceId: id } : undefined,
+        }),
       ]);
       const ch = detailRes.data.data;
       setChallanInfo(ch);
@@ -481,11 +546,18 @@ export default function InvoiceForm() {
     try {
       const payload = { ...form, items: lineItems };
       if (!payload.challanId) delete payload.challanId;
-      const r = await api.post('/invoices', payload);
-      toast.success(`Invoice ${r.data.data.invoiceNo} created!`);
-      navigate('/invoices');
+
+      if (isEdit) {
+        const r = await api.put(`/invoices/${id}`, payload);
+        toast.success(`Invoice ${r.data.data.invoiceNo} update ho gayi.`);
+        navigate(`/invoices/${id}`);
+      } else {
+        const r = await api.post('/invoices', payload);
+        toast.success(`Invoice ${r.data.data.invoiceNo} created!`);
+        navigate('/invoices');
+      }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Error creating invoice.');
+      toast.error(err.response?.data?.message || (isEdit ? 'Invoice update nahi hui.' : 'Error creating invoice.'));
     } finally { setLoading(false); }
   };
 
@@ -498,54 +570,65 @@ export default function InvoiceForm() {
         <div className="flex items-start gap-3 min-w-0 flex-1">
           <Link to="/invoices"
             className="w-11 h-11 shrink-0 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-colors shadow-sm">
-            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+            <ArrowLeft className="h-5 w-5" />
           </Link>
           <div className="space-y-2 min-w-0">
-            <h1 className="page-title">Create Tax Invoice</h1>
-            <p className="page-subtitle max-w-2xl">Generate a GST invoice linked to challans, job cards, and customer parties.</p>
+            <h1 className="page-title">{isEdit ? 'Edit Tax Invoice' : 'Create Tax Invoice'}</h1>
+            {isEdit ? (
+              <p className="page-subtitle max-w-2xl">
+                Invoice No.: <span className="font-semibold text-slate-700 font-mono">{editInvoiceNo || '…'}</span>
+                <span className="text-slate-400"> · number nahi badalta</span>
+              </p>
+            ) : (
+              <p className="page-subtitle max-w-2xl">Generate a GST invoice linked to challans, job cards, and customer parties.</p>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:justify-end shrink-0">
-          <button type="button" onClick={fillFromImage} className="btn-outline w-full sm:w-auto">
-            <span className="material-symbols-outlined text-sm">file_upload</span> Load sample data
-          </button>
+          <Button type="button" variant="outline" size="sm" onClick={fillFromImage} className="w-full sm:w-auto">
+            <FileUp /> Load sample data
+          </Button>
           <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1.5 rounded-full">
-            <span className="material-symbols-outlined text-[12px]">receipt_long</span> Tax Invoice
+            <ReceiptText className="h-3 w-3" /> Tax Invoice
           </span>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="card p-4 sm:p-5 space-y-3">
-          <div className="flex items-center justify-between gap-3 mb-3">
-            <p className="section-title">Lookup by Job Card No</p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="sm:col-span-2">
-              <label className="form-label">Job Card No</label>
-              <input
-                type="text"
-                value={jobCardNoInput}
-                onChange={(e) => setJobCardNoInput(e.target.value)}
-                placeholder="Enter job card number"
-                className="form-input"
-              />
+        <Card>
+          <CardHeader>
+            <CardTitle>Lookup by Job Card No</CardTitle>
+            <CardDescription>Find the linked challan by typing a job card number.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-3 gap-y-3">
+              <FormField label="Job Card No" htmlFor="jobCardNoLookup" className="sm:col-span-2">
+                <Input
+                  id="jobCardNoLookup"
+                  type="text"
+                  value={jobCardNoInput}
+                  onChange={(e) => setJobCardNoInput(e.target.value)}
+                  placeholder="Enter job card number"
+                />
+              </FormField>
+              <div className="sm:col-span-1 flex items-end">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => lookupByJobCardNo()}
+                  loading={jobCardLookupLoading}
+                  className="w-full"
+                >
+                  {!jobCardLookupLoading && <Search />}
+                  {jobCardLookupLoading ? 'Looking up…' : 'Lookup Job Card'}
+                </Button>
+              </div>
             </div>
-            <div className="sm:col-span-1 flex items-end">
-              <button
-                type="button"
-                onClick={() => lookupByJobCardNo()}
-                disabled={jobCardLookupLoading}
-                className="btn-secondary w-full"
-              >
-                {jobCardLookupLoading ? 'Looking up…' : 'Lookup Job Card'}
-              </button>
-            </div>
-          </div>
-          {jobCardLookupMessage && (
-            <p className="text-sm text-slate-600">{jobCardLookupMessage}</p>
-          )}
-        </div>
+            {jobCardLookupMessage && (
+              <p className="text-sm text-slate-600">{jobCardLookupMessage}</p>
+            )}
+          </CardContent>
+        </Card>
 
         <ChallanSelectionSection 
           form={form} 
@@ -600,20 +683,26 @@ export default function InvoiceForm() {
         </datalist>
 
         {/* Actions stack */}
-        <div className="flex gap-3 items-center pb-4">
-          <button type="submit" disabled={loading || fullyInvoiced || loadingChallan} className="btn-primary">
+        <div className="flex flex-wrap gap-3 items-center pb-4">
+          <Button type="submit" loading={loading} disabled={loading || editLoading || fullyInvoiced || loadingChallan}>
+            {!loading && <ReceiptText />}
             {loading
-              ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Creating...</>
-              : <><span className="material-symbols-outlined text-sm">receipt_long</span> Create Invoice</>
-            }
-          </button>
+              ? (isEdit ? 'Saving...' : 'Creating...')
+              : (isEdit ? 'Save Changes' : 'Create Invoice')}
+          </Button>
           {fullyInvoiced && (
-            <span className="text-sm text-rose-600 font-semibold">⛔ Fully invoiced — cannot create new bill</span>
+            <span className="inline-flex items-center gap-1.5 text-sm text-rose-600 font-semibold">
+              <Ban className="h-4 w-4 shrink-0" /> Fully invoiced — cannot create new bill
+            </span>
           )}
           {wouldExceed && !fullyInvoiced && (
-            <span className="text-sm text-amber-600 font-semibold">⚠️ Amount exceeds remaining balance</span>
+            <span className="inline-flex items-center gap-1.5 text-sm text-amber-600 font-semibold">
+              <AlertTriangle className="h-4 w-4 shrink-0" /> Amount exceeds remaining balance
+            </span>
           )}
-          <Link to="/invoices" className="ml-auto btn-ghost">Cancel</Link>
+          <Button variant="ghost" asChild className="ml-auto">
+            <Link to="/invoices">Cancel</Link>
+          </Button>
         </div>
       </form>
     </div>

@@ -58,11 +58,11 @@ const NavItem = ({ item, onNavigate, pendingCount = 0 }) => {
     onClick={onNavigate}
     className={({ isActive }) => {
       const active = resolvedActive(isActive);
-      return `group flex items-center gap-3 min-h-[44px] sm:min-h-[42px] px-3.5 rounded-xl text-sm font-semibold mb-1
+      return `group flex items-center gap-2.5 min-h-[44px] sm:min-h-0 sm:h-9 px-3 rounded-lg text-sm font-semibold mb-0.5
        transition-all duration-200 ease-out
        ${
          active
-           ? 'bg-white text-slate-900 shadow-sm border border-slate-200/90 border-l-[3px] !border-l-sky-600'
+           ? 'bg-white text-slate-900 shadow-nav-active border border-transparent border-l-[3px] !border-l-sky-600'
            : 'text-slate-700 hover:text-slate-900 hover:bg-white/85 border border-transparent border-l-[3px] border-l-transparent hover:border-slate-200/70 active:scale-[0.99]'
        }`;
     }}
@@ -70,7 +70,7 @@ const NavItem = ({ item, onNavigate, pendingCount = 0 }) => {
     {({ isActive }) => (
       <>
         <span
-          className={`material-symbols-outlined text-[20px] transition-colors duration-200 shrink-0
+          className={`material-symbols-outlined text-[18px] transition-colors duration-200 shrink-0
             ${resolvedActive(isActive) ? 'text-sky-700' : 'text-slate-500 group-hover:text-sky-700'}`}
         >
           {item.icon}
@@ -88,7 +88,7 @@ const NavItem = ({ item, onNavigate, pendingCount = 0 }) => {
 };
 
 const SectionLabel = ({ label }) => (
-  <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 px-3.5 pt-4 pb-1.5">
+  <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 px-3 pt-4 pb-1.5 select-none">
     {label}
   </p>
 );
@@ -162,22 +162,22 @@ export default function Sidebar({ open, onClose }) {
         </nav>
 
         <div className="px-2 sm:px-3 py-3 sm:py-4 border-t border-sky-200/60 space-y-1 shrink-0 safe-pb">
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-2xl bg-white/90 border border-slate-200/80 shadow-sm hover:bg-white transition-colors">
+          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white/90 border border-slate-200/80 shadow-sm hover:bg-white transition-colors">
             <div
               className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0
-                bg-slate-800 shadow-sm"
+                bg-gradient-to-br from-slate-800 to-slate-900 shadow-sm"
             >
               {initials}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-slate-900 text-xs font-bold truncate">{user?.name}</p>
-              <p className="text-slate-600 text-[10px] truncate font-semibold uppercase tracking-wide">{user?.role}</p>
+              <p className="text-slate-500 text-[10px] truncate font-semibold uppercase tracking-wide">{user?.role}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 min-h-[44px] px-3 rounded-2xl text-slate-700
+            className="w-full flex items-center gap-2.5 min-h-[44px] sm:min-h-0 sm:h-10 px-3 rounded-lg text-slate-700
               hover:text-rose-600 hover:bg-rose-50 active:scale-[0.99]
               text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
           >

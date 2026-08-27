@@ -10,12 +10,13 @@ import ChallanDetailsSection from './components/ChallanDetailsSection';
 import LineItemsSection from './components/LineItemsSection';
 import TaxTotalsSection from './components/TaxTotalsSection';
 
-const F = ({ label, children, className = '' }) => (
-  <div className={className}>
-    <label className="form-label">{label}</label>
-    {children}
-  </div>
-);
+// UI primitives
+import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { FormField } from '@/components/ui/form-field';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Save, Upload } from 'lucide-react';
 
 export default function JobworkForm() {
   const navigate = useNavigate();
@@ -326,13 +327,13 @@ export default function JobworkForm() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {!isEdit && (
-            <button type="button" onClick={fillFromImage} className="btn-outline">
-              <span className="material-symbols-outlined text-sm">file_upload</span> Load sample data
-            </button>
+            <Button type="button" variant="outline" size="sm" onClick={fillFromImage}>
+              <Upload /> Load sample data
+            </Button>
           )}
-          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
+          <Badge variant="warning" className="text-[10px] border border-amber-200">
             Challan for Job Work
-          </span>
+          </Badge>
         </div>
       </div>
 
@@ -351,12 +352,23 @@ export default function JobworkForm() {
         />
 
         {/* Processing Notes */}
-        <div className="card p-5">
-          <F label="Processing Notes / Instructions">
-            <textarea value={form.processingNotes} onChange={e => setForm(p => ({ ...p, processingNotes: e.target.value }))}
-              rows={2} className="form-input resize-none" placeholder="Material pre-heat temperature, hardness required, vacuum level..." />
-          </F>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Processing Notes</CardTitle>
+            <CardDescription>Special instructions for the heat treatment process.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FormField htmlFor="processingNotes" hint="e.g. pre-heat temperature, required hardness, vacuum level">
+              <Textarea
+                id="processingNotes"
+                value={form.processingNotes}
+                onChange={e => setForm(p => ({ ...p, processingNotes: e.target.value }))}
+                rows={2}
+                placeholder="Material pre-heat temperature, hardness required, vacuum level..."
+              />
+            </FormField>
+          </CardContent>
+        </Card>
 
         <datalist id="challan-desc-suggestions">
           <option value="Vacuum Hardening" />
@@ -393,14 +405,14 @@ export default function JobworkForm() {
         )}
 
         {/* Actions */}
-        <div className="flex gap-3 pt-1">
-          <button type="submit" disabled={loading} className="btn-primary">
-            {loading
-              ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> {isEdit ? 'Updating...' : 'Creating...'}</>
-              : <><span className="material-symbols-outlined text-sm">save</span> {isEdit ? 'Update Challan' : 'Create Challan'}</>
-            }
-          </button>
-          <Link to="/jobwork" className="btn-ghost">Cancel</Link>
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          <Button type="submit" loading={loading}>
+            {!loading && <Save />}
+            {loading ? (isEdit ? 'Updating...' : 'Creating...') : (isEdit ? 'Update Challan' : 'Create Challan')}
+          </Button>
+          <Button type="button" variant="ghost" asChild disabled={loading}>
+            <Link to="/jobwork">Cancel</Link>
+          </Button>
         </div>
       </form>
     </div>

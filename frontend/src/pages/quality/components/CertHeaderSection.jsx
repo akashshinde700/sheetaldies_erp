@@ -1,14 +1,17 @@
 import React from 'react';
+import { RefreshCw } from 'lucide-react';
 import SearchSelect from '../../../components/SearchSelect';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { FormField } from '@/components/ui/form-field';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
-const F = ({ label, children, className }) => (
-  <div className={className}>
-    <label className="form-label">{label}</label>
-    {children}
-  </div>
+const JC_INPUT = 'bg-indigo-50 text-indigo-900 font-semibold cursor-not-allowed disabled:bg-indigo-50 disabled:text-indigo-900 disabled:opacity-100';
+
+const GroupTitle = ({ children }) => (
+  <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">{children}</p>
 );
-
-const JC_INPUT = 'form-input bg-indigo-50 text-indigo-900 font-semibold cursor-not-allowed';
 
 export default function CertHeaderSection({ form, set, parties, jobCards, jcData }) {
   const locked = !!jcData;
@@ -23,81 +26,93 @@ export default function CertHeaderSection({ form, set, parties, jobCards, jcData
   }));
 
   return (
-    <div className="card p-5 space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-2">
-        <div>
-          <p className="section-title">Certificate Details</p>
-          <p className="text-xs text-slate-500 mt-1">Link a Job Card, customer, and certificate metadata in one section.</p>
+    <Card>
+      <CardHeader className="flex-row items-start justify-between space-y-0 gap-3">
+        <div className="space-y-1 min-w-0">
+          <CardTitle>Certificate Details</CardTitle>
+          <CardDescription>Link a Job Card, customer, and certificate metadata in one section.</CardDescription>
         </div>
         {locked && (
-          <span className="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+          <Badge className="bg-indigo-100 text-indigo-700 uppercase tracking-wider text-[10px] shrink-0">
             Job Card: {jcData.jobCardNo}
-          </span>
+          </Badge>
         )}
-      </div>
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <F label="Customer">
-          {locked ? (
-            <input value={jcData.customer?.name || jcData.customerNameSnapshot || form.issuedTo || ''} disabled className={JC_INPUT} />
-          ) : (
-            <SearchSelect
-              value={String(form.customerId || '')}
-              onChange={v => set('customerId', v)}
-              options={customerOptions}
-              placeholder="— Select Customer —"
-              required
-            />
-          )}
-        </F>
-        <F label="Certificate No.">
-          <div className="flex gap-1">
-            <input value={form.issueNo} onChange={e => set('issueNo', e.target.value)} className="form-input flex-1 font-mono" placeholder="Auto-generated" />
-            <button type="button" title="Regenerate"
-              onClick={() => {
-                const now = new Date();
-                const yy  = String(now.getFullYear()).slice(-2);
-                const mm  = String(now.getMonth() + 1).padStart(2, '0');
-                const rand = String(Math.floor(100 + Math.random() * 900));
-                set('issueNo', `${yy}${mm}${rand}`);
-              }}
-              className="px-2 border border-slate-300 rounded-lg text-slate-400 hover:text-indigo-600 hover:border-indigo-300 text-xs">
-              ↻
-            </button>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {/* ── Source ── */}
+        <div className="space-y-3">
+          <GroupTitle>Source</GroupTitle>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+            <FormField label="Job Card No.">
+              <SearchSelect
+                value={String(form.jobCardId || '')}
+                onChange={v => set('jobCardId', v)}
+                options={jobCardOptions}
+                placeholder="— Select Job Card —"
+              />
+            </FormField>
+            <FormField label="Customer" required>
+              {locked ? (
+                <Input value={jcData.customer?.name || jcData.customerNameSnapshot || form.issuedTo || ''} disabled className={JC_INPUT} />
+              ) : (
+                <SearchSelect
+                  value={String(form.customerId || '')}
+                  onChange={v => set('customerId', v)}
+                  options={customerOptions}
+                  placeholder="— Select Customer —"
+                  required
+                />
+              )}
+            </FormField>
           </div>
-        </F>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <F label="Job Card No.">
-          <SearchSelect
-            value={String(form.jobCardId || '')}
-            onChange={v => set('jobCardId', v)}
-            options={jobCardOptions}
-            placeholder="— Select Job Card —"
-          />
-        </F>
-        <F label="Your PO No.">
-          <input value={form.yourPoNo} disabled={locked} onChange={e => set('yourPoNo', e.target.value)}
-            className={locked ? JC_INPUT : 'form-input'} />
-        </F>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <F label="Your PO Date">
-          <input type="date" value={form.yourPoDate} onChange={e => set('yourPoDate', e.target.value)} className="form-input" />
-        </F>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <F label="Your DC No.">
-          <input value={form.yourRefNo} onChange={e => set('yourRefNo', e.target.value)} className="form-input" />
-        </F>
-        <F label="Issue Date">
-          <input type="date" value={form.issueDate} onChange={e => set('issueDate', e.target.value)} className="form-input" />
-        </F>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <F label="Issue By">
-          <input value={form.checkedBy} onChange={e => set('checkedBy', e.target.value)} className="form-input" placeholder="Inspector name" />
-        </F>
-      </div>
-    </div>
+        </div>
+
+        {/* ── Certificate ── */}
+        <div className="space-y-3">
+          <GroupTitle>Certificate</GroupTitle>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+            <FormField label="Certificate No.">
+              <div className="flex gap-1.5">
+                <Input value={form.issueNo} onChange={e => set('issueNo', e.target.value)} className="flex-1 font-mono" placeholder="Auto-generated" />
+                <Button type="button" variant="outline" title="Regenerate"
+                  onClick={() => {
+                    const now = new Date();
+                    const yy  = String(now.getFullYear()).slice(-2);
+                    const mm  = String(now.getMonth() + 1).padStart(2, '0');
+                    const rand = String(Math.floor(100 + Math.random() * 900));
+                    set('issueNo', `${yy}${mm}${rand}`);
+                  }}
+                  className="shrink-0 px-2.5 min-h-[44px] sm:min-h-0 sm:h-9 text-slate-400 hover:text-indigo-600">
+                  <RefreshCw />
+                </Button>
+              </div>
+            </FormField>
+            <FormField label="Issue Date">
+              <Input type="date" value={form.issueDate} onChange={e => set('issueDate', e.target.value)} />
+            </FormField>
+            <FormField label="Issue By">
+              <Input value={form.checkedBy} onChange={e => set('checkedBy', e.target.value)} placeholder="Inspector name" />
+            </FormField>
+          </div>
+        </div>
+
+        {/* ── Customer references ── */}
+        <div className="space-y-3">
+          <GroupTitle>Customer References</GroupTitle>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+            <FormField label="Your PO No.">
+              <Input value={form.yourPoNo} disabled={locked} onChange={e => set('yourPoNo', e.target.value)}
+                className={locked ? JC_INPUT : undefined} />
+            </FormField>
+            <FormField label="Your PO Date">
+              <Input type="date" value={form.yourPoDate} onChange={e => set('yourPoDate', e.target.value)} />
+            </FormField>
+            <FormField label="Your DC No.">
+              <Input value={form.yourRefNo} onChange={e => set('yourRefNo', e.target.value)} />
+            </FormField>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

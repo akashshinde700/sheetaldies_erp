@@ -1,10 +1,17 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import {
+  ArrowLeft, Plus, Pencil, Printer, Trash2, Loader2, Scale, ClipboardList, SquarePlus,
+} from 'lucide-react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { formatDate } from '../../utils/formatters';
 import { useAuth } from '../../context/AuthContext';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const stripDesc = (desc, mat, proc) => {
   let d = desc || '';
@@ -14,73 +21,74 @@ const stripDesc = (desc, mat, proc) => {
   return d;
 };
 
-const PROD_STATUS_COLOR = {
-  COMPLETED: 'bg-emerald-100 text-emerald-700',
-  PARTIAL:   'bg-amber-100 text-amber-700',
-  PENDING:   'bg-slate-100 text-slate-500',
+const PROD_STATUS_VARIANT = {
+  COMPLETED: 'success',
+  PARTIAL:   'warning',
+  PENDING:   'neutral',
 };
+
+const STATUS_VARIANT = {
+  DRAFT:      'neutral',
+  SENT:       'warning',
+  RECEIVED:   'info',
+  COMPLETED:  'success',
+  CANCELLED:  'error',
+};
+
+const JC_STATUS_VARIANT = {
+  SENT_FOR_JOBWORK: 'warning',
+  IN_PROGRESS:      'info',
+  COMPLETED:        'success',
+  ON_HOLD:          'error',
+};
+
+/* Definition-list style row: small uppercase label + value */
+const Info = ({ label, className = '', children }) => (
+  <div className={className}>
+    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">{label}</p>
+    <div className="text-sm font-semibold text-slate-800">{children}</div>
+  </div>
+);
 
 function ItemRow({ item, index, challanId }) {
   const prodStatus = item.itemStatus || 'PENDING';
   return (
-    <tr className="hover:bg-slate-50/50 transition-colors group">
-      <td className="px-2 py-2 text-slate-400 text-center font-mono">{index + 1}</td>
-      <td className="px-2 py-2 font-medium text-slate-800">{stripDesc(item.description || item.item?.description, item.material, item.processName) || '—'}</td>
-      <td className="px-2 py-2 text-slate-600 font-mono">{item.drawingNo || '—'}</td>
-      <td className="px-2 py-2 text-slate-600 font-semibold">{item.material || '—'}</td>
-      <td className="px-2 py-2 text-slate-600">{item.processName || '—'}</td>
-      <td className="px-2 py-2 text-slate-600">{item.hrc || '—'}</td>
-      <td className="px-2 py-2 text-slate-700 text-right tabular-nums font-semibold">{item.quantity ?? '—'}</td>
-      <td className="px-2 py-2 text-slate-600 text-right tabular-nums">{item.weight ? Number(item.weight).toFixed(3) : '—'}</td>
-      <td className="px-2 py-2 text-right tabular-nums font-semibold text-emerald-700">
+    <tr className="tr group">
+      <td className="td text-slate-400 text-center font-mono">{index + 1}</td>
+      <td className="td font-medium text-slate-800">{stripDesc(item.description || item.item?.description, item.material, item.processName) || '—'}</td>
+      <td className="td text-slate-600 font-mono">{item.drawingNo || '—'}</td>
+      <td className="td text-slate-600 font-semibold">{item.material || '—'}</td>
+      <td className="td text-slate-600">{item.processName || '—'}</td>
+      <td className="td text-slate-600">{item.hrc || '—'}</td>
+      <td className="td text-slate-700 text-right tabular-nums font-semibold">{item.quantity ?? '—'}</td>
+      <td className="td text-slate-600 text-right tabular-nums">{item.weight ? Number(item.weight).toFixed(3) : '—'}</td>
+      <td className="td text-right tabular-nums font-semibold text-emerald-700">
         {item.completedQty != null ? Number(item.completedQty).toFixed(3) : '0.000'}
       </td>
-      <td className="px-2 py-2 text-right tabular-nums font-semibold text-amber-700">
+      <td className="td text-right tabular-nums font-semibold text-amber-700">
         {item.pendingQty != null ? Number(item.pendingQty).toFixed(3) : (item.quantity ?? '—')}
       </td>
-      <td className="px-2 py-2">
-        <span className={`badge text-[10px] font-bold ${PROD_STATUS_COLOR[prodStatus]}`}>{prodStatus}</span>
+      <td className="td">
+        <Badge variant={PROD_STATUS_VARIANT[prodStatus]} className="px-1.5 py-0.5 text-[10px]">{prodStatus}</Badge>
       </td>
-      <td className="px-2 py-2">
+      <td className="td">
         {item.jobCard ? (
-          <Link to={`/jobcards/${item.jobCard.id}`} className="text-sky-600 hover:underline font-mono text-[11px] font-semibold">
+          <Link to={`/jobcards/${item.jobCard.id}`} className="text-sky-700 hover:underline font-mono text-[11px] font-semibold">
             {item.jobCard.jobCardNo}
           </Link>
         ) : (
-          <span className="inline-flex items-center gap-0.5 text-amber-600 text-[10px] font-bold">
+          <span className="inline-flex items-center gap-1 text-amber-600 text-[10px] font-bold">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse inline-block"></span>
             Pending
           </span>
         )}
       </td>
-      <td className="px-2 py-2 text-slate-400 text-[10px]">
+      <td className="td text-slate-400 text-[10px]">
         <Link to={`/jobwork/${challanId}/edit`} className="hover:text-sky-600 hover:underline">Edit in Challan</Link>
       </td>
     </tr>
   );
 }
-
-const STATUS_COLOR = {
-  DRAFT:      'bg-slate-100 text-slate-600',
-  SENT:       'bg-amber-100 text-amber-700',
-  RECEIVED:   'bg-blue-100 text-blue-700',
-  COMPLETED:  'bg-emerald-100 text-emerald-700',
-  CANCELLED:  'bg-rose-100 text-rose-700',
-};
-
-const JC_STATUS_COLOR = {
-  SENT_FOR_JOBWORK: 'bg-amber-100 text-amber-700',
-  IN_PROGRESS:      'bg-blue-100 text-blue-700',
-  COMPLETED:        'bg-emerald-100 text-emerald-700',
-  ON_HOLD:          'bg-rose-100 text-rose-700',
-};
-
-const F = ({ label, children }) => (
-  <div>
-    <label className="form-label">{label}</label>
-    {children}
-  </div>
-);
 
 export default function JobworkDetail() {
   const { id } = useParams();
@@ -187,7 +195,7 @@ export default function JobworkDetail() {
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <div className="flex items-center gap-3 text-slate-400">
-        <span className="material-symbols-outlined animate-spin">progress_activity</span>
+        <Loader2 className="h-5 w-5 animate-spin" />
         <span className="text-sm">Loading challan...</span>
       </div>
     </div>
@@ -203,129 +211,127 @@ export default function JobworkDetail() {
       {/* Header */}
       <div className="page-header">
         <div className="flex items-start gap-3 min-w-0 flex-1">
-          <Link to="/jobwork"
-            className="w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-colors shadow-sm">
-            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-          </Link>
-          <div className="space-y-2 min-w-0">
-            <h1 className="page-title">{ch.inwardNo || ch.challanNo}</h1>
+          <Button variant="outline" size="icon" asChild className="rounded-xl shrink-0 text-slate-500 hover:text-slate-900">
+            <Link to="/jobwork" aria-label="Back to jobwork list">
+              <ArrowLeft />
+            </Link>
+          </Button>
+          <div className="space-y-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="page-title">{ch.inwardNo || ch.challanNo}</h1>
+              <Badge variant={STATUS_VARIANT[ch.status] || 'neutral'}>{ch.status}</Badge>
+            </div>
             <p className="page-subtitle">Rule 45(1) CGST Rules, 2017 — Jobwork Challan</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Most inwards are entered one after another, so the next one should
               be reachable from here without going back to the list first. */}
-          <Link to="/jobwork/inward-entry" className="btn-primary">
-            <span className="material-symbols-outlined text-[20px]">add</span>
-            New Inward
-          </Link>
-          <Link to={`/jobwork/${id}/edit`} className="btn-outline bg-white">
-            <span className="material-symbols-outlined text-[20px]">edit</span>
-            Edit
-          </Link>
-          <Link to={`/jobwork/${id}/print`} className="btn-outline bg-white">
-            <span className="material-symbols-outlined text-[20px]">print</span>
-            Print
-          </Link>
+          <Button asChild>
+            <Link to="/jobwork/inward-entry">
+              <Plus /> New Inward
+            </Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link to={`/jobwork/${id}/edit`}>
+              <Pencil /> Edit
+            </Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link to={`/jobwork/${id}/print`}>
+              <Printer /> Print
+            </Link>
+          </Button>
           {isManager && (
-            <button onClick={handleDelete} disabled={deleting} className="btn-outline bg-white text-rose-600 border-rose-200 hover:bg-rose-50">
-              <span className="material-symbols-outlined text-[20px]">delete</span>
+            <Button type="button" variant="outline" onClick={handleDelete} disabled={deleting}
+              className="text-rose-600 border-rose-200 hover:bg-rose-50 hover:border-rose-300">
+              {deleting ? <Loader2 className="animate-spin" /> : <Trash2 />}
               {deleting ? 'Deleting…' : 'Delete'}
-            </button>
+            </Button>
           )}
-          <span className={`badge ${STATUS_COLOR[ch.status] || 'bg-slate-100 text-slate-600'}`}>{ch.status}</span>
         </div>
       </div>
 
       {/* Part 1: Challan Info */}
-      <div className="card p-5">
-        <p className="section-title border-b border-slate-100 pb-2 mb-4">Part 1 — Challan Details</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-3 text-sm">
-          <div>
-            <span className="text-xs text-slate-400 block mb-0.5">Inward No</span>
-            <span className="font-bold text-sky-700 font-mono">{ch.inwardNo || '—'}</span>
+      <Card>
+        <CardHeader>
+          <CardTitle>Part 1 — Challan Details</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-4">
+            <Info label="Inward No">
+              <span className="font-bold text-sky-700 font-mono">{ch.inwardNo || '—'}</span>
+            </Info>
+            <Info label="Challan No">
+              <span className="font-mono">{ch.challanNo}</span>
+            </Info>
+            <Info label="Challan Date">{formatDate(ch.challanDate)}</Info>
+            <Info label="From (Customer)">{ch.fromParty?.name}</Info>
+            <Info label="To (Processor)">{ch.toParty?.name}</Info>
+            <Info label="Vehicle No">
+              <span className="font-mono">{ch.vehicleNo || '—'}</span>
+            </Info>
+            <Info label="Delivery Person">{ch.deliveryPerson || '—'}</Info>
+            <Info label="Issued By">{ch.issuedBy || '—'}</Info>
+            <Info label="PO No">
+              <span className="font-mono">{ch.poNo || '—'}</span>
+            </Info>
+            {ch.processingNotes && (
+              <Info label="Processing Notes" className="sm:col-span-2 md:col-span-3">
+                {ch.processingNotes}
+              </Info>
+            )}
           </div>
-          <div>
-            <span className="text-xs text-slate-400 block mb-0.5">Challan No</span>
-            <span className="font-semibold text-slate-800 font-mono">{ch.challanNo}</span>
-          </div>
-          <div>
-            <span className="text-xs text-slate-400 block mb-0.5">Challan Date</span>
-            <span className="font-semibold text-slate-800">{formatDate(ch.challanDate)}</span>
-          </div>
-          <div>
-            <span className="text-xs text-slate-400 block mb-0.5">From (Customer)</span>
-            <span className="font-semibold text-slate-800">{ch.fromParty?.name}</span>
-          </div>
-          <div>
-            <span className="text-xs text-slate-400 block mb-0.5">To (Processor)</span>
-            <span className="font-semibold text-slate-800">{ch.toParty?.name}</span>
-          </div>
-          <div>
-            <span className="text-xs text-slate-400 block mb-0.5">Vehicle No</span>
-            <span className="font-semibold text-slate-800 font-mono">{ch.vehicleNo || '—'}</span>
-          </div>
-          <div>
-            <span className="text-xs text-slate-400 block mb-0.5">Delivery Person</span>
-            <span className="font-semibold text-slate-800">{ch.deliveryPerson || '—'}</span>
-          </div>
-          <div>
-            <span className="text-xs text-slate-400 block mb-0.5">Issued By</span>
-            <span className="font-semibold text-slate-800">{ch.issuedBy || '—'}</span>
-          </div>
-          <div>
-            <span className="text-xs text-slate-400 block mb-0.5">PO No</span>
-            <span className="font-semibold text-slate-800 font-mono">{ch.poNo || '—'}</span>
-          </div>
-          {ch.processingNotes && (
-            <div className="col-span-3">
-              <span className="text-xs text-slate-400 block mb-0.5">Processing Notes</span>
-              <span className="font-semibold text-slate-800">{ch.processingNotes}</span>
-            </div>
-          )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* All Items Table (read-only — edit/add/remove items from the Edit Challan page) */}
-      <div className="card p-5">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-4">
-          <p className="section-title border-0 pb-0 mb-0">Items Received</p>
-          <Link to={`/jobwork/${id}/edit`} className="text-xs font-bold text-sky-700 border border-sky-200 rounded-lg px-3 py-1.5 hover:bg-sky-50 inline-flex items-center gap-1">
-            <span className="material-symbols-outlined text-[16px]">edit</span> Edit Items
-          </Link>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs table-fixed" style={{ minWidth: '1400px' }}>
-            <colgroup>
-              <col style={{ width: '48px' }} />
-              <col style={{ width: '220px' }} />
-              <col style={{ width: '120px' }} />
-              <col style={{ width: '110px' }} />
-              <col style={{ width: '140px' }} />
-              <col style={{ width: '64px' }} />
-              <col style={{ width: '96px' }} />
-              <col style={{ width: '96px' }} />
-              <col style={{ width: '96px' }} />
-              <col style={{ width: '96px' }} />
-              <col style={{ width: '110px' }} />
-              <col style={{ width: '120px' }} />
-              <col style={{ width: '72px' }} />
-            </colgroup>
-            <thead>
-              <tr className="bg-gradient-to-r from-slate-50 to-sky-50/30 border-b border-slate-100">
-                {['Sr.', 'Description', 'Drawing No', 'Material', 'Process', 'HRC', 'Assigned Qty', 'Weight (kg)', 'Completed', 'Pending', 'Status', 'Job Card', ''].map(h => (
-                  <th key={h} className="px-2 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left whitespace-nowrap">{h}</th>
+      <Card>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <div className="space-y-1">
+            <CardTitle>Items Received</CardTitle>
+            <CardDescription>{ch.items?.length || 0} item{(ch.items?.length || 0) !== 1 ? 's' : ''} on this challan</CardDescription>
+          </div>
+          <Button variant="outline" size="sm" asChild>
+            <Link to={`/jobwork/${id}/edit`}>
+              <Pencil /> Edit Items
+            </Link>
+          </Button>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="table-responsive">
+            <table className="w-full text-xs table-fixed" style={{ minWidth: '1400px' }}>
+              <colgroup>
+                <col style={{ width: '48px' }} />
+                <col style={{ width: '220px' }} />
+                <col style={{ width: '120px' }} />
+                <col style={{ width: '110px' }} />
+                <col style={{ width: '140px' }} />
+                <col style={{ width: '64px' }} />
+                <col style={{ width: '96px' }} />
+                <col style={{ width: '96px' }} />
+                <col style={{ width: '96px' }} />
+                <col style={{ width: '96px' }} />
+                <col style={{ width: '110px' }} />
+                <col style={{ width: '120px' }} />
+                <col style={{ width: '72px' }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  {['Sr.', 'Description', 'Drawing No', 'Material', 'Process', 'HRC', 'Assigned Qty', 'Weight (kg)', 'Completed', 'Pending', 'Status', 'Job Card', ''].map((h, hIdx) => (
+                    <th key={`${h}-${hIdx}`} className="th whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50/80">
+                {ch.items?.map((it, i) => (
+                  <ItemRow key={it.id} item={it} index={i} challanId={id} />
                 ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50/80">
-              {ch.items?.map((it, i) => (
-                <ItemRow key={it.id} item={it} index={i} challanId={id} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Weight Summary */}
       {ch.weightSummary && ch.weightSummary.inwardTotalWeight > 0 && (() => {
@@ -335,230 +341,235 @@ export default function JobworkDetail() {
           : 0);
         const fully = ws.fullyConsumed ?? (ws.remainingWeight <= 0 && ws.inwardTotalWeight > 0);
         return (
-          <div className="card p-5">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+          <Card>
+            <CardHeader className="flex-row items-center justify-between space-y-0">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-amber-600 text-[15px]">scale</span>
+                  <Scale className="h-4 w-4 text-amber-600" />
                 </div>
-                <p className="section-title">Inward Weight Tracking</p>
+                <CardTitle>Inward Weight Tracking</CardTitle>
               </div>
               {fully && (
-                <span className="badge bg-emerald-100 text-emerald-700 font-bold">Fully Consumed</span>
+                <Badge variant="success">Fully Consumed</Badge>
               )}
-            </div>
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 text-center">
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Total Weight</p>
-                <p className="text-2xl font-extrabold text-slate-800 tabular-nums">
-                  {Number(ws.inwardTotalWeight).toFixed(3)}
-                </p>
-                <p className="text-xs text-slate-400 mt-0.5">kg</p>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 text-center">
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Total Weight</p>
+                  <p className="text-2xl font-extrabold text-slate-800 tabular-nums">
+                    {Number(ws.inwardTotalWeight).toFixed(3)}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-0.5">kg</p>
+                </div>
+                <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-center">
+                  <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">Consumed</p>
+                  <p className="text-2xl font-extrabold text-amber-700 tabular-nums">
+                    {Number(ws.consumedWeight).toFixed(3)}
+                  </p>
+                  <p className="text-xs text-amber-400 mt-0.5">kg used</p>
+                </div>
+                <div className={`rounded-xl border p-4 text-center ${fully ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                  <p className={`text-[10px] font-bold uppercase tracking-wide mb-1 ${fully ? 'text-rose-600' : 'text-emerald-600'}`}>
+                    {fully ? 'Exhausted' : 'Remaining'}
+                  </p>
+                  <p className={`text-2xl font-extrabold tabular-nums ${fully ? 'text-rose-700' : 'text-emerald-700'}`}>
+                    {Number(ws.remainingWeight).toFixed(3)}
+                  </p>
+                  <p className={`text-xs mt-0.5 ${fully ? 'text-rose-400' : 'text-emerald-400'}`}>kg available</p>
+                </div>
               </div>
-              <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-center">
-                <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">Consumed</p>
-                <p className="text-2xl font-extrabold text-amber-700 tabular-nums">
-                  {Number(ws.consumedWeight).toFixed(3)}
-                </p>
-                <p className="text-xs text-amber-400 mt-0.5">kg used</p>
+              <div>
+                <div className="flex justify-between text-[10px] text-slate-500 mb-1">
+                  <span className="font-bold uppercase tracking-wider text-slate-400">Consumption</span>
+                  <span className="font-bold tabular-nums">{pct}%</span>
+                </div>
+                <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                  <div
+                    className={`h-2.5 rounded-full transition-all ${pct >= 100 ? 'bg-rose-500' : pct >= 80 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                    style={{ width: `${Math.min(100, pct)}%` }}
+                  />
+                </div>
               </div>
-              <div className={`rounded-xl border p-4 text-center ${fully ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200'}`}>
-                <p className={`text-[10px] font-bold uppercase tracking-wide mb-1 ${fully ? 'text-rose-600' : 'text-emerald-600'}`}>
-                  {fully ? 'Exhausted' : 'Remaining'}
-                </p>
-                <p className={`text-2xl font-extrabold tabular-nums ${fully ? 'text-rose-700' : 'text-emerald-700'}`}>
-                  {Number(ws.remainingWeight).toFixed(3)}
-                </p>
-                <p className={`text-xs mt-0.5 ${fully ? 'text-rose-400' : 'text-emerald-400'}`}>kg available</p>
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between text-[10px] text-slate-500 mb-1">
-                <span>Consumption</span>
-                <span className="font-bold">{pct}%</span>
-              </div>
-              <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
-                <div
-                  className={`h-2.5 rounded-full transition-all ${pct >= 100 ? 'bg-rose-500' : pct >= 80 ? 'bg-amber-500' : 'bg-emerald-500'}`}
-                  style={{ width: `${Math.min(100, pct)}%` }}
-                />
-              </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         );
       })()}
 
       {/* ── Job Cards Section ── */}
-      <div className="card p-5 space-y-5">
-        <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+      <Card>
+        <CardHeader className="flex-row items-center gap-2 space-y-0">
           <div className="w-7 h-7 rounded-lg bg-sky-50 flex items-center justify-center">
-            <span className="material-symbols-outlined text-sky-500 text-[15px]">assignment</span>
+            <ClipboardList className="h-4 w-4 text-sky-500" />
           </div>
-          <p className="section-title">Job Cards</p>
+          <CardTitle>Job Cards</CardTitle>
           {relatedJobCards.length > 0 && (
-            <span className="text-[11px] bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full font-bold ml-1">
+            <Badge variant="info" className="ml-1">
               {relatedJobCards.length} created
-            </span>
+            </Badge>
           )}
           {pendingItems.length > 0 && (
-            <span className="text-[11px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">
+            <Badge variant="warning">
               {pendingItems.length} pending item{pendingItems.length > 1 ? 's' : ''}
-            </span>
+            </Badge>
           )}
-        </div>
+        </CardHeader>
+        <CardContent className="space-y-5">
 
-        {/* Related Job Cards */}
-        {relatedJobCards.length > 0 && (
-          <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Related Job Cards</p>
-            <div className="rounded-xl border border-slate-200 overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="text-left px-4 py-2.5 font-bold text-[11px] uppercase tracking-wide text-slate-600">Job Card No</th>
-                    <th className="text-left px-4 py-2.5 font-bold text-[11px] uppercase tracking-wide text-slate-600">Inward No</th>
-                    <th className="text-center px-4 py-2.5 font-bold text-[11px] uppercase tracking-wide text-slate-600">Items</th>
-                    <th className="text-right px-4 py-2.5 font-bold text-[11px] uppercase tracking-wide text-slate-600">Weight Used (kg)</th>
-                    <th className="text-left px-4 py-2.5 font-bold text-[11px] uppercase tracking-wide text-slate-600">Status</th>
-                    <th className="px-4 py-2.5"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {relatedJobCards.map(jc => (
-                    <tr key={jc.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-2.5 font-mono font-bold text-slate-800">{jc.jobCardNo}</td>
-                      <td className="px-4 py-2.5 font-mono text-sky-600 font-semibold">{ch.inwardNo || ch.challanNo}</td>
-                      <td className="px-4 py-2.5 text-center font-bold text-slate-700 tabular-nums">{jc.itemCount}</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-amber-700">
-                        {jc.totalWeight ? Number(jc.totalWeight).toFixed(3) : <span className="text-slate-400">—</span>}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <span className={`badge text-[10px] ${JC_STATUS_COLOR[jc.status] || 'bg-slate-100 text-slate-600'}`}>
-                          {jc.status?.replace(/_/g, ' ') || '—'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5 text-right">
-                        <Link to={`/jobcards/${jc.id}`} className="text-sky-600 hover:underline font-semibold">
-                          View →
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* Pending Items — Select to Create Job Card */}
-        {pendingItems.length > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-                Pending Items — Select to Create Job Card
-              </p>
-              <button type="button" onClick={toggleAll} className="text-xs text-sky-600 hover:underline font-semibold">
-                {allSelected ? 'Deselect All' : 'Select All'}
-              </button>
-            </div>
-
-            <div className="rounded-xl border border-amber-200 overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="bg-amber-50 border-b border-amber-200">
-                    <th className="px-3 py-2.5 w-10">
-                      <input
-                        type="checkbox"
-                        checked={allSelected}
-                        onChange={toggleAll}
-                        className="rounded"
-                      />
-                    </th>
-                    <th className="text-left px-3 py-2.5 font-bold text-[11px] uppercase tracking-wide text-amber-800">Description</th>
-                    <th className="text-left px-3 py-2.5 font-bold text-[11px] uppercase tracking-wide text-amber-800">Material</th>
-                    <th className="text-left px-3 py-2.5 font-bold text-[11px] uppercase tracking-wide text-amber-800">Process</th>
-                    <th className="text-left px-3 py-2.5 font-bold text-[11px] uppercase tracking-wide text-amber-800">Drawing No</th>
-                    <th className="text-right px-3 py-2.5 font-bold text-[11px] uppercase tracking-wide text-amber-800">Qty</th>
-                    <th className="text-right px-3 py-2.5 font-bold text-[11px] uppercase tracking-wide text-amber-800">Weight (kg)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-amber-100">
-                  {pendingItems.map(it => {
-                    const checked = selectedItems.has(it.id);
-                    return (
-                      <tr
-                        key={it.id}
-                        onClick={() => toggleItem(it.id)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleItem(it.id); } }}
-                        tabIndex={0}
-                        role="checkbox"
-                        aria-checked={checked}
-                        className={`cursor-pointer transition-colors border-l-4 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-sky-300 ${checked ? 'bg-sky-50 hover:bg-sky-100 border-l-sky-500' : 'bg-white hover:bg-amber-50/50 border-l-transparent'}`}
-                      >
-                        <td className="px-3 py-2.5 text-center" onClick={e => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleItem(it.id)}
-                            className="rounded"
-                          />
-                        </td>
-                        <td className="px-3 py-2.5 font-medium text-slate-800">{stripDesc(it.description, it.material, it.processName) || '—'}</td>
-                        <td className="px-3 py-2.5 font-semibold text-slate-700">{it.material || '—'}</td>
-                        <td className="px-3 py-2.5 text-slate-600">{it.processName || '—'}</td>
-                        <td className="px-3 py-2.5 font-mono text-slate-500 text-[11px]">{it.drawingNo || '—'}</td>
-                        <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-sky-700">{it.quantity ?? '—'}</td>
-                        <td className="px-3 py-2.5 text-right tabular-nums text-amber-700 font-semibold">
-                          {it.weight ? Number(it.weight).toFixed(3) : '—'}
-                        </td>
+          {/* Related Job Cards */}
+          {relatedJobCards.length > 0 && (
+            <div>
+              <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-2">Related Job Cards</p>
+              <div className="rounded-xl border border-slate-200 overflow-hidden">
+                <div className="table-responsive">
+                  <table className="w-full text-xs min-w-[560px]">
+                    <thead>
+                      <tr>
+                        <th className="th">Job Card No</th>
+                        <th className="th">Inward No</th>
+                        <th className="th text-center">Items</th>
+                        <th className="th text-right">Weight Used (kg)</th>
+                        <th className="th">Status</th>
+                        <th className="th"></th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-                {selectedItems.size > 0 && (
-                  <tfoot className="bg-sky-50 border-t border-sky-200">
-                    <tr>
-                      <td colSpan={5} className="px-3 py-2 text-xs font-bold text-sky-700">
-                        {selectedItems.size} item{selectedItems.size > 1 ? 's' : ''} selected
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums font-black text-sky-700">
-                        {pendingItems.filter(it => selectedItems.has(it.id)).reduce((s, it) => s + (Number(it.quantity) || 0), 0)}
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums font-black text-amber-700">
-                        {pendingItems.filter(it => selectedItems.has(it.id)).reduce((s, it) => s + (Number(it.weight) || 0), 0).toFixed(3)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50/80">
+                      {relatedJobCards.map(jc => (
+                        <tr key={jc.id} className="tr">
+                          <td className="td font-mono font-bold text-slate-800">{jc.jobCardNo}</td>
+                          <td className="td font-mono text-sky-700 font-semibold">{ch.inwardNo || ch.challanNo}</td>
+                          <td className="td text-center font-bold text-slate-700 tabular-nums">{jc.itemCount}</td>
+                          <td className="td text-right tabular-nums font-semibold text-amber-700">
+                            {jc.totalWeight ? Number(jc.totalWeight).toFixed(3) : <span className="text-slate-400">—</span>}
+                          </td>
+                          <td className="td">
+                            <Badge variant={JC_STATUS_VARIANT[jc.status] || 'neutral'} className="px-1.5 py-0.5 text-[10px]">
+                              {jc.status?.replace(/_/g, ' ') || '—'}
+                            </Badge>
+                          </td>
+                          <td className="td text-right">
+                            <Link to={`/jobcards/${jc.id}`} className="text-sky-700 hover:underline font-semibold">
+                              View →
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
+          )}
 
-            <div className="flex items-center gap-3 mt-3">
-              <button
-                type="button"
-                onClick={handleCreateJobCard}
-                disabled={creatingJC || selectedItems.size === 0}
-                className="btn-primary"
-              >
-                {creatingJC ? (
-                  <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Creating…</>
-                ) : (
-                  <><span className="material-symbols-outlined text-sm">add_card</span>
-                    Create Job Card{selectedItems.size > 0 ? ` (${selectedItems.size} item${selectedItems.size > 1 ? 's' : ''})` : ''}
-                  </>
+          {/* Pending Items — Select to Create Job Card */}
+          {pendingItems.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">
+                  Pending Items — Select to Create Job Card
+                </p>
+                <Button type="button" variant="link" size="sm" onClick={toggleAll} className="h-auto px-0">
+                  {allSelected ? 'Deselect All' : 'Select All'}
+                </Button>
+              </div>
+
+              <div className="rounded-xl border border-amber-200 overflow-hidden">
+                <div className="table-responsive">
+                  <table className="w-full text-xs min-w-[640px]">
+                    <thead>
+                      <tr className="bg-amber-50 border-b border-amber-200">
+                        <th className="px-3 py-2.5 w-10">
+                          <Checkbox
+                            checked={allSelected}
+                            onCheckedChange={toggleAll}
+                            aria-label="Select all pending items"
+                          />
+                        </th>
+                        <th className="text-left px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-amber-800">Description</th>
+                        <th className="text-left px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-amber-800">Material</th>
+                        <th className="text-left px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-amber-800">Process</th>
+                        <th className="text-left px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-amber-800">Drawing No</th>
+                        <th className="text-right px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-amber-800">Qty</th>
+                        <th className="text-right px-3 py-2.5 font-bold text-[10px] uppercase tracking-wider text-amber-800">Weight (kg)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-amber-100">
+                      {pendingItems.map(it => {
+                        const checked = selectedItems.has(it.id);
+                        return (
+                          <tr
+                            key={it.id}
+                            onClick={() => toggleItem(it.id)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleItem(it.id); } }}
+                            tabIndex={0}
+                            role="checkbox"
+                            aria-checked={checked}
+                            className={`cursor-pointer transition-colors border-l-4 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-sky-300 ${checked ? 'bg-sky-50 hover:bg-sky-100 border-l-sky-500' : 'bg-white hover:bg-amber-50/50 border-l-transparent'}`}
+                          >
+                            <td className="px-3 py-2.5 text-center" onClick={e => e.stopPropagation()}>
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={() => toggleItem(it.id)}
+                                aria-label={`Select item ${stripDesc(it.description, it.material, it.processName) || it.id}`}
+                              />
+                            </td>
+                            <td className="px-3 py-2.5 font-medium text-slate-800">{stripDesc(it.description, it.material, it.processName) || '—'}</td>
+                            <td className="px-3 py-2.5 font-semibold text-slate-700">{it.material || '—'}</td>
+                            <td className="px-3 py-2.5 text-slate-600">{it.processName || '—'}</td>
+                            <td className="px-3 py-2.5 font-mono text-slate-500 text-[11px]">{it.drawingNo || '—'}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-sky-700">{it.quantity ?? '—'}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums text-amber-700 font-semibold">
+                              {it.weight ? Number(it.weight).toFixed(3) : '—'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    {selectedItems.size > 0 && (
+                      <tfoot className="bg-sky-50 border-t border-sky-200">
+                        <tr>
+                          <td colSpan={5} className="px-3 py-2 text-xs font-bold text-sky-700">
+                            {selectedItems.size} item{selectedItems.size > 1 ? 's' : ''} selected
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums font-black text-sky-700">
+                            {pendingItems.filter(it => selectedItems.has(it.id)).reduce((s, it) => s + (Number(it.quantity) || 0), 0)}
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums font-black text-amber-700">
+                            {pendingItems.filter(it => selectedItems.has(it.id)).reduce((s, it) => s + (Number(it.weight) || 0), 0).toFixed(3)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 mt-3">
+                <Button
+                  type="button"
+                  onClick={handleCreateJobCard}
+                  disabled={creatingJC || selectedItems.size === 0}
+                >
+                  {creatingJC ? (
+                    <><Loader2 className="animate-spin" /> Creating…</>
+                  ) : (
+                    <><SquarePlus />
+                      Create Job Card{selectedItems.size > 0 ? ` (${selectedItems.size} item${selectedItems.size > 1 ? 's' : ''})` : ''}
+                    </>
+                  )}
+                </Button>
+                {selectedItems.size === 0 && (
+                  <p className="text-xs text-slate-400">Select items above to create a Job Card</p>
                 )}
-              </button>
-              {selectedItems.size === 0 && (
-                <p className="text-xs text-slate-400">Select items above to create a Job Card</p>
-              )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {relatedJobCards.length === 0 && pendingItems.length === 0 && (
-          <p className="text-sm text-slate-400 text-center py-4">All items have been sent to Job Cards.</p>
-        )}
-      </div>
+          {relatedJobCards.length === 0 && pendingItems.length === 0 && (
+            <p className="text-sm text-slate-400 text-center py-4">All items have been sent to Job Cards.</p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Footer */}
       <p className="text-[11px] text-slate-400 text-right pb-2">

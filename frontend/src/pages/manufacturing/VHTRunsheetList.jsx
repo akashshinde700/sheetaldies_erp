@@ -1,12 +1,44 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { createPortal } from 'react-dom';
+import { Plus, Pencil, Printer, Trash2, X, Flame } from 'lucide-react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import KpiCard from '../../components/KpiCard';
+import PageNav from '../../components/PageNav';
 import { formatDate } from '../../utils/formatters';
 import SearchSelect from '../../components/SearchSelect';
 import { useAuth } from '../../context/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+
+// planned = info, in-progress = warning, complete = success, cancelled = neutral
+const STATUS_VARIANT = {
+  PLANNED:     'info',
+  IN_PROGRESS: 'warning',
+  COMPLETED:   'success',
+  CANCELLED:   'neutral',
+};
+
+const FilterLabel = ({ children, htmlFor }) => (
+  <label htmlFor={htmlFor} className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+    {children}
+  </label>
+);
+
+const SkeletonRow = () => (
+  <tr>
+    <td className="td"><Skeleton className="h-3.5 w-24" /></td>
+    <td className="td"><Skeleton className="h-3.5 w-20" /></td>
+    <td className="td hidden sm:table-cell"><Skeleton className="h-3.5 w-24" /></td>
+    <td className="td hidden sm:table-cell"><Skeleton className="h-3.5 w-8 ml-auto" /></td>
+    <td className="td hidden md:table-cell"><Skeleton className="h-3.5 w-14 ml-auto" /></td>
+    <td className="td"><Skeleton className="h-5 w-20 rounded-full" /></td>
+    <td className="td"><Skeleton className="h-3.5 w-20 ml-auto" /></td>
+  </tr>
+);
 
 export default function VHTRunsheetList() {
   const { isManager } = useAuth();
@@ -66,30 +98,29 @@ export default function VHTRunsheetList() {
   const totalWt = (items) =>
     (items || []).reduce((s, it) => s + (Number(it.weightKg) || 0), 0);
 
-  const STATUS_STYLE = {
-    PLANNED:     'bg-blue-100 text-blue-700',
-    IN_PROGRESS: 'bg-amber-100 text-amber-700',
-    COMPLETED:   'bg-emerald-100 text-emerald-700',
-    CANCELLED:   'bg-slate-100 text-slate-500',
-  };
+  const hasFilters = Boolean(furnaceId || status);
 
   return (
-    <div className="page-stack w-full space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="page-stack w-full space-y-5 animate-slide-up">
+
+      {/* Header */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="page-title">VHT Run Sheet</h1>
           <p className="page-subtitle">
             Actual furnace execution record (batch jobs, cycle parameters, graph, signatures).
           </p>
         </div>
-        <Link
-          to="/manufacturing/runsheet/new"
-          className="btn-primary shrink-0 inline-flex items-center justify-center gap-2"
-        >
-          <span className="material-symbols-outlined text-[18px]">add</span> New run sheet
-        </Link>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <Button asChild>
+            <Link to="/manufacturing/runsheet/new">
+              <Plus /> New Run Sheet
+            </Link>
+          </Button>
+        </div>
       </div>
 
+      {/* KPIs */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <KpiCard
           label="Run sheets"
@@ -114,136 +145,152 @@ export default function VHTRunsheetList() {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[auto_auto_auto] items-end">
-        <div className="flex items-center gap-2">
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Furnace</label>
-          <SearchSelect
-            value={String(furnaceId || '')}
-            onChange={v => { setPage(1); setFurnaceId(v); }}
-            options={[{ value: '', label: 'All' }, ...(machines || []).map(m => ({ value: m.id, label: m.name || m.code }))]}
-            placeholder="All"
-            className="text-xs min-w-[180px]"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</label>
-          <select
-            value={status}
-            onChange={(e) => { setPage(1); setStatus(e.target.value); }}
-            className="form-input text-xs min-w-[170px]"
-          >
-            <option value="">All</option>
-            <option value="PLANNED">Planned</option>
-            <option value="IN_PROGRESS">In progress</option>
-            <option value="COMPLETED">Completed</option>
-            <option value="CANCELLED">Cancelled</option>
-          </select>
-        </div>
-        {(furnaceId || status) ? (
-          <button
-            type="button"
-            onClick={() => { setPage(1); setFurnaceId(''); setStatus(''); }}
-            className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-500 transition-colors font-medium"
-          >
-            <span className="material-symbols-outlined text-sm">close</span> Clear
-          </button>
-        ) : <div />}
-      </div>
+      {/* Filters */}
+      <Card>
+        <CardContent className="p-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:gap-3">
+            <div className="space-y-1 sm:w-52">
+              <FilterLabel>Furnace</FilterLabel>
+              <SearchSelect
+                value={String(furnaceId || '')}
+                onChange={v => { setPage(1); setFurnaceId(v); }}
+                options={[{ value: '', label: 'All' }, ...(machines || []).map(m => ({ value: m.id, label: m.name || m.code }))]}
+                placeholder="All"
+                className="text-xs w-full"
+              />
+            </div>
+            <div className="space-y-1">
+              <FilterLabel htmlFor="runsheet-status-filter">Status</FilterLabel>
+              <select
+                id="runsheet-status-filter"
+                value={status}
+                onChange={(e) => { setPage(1); setStatus(e.target.value); }}
+                className="form-input text-xs sm:w-44"
+              >
+                <option value="">All</option>
+                <option value="PLANNED">Planned</option>
+                <option value="IN_PROGRESS">In progress</option>
+                <option value="COMPLETED">Completed</option>
+                <option value="CANCELLED">Cancelled</option>
+              </select>
+            </div>
+            {hasFilters && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => { setPage(1); setFurnaceId(''); setStatus(''); }}
+                className="text-slate-500 hover:text-rose-600"
+              >
+                <X /> Clear
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="bg-white rounded-xl border border-slate-200/80 overflow-hidden shadow-sm">
-        {loading ? (
-          <div className="p-8 text-center text-slate-400 text-sm">Loading…</div>
-        ) : rows.length === 0 ? (
-          <div className="p-8 text-center text-slate-500 text-sm">No run sheets yet.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[420px]">
-              <thead>
-                <tr className="bg-slate-50 text-left text-slate-600 border-b border-slate-200">
-                  <th className="px-4 py-3 font-semibold">No.</th>
-                  <th className="px-4 py-3 font-semibold">Date</th>
-                  <th className="px-4 py-3 font-semibold hidden sm:table-cell">Furnace</th>
-                  <th className="px-4 py-3 font-semibold hidden sm:table-cell">Jobs</th>
-                  <th className="px-4 py-3 font-semibold text-right hidden md:table-cell">Total wt (kg)</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-4 py-3 font-semibold text-right">Actions</th>
+      {/* Table */}
+      <div className="card overflow-hidden">
+        <div className="table-responsive">
+          <table className="w-full text-left min-w-[560px]">
+            <thead>
+              <tr>
+                <th className="th">No.</th>
+                <th className="th">Date</th>
+                <th className="th hidden sm:table-cell">Furnace</th>
+                <th className="th hidden sm:table-cell text-right">Jobs</th>
+                <th className="th hidden md:table-cell text-right">Total Wt (kg)</th>
+                <th className="th">Status</th>
+                <th className="th text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50/80">
+              {loading ? (
+                Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-10 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+                        <Flame className="h-5 w-5 text-amber-300" />
+                      </div>
+                      <p className="text-sm text-slate-500">
+                        {hasFilters ? 'No run sheets match your filters.' : 'No run sheets yet.'}
+                      </p>
+                      {!hasFilters && (
+                        <Button variant="outline" size="sm" asChild>
+                          <Link to="/manufacturing/runsheet/new">
+                            <Plus /> Create first run sheet
+                          </Link>
+                        </Button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50/80">
-                    <td className="px-4 py-3 font-mono text-xs">{r.runsheetNumber}</td>
-                    <td className="px-4 py-3">{formatDate(r.runDate)}</td>
-                    <td className="px-4 py-3 hidden sm:table-cell">{r.furnace?.name || r.furnace?.code || '—'}</td>
-                    <td className="px-4 py-3 hidden sm:table-cell">{r.items?.length || 0}</td>
-                    <td className="px-4 py-3 text-right tabular-nums hidden md:table-cell">{totalWt(r.items).toFixed(2)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${STATUS_STYLE[r.status] || 'bg-slate-100 text-slate-700'}`}>
-                        {r.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
+              ) : rows.map((r) => (
+                <tr key={r.id} className="tr">
+                  <td className="td">
+                    <Link
+                      to={`/manufacturing/runsheet/${r.id}`}
+                      className="font-bold text-sky-800 hover:text-sky-950 hover:underline font-mono"
+                    >
+                      {r.runsheetNumber}
+                    </Link>
+                  </td>
+                  <td className="td text-slate-500 whitespace-nowrap">{formatDate(r.runDate)}</td>
+                  <td className="td text-slate-700 font-medium hidden sm:table-cell">{r.furnace?.name || r.furnace?.code || '—'}</td>
+                  <td className="td text-slate-600 hidden sm:table-cell text-right tabular-nums">{r.items?.length || 0}</td>
+                  <td className="td font-semibold text-slate-700 hidden md:table-cell text-right tabular-nums">{totalWt(r.items).toFixed(2)}</td>
+                  <td className="td">
+                    <Badge variant={STATUS_VARIANT[r.status] || 'neutral'}>{r.status}</Badge>
+                  </td>
+                  <td className="td">
+                    <div className="flex items-center justify-end gap-0.5">
+                      <Button variant="ghost" size="icon-sm" asChild
+                        className="text-slate-400 hover:text-sky-700">
                         <Link
                           to={`/manufacturing/runsheet/${r.id}/print`}
                           target="_blank"
                           rel="noreferrer"
                           title="Print"
-                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-600 hover:bg-slate-100 transition-all"
+                          aria-label={`Print run sheet ${r.runsheetNumber}`}
                         >
-                          <span className="material-symbols-outlined text-[18px]">print</span>
+                          <Printer />
                         </Link>
+                      </Button>
+                      <Button variant="ghost" size="icon-sm" asChild
+                        className="text-slate-400 hover:text-sky-700 hover:bg-sky-50">
                         <Link
                           to={`/manufacturing/runsheet/${r.id}`}
                           title="Edit"
-                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-all"
+                          aria-label={`Edit run sheet ${r.runsheetNumber}`}
                         >
-                          <span className="material-symbols-outlined text-[18px]">edit</span>
+                          <Pencil />
                         </Link>
-                        {isManager && (
-                          <button
-                            type="button"
-                            onClick={() => setConfirmDelete(r)}
-                            title="Delete"
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all"
-                          >
-                            <span className="material-symbols-outlined text-[18px]">delete</span>
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                      </Button>
+                      {isManager && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => setConfirmDelete(r)}
+                          title="Delete"
+                          aria-label={`Delete run sheet ${r.runsheetNumber}`}
+                          className="text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                        >
+                          <Trash2 />
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
         {!loading && total > 0 && (
-          <div className="flex flex-col xs:flex-row xs:items-center xs:justify-between gap-2 px-4 py-3 border-t border-slate-100 bg-slate-50/50 text-xs text-slate-600">
-            <span>
-              {(page - 1) * limit + 1}–{Math.min(page * limit, total)} of <span className="font-semibold">{total}</span>
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 hover:bg-sky-50 hover:border-sky-200 hover:text-sky-600"
-              >
-                <span className="material-symbols-outlined text-sm">chevron_left</span> Prev
-              </button>
-              <span className="font-semibold text-slate-500 px-1">{page} / {totalPages}</span>
-              <button
-                type="button"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 hover:bg-sky-50 hover:border-sky-200 hover:text-sky-600"
-              >
-                Next <span className="material-symbols-outlined text-sm">chevron_right</span>
-              </button>
-            </div>
-          </div>
+          <PageNav page={page} totalPages={totalPages} total={total} limit={limit} setPage={setPage} />
         )}
       </div>
 
@@ -254,7 +301,7 @@ export default function VHTRunsheetList() {
             <div className="px-6 py-5">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-rose-600 text-xl">delete</span>
+                  <Trash2 className="h-5 w-5 text-rose-600" />
                 </div>
                 <div>
                   <h3 className="text-sm font-extrabold text-slate-800">Delete Run Sheet?</h3>
@@ -266,14 +313,12 @@ export default function VHTRunsheetList() {
                 {confirmDelete.furnace?.name && <span className="text-slate-500"> — {confirmDelete.furnace.name}</span>}
               </p>
               <div className="flex gap-2">
-                <button type="button" onClick={() => setConfirmDelete(null)} className="flex-1 btn-ghost justify-center">Cancel</button>
-                <button type="button" onClick={handleDelete} disabled={deleting}
-                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold bg-rose-600 hover:bg-rose-700 text-white transition-colors disabled:opacity-60">
-                  {deleting
-                    ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Deleting…</>
-                    : <><span className="material-symbols-outlined text-sm">delete</span> Delete</>
-                  }
-                </button>
+                <Button type="button" variant="ghost" onClick={() => setConfirmDelete(null)} className="flex-1 border border-slate-200">
+                  Cancel
+                </Button>
+                <Button type="button" variant="danger" onClick={handleDelete} disabled={deleting} loading={deleting} className="flex-1">
+                  {!deleting && <Trash2 />} {deleting ? 'Deleting…' : 'Delete'}
+                </Button>
               </div>
             </div>
           </div>

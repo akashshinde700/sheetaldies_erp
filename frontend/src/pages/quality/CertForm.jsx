@@ -2,7 +2,13 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams, useParams, Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import { ArrowLeft, Check } from 'lucide-react';
 import { getCycleSegments, segmentsToTempCycleData } from '../../data/heatTreatmentCycles';
+
+// UI Components
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 // Master Data Hooks
 import { useParties, useMasterJobCards, useProcesses } from '../../hooks/useMasterData';
@@ -226,14 +232,42 @@ export default function CertForm() {
           specialInstruction:   '',
         });
         if (c.items?.length) {
-          setCertItems(c.items.map(it => ({
-            description:  it.description  || '',
-            quantity:     it.quantity != null ? String(it.quantity) : '1',
-            weightPerPc:  it.weightPerPc  != null ? String(it.weightPerPc) : '',
-            totalWeight:  it.totalWeight  != null ? String(it.totalWeight) : '',
-            samplingPlan: it.samplingPlan || '',
-            remarks:      it.remarks      || '',
-          })));
+          // The certificate is issued against a job card, so the job card's
+          // weight is what it shows — including a weight corrected after this
+          // certificate was saved. The saved value stands in only when the job
+          // card has no weight of its own. Print applies the same order.
+          const jcData = c.jobCard || {};
+          const chItems = (jcData.challanItemLinks || []).length
+            ? jcData.challanItemLinks
+            : (jcData.challans || []).flatMap(x => x.items || []);
+          const chById = {};
+          chItems.forEach(ci => { chById[ci.id] = ci; });
+          const jcTotal = Number(jcData.totalWeight) || 0;
+          const chSum = chItems.reduce((sum, ci) => sum + (Number(ci.weight) || 0), 0);
+          const jcWeightFor = (it, i) => {
+            const ch = (it.sourceChallanItemId && chById[it.sourceChallanItemId]) || chItems[i];
+            const own = Number(ch?.weight) || 0;
+            if (jcTotal > 0) {
+              if (chSum > 0) return (own / chSum) * jcTotal;
+              return c.items.length ? jcTotal / c.items.length : 0;
+            }
+            return own;
+          };
+
+          setCertItems(c.items.map((it, i) => {
+            const qty = Math.max(Number(it.quantity) || 1, 1);
+            const fromJc = jcWeightFor(it, i);
+            const total = fromJc > 0 ? fromJc : (it.totalWeight != null ? Number(it.totalWeight) : 0);
+            return {
+              description:  it.description  || '',
+              quantity:     it.quantity != null ? String(it.quantity) : '1',
+              weightPerPc:  total > 0 ? String(Number((total / qty).toFixed(3)))
+                                      : (it.weightPerPc != null ? String(it.weightPerPc) : ''),
+              totalWeight:  total > 0 ? String(Number(total.toFixed(3))) : '',
+              samplingPlan: it.samplingPlan || '',
+              remarks:      it.remarks      || '',
+            };
+          }));
         }
         const rawTemp = c.tempCycleData;
         const parsedTemp = rawTemp ? (typeof rawTemp === 'string' ? JSON.parse(rawTemp) : rawTemp) : null;
@@ -574,9 +608,11 @@ export default function CertForm() {
     <div className="page-stack w-full animate-slide-up">
       <div className="page-header">
         <div className="flex items-start gap-3">
-          <Link to="/quality/certificates" className="w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-colors shadow-sm">
-            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-          </Link>
+          <Button asChild variant="outline" size="icon" className="rounded-xl text-slate-500 hover:text-slate-900 shrink-0">
+            <Link to="/quality/certificates" aria-label="Back to certificates">
+              <ArrowLeft />
+            </Link>
+          </Button>
           <div className="space-y-2">
             <h1 className="page-title">{isEdit ? 'Edit Test Certificate' : 'Create Test Certificate'}</h1>
             <p className="page-subtitle max-w-2xl">Use this form to generate or update quality certificates, link job cards, and capture inspection details in one place.</p>
@@ -591,29 +627,28 @@ export default function CertForm() {
 
         {/* ── Item Selection Panel (create mode only, when JC selected) ── */}
         {!isEdit && form.jobCardId && (
-          <div className="card p-5">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-4">
-              <div>
-                <p className="section-title">Select Items to Certify</p>
-                <p className="text-xs text-slate-400 mt-0.5">Only pending items shown. Already certified items are locked.</p>
+          <Card>
+            <CardHeader className="flex-row items-center justify-between space-y-0 gap-3">
+              <div className="space-y-1 min-w-0">
+                <CardTitle>Select Items to Certify</CardTitle>
+                <CardDescription>Only pending items shown. Already certified items are locked.</CardDescription>
               </div>
               {pendingCertItems.length > 0 && (
-                <button type="button"
+                <Button type="button" variant="link" size="sm" className="shrink-0"
                   onClick={() => setSelectedItemIds(
                     selectedItemIds.size === pendingCertItems.length
                       ? new Set()
                       : new Set(pendingCertItems.map(it => it.id))
-                  )}
-                  className="text-xs font-semibold text-sky-600 hover:underline">
+                  )}>
                   {selectedItemIds.size === pendingCertItems.length ? 'Deselect All' : 'Select All'}
-                </button>
+                </Button>
               )}
-            </div>
-
+            </CardHeader>
+            <CardContent>
             {loadingCertItems ? (
-              <p className="text-xs text-slate-400 py-3">Loading items…</p>
+              <p className="text-xs text-slate-400 py-1">Loading items…</p>
             ) : pendingCertItems.length === 0 && certifiedItems.length === 0 ? (
-              <p className="text-xs text-slate-400 py-3">No items linked to this Job Card.</p>
+              <p className="text-xs text-slate-400 py-1">No items linked to this Job Card.</p>
             ) : (
               <div className="space-y-1.5">
                 {/* Pending items — selectable */}
@@ -640,10 +675,10 @@ export default function CertForm() {
                         </span>
                         {it.material && <span className="text-[10px] text-slate-500">{it.material}</span>}
                       </div>
-                      <div className="flex items-center gap-4 text-xs text-slate-500 flex-shrink-0">
+                      <div className="flex items-center gap-4 text-xs text-slate-500 flex-shrink-0 tabular-nums">
                         <span>Qty: <span className="font-bold text-slate-700">{Number(it.quantity)}</span></span>
                         {it.weight && <span>Wt: <span className="font-bold text-amber-700">{Number(it.weight).toFixed(3)} kg</span></span>}
-                        <span className="badge bg-amber-100 text-amber-700 text-[10px]">Pending Cert</span>
+                        <Badge variant="warning" className="text-[10px]">Pending Cert</Badge>
                       </div>
                     </div>
                   );
@@ -653,16 +688,16 @@ export default function CertForm() {
                 {certifiedItems.map(it => (
                   <div key={it.id}
                     className="flex items-center gap-3 px-3 py-2 rounded-lg border border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed">
-                    <span className="w-3.5 h-3.5 flex-shrink-0 text-emerald-500 text-sm">✓</span>
+                    <Check className="w-3.5 h-3.5 flex-shrink-0 text-emerald-500" strokeWidth={3} />
                     <div className="flex-1 min-w-0">
                       <span className="text-xs font-semibold text-slate-600 truncate block">
                         {it.description || it.processName || '—'}
                       </span>
                     </div>
                     <div className="flex items-center gap-3 text-xs flex-shrink-0">
-                      <span className="badge bg-emerald-100 text-emerald-700 text-[10px]">
+                      <Badge variant="success" className="text-[10px]">
                         Certified {it.certItems?.[0]?.cert?.certNo ? `→ ${it.certItems[0].cert.certNo}` : ''}
-                      </span>
+                      </Badge>
                     </div>
                   </div>
                 ))}
@@ -674,7 +709,8 @@ export default function CertForm() {
                 )}
               </div>
             )}
-          </div>
+            </CardContent>
+          </Card>
         )}
 
         <CertItemsTable certItems={certItems} setCertItems={setCertItems} />
@@ -692,18 +728,20 @@ export default function CertForm() {
         <CertPhotosSection handleImageChange={handleImageChange} existingImages={{ ...jcImages, ...existingImages }} />
         <CertPackingSection form={form} set={set} jcData={jcData} />
 
-        <div className="card p-4 flex flex-wrap items-center justify-between gap-3 border-slate-200 shadow-sm">
+        <Card className="p-4 flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-slate-700">Ready to finalize?</p>
             <p className="text-xs text-slate-500">Save the certificate once all sections are complete.</p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <button type="submit" disabled={loading} className="btn-primary">
+            <Button type="submit" disabled={loading}>
               {loading ? (isEdit ? 'Saving…' : 'Creating…') : (isEdit ? 'Update Certificate' : 'Create Certificate')}
-            </button>
-            <Link to="/quality/certificates" className="btn-ghost">Cancel</Link>
+            </Button>
+            <Button asChild variant="ghost">
+              <Link to="/quality/certificates">Cancel</Link>
+            </Button>
           </div>
-        </div>
+        </Card>
       </form>
     </div>
   );

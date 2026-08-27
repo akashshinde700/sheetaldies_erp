@@ -1,4 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { X } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { FormField } from '@/components/ui/form-field';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const HARDNESS_UNITS = ['HRC', 'HRB', 'HRA', 'HV', 'HVN', 'HS'];
 
@@ -15,11 +21,8 @@ const parseHrc = (val = '') => {
 const hasUnitSuffix = (val = '') =>
   HARDNESS_UNITS.some(u => val.trim().toUpperCase().endsWith(u.toUpperCase()));
 
-const F = ({ label, children, className = '' }) => (
-  <div className={className}>
-    <label className="form-label">{label}</label>
-    {children}
-  </div>
+const GroupTitle = ({ children }) => (
+  <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">{children}</p>
 );
 
 export default function ProductionSection({ form, setForm, weightSummary }) {
@@ -51,100 +54,159 @@ export default function ProductionSection({ form, setForm, weightSummary }) {
     setForm(p => ({ ...p, hrcRange: parsed.range }));
   };
 
+  const weightOverLimit = Boolean(
+    weightSummary && weightSummary.inwardTotalWeight > 0 &&
+    parseFloat(form.totalWeight) > (weightSummary.inwardTotalWeight - (weightSummary.consumedWeight - (weightSummary.thisJobCardWeight || 0)))
+  );
+
   return (
-    <div className="card p-5 space-y-4">
-      <p className="section-title border-b border-slate-100 pb-2">Production Details</p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-        <F label="Quantity *">
-          <input type="number" min="1" value={form.quantity} onChange={e => setForm(p => ({...p, quantity: e.target.value}))} required className="form-input" placeholder="1" />
-        </F>
-        <F label="Total Weight (kg)">
-          <input
-            type="number" step="0.001"
-            value={form.totalWeight}
-            onChange={e => setForm(p => ({...p, totalWeight: e.target.value}))}
-            className={`form-input ${weightSummary && weightSummary.inwardTotalWeight > 0 && parseFloat(form.totalWeight) > (weightSummary.inwardTotalWeight - (weightSummary.consumedWeight - (weightSummary.thisJobCardWeight || 0))) ? 'border-rose-400 focus:ring-rose-400/30' : ''}`}
-            placeholder="0.000"
-          />
-          {weightSummary && weightSummary.inwardTotalWeight > 0 && (() => {
-            const inward    = Number(weightSummary.inwardTotalWeight);
-            const otherUsed = Math.max(0, Number(weightSummary.consumedWeight || 0) - Number(weightSummary.thisJobCardWeight || 0));
-            const entered   = parseFloat(form.totalWeight) || 0;
-            const remaining = inward - otherUsed - entered;
-            const overLimit = entered > 0 && remaining < -0.0001;
-            return (
-              <div className={`mt-1.5 rounded-lg px-3 py-2 text-[11px] space-y-1 border ${overLimit ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'}`}>
-                <div className="flex justify-between text-slate-500">
-                  <span>Inward Total</span>
-                  <span className="font-semibold text-slate-700 tabular-nums">{inward.toFixed(3)} kg</span>
-                </div>
-                {otherUsed > 0 && (
-                  <div className="flex justify-between text-slate-500">
-                    <span>Used by other JCs</span>
-                    <span className="font-semibold text-amber-700 tabular-nums">− {otherUsed.toFixed(3)} kg</span>
+    <Card>
+      <CardHeader>
+        <CardTitle>Production Details</CardTitle>
+        <CardDescription>Quantity, weight, hardness and drawing reference.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* ── Quantity, weight & hardness ── */}
+        <div className="space-y-3">
+          <GroupTitle>Quantity &amp; Hardness</GroupTitle>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+            <FormField label="Quantity" htmlFor="quantity" required>
+              <Input
+                id="quantity"
+                type="number"
+                min="1"
+                inputMode="numeric"
+                value={form.quantity}
+                onChange={e => setForm(p => ({ ...p, quantity: e.target.value }))}
+                required
+                placeholder="1"
+                className="text-right tabular-nums"
+              />
+            </FormField>
+
+            <FormField label="Total Weight (kg)" htmlFor="totalWeight">
+              <Input
+                id="totalWeight"
+                type="number"
+                step="0.001"
+                inputMode="decimal"
+                value={form.totalWeight}
+                onChange={e => setForm(p => ({ ...p, totalWeight: e.target.value }))}
+                invalid={weightOverLimit}
+                placeholder="0.000"
+                className="text-right tabular-nums"
+              />
+              {weightSummary && weightSummary.inwardTotalWeight > 0 && (() => {
+                const inward    = Number(weightSummary.inwardTotalWeight);
+                const otherUsed = Math.max(0, Number(weightSummary.consumedWeight || 0) - Number(weightSummary.thisJobCardWeight || 0));
+                const entered   = parseFloat(form.totalWeight) || 0;
+                const remaining = inward - otherUsed - entered;
+                const overLimit = entered > 0 && remaining < -0.0001;
+                return (
+                  <div className={`mt-1.5 rounded-lg px-3 py-2 text-[11px] space-y-1 border ${overLimit ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'}`}>
+                    <div className="flex justify-between text-slate-500">
+                      <span>Inward Total</span>
+                      <span className="font-semibold text-slate-700 tabular-nums">{inward.toFixed(3)} kg</span>
+                    </div>
+                    {otherUsed > 0 && (
+                      <div className="flex justify-between text-slate-500">
+                        <span>Used by other JCs</span>
+                        <span className="font-semibold text-amber-700 tabular-nums">− {otherUsed.toFixed(3)} kg</span>
+                      </div>
+                    )}
+                    <div className={`flex justify-between font-bold border-t pt-1 ${overLimit ? 'text-rose-600 border-rose-200' : remaining < 0.001 && inward > 0 ? 'text-amber-600 border-slate-200' : 'text-emerald-700 border-slate-200'}`}>
+                      <span>{overLimit ? '⚠ Exceeds limit' : 'Remaining after save'}</span>
+                      <span className="tabular-nums">{remaining.toFixed(3)} kg</span>
+                    </div>
                   </div>
+                );
+              })()}
+            </FormField>
+
+            <FormField label="Hardness Range" htmlFor="hrcRange">
+              <div className="flex items-center gap-1.5">
+                <Input
+                  id="hrcRange"
+                  value={parsed.range}
+                  onChange={onRangeChange}
+                  placeholder="e.g. 54-56"
+                  className="flex-1"
+                />
+                {showUnit ? (
+                  <>
+                    {/* Native select kept intentionally: compact fixed-width
+                        inline unit picker beside the range input. */}
+                    <select
+                      value={parsed.unit}
+                      onChange={onUnitChange}
+                      className="form-input"
+                      style={{ width: 72 }}
+                      aria-label="Hardness unit"
+                    >
+                      {HARDNESS_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                    </select>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={onRemoveUnit}
+                      title="Remove unit"
+                      className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 shrink-0"
+                    >
+                      <X />
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={onAddUnit}
+                    className="whitespace-nowrap shrink-0"
+                  >
+                    + unit
+                  </Button>
                 )}
-                <div className={`flex justify-between font-bold border-t pt-1 ${overLimit ? 'text-rose-600 border-rose-200' : remaining < 0.001 && inward > 0 ? 'text-amber-600 border-slate-200' : 'text-emerald-700 border-slate-200'}`}>
-                  <span>{overLimit ? '⚠ Exceeds limit' : 'Remaining after save'}</span>
-                  <span className="tabular-nums">{remaining.toFixed(3)} kg</span>
-                </div>
               </div>
-            );
-          })()}
-        </F>
-        <F label="Hardness Range">
-          <div className="flex gap-1 items-center">
-            <input
-              value={parsed.range}
-              onChange={onRangeChange}
-              className="form-input"
-              placeholder="e.g. 54-56"
-              style={{ flex: 1 }}
-            />
-            {showUnit ? (
-              <>
-                <select value={parsed.unit} onChange={onUnitChange} className="form-input" style={{ width: 72 }}>
-                  {HARDNESS_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                </select>
-                <button type="button" onClick={onRemoveUnit} title="Remove unit"
-                  className="text-slate-400 hover:text-red-500 text-lg leading-none px-1">×</button>
-              </>
-            ) : (
-              <button type="button" onClick={onAddUnit}
-                className="text-xs text-indigo-500 hover:text-indigo-700 whitespace-nowrap px-1 border border-indigo-200 rounded hover:bg-indigo-50">
-                + unit
-              </button>
-            )}
+            </FormField>
           </div>
-        </F>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <F label="Drawing No (DRG NO)">
-          <input value={form.drawingNo} onChange={e => setForm(p => ({...p, drawingNo: e.target.value}))} className="form-input" placeholder="SDT-2309-V4" />
-        </F>
-        <F label="Show Value in Print">
-          <label className="flex items-center gap-2 h-[38px] cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={form.showDrawingNoInPrint !== false}
-              onChange={e => setForm(p => ({ ...p, showDrawingNoInPrint: e.target.checked }))}
-              className="w-4 h-4 accent-indigo-500 cursor-pointer"
-            />
-            <span className="text-xs text-slate-500">{form.showDrawingNoInPrint !== false ? 'Visible on print' : 'Hidden on print'}</span>
-          </label>
-        </F>
-        <F label="Show Label in Print">
-          <label className="flex items-center gap-2 h-[38px] cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={form.showDrawingNoLabelInPrint !== false}
-              onChange={e => setForm(p => ({ ...p, showDrawingNoLabelInPrint: e.target.checked }))}
-              className="w-4 h-4 accent-indigo-500 cursor-pointer"
-            />
-            <span className="text-xs text-slate-500">{form.showDrawingNoLabelInPrint !== false ? 'Visible on print' : 'Hidden on print'}</span>
-          </label>
-        </F>
-      </div>
-    </div>
+        </div>
+
+        {/* ── Drawing reference ── */}
+        <div className="space-y-3">
+          <GroupTitle>Drawing</GroupTitle>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+            <FormField label="Drawing No (DRG NO)" htmlFor="drawingNo">
+              <Input
+                id="drawingNo"
+                value={form.drawingNo}
+                onChange={e => setForm(p => ({ ...p, drawingNo: e.target.value }))}
+                placeholder="SDT-2309-V4"
+              />
+            </FormField>
+
+            <FormField label="Show Value in Print">
+              <label className="flex items-center gap-2.5 h-9 cursor-pointer select-none">
+                <Checkbox
+                  checked={form.showDrawingNoInPrint !== false}
+                  onCheckedChange={checked => setForm(p => ({ ...p, showDrawingNoInPrint: checked === true }))}
+                />
+                <span className="text-xs text-slate-500">{form.showDrawingNoInPrint !== false ? 'Visible on print' : 'Hidden on print'}</span>
+              </label>
+            </FormField>
+
+            <FormField label="Show Label in Print">
+              <label className="flex items-center gap-2.5 h-9 cursor-pointer select-none">
+                <Checkbox
+                  checked={form.showDrawingNoLabelInPrint !== false}
+                  onCheckedChange={checked => setForm(p => ({ ...p, showDrawingNoLabelInPrint: checked === true }))}
+                />
+                <span className="text-xs text-slate-500">{form.showDrawingNoLabelInPrint !== false ? 'Visible on print' : 'Hidden on print'}</span>
+              </label>
+            </FormField>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

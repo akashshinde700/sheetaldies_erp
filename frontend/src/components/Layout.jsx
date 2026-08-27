@@ -158,7 +158,7 @@ export default function Layout() {
               <span className="material-symbols-outlined text-[24px]">menu</span>
             </button>
 
-            <div className="hidden xl:flex flex-col min-w-0 pr-2 border-r border-slate-200/80 mr-1">
+            <div className="hidden xl:flex flex-col min-w-0 pr-3 border-r border-slate-200/80 mr-1 select-none">
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 leading-none">SVT</span>
               <span className="text-xs font-extrabold text-slate-900 font-headline leading-tight truncate max-w-[10rem]">ERP</span>
             </div>
@@ -183,7 +183,7 @@ export default function Layout() {
                 <p className="text-xs font-semibold text-slate-900 leading-tight truncate max-w-[140px] md:max-w-[200px]">
                   {user?.name}
                 </p>
-                <p className="text-[10px] text-slate-600 mt-0.5 font-semibold uppercase tracking-wide">{user?.role}</p>
+                <p className="text-[10px] text-slate-500 mt-0.5 font-semibold uppercase tracking-wide">{user?.role}</p>
               </div>
             </div>
           </div>

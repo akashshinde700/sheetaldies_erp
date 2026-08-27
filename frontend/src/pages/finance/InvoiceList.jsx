@@ -1,7 +1,13 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
+import {
+  Plus, Download, Printer, Eye, Trash2, X, AlertCircle, Lock,
+  FileDown, FileCheck2, ReceiptText, Banknote, Wrench, Zap, ListChecks, Check, FileUp,
+  FileJson, BadgeCheck, Pencil,
+} from 'lucide-react';
 import api from '../../utils/api';
+import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 import { exportToExcel } from '../../utils/export';
 import KpiCard from '../../components/KpiCard';
@@ -9,24 +15,37 @@ import { formatCurrency, formatDate } from '../../utils/formatters';
 import ListSearchInput from '../../components/ListSearchInput';
 import PageNav from '../../components/PageNav';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { FormField } from '@/components/ui/form-field';
+import { Input } from '@/components/ui/input';
 
-const PAY_STYLE = {
-  PENDING: 'bg-orange-100 text-orange-700',
-  PARTIAL: 'bg-sky-100 text-sky-700',
-  PAID:    'bg-emerald-100 text-emerald-700',
+const PAY_VARIANT = {
+  PENDING: 'warning',
+  PARTIAL: 'info',
+  PAID:    'success',
 };
 
 const PAGE_LIMIT = 10;
 
+const FilterLabel = ({ children, htmlFor }) => (
+  <label htmlFor={htmlFor} className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+    {children}
+  </label>
+);
+
 const SkeletonRow = () => (
-  <tr className="animate-pulse">
-    {Array.from({ length: 11 }, (_, i) => i).map(i => (
-      <td key={i} className="px-4 py-3.5"><div className="h-3 bg-slate-100 rounded w-full" /></td>
+  <tr>
+    {Array.from({ length: 9 }, (_, i) => i).map(i => (
+      <td key={i} className="td"><Skeleton className="h-3.5 w-full" /></td>
     ))}
   </tr>
 );
 
 export default function InvoiceList() {
+  const { isAdmin } = useAuth();
   const [invoices, setInvoices] = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState(null);
@@ -40,6 +59,8 @@ export default function InvoiceList() {
   const [paidDate,  setPaidDate]  = useState(() => new Date().toISOString().split('T')[0]);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [showTallySetup, setShowTallySetup] = useState(false);
+  const [einvImporting, setEinvImporting] = useState(false);
+  const einvFileRef = useRef(null);
 
   const fetchData = useCallback((signal) => {
     setLoading(true); setError(null);
@@ -92,6 +113,48 @@ export default function InvoiceList() {
     }
   };
 
+  // ── GST e-Invoice JSON (portal ke liye) ──
+  const IRP_BULK_UPLOAD_URL = 'https://einvoice1.gst.gov.in/Invoice/BulkUpload';
+
+  const doDownloadEInvoiceJson = async (inv) => {
+    try {
+      const r = await api.get(`/invoices/${inv.id}/einvoice-json`, { responseType: 'blob' });
+      const filename = `${inv.invoiceNo.replace(/\//g, '-')}_einvoice.json`;
+      const blobUrl = URL.createObjectURL(new Blob([r.data], { type: 'application/json' }));
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(blobUrl);
+
+      window.open(IRP_BULK_UPLOAD_URL, '_blank', 'noopener,noreferrer');
+      toast.success('JSON download ho gayi. Portal naye tab me khul raha hai — wahan ye file upload kijiye.');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'e-Invoice JSON nahi ban payi.');
+    }
+  };
+
+  const handleDownloadEInvoiceJson = async (inv) => {
+    try {
+      // Portal ki error report padhne se behtar hai ki dikkat yahin pata chale.
+      const check = await api.get(`/invoices/${inv.id}/einvoice-check`);
+      const problems = check.data?.data?.problems || [];
+      if (problems.length) {
+        setConfirmDialog({
+          title: `${inv.invoiceNo} — e-Invoice me dikkat`,
+          message: problems.join('\n') + '\n\nPhir bhi file download karein? Portal ise reject kar sakta hai.',
+          confirmLabel: 'Phir bhi download karo',
+          variant: 'primary',
+          onConfirm: async () => { setConfirmDialog(null); await doDownloadEInvoiceJson(inv); },
+        });
+        return;
+      }
+      await doDownloadEInvoiceJson(inv);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'e-Invoice jaanch nahi ho payi.');
+    }
+  };
+
   const handleDownloadXml = (inv) => {
     if (inv.xmlDownloadedAt) {
       setConfirmDialog({
@@ -123,6 +186,45 @@ export default function InvoiceList() {
         } finally { setConfirmDialog(null); }
       },
     });
+  };
+
+  // Portal se download ki hui result Excel — usme kai invoices ho sakti hain.
+  const handleEInvoiceFile = async (e) => {
+    const file = e.target.files?.[0];
+    // Input ko turant khali kar dete hain, warna wahi file dobara chunne par
+    // onChange chalta hi nahi.
+    e.target.value = '';
+    if (!file) return;
+
+    setEinvImporting(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const r = await api.post('/invoices/einvoice-import', fd);
+      const { updated = [], notFound = [], skipped = [] } = r.data?.data || {};
+
+      if (updated.length) toast.success(`${updated.length} invoice me IRN save ho gaya.`);
+      else toast.error('Ek bhi invoice update nahi hui.');
+
+      if (notFound.length || skipped.length) {
+        setConfirmDialog({
+          title: 'Import ka nateeja',
+          message: [
+            `Update hui: ${updated.length}`,
+            notFound.length ? `\nERP me ye invoice number nahi mile (${notFound.length}):\n${notFound.join(', ')}` : '',
+            skipped.length ? `\nIRN khali tha, chhod diya (${skipped.length}):\n${skipped.map(s => s.invoiceNo).join(', ')}` : '',
+          ].filter(Boolean).join('\n'),
+          confirmLabel: 'Theek hai',
+          variant: 'primary',
+          onConfirm: () => setConfirmDialog(null),
+        });
+      }
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Excel import nahi ho payi.');
+    } finally {
+      setEinvImporting(false);
+    }
   };
 
   const exportInvoices = async () => {
@@ -176,37 +278,40 @@ export default function InvoiceList() {
 
   const totalPages   = Math.max(1, Math.ceil(total / PAGE_LIMIT));
   const pendingCount = invoices.filter(i => i.paymentStatus === 'PENDING').length;
+  const hasFilters   = Boolean(search || filter || fromDate || toDate);
 
   return (
-    <div className="space-y-5 animate-slide-up">
+    <div className="page-stack w-full space-y-5 animate-slide-up">
       {/* Mark Paid Modal */}
       {paidModal && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm px-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-[2px] px-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-card-elevated w-full max-w-sm p-5 space-y-4 animate-scale-in">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
-                <span className="material-symbols-outlined text-emerald-600 text-xl">payments</span>
+              <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                <Banknote className="h-4 w-4 text-emerald-600" />
               </div>
-              <div>
-                <h3 className="font-bold text-slate-800">Mark Invoice as Paid</h3>
-                <p className="text-xs text-slate-500 font-mono">{paidModal.invoiceNo}</p>
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold text-slate-900 leading-tight">Mark Invoice as Paid</h3>
+                <p className="text-xs text-slate-500 font-mono truncate">{paidModal.invoiceNo}</p>
               </div>
             </div>
-            <div>
-              <label className="form-label">Payment Received Date</label>
-              <input
+            <FormField label="Payment Received Date" htmlFor="paid-date">
+              <Input
+                id="paid-date"
                 type="date"
                 value={paidDate}
                 max={new Date().toISOString().split('T')[0]}
                 onChange={e => setPaidDate(e.target.value)}
-                className="form-input w-full"
               />
-            </div>
-            <div className="flex gap-3 pt-1">
-              <button onClick={() => setPaidModal(null)} className="btn-outline flex-1">Cancel</button>
-              <button onClick={confirmMarkPaid} className="btn-primary flex-1 bg-emerald-600 hover:bg-emerald-700 border-emerald-600 hover:border-emerald-700">
-                <span className="material-symbols-outlined text-sm">check</span> Confirm Paid
-              </button>
+            </FormField>
+            <div className="flex gap-2 pt-1">
+              <Button type="button" variant="outline" className="flex-1" onClick={() => setPaidModal(null)}>
+                Cancel
+              </Button>
+              <Button type="button" onClick={confirmMarkPaid}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20 focus-visible:ring-emerald-500">
+                <Check /> Confirm Paid
+              </Button>
             </div>
           </div>
         </div>,
@@ -214,73 +319,91 @@ export default function InvoiceList() {
       )}
 
       {/* Header */}
-      <div className="page-header">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-xl font-extrabold text-slate-800 font-headline">Tax Invoices</h2>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <h1 className="page-title">Tax Invoices</h1>
+          <p className="page-subtitle">
             {total > 0 ? `${total} total` : 'GST invoices'}
-            {pendingCount > 0 && <span className="ml-2 text-orange-500 font-semibold">· {pendingCount} pending payment</span>}
+            {pendingCount > 0 && <span className="ml-2 text-amber-600 font-semibold">· {pendingCount} pending payment</span>}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           {/* Setup files belong here, not on one invoice: they are needed once
               per machine, and an invoice locked after Tally hides its own box. */}
-          <button type="button" onClick={() => setShowTallySetup(p => !p)}
-            className={`btn-outline ${showTallySetup ? 'border-violet-300 text-violet-700 bg-violet-50' : ''}`}>
-            <span className="material-symbols-outlined text-sm">download_for_offline</span> Tally Setup
-          </button>
-          <button onClick={exportInvoices} className="btn-outline">
-            <span className="material-symbols-outlined text-sm">file_download</span> Export Excel
-          </button>
-          <Link to="/invoices/new" className="btn-primary">
-            <span className="material-symbols-outlined text-sm">add</span> New Invoice
-          </Link>
+          <Button type="button" variant="outline" onClick={() => setShowTallySetup(p => !p)}
+            className={showTallySetup ? 'border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100' : ''}>
+            <Wrench /> Tally Setup
+          </Button>
+          {/* Portal ki result Excel ek saath kai invoices ki hoti hai,
+              isliye import yahan hai — kisi ek invoice ke page par nahi. */}
+          <input
+            ref={einvFileRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={handleEInvoiceFile}
+          />
+          <Button type="button" variant="outline" onClick={() => einvFileRef.current?.click()}
+            disabled={einvImporting}
+            className="border-sky-300 text-sky-700 hover:bg-sky-50 hover:border-sky-400">
+            <FileUp /> {einvImporting ? 'Import ho raha hai…' : 'Import e-Invoice Excel'}
+          </Button>
+          <Button type="button" variant="outline" onClick={exportInvoices}>
+            <Download /> Export Excel
+          </Button>
+          <Button asChild>
+            <Link to="/invoices/new">
+              <Plus /> New Invoice
+            </Link>
+          </Button>
         </div>
       </div>
 
       {showTallySetup && (
-        <div className="card p-4 sm:p-5 border border-violet-200 bg-violet-50/40 space-y-3">
-          <div className="flex items-start gap-2">
-            <span className="material-symbols-outlined text-violet-500 text-[18px]">handyman</span>
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-violet-800">Tally Setup — ek baar ka kaam</p>
-              <p className="text-[11px] text-violet-600 mt-0.5">
-                Har naye computer par ek baar. Roz ki invoice ke liye ye zaroori nahi.
-              </p>
+        <Card className="border-violet-200 bg-violet-50/40">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-start gap-2">
+              <Wrench className="h-4 w-4 text-violet-500 shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-violet-800">Tally Setup — ek baar ka kaam</p>
+                <p className="text-[11px] text-violet-600 mt-0.5">
+                  Har naye computer par ek baar. Roz ki invoice ke liye ye zaroori nahi.
+                </p>
+              </div>
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <a href="/Tally-Import.bat" download
-              className="flex items-start gap-3 bg-white border border-slate-200 rounded-xl p-3 hover:border-violet-300 transition-colors">
-              <span className="material-symbols-outlined text-violet-500">bolt</span>
-              <span className="min-w-0">
-                <span className="block text-xs font-bold text-slate-700">Tally Importer (.bat)</span>
-                <span className="block text-[10px] text-slate-500 mt-0.5">
-                  Desktop pe rakho. Invoice ka XML ispe <strong>drag</strong> karo — seedha Tally me chala jayega.
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <a href="/Tally-Import.bat" download
+                className="flex items-start gap-3 bg-white border border-slate-200 rounded-xl p-3 hover:border-violet-300 transition-colors">
+                <Zap className="h-4 w-4 text-violet-500 shrink-0 mt-0.5" />
+                <span className="min-w-0">
+                  <span className="block text-xs font-bold text-slate-700">Tally Importer (.bat)</span>
+                  <span className="block text-[10px] text-slate-500 mt-0.5">
+                    Desktop pe rakho. Invoice ka XML ispe <strong>drag</strong> karo — seedha Tally me chala jayega.
+                  </span>
                 </span>
-              </span>
-            </a>
+              </a>
 
-            <a href="/tally-masters-setup.xml" download
-              className="flex items-start gap-3 bg-white border border-slate-200 rounded-xl p-3 hover:border-violet-300 transition-colors">
-              <span className="material-symbols-outlined text-violet-500">list_alt</span>
-              <span className="min-w-0">
-                <span className="block text-xs font-bold text-slate-700">Masters XML</span>
-                <span className="block text-[10px] text-slate-500 mt-0.5">
-                  Tally me <span className="font-mono">O: Import → Masters</span> — ledgers, <span className="font-mono">Kgs</span> unit
-                  aur stock item ban jayenge.
+              <a href="/tally-masters-setup.xml" download
+                className="flex items-start gap-3 bg-white border border-slate-200 rounded-xl p-3 hover:border-violet-300 transition-colors">
+                <ListChecks className="h-4 w-4 text-violet-500 shrink-0 mt-0.5" />
+                <span className="min-w-0">
+                  <span className="block text-xs font-bold text-slate-700">Masters XML</span>
+                  <span className="block text-[10px] text-slate-500 mt-0.5">
+                    Tally me <span className="font-mono">O: Import → Masters</span> — ledgers, <span className="font-mono">Kgs</span> unit
+                    aur stock item ban jayenge.
+                  </span>
                 </span>
-              </span>
-            </a>
-          </div>
+              </a>
+            </div>
 
-          <p className="text-[10px] text-slate-500 bg-white border border-slate-200 rounded-lg px-3 py-2">
-            <strong>Dhyan do:</strong> agar tumhare Tally me sales/tax ledgers <em>pehle se</em> kisi aur naam se hain
-            (jaise <span className="font-mono">Output CGST</span>), to Masters XML mat daalo — warna duplicate ledger ban jayenge.
-            Us case me party ke form me <strong>Tally Ledger Name</strong> bhar do.
-          </p>
-        </div>
+            <p className="text-[10px] text-slate-500 bg-white border border-slate-200 rounded-lg px-3 py-2">
+              <strong>Dhyan do:</strong> agar tumhare Tally me sales/tax ledgers <em>pehle se</em> kisi aur naam se hain
+              (jaise <span className="font-mono">Output CGST</span>), to Masters XML mat daalo — warna duplicate ledger ban jayenge.
+              Us case me party ke form me <strong>Tally Ledger Name</strong> bhar do.
+            </p>
+          </CardContent>
+        </Card>
       )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -309,47 +432,58 @@ export default function InvoiceList() {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto_auto_auto] items-end">
-          <ListSearchInput
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search invoice, party..."
-          />
-          <div className="flex gap-2 items-center">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">From</label>
-            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="form-input text-xs" />
+      {/* Filters */}
+      <Card>
+        <CardContent className="p-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:gap-3">
+            <div className="space-y-1 flex-1 min-w-[220px]">
+              <FilterLabel>Search</FilterLabel>
+              <ListSearchInput
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search invoice, party..."
+                className="w-full"
+              />
+            </div>
+            <div className="space-y-1">
+              <FilterLabel htmlFor="inv-from-date">From</FilterLabel>
+              <input id="inv-from-date" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)}
+                className="form-input text-xs sm:w-36" />
+            </div>
+            <div className="space-y-1">
+              <FilterLabel htmlFor="inv-to-date">To</FilterLabel>
+              <input id="inv-to-date" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)}
+                className="form-input text-xs sm:w-36" />
+            </div>
+            <div className="space-y-1">
+              <FilterLabel htmlFor="inv-status-filter">Status</FilterLabel>
+              <select
+                id="inv-status-filter"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                className="form-input text-xs sm:w-40"
+              >
+                <option value="">All</option>
+                <option value="PENDING">Pending</option>
+                <option value="PARTIAL">Partial</option>
+                <option value="PAID">Paid</option>
+              </select>
+            </div>
+            {hasFilters && (
+              <Button type="button" variant="ghost" size="sm"
+                onClick={() => { setSearch(''); setFromDate(''); setToDate(''); setFilter(''); setPage(1); }}
+                className="text-slate-500 hover:text-rose-600">
+                <X /> Clear
+              </Button>
+            )}
           </div>
-          <div className="flex gap-2 items-center">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">To</label>
-            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="form-input text-xs" />
-          </div>
-          <div className="flex gap-2 items-center">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</label>
-            <select
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="form-input text-xs w-auto min-w-[170px]"
-            >
-              <option value="">All</option>
-              <option value="PENDING">Pending</option>
-              <option value="PARTIAL">Partial</option>
-              <option value="PAID">Paid</option>
-            </select>
-          </div>
-          {(search || filter || fromDate || toDate) && (
-            <button
-              onClick={() => { setSearch(''); setFromDate(''); setToDate(''); setFilter(''); setPage(1); }}
-              className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-500 transition-colors font-medium"
-            >
-              <span className="material-symbols-outlined text-sm">close</span> Clear
-            </button>
-          )}
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Error */}
       {error && (
         <div className="flex items-center gap-3 bg-rose-50 border border-rose-200 text-rose-700 text-sm px-4 py-3 rounded-xl">
-          <span className="material-symbols-outlined text-lg">error</span>
+          <AlertCircle className="h-4 w-4 shrink-0" />
           {error}
           <button onClick={fetchData} className="ml-auto text-xs font-bold hover:underline">Retry</button>
         </div>
@@ -357,56 +491,57 @@ export default function InvoiceList() {
 
       {/* Table */}
       <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left min-w-[520px]">
+        <div className="table-responsive">
+          <table className="w-full text-left min-w-[640px]">
             <thead>
-              <tr className="bg-gradient-to-r from-slate-50 to-sky-50/30 border-b border-slate-100">
+              <tr>
                 <th className="th">Invoice No</th>
                 <th className="th">Date</th>
                 <th className="th">To Party</th>
                 <th className="th hidden sm:table-cell">Challan</th>
                 <th className="th hidden sm:table-cell">Job Card</th>
-                <th className="th hidden md:table-cell">Subtotal</th>
-                <th className="th hidden md:table-cell">GST</th>
-                <th className="th">Total</th>
+                <th className="th text-right">Total</th>
                 <th className="th">Payment</th>
                 <th className="th hidden sm:table-cell">Tally</th>
-                <th className="th">Action</th>
+                <th className="th text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50/80">
               {loading ? (
-                Array.from({length: 5}).map((_, i) => <SkeletonRow key={i} />)
+                Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
               ) : invoices.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-5 py-16 text-center">
-                    <div className="w-14 h-14 rounded-2xl bg-sky-50 flex items-center justify-center mx-auto mb-3">
-                      <span className="material-symbols-outlined text-2xl text-sky-300">receipt_long</span>
+                  <td colSpan={9} className="px-4 py-10 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center">
+                        <ReceiptText className="h-5 w-5 text-sky-300" />
+                      </div>
+                      <p className="text-sm text-slate-500">
+                        {search.trim()
+                          ? `No invoices found for "${search.trim()}".`
+                          : filter ? `No ${filter.toLowerCase()} invoices.` : 'No invoices yet.'}
+                      </p>
+                      {search.trim() ? (
+                        <Button variant="outline" size="sm" asChild>
+                          <Link to={`/invoices/new?ref=${encodeURIComponent(search.trim())}`}>
+                            <Plus /> Create invoice for "{search.trim()}"
+                          </Link>
+                        </Button>
+                      ) : !filter && (
+                        <Button variant="outline" size="sm" asChild>
+                          <Link to="/invoices/new">
+                            <Plus /> Create first invoice
+                          </Link>
+                        </Button>
+                      )}
                     </div>
-                    <p className="text-sm text-slate-400 mb-2">
-                      {search.trim()
-                        ? `No invoices found for "${search.trim()}".`
-                        : filter ? `No ${filter.toLowerCase()} invoices.` : 'No invoices yet.'}
-                    </p>
-                    {search.trim() ? (
-                      <Link
-                        to={`/invoices/new?ref=${encodeURIComponent(search.trim())}`}
-                        className="inline-flex items-center gap-1 text-xs text-sky-600 font-semibold hover:underline"
-                      >
-                        <span className="material-symbols-outlined text-sm">add</span> Create invoice for "{search.trim()}"
-                      </Link>
-                    ) : !filter && (
-                      <Link to="/invoices/new" className="inline-flex items-center gap-1 text-xs text-sky-600 font-semibold hover:underline">
-                        <span className="material-symbols-outlined text-sm">add</span> Create first invoice
-                      </Link>
-                    )}
                   </td>
                 </tr>
               ) : invoices.map(inv => (
-                <tr key={inv.id} className="tr">
+                <tr key={inv.id} className="tr group">
                   <td className="td">
                     <Link to={`/invoices/${inv.id}`}
-                      className="text-xs font-bold text-sky-600 hover:underline font-mono">
+                      className="text-xs font-bold text-sky-800 hover:text-sky-950 hover:underline font-mono">
                       {inv.invoiceNo}
                     </Link>
                   </td>
@@ -420,70 +555,86 @@ export default function InvoiceList() {
                   <td className="td text-slate-500 font-mono text-[11px] hidden sm:table-cell">
                     {inv.jobCardRef || '—'}
                   </td>
-                  <td className="td text-slate-600 hidden md:table-cell">{formatCurrency(inv.subtotal)}</td>
-                  <td className="td text-slate-500 hidden md:table-cell">
-                    {formatCurrency(Number(inv.cgstAmount || 0) + Number(inv.sgstAmount || 0) + Number(inv.igstAmount || 0))}
-                  </td>
-                  <td className="td font-bold text-slate-800">{formatCurrency(inv.totalAmount)}</td>
+                  <td className="td font-bold text-slate-800 text-right tabular-nums">{formatCurrency(inv.totalAmount)}</td>
                   <td className="td">
-                    <span className={`badge ${PAY_STYLE[inv.paymentStatus] || 'bg-slate-100 text-slate-600'}`}>
+                    <Badge variant={PAY_VARIANT[inv.paymentStatus] || 'neutral'} className="px-2 py-0.5 text-[10px]">
                       {inv.paymentStatus}
-                    </span>
+                    </Badge>
                   </td>
                   <td className="td hidden sm:table-cell">
                     {inv.sentToTally ? (
-                      <span className="badge bg-violet-100 text-violet-700">
-                        <span className="material-symbols-outlined text-[12px]">lock</span> Sent
-                      </span>
+                      <Badge className="bg-violet-100 text-violet-700 px-2 py-0.5 text-[10px]">
+                        <Lock className="h-3 w-3" /> Sent
+                      </Badge>
                     ) : inv.xmlDownloadedAt ? (
-                      <span
-                        className="badge bg-amber-100 text-amber-700 whitespace-nowrap"
-                        title={`Option B — Download XML & Import Manually. Last downloaded ${formatDate(inv.xmlDownloadedAt, true)}.`}
-                      >
-                        <span className="material-symbols-outlined text-[12px]">download_done</span> XML Downloaded
-                      </span>
+                      <Badge variant="warning" className="px-2 py-0.5 text-[10px] whitespace-nowrap"
+                        title={`Option B — Download XML & Import Manually. Last downloaded ${formatDate(inv.xmlDownloadedAt, true)}.`}>
+                        <FileCheck2 className="h-3 w-3" /> XML Downloaded
+                      </Badge>
                     ) : (
                       <span className="text-slate-300 text-xs">—</span>
                     )}
                   </td>
                   <td className="td">
-                    <div className="flex gap-2 items-center">
-                      <Link to={`/invoices/${inv.id}/print`}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-600 hover:bg-slate-100 transition-all"
-                        title="Print Invoice">
-                        <span className="material-symbols-outlined text-[18px]">print</span>
-                      </Link>
-                      <Link to={`/invoices/${inv.id}`}
-                        title="View"
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-600 hover:bg-slate-100 transition-all">
-                        <span className="material-symbols-outlined text-[18px]">visibility</span>
-                      </Link>
-                      <button
+                    <div className="flex items-center justify-end gap-0.5">
+                      <Button variant="ghost" size="icon-sm" asChild
+                        className="text-slate-400 hover:text-sky-700 hover:bg-sky-50">
+                        <Link to={`/invoices/${inv.id}/print`} title="Print Invoice" aria-label={`Print invoice ${inv.invoiceNo}`}>
+                          <Printer />
+                        </Link>
+                      </Button>
+                      <Button variant="ghost" size="icon-sm" asChild
+                        className="text-slate-400 hover:text-sky-700 hover:bg-sky-50">
+                        <Link to={`/invoices/${inv.id}`} title="View" aria-label={`View invoice ${inv.invoiceNo}`}>
+                          <Eye />
+                        </Link>
+                      </Button>
+                      {/* Edit sirf ADMIN ko, aur sirf tab tak jab tak invoice
+                          Tally bhej na di ho ya uska IRN na ban gaya ho. */}
+                      {isAdmin && !inv.sentToTally && !inv.irnNo && (
+                        <Button variant="ghost" size="icon-sm" asChild
+                          className="text-slate-400 hover:text-amber-600 hover:bg-amber-50">
+                          <Link to={`/invoices/${inv.id}/edit`} title="Edit Invoice" aria-label={`Edit invoice ${inv.invoiceNo}`}>
+                            <Pencil />
+                          </Link>
+                        </Button>
+                      )}
+                      <Button type="button" variant="ghost" size="icon-sm"
+                        onClick={() => handleDownloadEInvoiceJson(inv)}
+                        title={inv.irnNo
+                          ? `IRN mil chuka hai (${inv.irnNo.slice(0, 12)}…) — click karke JSON dobara download karein`
+                          : 'Download e-Invoice JSON — GST portal par upload karne ke liye'}
+                        aria-label={`Download e-Invoice JSON for invoice ${inv.invoiceNo}`}
+                        className={inv.irnNo
+                          ? 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'
+                          : 'text-slate-400 hover:text-sky-600 hover:bg-sky-50'}>
+                        {inv.irnNo ? <BadgeCheck /> : <FileJson />}
+                      </Button>
+                      <Button type="button" variant="ghost" size="icon-sm"
                         onClick={() => handleDownloadXml(inv)}
                         title={inv.xmlDownloadedAt
                           ? `Already downloaded on ${formatDate(inv.xmlDownloadedAt, true)} — click to download again`
                           : 'Download Tally XML — Option B: Download XML & Import Manually'}
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all hover:bg-slate-100 ${
-                          inv.xmlDownloadedAt ? 'text-amber-500 hover:text-amber-600' : 'text-slate-400 hover:text-violet-600'
-                        }`}>
-                        <span className="material-symbols-outlined text-[18px]">
-                          {inv.xmlDownloadedAt ? 'download_done' : 'download'}
-                        </span>
-                      </button>
+                        aria-label={`Download Tally XML for invoice ${inv.invoiceNo}`}
+                        className={inv.xmlDownloadedAt
+                          ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50'
+                          : 'text-slate-400 hover:text-violet-600 hover:bg-violet-50'}>
+                        {inv.xmlDownloadedAt ? <FileCheck2 /> : <FileDown />}
+                      </Button>
                       {inv.paymentStatus !== 'PAID' && !inv.sentToTally && (
-                        <button
+                        <Button type="button" variant="ghost" size="sm"
                           onClick={() => { setPaidDate(new Date().toISOString().split('T')[0]); setPaidModal({ id: inv.id, invoiceNo: inv.invoiceNo }); }}
-                          className="px-2 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors">
+                          className="text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-800 px-2 h-7 min-h-0 text-[11px] font-bold">
                           Mark Paid
-                        </button>
+                        </Button>
                       )}
                       {!inv.sentToTally && (
-                        <button
+                        <Button type="button" variant="ghost" size="icon-sm"
                           onClick={() => handleDeleteInvoice(inv)}
-                          title="Delete Invoice"
-                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all">
-                          <span className="material-symbols-outlined text-[18px]">delete</span>
-                        </button>
+                          title="Delete Invoice" aria-label={`Delete invoice ${inv.invoiceNo}`}
+                          className="text-slate-400 hover:text-rose-600 hover:bg-rose-50">
+                          <Trash2 />
+                        </Button>
                       )}
                     </div>
                   </td>

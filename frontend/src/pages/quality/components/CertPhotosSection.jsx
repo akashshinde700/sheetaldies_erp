@@ -1,4 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
+import { ImagePlus, X } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -32,15 +34,17 @@ function ImageSlot({ index, initialUrl, onChange }) {
         }`}>
         {preview
           ? <img src={preview} alt="" className="w-full h-full object-cover rounded-xl" />
-          : <div className="text-center">
-              <span className="material-symbols-outlined text-slate-300 text-2xl block">add_photo_alternate</span>
+          : <div className="flex flex-col items-center text-center">
+              <ImagePlus className="h-6 w-6 text-slate-300" />
               <span className="text-[10px] text-slate-400 mt-1 block">Photo {index}</span>
             </div>
         }
       </button>
       {preview && (
         <button type="button" onClick={() => { setCleared(true); setPreview(null); onChange(index, null); inputRef.current.value = ''; }}
-          className="absolute -top-2 -right-2 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center text-[10px] shadow hover:bg-rose-600">✕</button>
+          className="absolute -top-2 -right-2 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center shadow hover:bg-rose-600">
+          <X className="h-3 w-3" strokeWidth={3} />
+        </button>
       )}
       <input ref={inputRef} type="file" accept="image/*" onChange={handleFile} className="hidden" />
     </div>
@@ -49,28 +53,23 @@ function ImageSlot({ index, initialUrl, onChange }) {
 
 export default function CertPhotosSection({ handleImageChange, existingImages = {} }) {
   return (
-    <div className="card p-5">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 border-b border-slate-100 pb-2">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center">
-            <span className="material-symbols-outlined text-violet-500 text-[15px]">add_photo_alternate</span>
-          </div>
-          <div>
-            <p className="section-title">Part Photos</p>
-            <p className="text-xs text-slate-400">Upload up to 5 images for this certificate.</p>
-          </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Part Photos</CardTitle>
+        <CardDescription>Upload up to 5 images for this certificate.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
+          {[1, 2, 3, 4, 5].map(i => (
+            <ImageSlot
+              key={i}
+              index={i}
+              initialUrl={existingImages[`image${i}`]}
+              onChange={handleImageChange}
+            />
+          ))}
         </div>
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
-        {[1, 2, 3, 4, 5].map(i => (
-          <ImageSlot 
-            key={i} 
-            index={i} 
-            initialUrl={existingImages[`image${i}`]}
-            onChange={handleImageChange} 
-          />
-        ))}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

@@ -4,6 +4,9 @@ import api from '../../../utils/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../../context/AuthContext';
 import ConfirmDialog from '../../../components/ConfirmDialog';
+import { Undo2, Trash2 } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
 // Shared grid template — header, display row, edit row, and the total row
 // must all use the exact same grid-template-columns (with an empty
@@ -279,65 +282,74 @@ const LinkedDataSection = forwardRef(function LinkedDataSection({ isEdit, cardDa
       {/* ── Delete button (manager/admin) ── */}
       {isManager && (
         <div className="flex justify-end">
-          <button onClick={handleDelete} disabled={deleting}
-            className="text-xs text-rose-600 border border-rose-200 rounded-lg px-3 py-1.5 hover:bg-rose-50 font-semibold">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleDelete}
+            disabled={deleting}
+            loading={deleting}
+            className="text-rose-600 border-rose-200 hover:bg-rose-50 hover:border-rose-300 hover:text-rose-700"
+          >
+            {!deleting && <Trash2 />}
             {deleting ? 'Deleting…' : 'Delete Job Card'}
-          </button>
+          </Button>
         </div>
       )}
 
       {/* ── Items with Remove capability ── */}
       {linkedItems.length > 0 && (
-        <div className="card p-5">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-                Items ({linkedItems.length})
-                {inwardNo && <span className="ml-2 text-sky-500 normal-case">from {inwardNo}</span>}
-              </p>
+        <Card>
+          <CardHeader className="flex-row items-center justify-between space-y-0 gap-3 flex-wrap">
+            <div className="space-y-1 min-w-0">
+              <CardTitle>
+                Linked Items ({linkedItems.length})
+                {inwardNo && <span className="ml-2 text-xs font-semibold text-sky-500">from {inwardNo}</span>}
+              </CardTitle>
               {cardData.weightSummary?.inwardTotalWeight > 0 && (
-                <p className="text-[11px] text-slate-500 mt-0.5">
+                <CardDescription>
                   Inward Total Weight:
-                  <span className="ml-1 font-bold text-amber-700">
+                  <span className="ml-1 font-bold text-amber-700 tabular-nums">
                     {Number(cardData.weightSummary.inwardTotalWeight).toFixed(3)} kg
                   </span>
-                </p>
+                </CardDescription>
               )}
             </div>
             <div className="flex items-center gap-2">
               {selected.size > 0 && (
                 <>
-                  <span className="text-[11px] text-rose-600 font-bold">{selected.size} selected</span>
-                  <button
+                  <span className="text-[11px] text-rose-600 font-bold whitespace-nowrap">{selected.size} selected</span>
+                  <Button
                     type="button"
+                    variant="danger"
+                    size="sm"
                     onClick={handleRemoveItems}
                     disabled={removing}
-                    className="text-xs font-bold text-white bg-rose-500 hover:bg-rose-600 px-3 py-1.5 rounded-lg disabled:opacity-50 flex items-center gap-1"
+                    loading={removing}
                   >
-                    {removing
-                      ? <><span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Removing…</>
-                      : <>↩ Remove from Job Card</>
-                    }
-                  </button>
+                    {!removing && <Undo2 />}
+                    {removing ? 'Removing…' : 'Remove from Job Card'}
+                  </Button>
                 </>
               )}
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => toggleAll(linkedItems)}
-                className="text-[11px] text-slate-500 hover:text-sky-600 font-semibold"
               >
                 {selected.size === linkedItems.length ? 'Deselect All' : 'Select All'}
-              </button>
+              </Button>
             </div>
-          </div>
-
+          </CardHeader>
+          <CardContent>
           {selected.size > 0 && (
             <div className="mb-2 px-3 py-2 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700 font-medium">
               Selected items will be removed from this Job Card and returned to <span className="font-bold">Pending</span> status on the original Inward{inwardNo ? ` (${inwardNo})` : ''}.
             </div>
           )}
 
-          <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-slate-50/70">
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50/70">
             <div className="min-w-[820px]">
               <div className={`grid ${COLS} gap-3 px-3 py-3 text-[10px] font-semibold uppercase text-slate-400`}>
                 <span>Description</span><span>Drawing No</span>
@@ -361,7 +373,7 @@ const LinkedDataSection = forwardRef(function LinkedDataSection({ isEdit, cardDa
                 const totalQty = linkedItems.reduce((s, it) => s + Number(it.quantity || 0), 0);
                 const totalWt  = linkedItems.reduce((s, it) => s + Number(it.weight || 0), 0);
                 return (
-                  <div className={`grid ${COLS} gap-3 px-3 py-2.5 border-t-2 border-slate-200 bg-slate-100/70 rounded-b-3xl text-xs font-bold text-slate-700 items-center`}>
+                  <div className={`grid ${COLS} gap-3 px-3 py-2.5 border-t-2 border-slate-200 bg-slate-100/70 rounded-b-xl text-xs font-bold text-slate-700 items-center`}>
                     <span>Total</span>
                     <span></span>
                     <span className="text-right tabular-nums">{totalQty % 1 === 0 ? totalQty : totalQty.toFixed(3)}</span>
@@ -401,7 +413,8 @@ const LinkedDataSection = forwardRef(function LinkedDataSection({ isEdit, cardDa
               })()}
             </div>
           </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Legacy: items from challans (no direct link) */}
@@ -409,8 +422,10 @@ const LinkedDataSection = forwardRef(function LinkedDataSection({ isEdit, cardDa
         const allItems = cardData.challans?.flatMap(ch => ch.items || []) || [];
         if (!allItems.length) return null;
         return (
-          <div className="card overflow-hidden p-0">
-            <h3 className="section-title px-5 pt-5 mb-3">Items (from Inward) — {allItems.length} item{allItems.length !== 1 ? 's' : ''}</h3>
+          <Card className="overflow-hidden">
+            <CardHeader className="mb-3">
+              <CardTitle>Items (from Inward) — {allItems.length} item{allItems.length !== 1 ? 's' : ''}</CardTitle>
+            </CardHeader>
             <div className={`grid ${COLS} gap-3 px-5 mb-1 text-[10px] font-semibold uppercase text-slate-400`}>
               <span>Description</span><span>Drawing No</span><span className="text-right">Qty</span><span className="text-right">Weight (kg)</span><span className="pl-2">Material</span><span></span>
             </div>
@@ -452,7 +467,7 @@ const LinkedDataSection = forwardRef(function LinkedDataSection({ isEdit, cardDa
                 </div>
               );
             })()}
-          </div>
+          </Card>
         );
       })()}
 

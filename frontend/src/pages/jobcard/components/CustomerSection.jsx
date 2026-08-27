@@ -1,59 +1,64 @@
 import React from 'react';
 import SearchSelect from '../../../components/SearchSelect';
-
-const F = ({ label, children, className = '' }) => (
-  <div className={className}>
-    <label className="form-label">{label}</label>
-    {children}
-  </div>
-);
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { FormField } from '@/components/ui/form-field';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 export default function CustomerSection({ form, setForm, customers, applyCustomerFromParty }) {
   return (
-    <div className="card p-5 space-y-4">
-      <p className="section-title border-b border-slate-100 pb-2">Company & Customer Details</p>
-      <div className="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-4">
-        <F label="Party (bill-to / customer)" className="xl:col-span-2">
-          <SearchSelect
-            value={form.customerId}
-            onChange={applyCustomerFromParty}
-            options={customers.map((c) => ({
-              value: c.id,
-              label: `${c.name} · ${c.partyType || 'PARTY'}`,
-            }))}
-            placeholder="Search party — Customer, Vendor, or Both"
-          />
-        </F>
+    <Card>
+      <CardHeader>
+        <CardTitle>Company &amp; Customer Details</CardTitle>
+        <CardDescription>Pick a party from the master, or type the customer details directly.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+          <FormField label="Party (bill-to / customer)" hint="Selecting a party fills the customer details below">
+            <SearchSelect
+              value={form.customerId}
+              onChange={applyCustomerFromParty}
+              options={customers.map((c) => ({
+                value: c.id,
+                label: `${c.name} · ${c.partyType || 'PARTY'}`,
+              }))}
+              placeholder="Search party — Customer, Vendor, or Both"
+            />
+          </FormField>
 
-        <F label="Customer Name">
-          <input
-            value={form.customerNameSnapshot}
-            onChange={(e) => setForm(p => ({ ...p, customerNameSnapshot: e.target.value }))}
-            className="form-input"
-            placeholder="Customer / company name"
-          />
-        </F>
+          <FormField label="Contact Email" htmlFor="contactEmail">
+            <Input
+              id="contactEmail"
+              type="email"
+              value={form.contactEmail}
+              onChange={(e) => setForm(p => ({ ...p, contactEmail: e.target.value }))}
+              placeholder="Email address"
+            />
+          </FormField>
 
-        <F label="Contact Email">
-          <input
-            type="email"
-            value={form.contactEmail}
-            onChange={(e) => setForm(p => ({ ...p, contactEmail: e.target.value }))}
-            className="form-input"
-            placeholder="Email address"
-          />
-        </F>
+          {/* Party chuni ho to naam upar dropdown me hi dikh jaata hai — yahan dohrana nahi */}
+          {!form.customerId && (
+            <FormField label="Customer Name" htmlFor="customerNameSnapshot" className="sm:col-span-2">
+              <Input
+                id="customerNameSnapshot"
+                value={form.customerNameSnapshot}
+                onChange={(e) => setForm(p => ({ ...p, customerNameSnapshot: e.target.value }))}
+                placeholder="Customer / company name"
+              />
+            </FormField>
+          )}
 
-        <F label="Customer Address" className="xl:col-span-2">
-          <textarea
-            value={form.customerAddressSnapshot}
-            onChange={e => setForm(p => ({ ...p, customerAddressSnapshot: e.target.value }))}
-            rows={3}
-            className="form-input resize-none"
-            placeholder="Billing / delivery address"
-          />
-        </F>
-      </div>
-    </div>
+          <FormField label="Customer Address" htmlFor="customerAddressSnapshot" className="sm:col-span-2">
+            <Textarea
+              id="customerAddressSnapshot"
+              value={form.customerAddressSnapshot}
+              onChange={e => setForm(p => ({ ...p, customerAddressSnapshot: e.target.value }))}
+              rows={3}
+              placeholder="Billing / delivery address"
+            />
+          </FormField>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

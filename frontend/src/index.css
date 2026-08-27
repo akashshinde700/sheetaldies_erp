@@ -32,7 +32,7 @@ input[type=number] { -moz-appearance: textfield; }
     scroll-behavior: smooth;
     color-scheme: light;
     /* Subtle tap flash on mobile (iOS/Android) — less “grey flash” than default */
-    -webkit-tap-highlight-color: rgb(14 165 233 / 0.12);
+    -webkit-tap-highlight-color: rgb(37 99 235 / 0.12);
   }
 
   body {

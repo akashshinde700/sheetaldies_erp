@@ -1201,6 +1201,7 @@ model TaxInvoice {
 
   dispatchDocNo   String?       @map("dispatch_doc_no")  @db.VarChar(100)
   eWayBillNo      String?       @map("e_way_bill_no")    @db.VarChar(50)
+  eWayBillDate    DateTime?     @map("e_way_bill_date")
 
   // GST e-invoice (IRP) details — this ERP has no direct IRP integration, so
   // these are filled in manually after the invoice is submitted to the
