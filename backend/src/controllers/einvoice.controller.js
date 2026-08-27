@@ -43,7 +43,13 @@ const stateCodeOf = (party) => {
 };
 
 const pinOf = (party) => {
-  const digits = String(party?.pinCode || '').replace(/\D/g, '');
+  let digits = String(party?.pinCode || '').replace(/\D/g, '');
+  if (digits.length !== 6) {
+    // pinCode field khali hai — address me se 6-digit PIN nikaal lo
+    // (jaise "… PCNTDA, Bhosari, Pune - 411026"). Aakhri wala lete hain.
+    const found = String(party?.address || '').match(/(?<!\d)\d{6}(?!\d)/g);
+    if (found && found.length) digits = found[found.length - 1];
+  }
   return digits.length === 6 ? Number(digits) : null;
 };
 

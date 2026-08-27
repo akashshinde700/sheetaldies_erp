@@ -176,6 +176,11 @@ export default function PartyForm() {
         if (known.pinCode && !p.pinCode) next.pinCode = known.pinCode;
       }
     }
+    // PIN khali ho to address me likhe 6-digit PIN se bhar do (e-invoice ke liye zaroori)
+    if (k === 'address' && !p.pinCode) {
+      const found = String(v).match(/(?<!\d)\d{6}(?!\d)/g);
+      if (found && found.length) next.pinCode = found[found.length - 1];
+    }
     return next;
   });
 
