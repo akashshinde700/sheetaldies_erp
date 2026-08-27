@@ -108,8 +108,8 @@ export default function PartyForm() {
   const [ratesMap, setRatesMap] = useState({});
 
   const STEPS = [
-    { key: 'identity', label: 'Identity & address' },
-    { key: 'contact', label: 'Contact, banking & rates' },
+    { key: 'identity', label: 'Identity, address & contact' },
+    { key: 'contact', label: 'Banking & rates' },
   ];
   const wiz = useStepper(STEPS.length);
   const LAST = STEPS.length - 1;
@@ -347,10 +347,7 @@ export default function PartyForm() {
                 </div>
               </CardContent>
             </Card>
-          </div>
 
-          {/* ── Step 2 · Contact & banking ── */}
-          <div hidden={wiz.current !== 1} className="space-y-3">
             <Card>
               <CardHeader><CardTitle>Contact &amp; tax</CardTitle></CardHeader>
               <CardContent>
@@ -370,7 +367,10 @@ export default function PartyForm() {
                 </div>
               </CardContent>
             </Card>
+          </div>
 
+          {/* ── Step 2 · Banking & rates ── */}
+          <div hidden={wiz.current !== 1} className="space-y-3">
             <Card>
               <CardHeader><CardTitle>Bank details</CardTitle></CardHeader>
               <CardContent>
