@@ -2,13 +2,15 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams, useParams, Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Check } from 'lucide-react';
+import { Check, Link2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getCycleSegments, segmentsToTempCycleData } from '../../data/heatTreatmentCycles';
 
 // UI Components
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/ui/page-header';
+import { Stepper, useStepper } from '@/components/ui/stepper';
 
 // Master Data Hooks
 import { useParties, useMasterJobCards, useProcesses } from '../../hooks/useMasterData';
@@ -115,6 +117,17 @@ export default function CertForm() {
   const [selectedGraphId, setSelectedGraphId] = useState('');
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  // ── Wizard steps ──────────────────────────────────────────────
+  const CERT_STEPS = [
+    { key: 'job',    label: 'Job card & items' },
+    { key: 'tech',   label: 'Technical & hardness' },
+    { key: 'temp',   label: 'Temperature cycle' },
+    { key: 'pack',   label: 'Packing & dispatch' },
+    { key: 'review', label: 'Review' },
+  ];
+  const LAST_STEP = CERT_STEPS.length - 1;
+  const wiz = useStepper(CERT_STEPS.length);
 
   const loadTempCycleFromRunsheet = async (jobCardId) => {
     if (!jobCardId) return false;
@@ -604,28 +617,111 @@ export default function CertForm() {
 
   if (loadingCert) return <div className="p-10 text-slate-400 text-sm">Loading certificate…</div>;
 
+  const jcNo = jcData?.jobCardNo || '';
+  const totalCertQty = certItems.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
+  const totalCertWt = certItems.reduce((s, it) => s + (Number(it.totalWeight) || 0), 0);
+  const goNext = () => { if (wiz.current < LAST_STEP) wiz.next(); };
+
   return (
-    <div className="page-stack w-full animate-slide-up">
-      <div className="page-header">
-        <div className="flex items-start gap-3">
-          <Button asChild variant="outline" size="icon" className="rounded-xl text-slate-500 hover:text-slate-900 shrink-0">
-            <Link to="/quality/certificates" aria-label="Back to certificates">
-              <ArrowLeft />
-            </Link>
-          </Button>
-          <div className="space-y-2">
-            <h1 className="page-title">{isEdit ? 'Edit Test Certificate' : 'Create Test Certificate'}</h1>
-            <p className="page-subtitle max-w-2xl">Use this form to generate or update quality certificates, link job cards, and capture inspection details in one place.</p>
-          </div>
+    <div className="font-app mx-auto w-full max-w-5xl space-y-5 pb-4 animate-slide-up">
+      <PageHeader
+        title={isEdit ? 'Edit Test Certificate' : 'Create Test Certificate'}
+        backTo="/quality/certificates"
+        breadcrumbs={[
+          { label: 'Certificates', to: '/quality/certificates' },
+          { label: isEdit ? (form.issueNo || 'Edit') : 'New' },
+        ]}
+        meta={
+          <>
+            {form.issueNo && <span className="font-app-mono">Cert {form.issueNo}</span>}
+            {jcNo && (
+              <span>
+                Job Card{' '}
+                {form.jobCardId
+                  ? <Link to={`/jobcards/${form.jobCardId}`} className="font-app-mono font-semibold text-sky-700 hover:underline">{jcNo}</Link>
+                  : <span className="font-app-mono font-semibold text-slate-700">{jcNo}</span>}
+              </span>
+            )}
+          </>
+        }
+      />
+
+      <Card className="p-3 sm:p-4">
+        <Stepper
+          steps={CERT_STEPS}
+          current={wiz.current}
+          completed={wiz.completed}
+          onStepClick={(i) => wiz.goto(i)}
+        />
+      </Card>
+
+      <form
+        onSubmit={(e) => { if (wiz.current !== LAST_STEP) { e.preventDefault(); return; } handleSubmit(e); }}
+        className="space-y-4"
+      >
+        {/* ── Step 1 · Job card & items ── */}
+        <div hidden={wiz.current !== 0} className="space-y-4">
+          <CertHeaderSection form={form} set={set} parties={parties} jobCards={jobCards} jcData={jcData} />
         </div>
-      </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <CertHeaderSection form={form} set={set} parties={parties} jobCards={jobCards} jcData={jcData} />
-        <CertTechnicalSection form={form} set={set} updateTemperatureCycle={updateTemperatureCycle} jcData={jcData} />
-        <CertCategorizationSection form={form} set={set} jcData={jcData} />
+        {/* ── Step 2 · Technical & hardness ── */}
+        <div hidden={wiz.current !== 1} className="space-y-4">
+          <CertTechnicalSection form={form} set={set} updateTemperatureCycle={updateTemperatureCycle} jcData={jcData} />
+          {form.jobCardId && (
+            <div className="flex items-start gap-2 rounded-lg border border-info-200 bg-info-50 px-3 py-2 text-xs text-info-800">
+              <Link2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>
+                <strong>Synced with Job Card {jcNo || ''}.</strong> Categorization, process, visual and MPI below
+                mirror its incoming inspection — editing them here also updates the job card on save.
+              </span>
+            </div>
+          )}
+          <CertCategorizationSection form={form} set={set} jcData={jcData} />
+          <CertHardnessSection form={form} set={set} jcData={jcData} />
+          <DistortionTable form={form} setForm={setForm} set={set} />
+        </div>
 
-        {/* ── Item Selection Panel (create mode only, when JC selected) ── */}
+        {/* ── Step 3 · Temperature cycle ── */}
+        <div hidden={wiz.current !== 2} className="space-y-4">
+          <TemperatureCurve
+            tempRows={tempRows}
+            setTempRows={(rows) => { tempRowsUserEdited.current = true; setTempRows(rows); }}
+            form={form}
+            masterGraphs={masterGraphs}
+            selectGraph={(id) => { tempRowsUserEdited.current = false; return selectGraph(id); }}
+            selectedGraphId={selectedGraphId}
+            noDefaultTemplate={!isEdit && noDefaultTemplate}
+          />
+        </div>
+
+        {/* ── Step 4 · Packing & dispatch ── */}
+        <div hidden={wiz.current !== 3} className="space-y-4">
+          <CertPackingSection form={form} set={set} jcData={jcData} />
+          <CertPhotosSection handleImageChange={handleImageChange} existingImages={{ ...jcImages, ...existingImages }} />
+        </div>
+
+        {/* ── Step 5 · Review ── */}
+        <div hidden={wiz.current !== 4} className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle>Review</CardTitle><CardDescription>Check everything, then {isEdit ? 'save' : 'create'} the certificate.</CardDescription></CardHeader>
+            <CardContent>
+              <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3 text-sm">
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Certificate no</dt><dd className="mt-0.5 font-app-mono text-slate-800">{form.issueNo || '—'}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Issue date</dt><dd className="mt-0.5 text-slate-800">{form.issueDate || '—'}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Job card</dt><dd className="mt-0.5 font-app-mono text-slate-800">{jcNo || '—'}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Customer</dt><dd className="mt-0.5 text-slate-800">{form.issuedTo || parties.find(p => String(p.id) === String(form.customerId))?.name || '—'}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Items</dt><dd className="mt-0.5 text-slate-800">{certItems.filter(it => it.description?.trim()).length} · qty {totalCertQty} · {totalCertWt ? totalCertWt.toFixed(3) : '0'} kg</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Hardness</dt><dd className="mt-0.5 font-app-mono text-slate-800">{[form.hardnessMin, form.hardnessMax].filter(Boolean).join('–') || '—'} {form.hardnessUnit} {form.achievedHardness ? `→ ${form.achievedHardness}` : ''}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Temperature cycle</dt><dd className="mt-0.5 text-slate-800">{tempRows.filter(r => r.time !== '' || r.temp !== '').length} points</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Packed qty</dt><dd className="mt-0.5 text-slate-800">{form.packedQty || '—'}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Dispatch</dt><dd className="mt-0.5 text-slate-800">{[form.dispatchByOurVehicle && 'Our vehicle', form.dispatchByCourier && 'Courier', form.collectedByCustomer && 'Collected'].filter(Boolean).join(', ') || '—'}</dd></div>
+              </dl>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ── Item Selection Panel (create mode only, when JC selected) — step 1 ── */}
+        <div hidden={wiz.current !== 0} className="space-y-4">
         {!isEdit && form.jobCardId && (
           <Card>
             <CardHeader className="flex-row items-center justify-between space-y-0 gap-3">
@@ -713,35 +809,28 @@ export default function CertForm() {
           </Card>
         )}
 
-        <CertItemsTable certItems={certItems} setCertItems={setCertItems} />
-        <CertHardnessSection form={form} set={set} jcData={jcData} />
-        <DistortionTable form={form} setForm={setForm} set={set} />
-        <TemperatureCurve
-          tempRows={tempRows}
-          setTempRows={(rows) => { tempRowsUserEdited.current = true; setTempRows(rows); }}
-          form={form}
-          masterGraphs={masterGraphs}
-          selectGraph={(id) => { tempRowsUserEdited.current = false; return selectGraph(id); }}
-          selectedGraphId={selectedGraphId}
-          noDefaultTemplate={!isEdit && noDefaultTemplate}
-        />
-        <CertPhotosSection handleImageChange={handleImageChange} existingImages={{ ...jcImages, ...existingImages }} />
-        <CertPackingSection form={form} set={set} jcData={jcData} />
+          <CertItemsTable certItems={certItems} setCertItems={setCertItems} />
+        </div>
 
-        <Card className="p-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-slate-700">Ready to finalize?</p>
-            <p className="text-xs text-slate-500">Save the certificate once all sections are complete.</p>
+        {/* ── Wizard navigation ── */}
+        <div className="sticky bottom-0 z-30 mt-6 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-card backdrop-blur sm:px-5">
+          <Button type="button" variant="ghost" disabled={wiz.isFirst} onClick={wiz.back}>
+            <ChevronLeft className="h-4 w-4" /> Back
+          </Button>
+          <span className="font-app-mono text-xs text-slate-400">Step {wiz.current + 1} of {CERT_STEPS.length}</span>
+          <div className="ml-auto flex items-center gap-2">
+            <Button asChild variant="ghost"><Link to="/quality/certificates">Cancel</Link></Button>
+            {wiz.current < LAST_STEP ? (
+              <Button type="button" onClick={goNext}>
+                Next <ChevronRight className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button type="submit" loading={loading} disabled={loading}>
+                {loading ? (isEdit ? 'Saving…' : 'Creating…') : (isEdit ? 'Update Certificate' : 'Create Certificate')}
+              </Button>
+            )}
           </div>
-          <div className="flex flex-wrap gap-3">
-            <Button type="submit" disabled={loading}>
-              {loading ? (isEdit ? 'Saving…' : 'Creating…') : (isEdit ? 'Update Certificate' : 'Create Certificate')}
-            </Button>
-            <Button asChild variant="ghost">
-              <Link to="/quality/certificates">Cancel</Link>
-            </Button>
-          </div>
-        </Card>
+        </div>
       </form>
     </div>
   );
