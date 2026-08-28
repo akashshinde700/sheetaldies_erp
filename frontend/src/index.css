@@ -1290,3 +1290,46 @@ input[type=number] { -moz-appearance: textfield; }
     background-color: #ffffff;
   }
 }
+
+/* ── Charts & SVG graphs in dark mode ─────────────────────────────────
+   recharts / HeatCycleGraph render literal hex on SVG attrs. Remap the
+   ones that vanish on navy. Screen only; .page (print preview) keeps ink. */
+@media screen {
+  .dark .recharts-cartesian-grid line,
+  .dark .recharts-cartesian-grid path { stroke: #2A3B58 !important; }
+  .dark .recharts-cartesian-axis-line,
+  .dark .recharts-cartesian-tick-line { stroke: #3E5074 !important; }
+  .dark .recharts-text,
+  .dark .recharts-cartesian-axis-tick-value tspan { fill: #AEB9C9 !important; }
+  .dark .recharts-legend-item-text { color: #AEB9C9 !important; }
+  .dark .recharts-default-tooltip {
+    background-color: #172640 !important;
+    border-color: #2A3B58 !important;
+    border-radius: 10px;
+    color: #DEE4EC !important;
+  }
+  .dark .recharts-tooltip-label,
+  .dark .recharts-tooltip-item { color: #DEE4EC !important; }
+  .dark .recharts-tooltip-cursor { fill: rgb(148 163 184 / 0.08) !important; }
+
+  /* Series colours that read too dark on navy */
+  .dark [fill="#047857"] { fill: #14B8A6 !important; }
+  .dark [stroke="#047857"] { stroke: #14B8A6 !important; }
+  .dark [fill="#b45309"] { fill: #F59E0B !important; }
+  .dark [fill="#7c3aed"] { fill: #A78BFA !important; }
+  .dark [fill="#e11d48"] { fill: #F87171 !important; }
+  .dark [fill="#f43f5e"], .dark [stroke="#f43f5e"] { fill: #FB7185 !important; stroke: #FB7185 !important; }
+  .dark [fill="#1e3a8a"] { fill: #60A5FA !important; }
+  .dark [stroke="#1e3a8a"] { stroke: #60A5FA !important; }
+  .dark [fill="#64748b"] { fill: #AEB9C9 !important; }
+
+  /* HeatCycle step graph axes/labels (also shown in the CertForm preview) */
+  .dark [stroke="#000"], .dark [stroke="#333"], .dark [stroke="#555"] { stroke: #8895A8; }
+  .dark [fill="#000"], .dark [fill="#1a1a1a"], .dark [fill="#333"] { fill: #C7D0DD; }
+  .dark [fill="#aaa"] { fill: #6B7A90; }
+  .dark .page [stroke="#000"] { stroke: #000; }
+  .dark .page [stroke="#333"] { stroke: #333; }
+  .dark .page [stroke="#555"] { stroke: #555; }
+  .dark .page [fill="#000"], .dark .page [fill="#1a1a1a"], .dark .page [fill="#333"] { fill: #000; }
+  .dark .page [fill="#aaa"] { fill: #aaa; }
+}
