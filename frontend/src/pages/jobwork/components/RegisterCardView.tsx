@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Eye, Pencil, FileText, ClipboardPlus } from 'lucide-react';
+import { Eye, Pencil, FileText } from 'lucide-react';
 import type { RegisterRow } from '../InwardOutwardRegister';
 import { Button } from '../../../components/ui/button';
 import { Skeleton } from '../../../components/ui/skeleton';
@@ -8,7 +8,12 @@ import { Skeleton } from '../../../components/ui/skeleton';
 interface RegisterCardViewProps {
   loading: boolean;
   pagedRows: RegisterRow[];
+  onCreateJobCard?: (challanId: number, challanNo: string) => void;
+  creatingJcId?: number | null;
 }
+
+const statusOf = (r: RegisterRow): 'DONE' | 'PARTIAL' | 'PENDING' =>
+  r.jobCardStatus || (r.jobcardNo && r.jobcardNo !== '-' ? 'DONE' : 'PENDING');
 
 const SkeletonCard = () => (
   <div className="bg-white rounded-xl border border-slate-200/90 p-4 space-y-3">
@@ -23,7 +28,7 @@ const SkeletonCard = () => (
   </div>
 );
 
-export default function RegisterCardView({ loading, pagedRows }: RegisterCardViewProps) {
+export default function RegisterCardView({ loading, pagedRows, onCreateJobCard, creatingJcId }: RegisterCardViewProps) {
   if (loading) return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 p-4 bg-slate-50/50">
       {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
@@ -53,15 +58,6 @@ export default function RegisterCardView({ loading, pagedRows }: RegisterCardVie
               </Link>
             </div>
             <div className="flex items-center gap-0.5">
-              {!r.jobcardNo && (
-                <Button variant="ghost" size="icon-sm" asChild
-                  className="text-slate-400 hover:text-violet-700 hover:bg-violet-50">
-                  <Link to={`/jobcards/new?ref=${encodeURIComponent(r.inwardNo || r.challanNo || String(r.challanId))}`}
-                    title="Create Job Card from this inward" aria-label={`Create job card from inward ${r.inwardNo || r.challanId}`}>
-                    <ClipboardPlus />
-                  </Link>
-                </Button>
-              )}
               <Button variant="ghost" size="icon-sm" asChild
                 className="text-slate-400 hover:text-sky-700 hover:bg-sky-50">
                 <Link to={`/jobwork/${r.challanId}`} title="View" aria-label={`View inward ${r.inwardNo || r.challanId}`}>
@@ -93,11 +89,52 @@ export default function RegisterCardView({ loading, pagedRows }: RegisterCardVie
               </p>
             </div>
 
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Jobcard</p>
-                <p className="text-xs font-bold text-slate-700 font-mono">{r.jobcardNo || '—'}</p>
-              </div>
+            <div className="border-t border-slate-100 pt-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Job Card Status</p>
+              {(() => {
+                const st = statusOf(r);
+                const count = r.itemCount ?? 0;
+                const withJc = r.itemsWithJobCard ?? (st === 'DONE' ? count : 0);
+                const pending = r.itemsPending ?? Math.max(0, count - withJc);
+                const pill =
+                  st === 'DONE' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : st === 'PARTIAL' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                  : 'bg-slate-100 text-slate-500 border-slate-200';
+                const label = st === 'DONE' ? 'Job card done' : st === 'PARTIAL' ? 'Partially carded' : 'No job card';
+                const busy = creatingJcId === r.challanId;
+                return (
+                  <div className="space-y-2">
+                    <span className={`inline-flex w-fit items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${pill}`}>
+                      {label}
+                    </span>
+                    {r.jobcardNo && r.jobcardNo !== '-' && (
+                      <p className="text-xs font-bold text-slate-700 font-mono">{r.jobcardNo}</p>
+                    )}
+                    {count > 0 && st !== 'DONE' && (
+                      <p className="text-[10px] text-slate-400 tabular-nums">
+                        {withJc} of {count} items · {pending} remaining
+                      </p>
+                    )}
+                    {st !== 'DONE' && onCreateJobCard && (
+                      <button
+                        type="button"
+                        onClick={() => onCreateJobCard(r.challanId, r.challanNo)}
+                        disabled={busy}
+                        className="btn-primary text-[11px] px-3 py-1.5 h-auto w-full justify-center"
+                      >
+                        {busy ? (
+                          <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                        ) : (
+                          <>
+                            <span className="material-symbols-outlined text-sm">add_card</span>
+                            {st === 'PARTIAL' ? 'Card remaining items' : 'Create Job Card'}
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

@@ -1466,6 +1466,9 @@ exports.register = async (req, res) => {
       let jobcardNo = ch.jobCard?.jobCardNo || '-';
       let jobcardDate = ch.jobCard?.createdAt || null;
 
+      const jcNoSet = new Set();
+      let itemsWithJobCard = 0;
+      if (ch.jobCard?.jobCardNo) jcNoSet.add(ch.jobCard.jobCardNo);
       for (const it of ch.items) {
         qty += toNum(it.quantity, 0);
         weight += toNum(it.weight, 0);
@@ -1473,11 +1476,21 @@ exports.register = async (req, res) => {
         const manualDispatch = toNum(it.qtyOut, 0);
         dispatchQty += invoiceDispatch > 0 ? invoiceDispatch : manualDispatch;
         if (it.material) materials.add(it.material);
+        if (it.jobCardId || it.jobCard?.jobCardNo) itemsWithJobCard += 1;
+        if (it.jobCard?.jobCardNo) jcNoSet.add(it.jobCard.jobCardNo);
         if (jobcardNo === '-' && it.jobCard?.jobCardNo) {
           jobcardNo = it.jobCard.jobCardNo;
           jobcardDate = it.jobCard.createdAt;
         }
       }
+
+      const itemCount = ch.items.length;
+      // Challan-level link OR every item carded = DONE; some items = PARTIAL.
+      const jobCardStatus =
+        (ch.jobCard?.jobCardNo || (itemCount > 0 && itemsWithJobCard >= itemCount)) ? 'DONE'
+        : itemsWithJobCard > 0 ? 'PARTIAL'
+        : 'PENDING';
+      const itemsPending = Math.max(0, itemCount - itemsWithJobCard);
 
       const balQty = Math.max(0, qty - dispatchQty);
       const deliveryPct = qty > 0 ? (dispatchQty / qty) * 100 : 0;
@@ -1505,7 +1518,11 @@ exports.register = async (req, res) => {
         challanId: ch.id,
         challanItemId: ch.items[0]?.id ?? ch.id,
         itemDescription: ch.items.map((it) => it.description).filter(Boolean).join(', '),
-        itemCount: ch.items.length,
+        itemCount,
+        itemsWithJobCard,
+        itemsPending,
+        jobCardStatus,
+        jobCardNos: [...jcNoSet],
       });
     }
 
