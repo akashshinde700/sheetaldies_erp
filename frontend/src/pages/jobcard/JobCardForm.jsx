@@ -398,8 +398,7 @@ export default function JobCardForm() {
       if (isEdit) {
         await api.put(`/jobcards/${id}`, fd);
         toast.success('Job card updated.');
-        const refreshed = await api.get(`/jobcards/${id}`);
-        setCardData(refreshed.data.data);
+        navigate(`/jobcards/${id}`);
       } else {
         const r = await api.post('/jobcards', fd);
         toast.success(`Job card ${r.data.data.jobCardNo} created!`);
