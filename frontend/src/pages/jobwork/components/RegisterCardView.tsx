@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Eye, Pencil, FileText } from 'lucide-react';
+import { Eye, Pencil, FileText, ClipboardPlus } from 'lucide-react';
 import type { RegisterRow } from '../InwardOutwardRegister';
 import { Button } from '../../../components/ui/button';
 import { Skeleton } from '../../../components/ui/skeleton';
@@ -53,6 +53,15 @@ export default function RegisterCardView({ loading, pagedRows }: RegisterCardVie
               </Link>
             </div>
             <div className="flex items-center gap-0.5">
+              {!r.jobcardNo && (
+                <Button variant="ghost" size="icon-sm" asChild
+                  className="text-slate-400 hover:text-violet-700 hover:bg-violet-50">
+                  <Link to={`/jobcards/new?ref=${encodeURIComponent(r.inwardNo || r.challanNo || String(r.challanId))}`}
+                    title="Create Job Card from this inward" aria-label={`Create job card from inward ${r.inwardNo || r.challanId}`}>
+                    <ClipboardPlus />
+                  </Link>
+                </Button>
+              )}
               <Button variant="ghost" size="icon-sm" asChild
                 className="text-slate-400 hover:text-sky-700 hover:bg-sky-50">
                 <Link to={`/jobwork/${r.challanId}`} title="View" aria-label={`View inward ${r.inwardNo || r.challanId}`}>

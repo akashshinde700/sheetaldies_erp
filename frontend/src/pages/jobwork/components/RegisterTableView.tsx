@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Eye, Pencil, Printer, Trash2, Loader2, FileText } from 'lucide-react';
+import { Eye, Pencil, Printer, Trash2, Loader2, FileText, ClipboardPlus } from 'lucide-react';
 import type { RegisterRow } from '../InwardOutwardRegister';
 import { Button } from '../../../components/ui/button';
 import { Skeleton } from '../../../components/ui/skeleton';
@@ -31,9 +31,9 @@ export default function RegisterTableView({ loading, pagedRows, onDelete, deleti
             <th className="th w-12">Sr</th>
             <th className="th w-[18%]">Inward No</th>
             <th className="th w-[18%]">Challan No</th>
-            <th className="th w-[30%]">Company</th>
-            <th className="th w-[18%] hidden md:table-cell">Job Card</th>
-            <th className="th w-[16%] text-right">Actions</th>
+            <th className="th w-[26%]">Company</th>
+            <th className="th w-[16%] hidden md:table-cell">Job Card</th>
+            <th className="th w-[20%] text-right">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-50/80">
@@ -80,6 +80,18 @@ export default function RegisterTableView({ loading, pagedRows, onDelete, deleti
               </td>
               <td className="td">
                 <div className="flex items-center justify-end gap-0.5">
+                  {!r.jobcardNo && (
+                    <Button variant="ghost" size="icon-sm" asChild
+                      className="text-slate-400 hover:text-violet-700 hover:bg-violet-50">
+                      <Link
+                        to={`/jobcards/new?ref=${encodeURIComponent(r.inwardNo || r.challanNo || String(r.challanId))}`}
+                        title="Create Job Card from this inward"
+                        aria-label={`Create job card from inward ${r.inwardNo || r.challanId}`}
+                      >
+                        <ClipboardPlus />
+                      </Link>
+                    </Button>
+                  )}
                   <Button variant="ghost" size="icon-sm" asChild
                     className="text-slate-400 hover:text-sky-700 hover:bg-sky-50">
                     <Link to={`/jobwork/${r.challanId}`} title="View" aria-label={`View inward ${r.inwardNo || r.challanId}`}>

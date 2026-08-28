@@ -78,7 +78,10 @@ export default function JobCardForm() {
   const [searchParams] = useSearchParams();
   useEffect(() => {
     const ref = searchParams.get('ref');
-    if (ref) setChallanNoLookup(ref);
+    // Coming in from the Inwards register "Create Job Card" action — pull the
+    // challan straight away so Quantity / Total Weight / customer are filled.
+    if (ref) selectInward(ref);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
