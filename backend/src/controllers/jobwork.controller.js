@@ -1321,9 +1321,13 @@ exports.update = async (req, res) => {
       await prisma.challanItem.deleteMany({ where: { challanId: id } });
     }
 
+    // Heal old challans that were created before inwardNo was generated everywhere.
+    const backfillInwardNo = existingChallan.inwardNo ? null : await generateInwardNo();
+
     const challan = await prisma.jobworkChallan.update({
       where: { id },
       data: {
+        ...(backfillInwardNo && { inwardNo: backfillInwardNo }),
         ...(newChallanNo && newChallanNo.trim() && { challanNo: newChallanNo.trim() }),
         ...(challanDate      && { challanDate:     new Date(challanDate) }),
         ...(jobCardId        !== undefined && { jobCardId:      jobCardId ? toInt(jobCardId) : null }),
