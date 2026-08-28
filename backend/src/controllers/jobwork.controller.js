@@ -6,6 +6,22 @@ const { parseJsonIfString } = require('../utils/json');
 const { withTransaction } = require('../utils/transactionHandler');
 const { generateJobCardNoAtomic } = require('../utils/sequenceManager');
 
+// Last-resort temp-time graph for auto-created run sheets when no default
+// TempCycleTemplate is configured. Standard D2 vacuum-hardening staircase —
+// mirrors HEAT_TREATMENT_CYCLES.D2 in frontend/src/data/heatTreatmentCycles.js.
+const DEFAULT_RUNSHEET_CYCLE = [
+  { tempC: 50,   holdMin: 50,  label: 'Room Temp' },
+  { tempC: 550,  holdMin: 10,  label: 'Preheat 1' },
+  { tempC: 750,  holdMin: 20,  label: 'Preheat 2' },
+  { tempC: 950,  holdMin: 20,  label: 'Preheat 3' },
+  { tempC: 1040, holdMin: 30,  label: 'Harden' },
+  { tempC: 50,   holdMin: 50,  label: 'Cool to RT' },
+  { tempC: 500,  holdMin: 120, label: 'Temper 1' },
+  { tempC: 50,   holdMin: 50,  label: 'Cool to RT' },
+  { tempC: 500,  holdMin: 120, label: 'Temper 2' },
+  { tempC: 50,   holdMin: 50,  label: 'Final Cool' },
+];
+
 const generateChallanNo = async () => {
   const y  = new Date().getFullYear().toString().slice(-2);   // "26"
   const yn = String(toInt(y, 0) + 1);                        // "27"
@@ -763,8 +779,8 @@ exports.createRunSheetFromJobCard = async (req, res) => {
         ? await prisma.tempCycleTemplate.findFirst({ where: { isDefault: true, isActive: true, processTypeId: jcProcessTypeId } })
         : null;
       if (!tpl) tpl = await prisma.tempCycleTemplate.findFirst({ where: { isDefault: true, isActive: true, processTypeId: null } });
-      if (tpl?.data) tempGraphPoints = tpl.data;
-    } catch { /* leave null if no template exists */ }
+      tempGraphPoints = tpl?.data || DEFAULT_RUNSHEET_CYCLE;
+    } catch { tempGraphPoints = DEFAULT_RUNSHEET_CYCLE; }
 
     // Check if run sheet already exists for this job card
     const existing = await prisma.vHTRunsheetItem.findFirst({
@@ -1182,8 +1198,8 @@ exports.createInwardJobCardRunSheet = async (req, res) => {
           ? await tx.tempCycleTemplate.findFirst({ where: { isDefault: true, isActive: true, processTypeId: ptId } })
           : null;
         if (!tpl) tpl = await tx.tempCycleTemplate.findFirst({ where: { isDefault: true, isActive: true, processTypeId: null } });
-        if (tpl?.data) rsTempGraph = tpl.data;
-      } catch { /* leave null */ }
+        rsTempGraph = tpl?.data || DEFAULT_RUNSHEET_CYCLE;
+      } catch { rsTempGraph = DEFAULT_RUNSHEET_CYCLE; }
 
       const runsheet = await tx.vHTRunsheet.create({
         data: {
