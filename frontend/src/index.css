@@ -919,7 +919,6 @@ input[type=number] { -moz-appearance: textfield; }
     }
   }
 }
-
 /* ══════════════════════════════════════════════════════════════════════ *
  *  THEME COLOR TOKENS  —  the numbered Tailwind ramps (slate/sky/emerald…)
  *  resolve to these vars via tailwind.config.js. Light values here; the
@@ -1030,7 +1029,7 @@ input[type=number] { -moz-appearance: textfield; }
     --c-neutral-700: 222 228 236;
     --c-neutral-800: 237 241 246;
     --c-neutral-900: 248 250 252;
-    --c-neutral-950: 255 255 255;
+    --c-neutral-950: 2 4 9;
     --c-primary-50: 21 39 68;
     --c-primary-100: 26 58 107;
     --c-primary-200: 34 70 127;
@@ -1146,6 +1145,14 @@ input[type=number] { -moz-appearance: textfield; }
   .dark .shadow-2xl {
     box-shadow: 0 0 0 1px rgb(148 163 184 / 0.06), 0 2px 4px rgb(2 6 12 / 0.4), 0 12px 34px -12px rgb(2 6 12 / 0.6);
   }
+
+  /* Modal / drawer scrims: bg-slate-900|950/xx and bg-black/xx must stay
+     dark (neutral-900/950 vars are light so headings read on navy). */
+  .dark [class*="bg-slate-900/"],
+  .dark [class*="bg-slate-950/"],
+  .dark [class*="bg-black/"] { background-color: rgb(2 4 9 / 0.72) !important; }
+  /* …and the 2 places that use text-slate-950 for a heading */
+  .dark [class~="text-slate-950"] { color: #F8FAFC; }
 
   /* The app's primary fill is bg-slate-900 — keep it a real cobalt button */
   .dark button[class*="bg-slate-900"],
@@ -1312,7 +1319,6 @@ input[type=number] { -moz-appearance: textfield; }
   .dark .recharts-tooltip-item { color: #DEE4EC !important; }
   .dark .recharts-tooltip-cursor { fill: rgb(148 163 184 / 0.08) !important; }
 
-  /* Series colours that read too dark on navy */
   .dark [fill="#047857"] { fill: #14B8A6 !important; }
   .dark [stroke="#047857"] { stroke: #14B8A6 !important; }
   .dark [fill="#b45309"] { fill: #F59E0B !important; }
@@ -1323,7 +1329,6 @@ input[type=number] { -moz-appearance: textfield; }
   .dark [stroke="#1e3a8a"] { stroke: #60A5FA !important; }
   .dark [fill="#64748b"] { fill: #AEB9C9 !important; }
 
-  /* HeatCycle step graph axes/labels (also shown in the CertForm preview) */
   .dark [stroke="#000"], .dark [stroke="#333"], .dark [stroke="#555"] { stroke: #8895A8; }
   .dark [fill="#000"], .dark [fill="#1a1a1a"], .dark [fill="#333"] { fill: #C7D0DD; }
   .dark [fill="#aaa"] { fill: #6B7A90; }

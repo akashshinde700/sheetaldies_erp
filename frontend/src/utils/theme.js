@@ -24,8 +24,12 @@ export const resolveDark = (theme = getStoredTheme()) =>
 export const applyTheme = (theme = getStoredTheme()) => {
   const dark = resolveDark(theme);
   document.documentElement.classList.toggle('dark', dark);
-  const meta = document.querySelector('meta[name="color-scheme"]');
-  if (meta) meta.setAttribute('content', dark ? 'dark' : 'light');
+  const cs = document.querySelector('meta[name="color-scheme"]');
+  if (cs) cs.setAttribute('content', dark ? 'dark' : 'light');
+  // mobile address-bar tint
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => {
+    m.setAttribute('content', dark ? '#0B1220' : '#0f172a');
+  });
 };
 
 export const setTheme = (theme) => {
