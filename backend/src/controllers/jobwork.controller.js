@@ -50,12 +50,12 @@ const generateChallanNo = async () => {
   return challanNo;
 };
 
-const generateInwardNo = async () => {
+const generateInwardNo = async (db = prisma) => {
   const y  = new Date().getFullYear().toString().slice(-2);
   const yn = String(toInt(y, 0) + 1);
   const prefix = `INW/${y}-${yn}/`;
 
-  const last = await prisma.jobworkChallan.findFirst({
+  const last = await db.jobworkChallan.findFirst({
     where:   { inwardNo: { startsWith: prefix } },
     orderBy: { inwardNo: 'desc' },
   });
@@ -70,7 +70,7 @@ const generateInwardNo = async () => {
   let inwardNo;
   do {
     inwardNo = `${prefix}${String(nextSerial).padStart(4, '0')}`;
-    const exists = await prisma.jobworkChallan.findUnique({ where: { inwardNo } });
+    const exists = await db.jobworkChallan.findUnique({ where: { inwardNo } });
     if (!exists) break;
     nextSerial++;
   } while (nextSerial < 9999);
@@ -396,6 +396,7 @@ exports.create = async (req, res) => {
       const created = await tx.jobworkChallan.create({
         data: {
           challanNo,
+          inwardNo:        await generateInwardNo(tx),
           challanDate:     new Date(challanDate || new Date()),
           jobCardId:       jobCardId       ? toInt(jobCardId)       : null,
           fromPartyId:     toInt(fromPartyId),
@@ -522,6 +523,7 @@ exports.createInward = async (req, res) => {
       const challan = await tx.jobworkChallan.create({
         data: {
           challanNo,
+          inwardNo: await generateInwardNo(tx),
           challanDate: new Date(challanDate || new Date()),
           fromPartyId: toInt(fromPartyId),
           toPartyId: toInt(toPartyId),
@@ -896,7 +898,7 @@ exports.createInwardWithJobCards = async (req, res) => {
         if (existing) throw new Error(`Inward No "${trimmed}" already exists.`);
         inwardNo = trimmed;
       } else {
-        inwardNo = await generateInwardNo();
+        inwardNo = await generateInwardNo(tx);
       }
 
       // 2. Create challan with items
@@ -1092,6 +1094,7 @@ exports.createInwardJobCardRunSheet = async (req, res) => {
       const challan = await tx.jobworkChallan.create({
         data: {
           challanNo,
+          inwardNo: await generateInwardNo(tx),
           challanDate: new Date(challanDate || new Date()),
           fromPartyId: toInt(fromPartyId),
           toPartyId: toInt(toPartyId),
