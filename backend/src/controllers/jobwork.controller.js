@@ -743,16 +743,28 @@ exports.createRunSheetFromJobCard = async (req, res) => {
     const { jobCardId, jobCardNo, furnaceId, runDate, batchId } = req.body;
     if (!jobCardId && !jobCardNo) return res.status(400).json({ success: false, message: 'Job Card ID or Job Card No is required.' });
 
+    const jcInclude = {
+      customer: true,
+      part: true,
+      challanItemLinks: { select: { processTypeId: true }, take: 1 },
+    };
     const jobCard = jobCardId
-      ? await prisma.jobCard.findUnique({
-          where: { id: toInt(jobCardId) },
-          include: { customer: true, part: true },
-        })
-      : await prisma.jobCard.findFirst({
-          where: { jobCardNo: String(jobCardNo).trim() },
-          include: { customer: true, part: true },
-        });
+      ? await prisma.jobCard.findUnique({ where: { id: toInt(jobCardId) }, include: jcInclude })
+      : await prisma.jobCard.findFirst({ where: { jobCardNo: String(jobCardNo).trim() }, include: jcInclude });
     if (!jobCard) return res.status(404).json({ success: false, message: 'Job card not found.' });
+
+    // Seed the temperature-time graph from the default cycle template so the
+    // auto-created run sheet (and its print) isn't blank. Prefer the template
+    // marked default for this job's process; fall back to the general default.
+    const jcProcessTypeId = jobCard.challanItemLinks?.[0]?.processTypeId || null;
+    let tempGraphPoints = null;
+    try {
+      let tpl = jcProcessTypeId
+        ? await prisma.tempCycleTemplate.findFirst({ where: { isDefault: true, isActive: true, processTypeId: jcProcessTypeId } })
+        : null;
+      if (!tpl) tpl = await prisma.tempCycleTemplate.findFirst({ where: { isDefault: true, isActive: true, processTypeId: null } });
+      if (tpl?.data) tempGraphPoints = tpl.data;
+    } catch { /* leave null if no template exists */ }
 
     // Check if run sheet already exists for this job card
     const existing = await prisma.vHTRunsheetItem.findFirst({
@@ -787,6 +799,7 @@ exports.createRunSheetFromJobCard = async (req, res) => {
         batchId: batchId ? toInt(batchId) : null,
         status: 'PLANNED',
         createdById: req.user.id,
+        ...(tempGraphPoints ? { tempGraphPoints } : {}),
         items: {
           create: [{
             jobCardId: jobCard.id,
@@ -1160,6 +1173,18 @@ exports.createInwardJobCardRunSheet = async (req, res) => {
       const lastNum = lastRS?.runsheetNumber ? toInt(lastRS.runsheetNumber.split('/').pop(), 0) : 0;
       const runsheetNumber = `VHT/${new Date().getFullYear()}/${String(lastNum + 1).padStart(5, '0')}`;
 
+      // Seed the temp-time graph from the default cycle template (see
+      // createRunSheetFromJobCard) so the auto-created run sheet isn't blank.
+      let rsTempGraph = null;
+      try {
+        const ptId = challan.items[0]?.processTypeId || null;
+        let tpl = ptId
+          ? await tx.tempCycleTemplate.findFirst({ where: { isDefault: true, isActive: true, processTypeId: ptId } })
+          : null;
+        if (!tpl) tpl = await tx.tempCycleTemplate.findFirst({ where: { isDefault: true, isActive: true, processTypeId: null } });
+        if (tpl?.data) rsTempGraph = tpl.data;
+      } catch { /* leave null */ }
+
       const runsheet = await tx.vHTRunsheet.create({
         data: {
           runsheetNumber,
@@ -1168,6 +1193,7 @@ exports.createInwardJobCardRunSheet = async (req, res) => {
           batchId: null,
           status: 'PLANNED',
           createdById: req.user.id,
+          ...(rsTempGraph ? { tempGraphPoints: rsTempGraph } : {}),
           items: {
             create: [{
               jobCardId: jobCard.id,
