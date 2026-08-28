@@ -35,7 +35,7 @@ export default function CertHeaderSection({ form, set, parties, jobCards, jcData
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-2 gap-x-3 gap-y-3 lg:grid-cols-12">
-          <FormField label="Job Card No." className="lg:col-span-3">
+          <FormField label="Job Card No." className="lg:col-span-2">
             <SearchSelect
               value={String(form.jobCardId || '')}
               onChange={v => set('jobCardId', v)}
@@ -44,7 +44,7 @@ export default function CertHeaderSection({ form, set, parties, jobCards, jcData
             />
           </FormField>
 
-          <FormField label="Customer" required className="col-span-2 lg:col-span-4">
+          <FormField label="Customer" required className="col-span-2 lg:col-span-6">
             {locked ? (
               <Input value={jcData.customer?.name || jcData.customerNameSnapshot || form.issuedTo || ''} disabled className={JC_INPUT} />
             ) : (
@@ -58,7 +58,7 @@ export default function CertHeaderSection({ form, set, parties, jobCards, jcData
             )}
           </FormField>
 
-          <FormField label="Certificate No." className="lg:col-span-3">
+          <FormField label="Certificate No." className="lg:col-span-2">
             <div className="flex gap-1.5">
               <Input value={form.issueNo} onChange={e => set('issueNo', e.target.value)} className="flex-1 font-app-mono" placeholder="Auto-generated" />
               <Button type="button" variant="outline" title="Regenerate"
@@ -79,11 +79,11 @@ export default function CertHeaderSection({ form, set, parties, jobCards, jcData
             <Input type="date" value={form.issueDate} onChange={e => set('issueDate', e.target.value)} />
           </FormField>
 
-          <FormField label="Issue By" className="lg:col-span-3">
+          <FormField label="Issue By" className="lg:col-span-4">
             <Input value={form.checkedBy} onChange={e => set('checkedBy', e.target.value)} placeholder="Inspector name" />
           </FormField>
 
-          <FormField label="Your PO No." className="lg:col-span-3">
+          <FormField label="Your PO No." className="lg:col-span-2">
             <Input value={form.yourPoNo} disabled={locked} onChange={e => set('yourPoNo', e.target.value)}
               className={locked ? JC_INPUT : undefined} />
           </FormField>
@@ -92,7 +92,7 @@ export default function CertHeaderSection({ form, set, parties, jobCards, jcData
             <Input type="date" value={form.yourPoDate} onChange={e => set('yourPoDate', e.target.value)} />
           </FormField>
 
-          <FormField label="Your DC No." className="lg:col-span-4">
+          <FormField label="Your DC No." className="lg:col-span-2">
             <Input value={form.yourRefNo} onChange={e => set('yourRefNo', e.target.value)} />
           </FormField>
         </div>

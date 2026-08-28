@@ -15,7 +15,7 @@ import { Stepper, useStepper } from '@/components/ui/stepper';
 import { FormErrorSummary, focusField } from '@/components/ui/field';
 
 const EMPTY = {
-  name: '', partyCode: '', address: '', city: '', state: 'Maharashtra', pinCode: '',
+  name: '', partyCode: '', address: '', city: '', state: 'MAHARASHTRA', pinCode: '',
   gstin: '', pan: '', stateCode: '27', phone: '', email: '', partyType: 'CUSTOMER',
   vatTin: '', cstNo: '', tallyLedgerName: '',
   bankAccountHolder: '', bankName: '', accountNo: '', ifscCode: '', swiftCode: '',
@@ -34,9 +34,10 @@ const STATE_CODES = {
   'andaman and nicobar islands': '35',
 };
 
-const titleCaseState = (s) =>
-  s.split(' ').map(w => (w === 'and' ? w : w[0].toUpperCase() + w.slice(1))).join(' ');
-const STATE_NAMES = Object.keys(STATE_CODES).map(titleCaseState).sort();
+// Dropdown shows every state name in UPPERCASE; the code lookup below
+// lower-cases before matching, so stored values still resolve.
+const STATE_NAMES = Object.keys(STATE_CODES).map(s => s.toUpperCase()).sort();
+const upperState = (s) => String(s || '').toUpperCase();
 
 const validateGSTIN = (v) => {
   if (!v) return null;
@@ -60,7 +61,7 @@ const partyToFormFields = (p) => ({
   partyCode: p.partyCode || '',
   address: p.address || '',
   city: p.city || '',
-  state: p.state || '',
+  state: upperState(p.state),
   pinCode: p.pinCode || '',
   gstin: p.gstin || '',
   pan: p.pan || '',
@@ -169,7 +170,7 @@ export default function PartyForm() {
       const known = locations.cities.find(c => c.city.toLowerCase() === v.toLowerCase().trim());
       if (known) {
         if (known.state && !p.state) {
-          next.state = known.state;
+          next.state = upperState(known.state);
           const code = STATE_CODES[known.state.toLowerCase().trim()];
           if (code) next.stateCode = code;
         }
