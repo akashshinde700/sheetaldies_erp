@@ -71,11 +71,22 @@ export default function RegisterTableView({ loading, pagedRows, onDelete, deleti
               </td>
               <td className="td text-slate-700 font-medium truncate">{r.companyName || '—'}</td>
               <td className="td hidden md:table-cell">
-                <span className="text-xs font-semibold text-slate-700 font-mono">{r.jobcardNo || '—'}</span>
-                {r.jobcardDate && (
-                  <p className="text-[10px] text-slate-400 mt-0.5 whitespace-nowrap">
-                    {new Date(r.jobcardDate).toLocaleDateString('en-IN')}
-                  </p>
+                {r.jobcardNo ? (
+                  <>
+                    <span className="text-xs font-semibold text-slate-700 font-mono">{r.jobcardNo}</span>
+                    {r.jobcardDate && (
+                      <p className="text-[10px] text-slate-400 mt-0.5 whitespace-nowrap">
+                        {new Date(r.jobcardDate).toLocaleDateString('en-IN')}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <Link
+                    to={`/jobcards/new?ref=${encodeURIComponent(r.inwardNo || r.challanNo || String(r.challanId))}`}
+                    className="inline-flex items-center gap-1 rounded-md border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700 hover:bg-violet-100"
+                  >
+                    <ClipboardPlus className="h-3 w-3" /> Create
+                  </Link>
                 )}
               </td>
               <td className="td">
