@@ -5,8 +5,10 @@ import { Toaster } from 'react-hot-toast';
 import App from './App';
 import './index.css';
 import { initErrorReporting } from './utils/errorReporter';
+import { applyTheme } from './utils/theme';
 
 initErrorReporting();
+applyTheme(); // assert theme + wire the class-guard observer before first render
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

@@ -58,3 +58,23 @@ if (typeof window !== 'undefined' && window.matchMedia) {
     if (getStoredTheme() === 'system') applyTheme('system');
   });
 }
+
+// Some code paths (print helpers, route swaps, 3rd-party widgets) have been
+// seen to strip the class off <html>, which silently drops dark mode. Watch
+// for that and put it back so the theme never "falls out" on its own.
+if (typeof window !== 'undefined' && typeof MutationObserver !== 'undefined' && document.documentElement) {
+  let guard = false;
+  const obs = new MutationObserver(() => {
+    if (guard) return;
+    const shouldDark = resolveDark();
+    const isDark = document.documentElement.classList.contains('dark');
+    if (shouldDark === isDark) return;
+    guard = true;
+    document.documentElement.classList.toggle('dark', shouldDark);
+    guard = false;
+  });
+  obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+  // And re-assert once the tab regains focus / becomes visible.
+  window.addEventListener('visibilitychange', () => applyTheme());
+  window.addEventListener('focus', () => applyTheme());
+}

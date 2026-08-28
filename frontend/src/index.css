@@ -1020,32 +1020,32 @@ input[type=number] { -moz-appearance: textfield; }
 
 @media screen {
   :root.dark {
-    --c-neutral-50: 11 18 32;
-    --c-neutral-100: 19 31 56;
-    --c-neutral-200: 34 48 74;
-    --c-neutral-300: 58 74 99;
-    --c-neutral-400: 138 152 172;
-    --c-neutral-500: 169 180 196;
-    --c-neutral-600: 195 204 217;
-    --c-neutral-700: 219 225 234;
-    --c-neutral-800: 231 235 241;
-    --c-neutral-900: 241 244 248;
-    --c-neutral-950: 248 250 252;
-    --c-primary-50: 22 35 61;
-    --c-primary-100: 28 46 82;
-    --c-primary-200: 36 64 122;
-    --c-primary-300: 46 82 153;
+    --c-neutral-50: 14 23 40;
+    --c-neutral-100: 24 39 65;
+    --c-neutral-200: 42 59 88;
+    --c-neutral-300: 62 80 116;
+    --c-neutral-400: 147 161 181;
+    --c-neutral-500: 174 185 201;
+    --c-neutral-600: 199 208 221;
+    --c-neutral-700: 222 228 236;
+    --c-neutral-800: 237 241 246;
+    --c-neutral-900: 248 250 252;
+    --c-neutral-950: 255 255 255;
+    --c-primary-50: 21 39 68;
+    --c-primary-100: 26 58 107;
+    --c-primary-200: 34 70 127;
+    --c-primary-300: 43 81 153;
     --c-primary-400: 59 130 246;
     --c-primary-500: 59 130 246;
     --c-primary-600: 37 99 235;
-    --c-primary-700: 125 179 255;
-    --c-primary-800: 165 200 255;
-    --c-primary-900: 207 224 255;
+    --c-primary-700: 147 197 253;
+    --c-primary-800: 191 219 254;
+    --c-primary-900: 219 234 254;
     --c-primary-950: 239 246 255;
-    --c-success-50: 14 46 44;
-    --c-success-100: 18 69 66;
-    --c-success-200: 22 111 107;
-    --c-success-300: 20 184 166;
+    --c-success-50: 15 46 44;
+    --c-success-100: 18 63 59;
+    --c-success-200: 21 94 88;
+    --c-success-300: 20 133 124;
     --c-success-400: 45 212 191;
     --c-success-500: 20 184 166;
     --c-success-600: 20 184 166;
@@ -1053,32 +1053,32 @@ input[type=number] { -moz-appearance: textfield; }
     --c-success-800: 153 246 228;
     --c-success-900: 204 251 241;
     --c-success-950: 240 253 250;
-    --c-warning-50: 58 42 10;
-    --c-warning-100: 90 63 14;
-    --c-warning-200: 124 83 16;
-    --c-warning-300: 180 83 9;
+    --c-warning-50: 51 40 12;
+    --c-warning-100: 74 58 16;
+    --c-warning-200: 107 82 20;
+    --c-warning-300: 138 101 16;
     --c-warning-400: 245 158 11;
     --c-warning-500: 245 158 11;
     --c-warning-600: 245 158 11;
-    --c-warning-700: 251 191 36;
-    --c-warning-800: 252 211 77;
-    --c-warning-900: 253 230 138;
+    --c-warning-700: 252 211 77;
+    --c-warning-800: 253 230 138;
+    --c-warning-900: 254 243 199;
     --c-warning-950: 255 251 235;
-    --c-danger-50: 58 22 24;
-    --c-danger-100: 90 30 34;
-    --c-danger-200: 124 42 46;
-    --c-danger-300: 192 65 63;
+    --c-danger-50: 51 26 28;
+    --c-danger-100: 74 36 39;
+    --c-danger-200: 107 50 54;
+    --c-danger-300: 154 64 63;
     --c-danger-400: 240 82 82;
     --c-danger-500: 240 82 82;
     --c-danger-600: 240 82 82;
-    --c-danger-700: 251 155 155;
+    --c-danger-700: 252 165 165;
     --c-danger-800: 254 202 202;
     --c-danger-900: 254 226 226;
     --c-danger-950: 255 241 242;
-    --c-accent-50: 36 27 74;
-    --c-accent-100: 50 44 104;
-    --c-accent-200: 74 61 143;
-    --c-accent-300: 106 96 198;
+    --c-accent-50: 34 27 68;
+    --c-accent-100: 48 41 99;
+    --c-accent-200: 66 57 127;
+    --c-accent-300: 92 79 168;
     --c-accent-400: 139 128 208;
     --c-accent-500: 167 139 250;
     --c-accent-600: 167 139 250;
@@ -1086,10 +1086,10 @@ input[type=number] { -moz-appearance: textfield; }
     --c-accent-800: 221 214 254;
     --c-accent-900: 237 233 254;
     --c-accent-950: 245 243 255;
-    --c-info-50: 32 27 69;
-    --c-info-100: 50 44 104;
-    --c-info-200: 74 61 163;
-    --c-info-300: 106 96 198;
+    --c-info-50: 30 27 66;
+    --c-info-100: 46 42 96;
+    --c-info-200: 65 58 147;
+    --c-info-300: 90 80 184;
     --c-info-400: 132 128 208;
     --c-info-500: 163 168 224;
     --c-info-600: 163 168 224;
@@ -1097,10 +1097,10 @@ input[type=number] { -moz-appearance: textfield; }
     --c-info-800: 224 226 246;
     --c-info-900: 238 240 251;
     --c-info-950: 245 245 254;
-    --c-heat-50: 55 22 8;
-    --c-heat-100: 84 40 20;
-    --c-heat-200: 124 54 18;
-    --c-heat-300: 158 67 16;
+    --c-heat-50: 51 23 9;
+    --c-heat-100: 76 36 19;
+    --c-heat-200: 107 51 21;
+    --c-heat-300: 138 64 20;
     --c-heat-400: 193 85 17;
     --c-heat-500: 229 125 64;
     --c-heat-600: 239 160 110;
@@ -1108,46 +1108,43 @@ input[type=number] { -moz-appearance: textfield; }
     --c-heat-800: 251 228 211;
     --c-heat-900: 253 243 236;
     --c-heat-950: 255 249 244;
-    --c-white: 27 42 65;
-    --c-black: 241 244 248;
+    --c-white: 23 38 64;
+    --c-black: 248 250 252;
 
     color-scheme: dark;
     --app-bg-1: #0B1220;
-    --app-bg-2: #0B1220;
+    --app-bg-2: #0A1020;
     --app-bg-3: #0B1220;
-    --sidebar-bg-1: #111C33;
-    --sidebar-bg-2: #101B31;
-    --sidebar-bg-3: #0D1730;
-    --text-strong: #F1F4F8;
-    --text-default: #E7EBF1;
-    --text-muted: #A9B4C4;
-    --text-soft: #8A98AC;
-    --brand-glow: rgb(59 130 246 / 0.16);
+    --sidebar-bg-1: #0D1830;
+    --sidebar-bg-2: #0C1730;
+    --sidebar-bg-3: #0A142A;
+    --text-strong: #F8FAFC;
+    --text-default: #DEE4EC;
+    --text-muted: #AEB9C9;
+    --text-soft: #93A1B5;
+    --brand-glow: rgb(59 130 246 / 0.18);
   }
 
   :root.dark body {
     background-color: #0B1220;
-    color: #E7EBF1;
+    color: #DEE4EC;
   }
 
-  .dark ::-webkit-scrollbar-thumb { background: rgb(148 163 184 / 0.32); }
-  .dark ::-webkit-scrollbar-thumb:hover { background: rgb(148 163 184 / 0.5); }
-  .dark ::selection { background-color: rgb(59 130 246 / 0.4); color: #F1F4F8; }
+  .dark ::-webkit-scrollbar-thumb { background: rgb(148 163 184 / 0.28); }
+  .dark ::-webkit-scrollbar-thumb:hover { background: rgb(148 163 184 / 0.48); }
+  .dark ::selection { background-color: rgb(59 130 246 / 0.4); color: #F8FAFC; }
 
-  /* Card / panel surfaces sit one step above the page for depth */
-  .dark .card,
-  .dark [class~="bg-white"] { background-color: #16233D; }
-  .dark [class*="bg-white/"] { background-color: rgb(22 35 61 / 0.9); }
-
-  /* Shadows barely read on dark — replace with a soft ambient one */
+  /* Shadows barely read on dark — swap for a soft ambient one + hairline */
   .dark .shadow-card,
   .dark .shadow-card-hover,
   .dark .shadow-soft,
   .dark .shadow-card-elevated,
   .dark .shadow-lg,
+  .dark .shadow-xl,
   .dark .shadow-header,
-  .dark .shadow-drawer {
-    box-shadow: 0 1px 2px rgb(2 6 12 / 0.5), 0 10px 30px -10px rgb(2 6 12 / 0.6);
+  .dark .shadow-drawer,
+  .dark .shadow-2xl {
+    box-shadow: 0 0 0 1px rgb(148 163 184 / 0.06), 0 2px 4px rgb(2 6 12 / 0.4), 0 12px 34px -12px rgb(2 6 12 / 0.6);
   }
 
   /* The app's primary fill is bg-slate-900 — keep it a real cobalt button */
@@ -1158,11 +1155,28 @@ input[type=number] { -moz-appearance: textfield; }
   .dark button[class*="bg-slate-800"] {
     background-color: #2563EB;
     color: #F8FAFC;
+    box-shadow: 0 1px 2px rgb(2 6 12 / 0.5), 0 8px 22px -8px rgb(37 99 235 / 0.45);
   }
   .dark button[class*="bg-slate-900"]:hover,
   .dark a[class*="bg-slate-900"]:hover,
   .dark .btn-primary:hover,
   .dark button[class*="bg-slate-800"]:hover { background-color: #1D4ED8; }
+
+  /* Gradient chrome on the SVT logo tile / header pill reads harsh on navy */
+  .dark [class*="from-sky-100"], .dark [class*="from-sky-50"] { --tw-gradient-from: rgb(30 58 138 / 0.4) var(--tw-gradient-from-position); }
+  .dark [class*="to-sky-50"], .dark [class*="to-sky-100"] { --tw-gradient-to: rgb(23 39 68 / 0.2) var(--tw-gradient-to-position); }
+
+  /* Sidebar active item — clear cobalt rail */
+  .dark aside a[aria-current="page"],
+  .dark aside a.active { background-color: rgb(37 99 235 / 0.16); color: #BFDBFE; }
+
+  /* Inputs: a touch of lift + cobalt focus */
+  .dark input:focus, .dark select:focus, .dark textarea:focus,
+  .dark .form-input:focus { border-color: #3B82F6; box-shadow: 0 0 0 3px rgb(59 130 246 / 0.22); }
+
+  /* react-hot-toast is styled with !bg-white/95 !text-slate-800 !border-slate-200 */
+  .dark [class*="go2"][role="status"],
+  .dark [class*="!bg-white"] { background-color: rgb(23 38 64 / 0.96) !important; color: #DEE4EC !important; border-color: #2A3B58 !important; }
 }
 
 /* Belt & suspenders: even with <html class="dark">, printing is always light
@@ -1178,7 +1192,7 @@ input[type=number] { -moz-appearance: textfield; }
 }
 
 /* Print-preview sheets stay on the LIGHT palette even when the app is in
-   dark mode — a printed invoice/certificate is white paper. .page is the
+   dark mode — a printed invoice / certificate is white paper. .page is the
    shared print-sheet container on every *Print.jsx. */
 @media screen {
   .dark .page {
