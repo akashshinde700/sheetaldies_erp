@@ -15,8 +15,21 @@ router.get('/', auth, requireRole('OPERATOR'), async (req, res) => {
   try {
     const { type } = req.query;
     const { page, limit, skip } = parsePagination(req);
-    
-    const where = type ? { partyType: { in: [type, 'BOTH'] } } : {};
+
+    const search = String(req.query.search || '').trim();
+    const where = {};
+    if (type) where.partyType = { in: [type, 'BOTH'] };
+    if (search) {
+      // name / partyCode / city / state / pinCode are stored in plain text
+      // (gstin, phone, email are encrypted → not text-searchable here).
+      where.OR = [
+        { name:      { contains: search } },
+        { partyCode: { contains: search } },
+        { city:      { contains: search } },
+        { state:     { contains: search } },
+        { pinCode:   { contains: search } },
+      ];
+    }
     const [parties, total] = await Promise.all([
       prisma.party.findMany({
         where,

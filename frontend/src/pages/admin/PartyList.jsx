@@ -44,19 +44,32 @@ export default function PartyList() {
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
-  const load = () => {
+  const load = (searchTerm = '') => {
     setLoading(true);
-    api.get('/parties').then(r => setParties(r.data.data)).finally(() => setLoading(false));
+    api.get('/parties', { params: { limit: 100, ...(searchTerm ? { search: searchTerm } : {}) } })
+      .then(r => setParties(r.data.data))
+      .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
   useEffect(() => { setPage(1); }, [search, filter]);
 
+  // Server-side search (covers name / party code / city / state / PIN across
+  // every party, not just the first page held in memory). Runs on mount too.
+  useEffect(() => {
+    const term = search.trim();
+    const t = setTimeout(() => load(term), term ? 300 : 0);
+    return () => clearTimeout(t);
+  }, [search]);
+
   const filtered = parties.filter(p => {
+    const q = search.toLowerCase();
     const matchType   = filter === 'ALL' || p.partyType === filter;
-    const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase())
-      || p.gstin?.toLowerCase().includes(search.toLowerCase())
-      || p.city?.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = !q || p.name?.toLowerCase().includes(q)
+      || p.partyCode?.toLowerCase().includes(q)
+      || p.gstin?.toLowerCase().includes(q)
+      || p.city?.toLowerCase().includes(q)
+      || p.state?.toLowerCase().includes(q)
+      || p.pinCode?.toLowerCase().includes(q);
     return matchType && matchSearch;
   });
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
