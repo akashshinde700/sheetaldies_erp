@@ -299,6 +299,12 @@ export default function JobCardPrint() {
           body * { font-weight: bold !important; color: #000 !important; }
           #page1 { font-size: 10px !important; }
           #page1 td, #page1 th { font-size: 10px !important; }
+          /* Page 1 — grow the items / notes band so the frame reaches the
+             bottom of the landscape sheet instead of ending mid-page.
+             Font, borders and every section's own size are untouched. */
+          #page1 { display: flex !important; flex-direction: column; min-height: 201mm; }
+          #page1 > * { flex: 0 0 auto; }
+          #page1 .jc-p1-body { flex: 1 1 auto !important; min-height: 0; }
           /* Page 2 — must stay on ONE landscape A4 sheet.
              The old print spilled onto a 2nd sheet because Chrome mis-sizes
              the image grid's CSS aspect-ratio and then refuses to split the
@@ -494,7 +500,7 @@ export default function JobCardPrint() {
         </table>
 
         {/* ── ITEMS TABLE + RIGHT PANEL ── */}
-        <div style={{ display: 'flex', borderBottom: B }}>
+        <div className="jc-p1-body" style={{ display: 'flex', borderBottom: B }}>
           {/* Items table */}
           <div style={{ flex: 1, borderRight: B, overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
