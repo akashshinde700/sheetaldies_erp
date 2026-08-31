@@ -299,12 +299,18 @@ export default function JobCardPrint() {
           body * { font-weight: bold !important; color: #000 !important; }
           #page1 { font-size: 10px !important; }
           #page1 td, #page1 th { font-size: 10px !important; }
-          /* Page 2 — compress just enough to keep it on ONE landscape A4 sheet */
-          #page2 { font-size: 8.5px !important; margin-top: 0 !important; page-break-inside: avoid; break-inside: avoid; }
-          #page2 td, #page2 th { padding: 1px 3px !important; font-size: 8.5px !important; line-height: 1.5 !important; }
+          /* Page 2 — must stay on ONE landscape A4 sheet.
+             The old print spilled onto a 2nd sheet because Chrome mis-sizes
+             the image grid's CSS aspect-ratio and then refuses to split the
+             flex row, so we pin the images to a fixed height and stop every
+             block from fragmenting. */
+          #page2 { font-size: 8px !important; margin-top: 0 !important; }
+          #page2 td, #page2 th { padding: 1px 3px !important; font-size: 8px !important; line-height: 1.35 !important; }
           #page2 tr { height: auto !important; }
-          #page2 .jc-p2-images { gap: 5px !important; padding: 4px 8px !important; }
-          #page2 .jc-p2-images > div { aspect-ratio: 3 / 2 !important; }
+          #page2 table, #page2 .jc-p2-row { break-inside: avoid; page-break-inside: avoid; }
+          #page2 div[style*="min-height"] { min-height: 70px !important; }
+          #page2 .jc-p2-images { gap: 4px !important; padding: 3px 6px !important; }
+          #page2 .jc-p2-images > div { aspect-ratio: auto !important; height: 92px !important; }
           #page2 div[style] { font-size: inherit; }
           #page2 img { width: 100% !important; height: 100% !important; object-fit: cover !important; }
           table { width: 100% !important; table-layout: auto; }
@@ -793,7 +799,7 @@ export default function JobCardPrint() {
         </table>
 
         {/* ── JOB IMAGES + SIGNATURES (side by side) ── */}
-        <div style={{ display: 'flex', borderBottom: B }}>
+        <div className="jc-p2-row" style={{ display: 'flex', borderBottom: B }}>
           {/* Images — larger, take most of the width */}
           <div style={{ flex: 1, borderRight: B }}>
             <SectionBar>JOB IMAGES</SectionBar>
