@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
 import { formatDate } from '../../utils/formatters';
@@ -205,6 +205,38 @@ export default function JobCardPrint() {
 
   useEffect(() => { fetchData(); }, [id]);
 
+  // ── Auto-fit each printed page onto ONE A4 sheet ──────────────
+  // A long item list (or extra heat-treatment rows) would otherwise push the
+  // card onto a 2nd sheet. We measure the natural height at the print column
+  // width and, only if it is too tall, set a `--print-zoom` factor that the
+  // @media-print CSS applies via `zoom:` — nothing shrinks until it has to.
+  const page1Ref = useRef(null);
+  const page2Ref = useRef(null);
+  useLayoutEffect(() => {
+    const PRINT_W = 1092;         // 297mm − 8mm margins
+    // fitPx = A4-landscape printable height (763px) minus safety; k corrects the
+    // small screen↔print layout drift measured empirically for each page.
+    const fit = (el, measureCls, k, fitPx) => {
+      if (!el) return;
+      el.style.setProperty('--print-zoom', '1');
+      el.classList.add('jc-measuring', measureCls);
+      const prevW = el.style.width;
+      el.style.width = PRINT_W + 'px';
+      const measured = el.scrollHeight * k;
+      el.style.width = prevW;
+      el.classList.remove('jc-measuring', measureCls);
+      const z = measured > fitPx ? Math.max(0.5, fitPx / measured) : 1;
+      el.style.setProperty('--print-zoom', String(Math.round(z * 1000) / 1000));
+    };
+    const run = () => {
+      fit(page1Ref.current, 'jc-m1', 1.00, 745);
+      fit(page2Ref.current, 'jc-m2', 0.93, 756);
+    };
+    const t = setTimeout(run, 60);
+    window.addEventListener('beforeprint', run);
+    return () => { clearTimeout(t); window.removeEventListener('beforeprint', run); };
+  }, [jc, heatProcessRows, itemLabels]);
+
   if (loading) return <div className="p-10 text-slate-400">Loading…</div>;
   if (error || !jc) return (
     <div className="p-10 space-y-2 text-center">
@@ -280,6 +312,13 @@ export default function JobCardPrint() {
     <div className="bg-slate-100 py-4 print:bg-white print:py-0" style={{ fontFamily: 'Arial, sans-serif' }}>
       <style>{`
         @page { margin: 4mm; size: A4 landscape; }
+        /* screen-only: mirror the print rules while JS measures each page for
+           the auto-fit calc, so the measured height matches what prints. */
+        .jc-measuring, .jc-measuring * { font-weight: 700 !important; }
+        #page2.jc-m2, #page2.jc-m2 td, #page2.jc-m2 th { font-size: 8px !important; }
+        #page2.jc-m2 td, #page2.jc-m2 th { padding: 1px 3px !important; line-height: 1.35 !important; }
+        #page2.jc-m2 tr { height: auto !important; }
+        #page2.jc-m2 .jc-p2-images > div { aspect-ratio: auto !important; height: 92px !important; }
         @media print {
           html, body { width: 100% !important; margin: 0 !important; padding: 0 !important; }
           .no-print { display: none !important; }
@@ -304,7 +343,12 @@ export default function JobCardPrint() {
              Font, borders and every section's own size are untouched. */
           #page1 { display: flex !important; flex-direction: column; min-height: 201mm; }
           #page1 > * { flex: 0 0 auto; }
-          #page1 .jc-p1-body { flex: 1 1 auto !important; min-height: 0; }
+          /* grows to fill spare height, but never shrinks below its own content
+             (no min-height:0) so a long item list is auto-fit by zoom, not clipped */
+          #page1 .jc-p1-body { flex: 1 1 auto !important; }
+          /* auto-fit: JS lowers --print-zoom below 1 only when a page would
+             otherwise overflow onto a 2nd sheet (long item list etc.) */
+          #page1, #page2 { zoom: var(--print-zoom, 1); }
           /* Page 2 — must stay on ONE landscape A4 sheet.
              The old print spilled onto a 2nd sheet because Chrome mis-sizes
              the image grid's CSS aspect-ratio and then refuses to split the
@@ -349,7 +393,7 @@ export default function JobCardPrint() {
       {/* ══════════════════════════════════════════
           PAGE 1 — JOB CARD
       ══════════════════════════════════════════ */}
-      <div id="page1" className="page max-w-[1150px] mx-auto bg-white shadow-lg" style={{ border: B2, fontSize: 10 }}>
+      <div ref={page1Ref} id="page1" className="page max-w-[1150px] mx-auto bg-white shadow-lg" style={{ border: B2, fontSize: 10 }}>
 
         {/* ── HEADER ── */}
         <table style={{ width: '100%', borderCollapse: 'collapse', borderBottom: B2 }}>
@@ -617,7 +661,7 @@ export default function JobCardPrint() {
       {/* ══════════════════════════════════════════
           PAGE 2 — INCOMING INSPECTION
       ══════════════════════════════════════════ */}
-      <div id="page2" className="page max-w-[1150px] mx-auto bg-white shadow-lg mt-4 print:mt-0" style={{ border: B2, fontSize: 10 }}>
+      <div ref={page2Ref} id="page2" className="page max-w-[1150px] mx-auto bg-white shadow-lg mt-4 print:mt-0" style={{ border: B2, fontSize: 10 }}>
 
         {/* ── CATEGORIZATION | PROCESS | INSPECTION ── */}
         <table style={{ width: '100%', borderCollapse: 'collapse', borderBottom: B }}>

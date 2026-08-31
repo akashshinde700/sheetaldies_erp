@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
 import { formatDate } from '../../utils/formatters';
@@ -80,6 +80,32 @@ export default function CertPrint() {
     const base = import.meta.env.VITE_API_URL || '';
     return `${base}${p}`;
   };
+
+  // ── Auto-fit the certificate onto ONE A4 sheet ───────────────
+  // A long item list would push it onto a 2nd page. Measure the natural
+  // height at the print column width and, only if it is too tall, set a
+  // `--print-zoom` factor that the @media-print CSS applies via `zoom:`.
+  const pageRef = useRef(null);
+  useLayoutEffect(() => {
+    const FIT_PX = 1000;   // (297mm − 8mm margins) @96dpi, minus safety
+    const PRINT_W = 762;   // 210mm − 8mm margins
+    const run = () => {
+      const el = pageRef.current;
+      if (!el) return;
+      el.style.setProperty('--print-zoom', '1');
+      el.classList.add('cert-measuring');
+      const prevW = el.style.width;
+      el.style.width = PRINT_W + 'px';
+      const h = el.scrollHeight;
+      el.style.width = prevW;
+      el.classList.remove('cert-measuring');
+      const z = h > FIT_PX ? Math.max(0.45, FIT_PX / h) : 1;
+      el.style.setProperty('--print-zoom', String(Math.round(z * 1000) / 1000));
+    };
+    const t = setTimeout(run, 60);
+    window.addEventListener('beforeprint', run);
+    return () => { clearTimeout(t); window.removeEventListener('beforeprint', run); };
+  }, [cert]);
 
   const derived = useMemo(() => {
     if (!cert) return {};
@@ -219,6 +245,9 @@ export default function CertPrint() {
     <div className="bg-slate-100 py-4 print:bg-white print:py-0">
       <style>{`
         @page { margin: 4mm; size: A4; }
+        /* screen-only: mirrors the print weight while JS measures the page for
+           the auto-fit calculation, so the measured height matches print. */
+        .cert-measuring, .cert-measuring * { font-weight: 700 !important; }
         @media print {
           .no-print { display: none !important; }
           /* balanced margin on all four sides via @page; body adds nothing so
@@ -233,6 +262,9 @@ export default function CertPrint() {
             display: flex !important;
             flex-direction: column;
             min-height: 287mm;              /* A4 297 - 2*4mm - hair of safety */
+            /* auto-fit: JS lowers --print-zoom below 1 only when the sheet
+               would otherwise overflow onto a 2nd page (long item list). */
+            zoom: var(--print-zoom, 1);
           }
           .page > * { flex: 0 0 auto; }
           /* the JOB IMAGE strip grows to push the frame to the bottom of the
@@ -256,7 +288,7 @@ export default function CertPrint() {
       </div>
 
       {/* ── Certificate Page ── */}
-      <div className="page max-w-[900px] mx-auto bg-white shadow-lg text-[10px]" style={{ fontFamily: 'Arial, sans-serif', border: '2px solid #222' }}>
+      <div ref={pageRef} className="page max-w-[900px] mx-auto bg-white shadow-lg text-[10px]" style={{ fontFamily: 'Arial, sans-serif', border: '2px solid #222' }}>
 
         {/* ── HEADER ── */}
         <table className="w-full border-collapse" style={{ borderBottom: '2px solid black' }}>
