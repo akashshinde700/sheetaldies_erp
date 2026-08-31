@@ -299,20 +299,8 @@ export default function JobCardPrint() {
           body * { font-weight: bold !important; color: #000 !important; }
           #page1 { font-size: 10px !important; }
           #page1 td, #page1 th { font-size: 10px !important; }
-
-          /* Page 1 — stretch the frame down to fill the A4 sheet */
-          #page1 { min-height: 190mm; display: flex !important; flex-direction: column; }
-          #page1 > table { flex: 0 0 auto; }
-          #page1 > .jc-p1-body { flex: 1 1 auto; }
-          #page1 .jc-p1-body > div:first-child { display: flex; flex-direction: column; }
-          #page1 .jc-p1-body > div:first-child > table { flex: 1 1 auto; }
-
-          /* Page 2 — compress so it always fits on ONE sheet */
-          #page2 { font-size: 8.5px !important; margin-top: 0 !important; page-break-inside: avoid; break-inside: avoid; }
-          #page2 td, #page2 th { padding: 1px 3px !important; font-size: 8.5px !important; line-height: 1.5 !important; }
-          #page2 tr { height: auto !important; }
-          .jc-p2-images { gap: 5px !important; padding: 4px 8px !important; }
-          .jc-p2-images > div { aspect-ratio: 3 / 2 !important; }
+          #page2 { font-size: 9px !important; margin-top: 0 !important; }
+          #page2 td, #page2 th { padding: 2px 4px !important; font-size: 9px !important; }
           #page2 div[style] { font-size: inherit; }
           #page2 img { width: 100% !important; height: 100% !important; object-fit: cover !important; }
           table { width: 100% !important; table-layout: auto; }
@@ -496,7 +484,7 @@ export default function JobCardPrint() {
         </table>
 
         {/* ── ITEMS TABLE + RIGHT PANEL ── */}
-        <div className="jc-p1-body" style={{ display: 'flex', borderBottom: B }}>
+        <div style={{ display: 'flex', borderBottom: B }}>
           {/* Items table */}
           <div style={{ flex: 1, borderRight: B, overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -805,7 +793,7 @@ export default function JobCardPrint() {
           {/* Images — larger, take most of the width */}
           <div style={{ flex: 1, borderRight: B }}>
             <SectionBar>JOB IMAGES</SectionBar>
-            <div className="jc-p2-images" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, padding: '6px 10px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, padding: '6px 10px' }}>
               {[0, 1, 2, 3, 4].map(n => (
                 <div key={n} style={{ border: B, aspectRatio: '13 / 10', minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafafa', overflow: 'hidden' }}>
                   {imageUrls[n]
