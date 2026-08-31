@@ -155,15 +155,13 @@ export default function CertPrint() {
   challanItems.forEach(ci => { chItemById[ci.id] = ci; });
   const insp = jc.inspection || {};
 
-  // Categorization/Process — the Job Card's Incoming Inspection is the
-  // source of truth (matches CertForm's edit-load sync); fall back to the
-  // certificate's own saved value only if this job card has no inspection
-  // record at all yet.
-  // The certificate carries its own categorisation, and editing it must show
-  // up here. This used to read the job card's inspection whenever one existed,
-  // so the certificate's own ticks were never printed and every certificate
-  // made from the same job card looked identical no matter what was set.
-  // The inspection is only a fallback for certificates that carry nothing.
+  // Categorization / Process / Visual / MPI — the Job Card's Incoming
+  // Inspection is the single source of truth. The certificate is made FROM the
+  // job card and the backend keeps the two in sync in both directions
+  // (syncCategorizationToJobCard), so the certificate print must show exactly
+  // what the job card's incoming inspection shows. The certificate's own saved
+  // columns are used only as a fallback for old certificates whose job card has
+  // no inspection record yet.
   const CAT_PROC_FIELDS = [
     'catNormal', 'catWelded', 'catCrackRisk', 'catDistortionRisk', 'catCriticalFinishing',
     'catDentDamage', 'catRusty', 'catCavity', 'catOthers',
@@ -171,9 +169,15 @@ export default function CertPrint() {
     'procBrazing', 'procPlasmaNitriding', 'procSubZero', 'procSoakClean',
     'visualBefore', 'visualAfter', 'mpiBefore', 'mpiAfter', 'mpiNil',
   ];
-  const certHasOwnFlags = CAT_PROC_FIELDS.some(f => cert[f]);
-  const cat  = (field) => !!(certHasOwnFlags ? cert[field] : (jc.inspection ? insp[field] : cert[field]));
+  const jcHasOwnFlags = !!jc.inspection && CAT_PROC_FIELDS.some(f => insp[f]);
+  const cat  = (field) => !!(jcHasOwnFlags ? insp[field] : cert[field]);
   const proc = cat;
+  // Visual / MPI follow the same source-of-truth rule; keep each field's
+  // existing default for the fallback (old cert with no job-card inspection).
+  const vis = (field, dflt = false) => {
+    if (jcHasOwnFlags) return !!insp[field];
+    return cert[field] != null ? !!cert[field] : dflt;
+  };
 
   // If cert has no saved items, fall back to job card challan items so the table isn't blank
   const certItemsSaved = cert.items || [];
@@ -187,20 +191,18 @@ export default function CertPrint() {
         remarks:     '',
       }));
   const totalQty   = items.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
-  // Weight shown on a certificate is the job card's weight. Prefer what the
-  // certificate saved, then the inward item it came from, and finally the job
-  // card's own total split across the items — certificates made before the
-  // weight was carried across have none of their own, and job cards where the
-  // weight was typed only into "Total Weight" leave the items blank.
-  const jcTotalWeight = Number(jc.totalWeight) || 0;
-  const itemWeight = (it, i, list = items) => {
+  // Per-item weight is shown ONLY when a weight was explicitly entered for that
+  // item (on the certificate, or on the inward item it came from). The job
+  // card's "Total Weight" is NOT spread across the items — an item with no
+  // weight of its own stays blank until someone fills it in.
+  const itemWeight = (it, i) => {
     const ch = (it.sourceChallanItemId && chItemById[it.sourceChallanItemId]) || challanItems[i] || challanItems[0];
-    const own = num(it.totalWeight) || num(ch?.weight) || 0;
-    if (own) return own;
-    return jcTotalWeight && list.length ? jcTotalWeight / list.length : 0;
+    return num(it.totalWeight) || num(ch?.weight) || 0;
   };
-  const totalWt    = items.reduce((s, it, i) => s + itemWeight(it, i), 0)
-                     || Number(jc.totalWeight) || 0;
+  // The TOTAL row shows the real total: the job card's Total Weight if set,
+  // else the sum of whatever per-item weights exist.
+  const totalWt    = Number(jc.totalWeight) || Number(cert.totalWeight)
+                     || items.reduce((s, it, i) => s + itemWeight(it, i), 0) || 0;
 
   const dt = cert.dispatchedThrough || '';
   const byOurVehicle     = jc.dispatchByOurVehicle  || dt.toLowerCase().includes('vehicle');
@@ -443,9 +445,8 @@ export default function CertPrint() {
                   </td>
                   <td className="p-0.5 text-center font-mono" style={{ borderRight: '1px solid black' }}>{it.quantity}</td>
                   <td className="p-0.5 text-center font-mono" style={{ borderRight: '1px solid black' }}>
-                    {/* Certificates saved before the weight was carried across
-                        have a blank totalWeight; the inward item it came from
-                        still knows it, so read that rather than printing "—". */}
+                    {/* Blank unless a weight was entered for THIS item — the
+                        job card total is never divided across the items. */}
                     {(() => {
                       const wt = itemWeight(it, i);
                       return wt ? Number(wt).toFixed(3) : '—';
@@ -515,12 +516,12 @@ export default function CertPrint() {
                 {/* Visual + MPI inspection */}
                 <td className="px-2 py-0.5 align-top" style={{ width: '28%', borderRight: '1px solid black', lineHeight: 1.35 }}>
                   <div className="font-bold text-[9px]" style={{ marginBottom: 2 }}>VISUAL INSPECTION</div>
-                  <div><CB checked={cert.visualBefore ?? false} /> BEFORE</div>
-                  <div><CB checked={cert.visualAfter !== false} /> AFTER</div>
+                  <div><CB checked={vis('visualBefore', false)} /> BEFORE</div>
+                  <div><CB checked={vis('visualAfter', true)} /> AFTER</div>
                   <div className="font-bold text-[9px]" style={{ marginTop: 4, marginBottom: 2 }}>MPI INSPECTION</div>
-                  <div><CB checked={cert.mpiBefore ?? false} /> BEFORE</div>
-                  <div><CB checked={cert.mpiAfter ?? false} /> AFTER</div>
-                  <div><CB checked={cert.mpiNil ?? (!cert.specInstrMpiReport)} /> NIL</div>
+                  <div><CB checked={vis('mpiBefore', false)} /> BEFORE</div>
+                  <div><CB checked={vis('mpiAfter', false)} /> AFTER</div>
+                  <div><CB checked={vis('mpiNil', !cert.specInstrMpiReport)} /> NIL</div>
                 </td>
 
                 {/* Hardness + Final Inspection By */}

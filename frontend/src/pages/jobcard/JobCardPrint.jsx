@@ -281,7 +281,11 @@ export default function JobCardPrint() {
     : jc.part ? [{ partName: jc.part.description, qty: jc.quantity, weight: jc.totalWeight }] : [];
 
   const totalQty = items.reduce((s, it) => s + (Number(it.qty ?? it.quantity) || 0), 0);
-  const totalWt  = items.reduce((s, it) => s + (Number(it.weight ?? it.totalWeight) || 0), 0);
+  // Per-item weight shows ONLY a weight entered for that specific item — the job
+  // card's Total Weight is never divided across the items.
+  const itemWt   = (it) => Number(it.weight) > 0 ? Number(it.weight)
+                    : Number(it.totalWeight) > 0 ? Number(it.totalWeight) : 0;
+  const totalWt  = items.reduce((s, it) => s + itemWt(it), 0);
 
   const htSpec = jc.hrcRange?.replace(/\d.*/, '').trim() || jc.operationMode || 'HARDEN AND TEMPER';
   const hrc    = jc.hrcRange || '—';
@@ -597,14 +601,14 @@ export default function JobCardPrint() {
                     </td>
                     <td style={cellStyle({ textAlign: 'center', fontFamily: 'monospace', fontSize: 10 })}>{it.qty ?? it.quantity ?? '—'}</td>
                     <td style={cellStyle({ textAlign: 'center', fontFamily: 'monospace', fontSize: 10 })}>
-                      {it.weight != null ? Number(it.weight).toFixed(3) : (it.totalWeight != null ? Number(it.totalWeight).toFixed(3) : '—')}
+                      {itemWt(it) > 0 ? itemWt(it).toFixed(3) : '—'}
                     </td>
                   </tr>
                 ))}
                 <tr style={{ borderTop: B2, background: '#f8f8f8' }}>
                   <td colSpan={2} style={{ border: B, padding: '3px 6px', fontWeight: 700, textAlign: 'right', fontSize: 9 }}>TOTAL</td>
                   <td style={{ border: B, padding: '3px 6px', fontWeight: 700, textAlign: 'center', fontFamily: 'monospace' }}>{totalQty || '—'}</td>
-                  <td style={{ border: B, padding: '3px 6px', fontWeight: 700, textAlign: 'center', fontFamily: 'monospace' }}>{jc.totalWeight ? Number(jc.totalWeight).toFixed(3) : (totalWt ? totalWt.toFixed(3) : '—')}</td>
+                  <td style={{ border: B, padding: '3px 6px', fontWeight: 700, textAlign: 'center', fontFamily: 'monospace' }}>{Number(jc.totalWeight) > 0 ? Number(jc.totalWeight).toFixed(3) : (totalWt > 0 ? totalWt.toFixed(3) : '—')}</td>
                 </tr>
               </tbody>
             </table>
