@@ -279,9 +279,9 @@ export default function JobCardPrint() {
   return (
     <div className="bg-slate-100 py-4 print:bg-white print:py-0" style={{ fontFamily: 'Arial, sans-serif' }}>
       <style>{`
-        @page { margin: 4mm; size: A4 landscape; }
+        @page { margin: 0mm; size: A4 landscape; }
         @media print {
-          html, body { width: 100% !important; margin: 0 !important; padding: 0 !important; }
+          html, body { width: 100% !important; margin: 0 !important; padding: 3mm 4mm !important; }
           .no-print { display: none !important; }
           .page {
             box-shadow: none !important;
@@ -297,42 +297,20 @@ export default function JobCardPrint() {
           body.print-p2-only #page1 { display: none !important; }
           body.print-p2-only #page2 { display: block !important; }
           body * { font-weight: bold !important; color: #000 !important; }
-
-          /* ── Each page fills the full A4-landscape printable box, top to
-                bottom, with balanced 4mm margins from @page ── */
-          #page1, #page2 {
-            display: flex !important;
-            flex-direction: column;
-            min-height: 197mm;                 /* 210 - 2*4mm, minus safety so it never spills */
-          }
-          #page1 > *, #page2 > * { flex: 0 0 auto; }
-
-          #page1 { font-size: 11px !important; }
-          #page1 td, #page1 th { font-size: 11px !important; }
-          /* the items + notes band grows to soak up the leftover height so the
-             frame reaches the bottom of the sheet instead of ending early */
-          #page1 .jc-p1-body { flex: 1 1 auto !important; min-height: 0; }
-          #page1 .jc-p1-body > div:first-child { display: flex; flex-direction: column; }
-          #page1 .jc-p1-items { flex: 1 1 auto; height: 100%; }
-
-          /* Page 2 — stays on ONE sheet; the image row absorbs the slack.
-             (Chrome mis-sizes CSS aspect-ratio and won't split the flex row,
-             so images are pinned to an explicit height.) */
-          #page2 { font-size: 8.5px !important; margin-top: 0 !important; }
-          #page2 td, #page2 th { padding: 1px 3px !important; font-size: 8.5px !important; line-height: 1.35 !important; }
+          #page1 { font-size: 10px !important; }
+          #page1 td, #page1 th { font-size: 10px !important; }
+          /* Page 2 — must stay on ONE landscape A4 sheet.
+             The old print spilled onto a 2nd sheet because Chrome mis-sizes
+             the image grid's CSS aspect-ratio and then refuses to split the
+             flex row, so we pin the images to a fixed height and stop every
+             block from fragmenting. */
+          #page2 { font-size: 8px !important; margin-top: 0 !important; }
+          #page2 td, #page2 th { padding: 1px 3px !important; font-size: 8px !important; line-height: 1.35 !important; }
           #page2 tr { height: auto !important; }
-          #page2 table { break-inside: avoid; page-break-inside: avoid; }
+          #page2 table, #page2 .jc-p2-row { break-inside: avoid; page-break-inside: avoid; }
           #page2 div[style*="min-height"] { min-height: 70px !important; }
-          #page2 .jc-p2-row {
-            flex: 1 1 auto !important; min-height: 0;
-            break-inside: avoid; page-break-inside: avoid; align-items: stretch;
-          }
-          #page2 .jc-p2-row > div { display: flex; flex-direction: column; }
-          #page2 .jc-p2-images {
-            flex: 1 1 auto; grid-auto-rows: 1fr !important;
-            gap: 5px !important; padding: 4px 8px !important;
-          }
-          #page2 .jc-p2-images > div { aspect-ratio: auto !important; height: auto !important; min-height: 96px; max-height: 260px; }
+          #page2 .jc-p2-images { gap: 4px !important; padding: 3px 6px !important; }
+          #page2 .jc-p2-images > div { aspect-ratio: auto !important; height: 92px !important; }
           #page2 div[style] { font-size: inherit; }
           #page2 img { width: 100% !important; height: 100% !important; object-fit: cover !important; }
           table { width: 100% !important; table-layout: auto; }
@@ -516,10 +494,10 @@ export default function JobCardPrint() {
         </table>
 
         {/* ── ITEMS TABLE + RIGHT PANEL ── */}
-        <div className="jc-p1-body" style={{ display: 'flex', borderBottom: B }}>
+        <div style={{ display: 'flex', borderBottom: B }}>
           {/* Items table */}
           <div style={{ flex: 1, borderRight: B, overflow: 'hidden' }}>
-            <table className="jc-p1-items" style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: '#f0f0f0' }}>
                   <th style={headStyle({ width: 34, textAlign: 'center' })}>Item</th>

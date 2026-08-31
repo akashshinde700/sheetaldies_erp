@@ -218,35 +218,12 @@ export default function CertPrint() {
   return (
     <div className="bg-slate-100 py-4 print:bg-white print:py-0">
       <style>{`
-        @page { margin: 4mm; size: A4; }
+        @page { margin: 0mm; size: A4; }
         @media print {
           .no-print { display: none !important; }
-          html, body { margin: 0 !important; padding: 0 !important; }
+          html, body { margin: 0 !important; padding: 2mm 4mm !important; }
+          .page { box-shadow: none !important; margin: 0 !important; }
           body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-
-          /* Fill the full A4-portrait printable box (297 - 2*4mm), edge to edge,
-             so the certificate prints as a proper full-page document instead of
-             a compact block that ends two-thirds down the sheet. */
-          .page {
-            box-shadow: none !important;
-            margin: 0 !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            min-height: 285mm;   /* A4 297 - 2*4mm, minus safety so it never spills */
-            display: flex !important;
-            flex-direction: column;
-            font-size: 11px !important;
-          }
-          .page > * { flex: 0 0 auto; }
-          /* the job-image section stretches to take up the leftover height */
-          .cert-grow { flex: 1 1 auto !important; display: flex; flex-direction: column; min-height: 0; }
-          .cert-grow > *:last-child { flex: 1 1 auto; min-height: 0; }
-          .cert-img-row { align-items: stretch !important; }
-          .cert-img-row .cert-imgbox {
-            height: auto !important; align-self: stretch;
-            min-height: 150px; max-height: 360px;
-          }
-          .cert-img-row .cert-imgbox img { height: 100% !important; }
         }
         .cert-border { border: 1px solid black; }
         .cell { border: 1px solid black; }
@@ -612,21 +589,21 @@ export default function CertPrint() {
         </table>
 
         {/* ── JOB IMAGES ── */}
-        <div className="cert-grow" style={{ borderBottom: '1px solid black' }}>
+        <div style={{ borderBottom: '1px solid black' }}>
           <div className="px-2 py-1 font-bold" style={{ borderBottom: '1px solid black' }}>JOB IMAGE</div>
-          <div className="flex gap-1 p-1 cert-img-row">
+          <div className="flex gap-1 p-1">
             {[jc.image1, jc.image2, jc.image3, jc.image4, jc.image5]
               .map(makeImgUrl)
               .filter(Boolean)
               .map((url, i) => (
-                <div key={i} className="border border-black cert-imgbox" style={{ width: 150, height: 95 }}>
+                <div key={i} className="border border-black" style={{ width: 150, height: 95 }}>
                   <img src={url} alt={`Job ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
               ))}
             {![jc.image1, jc.image2].some(Boolean) && (
               <div className="flex gap-1">
                 {[1, 2].map(n => (
-                  <div key={n} className="border border-black flex items-center justify-center text-slate-400 text-[9px] cert-imgbox"
+                  <div key={n} className="border border-black flex items-center justify-center text-slate-400 text-[9px]"
                     style={{ width: 150, height: 95 }}>
                     {n}
                   </div>
