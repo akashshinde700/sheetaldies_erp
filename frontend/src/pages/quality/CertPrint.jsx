@@ -161,24 +161,17 @@ export default function CertPrint() {
         remarks:     '',
       }));
   const totalQty   = items.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
-  // A certificate is issued against a job card, so the job card's weight is
-  // what it must show — including when that weight is corrected after the
-  // certificate was made. Order: the job card's total (spread over the items),
-  // then the job card's per-item weight, and only then whatever the
-  // certificate happens to have saved.
+  // Weight shown on a certificate is the job card's weight. Prefer what the
+  // certificate saved, then the inward item it came from, and finally the job
+  // card's own total split across the items — certificates made before the
+  // weight was carried across have none of their own, and job cards where the
+  // weight was typed only into "Total Weight" leave the items blank.
   const jcTotalWeight = Number(jc.totalWeight) || 0;
-  const chFor = (it, i) =>
-    (it.sourceChallanItemId && chItemById[it.sourceChallanItemId]) || challanItems[i] || challanItems[0];
-  const chWeightSum = items.reduce((sum, it, i) => sum + num(chFor(it, i)?.weight), 0);
   const itemWeight = (it, i, list = items) => {
-    const own = num(chFor(it, i)?.weight);
-    if (jcTotalWeight > 0) {
-      // Spread the job card total in proportion to the item weights, or evenly
-      // when the weight was only ever typed into the job card's total field.
-      if (chWeightSum > 0) return (own / chWeightSum) * jcTotalWeight;
-      return list.length ? jcTotalWeight / list.length : 0;
-    }
-    return own || num(it.totalWeight) || 0;
+    const ch = (it.sourceChallanItemId && chItemById[it.sourceChallanItemId]) || challanItems[i] || challanItems[0];
+    const own = num(it.totalWeight) || num(ch?.weight) || 0;
+    if (own) return own;
+    return jcTotalWeight && list.length ? jcTotalWeight / list.length : 0;
   };
   const totalWt    = items.reduce((s, it, i) => s + itemWeight(it, i), 0)
                      || Number(jc.totalWeight) || 0;

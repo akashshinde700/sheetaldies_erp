@@ -56,24 +56,6 @@ const pinOf = (party) => {
 /** NIC 100 char se lamba address reject karta hai. */
 const addr = (party) => String(party?.address || '').replace(/\s+/g, ' ').trim().slice(0, 100);
 
-// Ye ERP Shital Vacuum Treat ke liye hai. Agar seller party record me PIN /
-// address / GSTIN / state adhoora ho to portal e-invoice reject kar deta hai
-// ("Seller ka 6-digit PIN code nahi hai") — isliye seller ke khaali fields
-// yahan se bhar dete hain. Party me sahi value ho to wahi chalti hai.
-const SELLER_FALLBACK = {
-  gstin:     '27AATCS0577L1ZK',
-  name:      'SHITAL VACUUM TREAT PVT. LTD.',
-  address:   'Plot No. 84/1, Sector No. 10, PCNTDA, Bhosari, Pune - 411019',
-  city:      'Pune',
-  pinCode:   '411019',
-  stateCode: '27',
-};
-
-const withSellerDefaults = (party) => ({
-  ...SELLER_FALLBACK,
-  ...Object.fromEntries(Object.entries(party || {}).filter(([, v]) => v != null && v !== '')),
-});
-
 /**
  * Invoice ko upload se pehle jaanchna. Portal ki error report padhne se behtar
  * hai ki galtiyan yahin pakad li jayen.
@@ -81,7 +63,7 @@ const withSellerDefaults = (party) => ({
  */
 const validateForIrp = (invoice) => {
   const problems = [];
-  const seller = withSellerDefaults(invoice.fromParty);
+  const seller = invoice.fromParty;
   const buyer = invoice.toParty;
 
   const docNo = String(invoice.invoiceNo || '');
@@ -119,7 +101,7 @@ const validateForIrp = (invoice) => {
  * invoice bhi array me hi jaata hai.
  */
 const buildEInvoiceJson = (invoice) => {
-  const seller = withSellerDefaults(invoice.fromParty);
+  const seller = invoice.fromParty;
   const buyer = invoice.toParty;
 
   const igst = toNum(invoice.igstAmount, 0);
