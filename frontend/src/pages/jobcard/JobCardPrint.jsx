@@ -279,9 +279,9 @@ export default function JobCardPrint() {
   return (
     <div className="bg-slate-100 py-4 print:bg-white print:py-0" style={{ fontFamily: 'Arial, sans-serif' }}>
       <style>{`
-        @page { margin: 0mm; size: A4 landscape; }
+        @page { margin: 4mm; size: A4 landscape; }
         @media print {
-          html, body { width: 100% !important; margin: 0 !important; padding: 3mm 4mm !important; }
+          html, body { width: 100% !important; margin: 0 !important; padding: 0 !important; }
           .no-print { display: none !important; }
           .page {
             box-shadow: none !important;

@@ -218,11 +218,19 @@ export default function CertPrint() {
   return (
     <div className="bg-slate-100 py-4 print:bg-white print:py-0">
       <style>{`
-        @page { margin: 0mm; size: A4; }
+        @page { margin: 4mm; size: A4; }
         @media print {
           .no-print { display: none !important; }
-          html, body { margin: 0 !important; padding: 2mm 4mm !important; }
-          .page { box-shadow: none !important; margin: 0 !important; }
+          /* balanced margin on all four sides via @page; body adds nothing so
+             the printable area is not eaten twice. .page then uses the full
+             printable width (its max-width cap must not leave side gaps). */
+          html, body { margin: 0 !important; padding: 0 !important; }
+          .page {
+            box-shadow: none !important;
+            margin: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+          }
           body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
         .cert-border { border: 1px solid black; }
