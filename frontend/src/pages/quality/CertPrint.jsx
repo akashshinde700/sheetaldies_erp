@@ -230,7 +230,17 @@ export default function CertPrint() {
             margin: 0 !important;
             width: 100% !important;
             max-width: 100% !important;
+            display: flex !important;
+            flex-direction: column;
+            min-height: 287mm;              /* A4 297 - 2*4mm - hair of safety */
           }
+          .page > * { flex: 0 0 auto; }
+          /* the JOB IMAGE strip grows to push the frame to the bottom of the
+             sheet instead of the certificate ending two-thirds down.
+             Font, borders and every section's own size stay untouched. */
+          .cert-grow { flex: 1 1 auto !important; display: flex; flex-direction: column; min-height: 0; }
+          .cert-grow > *:last-child { flex: 1 1 auto; min-height: 0; align-items: stretch; }
+          .cert-grow .cert-imgbox { height: auto !important; align-self: stretch; min-height: 95px; max-height: 230px; }
           body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
         .cert-border { border: 1px solid black; }
@@ -597,21 +607,21 @@ export default function CertPrint() {
         </table>
 
         {/* ── JOB IMAGES ── */}
-        <div style={{ borderBottom: '1px solid black' }}>
+        <div className="cert-grow" style={{ borderBottom: '1px solid black' }}>
           <div className="px-2 py-1 font-bold" style={{ borderBottom: '1px solid black' }}>JOB IMAGE</div>
           <div className="flex gap-1 p-1">
             {[jc.image1, jc.image2, jc.image3, jc.image4, jc.image5]
               .map(makeImgUrl)
               .filter(Boolean)
               .map((url, i) => (
-                <div key={i} className="border border-black" style={{ width: 150, height: 95 }}>
+                <div key={i} className="border border-black cert-imgbox" style={{ width: 150, height: 95 }}>
                   <img src={url} alt={`Job ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
               ))}
             {![jc.image1, jc.image2].some(Boolean) && (
               <div className="flex gap-1">
                 {[1, 2].map(n => (
-                  <div key={n} className="border border-black flex items-center justify-center text-slate-400 text-[9px]"
+                  <div key={n} className="border border-black flex items-center justify-center text-slate-400 text-[9px] cert-imgbox"
                     style={{ width: 150, height: 95 }}>
                     {n}
                   </div>
