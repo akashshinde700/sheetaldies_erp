@@ -260,27 +260,27 @@ export default function CertForm() {
             : (jcData.challans || []).flatMap(x => x.items || []);
           const chById = {};
           chItems.forEach(ci => { chById[ci.id] = ci; });
-          const jcTotal = Number(jcData.totalWeight) || 0;
-          const chSum = chItems.reduce((sum, ci) => sum + (Number(ci.weight) || 0), 0);
+          // Per-item weight = the linked inward item's own weight only. The job
+          // card's Total Weight is NEVER divided across the items; an item with
+          // no weight of its own stays blank.
           const jcWeightFor = (it, i) => {
             const ch = (it.sourceChallanItemId && chById[it.sourceChallanItemId]) || chItems[i];
-            const own = Number(ch?.weight) || 0;
-            if (jcTotal > 0) {
-              if (chSum > 0) return (own / chSum) * jcTotal;
-              return c.items.length ? jcTotal / c.items.length : 0;
-            }
-            return own;
+            return Number(ch?.weight) || 0;
           };
 
           setCertItems(c.items.map((it, i) => {
             const qty = Math.max(Number(it.quantity) || 1, 1);
-            const fromJc = jcWeightFor(it, i);
-            const total = fromJc > 0 ? fromJc : (it.totalWeight != null ? Number(it.totalWeight) : 0);
+            const fromInward = jcWeightFor(it, i);
+            // Trust the cert's own saved weight only for a standalone item (no
+            // inward link) — older certs stored a divided total here.
+            const linked = !!((it.sourceChallanItemId && chById[it.sourceChallanItemId]) || chItems[i]);
+            const total = fromInward > 0
+              ? fromInward
+              : (!linked && it.totalWeight != null ? Number(it.totalWeight) : 0);
             return {
               description:  it.description  || '',
               quantity:     it.quantity != null ? String(it.quantity) : '1',
-              weightPerPc:  total > 0 ? String(Number((total / qty).toFixed(3)))
-                                      : (it.weightPerPc != null ? String(it.weightPerPc) : ''),
+              weightPerPc:  total > 0 ? String(Number((total / qty).toFixed(3))) : '',
               totalWeight:  total > 0 ? String(Number(total.toFixed(3))) : '',
               samplingPlan: it.samplingPlan || '',
               remarks:      it.remarks      || '',
@@ -342,20 +342,10 @@ export default function CertForm() {
         ? jc.challanItemLinks
         : (jc.challans?.flatMap(ch => ch.items || []) || []);
       if (linkedItems.length > 0) {
-        // The job card's weight is what this certificate is for — a job card may
-        // take only part of an inward, and the operator may correct the weight
-        // there. So when the job card carries a total, that total wins and is
-        // spread over the items (in proportion to their own weights when they
-        // have any, equally otherwise) so the certificate adds up to it.
-        // Item weights are used as-is only when the job card has no total.
-        const jcTotalWt = Number(jc.totalWeight) || 0;
-        const itemWtSum = linkedItems.reduce((sum, it) => sum + (Number(it.weight) || 0), 0);
-        const weightFor = (it) => {
-          const own = Number(it.weight) || 0;
-          if (!(jcTotalWt > 0)) return own;
-          if (itemWtSum > 0) return (own / itemWtSum) * jcTotalWt;
-          return jcTotalWt / linkedItems.length;
-        };
+        // Per-item weight = the linked inward item's own weight only. The job
+        // card's Total Weight is NEVER divided across the items — an item with
+        // no weight of its own stays blank until someone fills it in.
+        const weightFor = (it) => Number(it.weight) || 0;
         setCertItems(linkedItems.map(it => {
           const qty = Math.max(Number(it.qty ?? it.quantity ?? 1), 1);
           return {
@@ -367,9 +357,7 @@ export default function CertForm() {
               return d;
             })(),
             quantity:    String(qty),
-            // The challan item carries the weight, and the job card's total is
-            // already split per item above — both were computed and then
-            // thrown away, so every certificate came out with a blank weight.
+            // Only the inward item's own weight — blank when it has none.
             ...(() => {
               const wt = weightFor(it);
               if (!(wt > 0)) return { weightPerPc: '', totalWeight: '' };
@@ -631,7 +619,8 @@ export default function CertForm() {
 
   const jcNo = jcData?.jobCardNo || '';
   const totalCertQty = certItems.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
-  const totalCertWt = certItems.reduce((s, it) => s + (Number(it.totalWeight) || 0), 0);
+  const totalCertWt = certItems.reduce((s, it) => s + (Number(it.totalWeight) || 0), 0)
+    || Number(jcData?.totalWeight) || 0;
   const goNext = () => { if (wiz.current < LAST_STEP) wiz.next(); };
 
   return (

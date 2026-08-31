@@ -191,13 +191,15 @@ export default function CertPrint() {
         remarks:     '',
       }));
   const totalQty   = items.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
-  // Per-item weight is shown ONLY when a weight was explicitly entered for that
-  // item (on the certificate, or on the inward item it came from). The job
-  // card's "Total Weight" is NOT spread across the items — an item with no
-  // weight of its own stays blank until someone fills it in.
+  // Per-item weight = the weight of the linked inward item, and nothing else.
+  // The job card's "Total Weight" is NEVER spread across the items, and a
+  // certificate item's own saved weight is trusted only for a standalone cert
+  // item that has no inward link (older certificates auto-filled that column
+  // with a divided value, so it can't be trusted when an inward item exists).
   const itemWeight = (it, i) => {
     const ch = (it.sourceChallanItemId && chItemById[it.sourceChallanItemId]) || challanItems[i] || challanItems[0];
-    return num(it.totalWeight) || num(ch?.weight) || 0;
+    if (ch) return num(ch.weight) || 0;
+    return num(it.totalWeight) || 0;
   };
   // The TOTAL row shows the real total: the job card's Total Weight if set,
   // else the sum of whatever per-item weights exist.
