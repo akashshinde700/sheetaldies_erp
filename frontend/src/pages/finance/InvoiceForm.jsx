@@ -261,6 +261,25 @@ export default function InvoiceForm() {
       }
 
       if (ch.items?.length > 0) {
+        // Weight to bill each line on. If a line has its own weight, use it.
+        // Otherwise — the inward's weight was entered as one total, not per
+        // item — give each line its quantity-proportional share of that total
+        // so KGS billing (weight × rate) still works instead of silently
+        // falling back to quantity × per-kg rate.
+        const anyOwnWeight = ch.items.some(it => toNum(it.weight, 0) > 0);
+        const weightPool = toNum(ch.weightSummary?.inwardTotalWeight, 0)
+          || toNum(ch.totalInwardWeight, 0)
+          || toNum(ch.jobCard?.totalWeight, 0)
+          || (ch.relatedJobCards || []).reduce((s, j) => s + toNum(j.totalWeight, 0), 0);
+        const totalChallanQty = ch.items.reduce((s, it) => s + toNum(it.quantity, 0), 0);
+        const billWeight = (it) => {
+          const own = toNum(it.weight, 0);
+          if (own > 0) return own;
+          if (!anyOwnWeight && weightPool > 0 && totalChallanQty > 0) {
+            return weightPool * toNum(it.quantity, 0) / totalChallanQty;
+          }
+          return 0;
+        };
         setLineItems(ch.items.map(it => {
           const line = (billRes.data.data?.lineStatus || []).find(x => x.challanItemId === it.id);
           const origQty = toNum(it.quantity, 0);
@@ -285,7 +304,7 @@ export default function InvoiceForm() {
           const lineQty = billingType === 'LOT' ? 1 : dispatchQty;
           // Prorate weight to the quantity actually being invoiced (dispatchQty
           // may be less than the challan item's original qty on a partial bill).
-          const origWeight = toNum(it.weight, 0);
+          const origWeight = billWeight(it);
           const proratedWeight = (billingType === 'KGS' && origQty > 0 && origWeight > 0)
             ? (origWeight * dispatchQty / origQty)
             : origWeight;
@@ -612,6 +631,7 @@ export default function InvoiceForm() {
       </div>
 
       <form
+        noValidate
         onSubmit={(e) => { if (wiz.current !== LAST_STEP) { e.preventDefault(); return; } handleSubmit(e); }}
         className="flex-1 min-h-0 flex flex-col"
       >
