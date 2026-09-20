@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Save, Flame, Printer, Eraser } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import SearchSelect from '../../components/SearchSelect';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -77,6 +78,7 @@ export default function FurnaceUtilization() {
   const [reloadKey, setReloadKey] = useState(0);
   const [form, setForm] = useState(emptyForm());
   const [loading, setLoading] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -99,16 +101,21 @@ export default function FurnaceUtilization() {
 
   // Whole-sheet registers have no row to delete — only the sheet. Zeroing it
   // out instead would leave a real-looking record of a day that never ran.
-  const handleClear = async () => {
-    if (!window.confirm(`Clear the whole utilisation sheet for ${machine?.name || machine?.code || 'this furnace'} on ${date}? This cannot be undone.`)) return;
-    try {
-      await api.delete('/manufacturing/furnace-utilization', { params: { machineId, date } });
-      toast.success('Utilisation sheet cleared.');
-      setReloadKey((k) => k + 1);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Sheet clear nahi hui.');
-    }
-  };
+  const handleClear = () => setConfirmDialog({
+    title: 'Clear this day’s utilisation sheet?',
+    message: `Everything recorded for ${machine?.name || machine?.code || 'this furnace'} on ${date} will be removed. This cannot be undone.`,
+    confirmLabel: 'Clear the sheet',
+    variant: 'danger',
+    onConfirm: async () => {
+      try {
+        await api.delete('/manufacturing/furnace-utilization', { params: { machineId, date } });
+        toast.success('Utilisation sheet cleared.');
+        setReloadKey((k) => k + 1);
+      } catch (err) {
+        toast.error(err.response?.data?.message || 'Failed to clear the sheet.');
+      } finally { setConfirmDialog(null); }
+    },
+  });
 
   const setShiftField = (n, key, value) => {
     setForm((f) => ({ ...f, [`shift${n}`]: { ...f[`shift${n}`], [key]: value } }));
@@ -303,6 +310,8 @@ export default function FurnaceUtilization() {
           )}
         </>
       )}
+
+      {confirmDialog && <ConfirmDialog {...confirmDialog} onCancel={() => setConfirmDialog(null)} />}
     </div>
   );
 }

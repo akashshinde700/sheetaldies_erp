@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Printer, RefreshCw, Save, Plus, Trash2, Eraser } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import SearchSelect from '../../components/SearchSelect';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -59,6 +60,7 @@ export default function PlantLosses() {
   const [rows, setRows] = useState([]);
   const [machines, setMachines] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [confirmDialog, setConfirmDialog] = useState(null);
   const [deriving, setDeriving] = useState(false);
   const [saving, setSaving] = useState(false);
   const [addMachineId, setAddMachineId] = useState('');
@@ -75,8 +77,7 @@ export default function PlantLosses() {
   };
   useEffect(load, [year, month]);
 
-  const derive = async () => {
-    if (rows.length && !window.confirm('This replaces the existing plant-loss entries for this month with fresh totals from the daily idle logs. Continue?')) return;
+  const runDerive = async () => {
     setDeriving(true);
     try {
       await api.post('/manufacturing/plant-losses/derive', { year, month, workingDays });
@@ -86,7 +87,22 @@ export default function PlantLosses() {
       toast.error(err.response?.data?.message || 'Failed to derive.');
     } finally {
       setDeriving(false);
+      setConfirmDialog(null);
     }
+  };
+
+  // Deriving overwrites whatever is already in the month, so it only asks when
+  // there is something to lose.
+  const derive = () => {
+    if (!rows.length) { runDerive(); return; }
+    setConfirmDialog({
+      title: 'Replace this month’s figures?',
+      message: `The ${rows.length} furnace row(s) already entered for ${month}/${year} will be replaced with fresh totals worked out from the daily idle logs.`,
+      confirmLabel: 'Replace with derived totals',
+      variant: 'primary',
+      icon: 'sync',
+      onConfirm: runDerive,
+    });
   };
 
   const setCell = (key, field, value) => {
@@ -100,23 +116,34 @@ export default function PlantLosses() {
     setAddMachineId('');
   };
 
-  const removeRow = (key) => {
-    if (!window.confirm('Remove this furnace row? (Save to make it permanent.)')) return;
-    setRows((rs) => rs.filter((r) => r.key !== key));
-  };
+  const removeRow = (key) => setConfirmDialog({
+    title: 'Remove this furnace row?',
+    message: 'It disappears from the sheet straight away, but the month is only changed once you press Save.',
+    confirmLabel: 'Remove row',
+    variant: 'danger',
+    onConfirm: () => {
+      setRows((rs) => rs.filter((r) => r.key !== key));
+      setConfirmDialog(null);
+    },
+  });
 
   // Clearing removes the month's stored sheet outright, rather than leaving a
   // row of zeros that reads as a real month with no losses.
-  const clearMonth = async () => {
-    if (!window.confirm(`Clear the whole plant-losses sheet for ${month}/${year}? This cannot be undone.`)) return;
-    try {
-      await api.delete('/manufacturing/plant-losses', { params: { year, month } });
-      toast.success('Plant losses cleared.');
-      load();
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Sheet clear nahi hui.');
-    }
-  };
+  const clearMonth = () => setConfirmDialog({
+    title: 'Clear this month’s plant-losses sheet?',
+    message: `Everything recorded for ${month}/${year} will be removed. This cannot be undone.`,
+    confirmLabel: 'Clear the month',
+    variant: 'danger',
+    onConfirm: async () => {
+      try {
+        await api.delete('/manufacturing/plant-losses', { params: { year, month } });
+        toast.success('Plant losses cleared.');
+        load();
+      } catch (err) {
+        toast.error(err.response?.data?.message || 'Failed to clear the sheet.');
+      } finally { setConfirmDialog(null); }
+    },
+  });
 
   const save = async () => {
     setSaving(true);
@@ -191,7 +218,7 @@ export default function PlantLosses() {
               <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Add Furnace Row</label>
               <div className="flex gap-1.5">
                 <SearchSelect value={addMachineId} onChange={setAddMachineId} options={availableMachineOptions} placeholder="Select machine" className="flex-1" />
-                <Button size="icon-sm" variant="outline" onClick={addRow} disabled={!addMachineId}><Plus /></Button>
+                <Button size="icon-sm" variant="outline" title="Add this furnace to the sheet" aria-label="Add the selected furnace as a row" onClick={addRow} disabled={!addMachineId}><Plus /></Button>
               </div>
             </div>
           </div>
@@ -262,6 +289,8 @@ export default function PlantLosses() {
           </div>
         </>
       )}
+
+      {confirmDialog && <ConfirmDialog {...confirmDialog} onCancel={() => setConfirmDialog(null)} />}
     </div>
   );
 }

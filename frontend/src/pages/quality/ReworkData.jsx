@@ -3,6 +3,8 @@ import { Plus, Pencil, Trash2, X, Printer, Save } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
+import { rowEditorKeys } from '../../utils/rowEditorKeys';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import SearchSelect from '../../components/SearchSelect';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -25,6 +27,7 @@ export default function ReworkData() {
   const [data, setData] = useState(null);
   const [certs, setCerts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [confirmDialog, setConfirmDialog] = useState(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(null); // null = form closed
   const [meta, setMeta] = useState({ totalProcessedWeightKg: '', targetPercent: '1', causes: '', correctiveActions: '' });
@@ -95,16 +98,21 @@ export default function ReworkData() {
     }
   };
 
-  const remove = async (e) => {
-    if (!window.confirm(`Delete rework entry Sr No. ${e.srNo}?`)) return;
-    try {
-      await api.delete(`/quality/rework-entries/${e.id}`);
-      toast.success('Entry deleted.');
-      load();
-    } catch {
-      toast.error('Failed to delete.');
-    }
-  };
+  const remove = (e) => setConfirmDialog({
+    title: `Delete rework entry Sr No. ${e.srNo}?`,
+    message: `${e.description || 'This entry'} will be removed from the month's register. This cannot be undone.`,
+    confirmLabel: 'Delete entry',
+    variant: 'danger',
+    onConfirm: async () => {
+      try {
+        await api.delete(`/quality/rework-entries/${e.id}`);
+        toast.success('Entry deleted.');
+        load();
+      } catch (err) {
+        toast.error(err.response?.data?.message || 'Failed to delete entry.');
+      } finally { setConfirmDialog(null); }
+    },
+  });
 
   const saveMeta = async () => {
     setSavingMeta(true);
@@ -146,7 +154,7 @@ export default function ReworkData() {
 
       {form && (
         <Card>
-          <CardContent className="p-4 space-y-3">
+          <CardContent className="p-4 space-y-3" onKeyDown={rowEditorKeys({ onSave: save, onCancel: () => setForm(null), saving })}>
             <h3 className="text-sm font-bold text-slate-700">{form.id ? 'Edit Entry' : 'New Entry'}</h3>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-1">
@@ -176,6 +184,7 @@ export default function ReworkData() {
             </div>
             <div className="flex gap-2">
               <Button onClick={save} disabled={saving}><Save /> {saving ? 'Saving…' : 'Save'}</Button>
+              <p className="text-[11px] text-slate-400">Press <kbd className="rounded border border-slate-300 bg-slate-50 px-1 font-mono text-[10px]">Enter</kbd> to save, <kbd className="rounded border border-slate-300 bg-slate-50 px-1 font-mono text-[10px]">Esc</kbd> to discard.</p>
               <Button variant="ghost" onClick={() => setForm(null)}><X /> Cancel</Button>
             </div>
           </CardContent>
@@ -273,6 +282,8 @@ export default function ReworkData() {
           </p>
         </>
       )}
+
+      {confirmDialog && <ConfirmDialog {...confirmDialog} onCancel={() => setConfirmDialog(null)} />}
     </div>
   );
 }

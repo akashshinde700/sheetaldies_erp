@@ -235,7 +235,7 @@ function PlanCycleForm({ machines, jobCards, initial, editing, onSaved, onCancel
           <h3 className="text-sm font-bold text-slate-700">
             {editing ? <>Edit cycle <span className="font-mono text-primary-700">{editing.runsheetNumber}</span></> : 'Plan a cycle'}
           </h3>
-          <Button size="icon-sm" variant="ghost" onClick={onCancel}><X /></Button>
+          <Button size="icon-sm" variant="ghost" title="Close without saving" aria-label="Close the cycle form without saving" onClick={onCancel}><X /></Button>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <div className="space-y-1 lg:col-span-2">

@@ -80,7 +80,7 @@ function ReworkForm({ item, index, certId, jobCardId, jobCardNo, customerName, h
           <Button type="button" size="sm" onClick={save} disabled={saving} className="h-8">
             {saving ? 'Saving…' : 'Raise'}
           </Button>
-          <Button type="button" variant="ghost" size="icon-sm" onClick={onCancel} className="h-8 w-8"><X /></Button>
+          <Button type="button" variant="ghost" size="icon-sm" title="Cancel" aria-label="Cancel raising this entry" onClick={onCancel} className="h-8 w-8"><X /></Button>
         </div>
       </td>
     </tr>

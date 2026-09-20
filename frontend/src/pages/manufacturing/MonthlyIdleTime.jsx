@@ -3,6 +3,7 @@ import { Save, Printer, Flame, Eraser } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import SearchSelect from '../../components/SearchSelect';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -31,6 +32,7 @@ export default function MonthlyIdleTime() {
   const [reloadKey, setReloadKey] = useState(0);
   const [days, setDays] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -52,16 +54,21 @@ export default function MonthlyIdleTime() {
   }, [machineId, year, month, reloadKey]);
 
   // One sheet per furnace per month; clearing drops that month's day rows.
-  const handleClear = async () => {
-    if (!window.confirm(`Clear the whole idle-time sheet for ${machine?.name || machine?.code || 'this furnace'}, ${month}/${year}? This cannot be undone.`)) return;
-    try {
-      await api.delete('/manufacturing/idle-logs', { params: { machineId, year, month } });
-      toast.success('Idle time cleared.');
-      setReloadKey((k) => k + 1);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Sheet clear nahi hui.');
-    }
-  };
+  const handleClear = () => setConfirmDialog({
+    title: 'Clear this month’s idle-time sheet?',
+    message: `Every day recorded for ${machine?.name || machine?.code || 'this furnace'} in ${month}/${year} will be removed. This cannot be undone.`,
+    confirmLabel: 'Clear the month',
+    variant: 'danger',
+    onConfirm: async () => {
+      try {
+        await api.delete('/manufacturing/idle-logs', { params: { machineId, year, month } });
+        toast.success('Idle time cleared.');
+        setReloadKey((k) => k + 1);
+      } catch (err) {
+        toast.error(err.response?.data?.message || 'Failed to clear the sheet.');
+      } finally { setConfirmDialog(null); }
+    },
+  });
 
   const setCell = (day, key, value) => {
     setDays((rows) => rows.map((r) => (r.day === day ? { ...r, [key]: Math.max(0, Number(value) || 0) } : r)));
@@ -180,6 +187,8 @@ export default function MonthlyIdleTime() {
           {machine && <p className="text-xs text-slate-400">{machine.name || machine.code} — {String(month).padStart(2, '0')}/{year}</p>}
         </>
       )}
+
+      {confirmDialog && <ConfirmDialog {...confirmDialog} onCancel={() => setConfirmDialog(null)} />}
     </div>
   );
 }

@@ -24,6 +24,9 @@ const prisma = new PrismaClient();
 
   // ---- scratch data, removed in the finally block below
   const machine = await prisma.machine.create({ data: { code: 'UIT-1', name: 'UIT-FURNACE' } });
+  // The tempering board only shows the plant's named tempering furnaces,
+  // so give it one to draw.
+  const temperMachine = await prisma.machine.create({ data: { code: 'TFR-03', name: 'TFR-03' } });
   const item = await prisma.item.create({ data: { partNo: 'UIT-P', description: 'UI test part', material: 'D2', weightKg: 2 } });
   const customer = await prisma.party.create({ data: { name: 'UIT CUSTOMER', partyType: 'CUSTOMER', address: 'x' } });
   const processor = await prisma.party.create({ data: { name: 'UIT PROCESSOR', partyType: 'BOTH', address: 'x' } });
@@ -201,6 +204,46 @@ const prisma = new PrismaClient();
     r.ok('Old /jobwork lands on the register',
       new URL(page.url()).pathname === '/jobwork/register', page.url());
 
+    // 3f. The registers confirm through the app's own dialog, not the
+    // browser's native popup, and their empty states offer a way in.
+    await page.goto(`${env.base}/manufacturing/tempering`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(2500);
+    const tempering = await page.locator('body').innerText();
+    r.ok('Tempering Plan empty state offers a way in', /Add the first slot/i.test(tempering), tempering.slice(0, 120).replace(/\n/g, ' '));
+
+    await page.goto(`${env.base}/manufacturing/energy`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(2500);
+    r.ok('Energy Log empty state offers a way in',
+      /Log the first reading/i.test(await page.locator('body').innerText()));
+
+    // A native window.confirm would block the page and never render a dialog
+    // node; this proves the styled one is what shows.
+    let nativeDialogs = 0;
+    page.on('dialog', async (d) => { nativeDialogs += 1; await d.dismiss(); });
+    await page.goto(`${env.base}/manufacturing/plant-losses`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(2000);
+    await page.getByRole('button', { name: /Clear month/i }).first().click();
+    await page.waitForTimeout(800);
+    r.ok('Clearing asks through the app dialog, not a browser popup',
+      (await page.locator('[role="alertdialog"]').count()) === 1 && nativeDialogs === 0,
+      `dialogs:${await page.locator('[role="alertdialog"]').count()} native:${nativeDialogs}`);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(500);
+    r.ok('Escape closes the confirm dialog', (await page.locator('[role="alertdialog"]').count()) === 0);
+
+    // 3g. Enter saves a register row without reaching for the mouse.
+    await page.goto(`${env.base}/quality/nc-register`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(2000);
+    await page.getByRole('button', { name: /Add Entry/i }).first().click();
+    await page.waitForTimeout(700);
+    r.ok('Entry form says Enter saves', /Enter/.test(await page.locator('body').innerText()));
+    const ncBefore = await page.locator('tbody tr').count();
+    await page.locator('input[placeholder="Customer name"]').first().fill('UIT KEYBOARD');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(2500);
+    const ncAfter = await page.locator('tbody tr').count();
+    r.ok('Enter saves the row', ncAfter > ncBefore || /saved|added/i.test(await page.locator('body').innerText()), `${ncBefore} -> ${ncAfter}`);
+
     // 4. Plant Losses working-days input
     await page.goto(`${env.base}/manufacturing/plant-losses`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1500);
@@ -229,6 +272,7 @@ const prisma = new PrismaClient();
     r.ok('No uncaught JS errors anywhere', jsErrors.length === 0, jsErrors[0] || '');
   } finally {
     await browser.close();
+    await prisma.ncRegisterEntry.deleteMany({ where: { customerName: 'UIT KEYBOARD' } }).catch(() => {});
     if (invoice) {
       await prisma.invoiceItem.deleteMany({ where: { invoiceId: invoice.id } }).catch(() => {});
       await prisma.taxInvoice.delete({ where: { id: invoice.id } }).catch(() => {});
@@ -241,6 +285,7 @@ const prisma = new PrismaClient();
     await prisma.party.deleteMany({ where: { id: { in: [customer.id, processor.id] } } });
     await prisma.jobCard.delete({ where: { id: jobCard.id } }).catch(() => {});
     await prisma.machine.delete({ where: { id: machine.id } });
+    await prisma.machine.delete({ where: { id: temperMachine.id } }).catch(() => {});
     await prisma.item.delete({ where: { id: item.id } });
     await prisma.$disconnect();
   }

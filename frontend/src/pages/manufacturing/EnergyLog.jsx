@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Plus, Pencil, Trash2, X, Printer, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
+import { rowEditorKeys } from '../../utils/rowEditorKeys';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PrintSheetHeader } from '../../components/manufacturing/PrintRegisterSheet';
@@ -22,6 +24,7 @@ export default function EnergyLog() {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [confirmDialog, setConfirmDialog] = useState(null);
   const [editing, setEditing] = useState(null); // { machineId, form }
   const [saving, setSaving] = useState(false);
 
@@ -78,16 +81,21 @@ export default function EnergyLog() {
     }
   };
 
-  const remove = async (r) => {
-    if (!window.confirm(`Delete meter entry ${r.furnaceCycleNo}?`)) return;
-    try {
-      await api.delete(`/manufacturing/energy-log/${r.id}`);
-      toast.success('Entry deleted.');
-      load();
-    } catch {
-      toast.error('Failed to delete entry.');
-    }
-  };
+  const remove = (r) => setConfirmDialog({
+    title: 'Delete this meter entry?',
+    message: `Cycle ${r.furnaceCycleNo || '—'} will be removed from the energy log. This cannot be undone.`,
+    confirmLabel: 'Delete entry',
+    variant: 'danger',
+    onConfirm: async () => {
+      try {
+        await api.delete(`/manufacturing/energy-log/${r.id}`);
+        toast.success('Entry deleted.');
+        load();
+      } catch (err) {
+        toast.error(err.response?.data?.message || 'Failed to delete entry.');
+      } finally { setConfirmDialog(null); }
+    },
+  });
 
   return (
     <div className="page-stack w-full space-y-5 animate-slide-up">
@@ -143,7 +151,7 @@ export default function EnergyLog() {
                   <h2 className="font-mono text-base font-bold text-slate-900">{m.name || m.code}</h2>
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-xs text-slate-500 tabular-nums">{fmtNum(mTotal)} KW</span>
-                    <Button size="icon-sm" variant="ghost" className="no-print" onClick={() => startAdd(m.id)}><Plus /></Button>
+                    <Button size="icon-sm" variant="ghost" className="no-print" title={`Log a reading for ${m.name || m.code}`} aria-label={`Log an energy reading for ${m.name || m.code}`} onClick={() => startAdd(m.id)}><Plus /></Button>
                   </div>
                 </div>
                 <div className="overflow-x-auto">
@@ -189,8 +197,12 @@ export default function EnergyLog() {
                         <RowEditor editing={editing} onChange={setEditing} onSave={save} onCancel={() => setEditing(null)} saving={saving} />
                       )}
                       {!list.length && editing?.machineId !== m.id && (
-                        <tr><td colSpan={7} className="px-3 py-6 text-center text-[12px] text-slate-400">
-                          <Zap className="h-4 w-4 mx-auto mb-1 text-slate-300" /> No readings logged yet.
+                        <tr><td colSpan={7} className="px-3 py-6 text-center">
+                          <Zap className="h-4 w-4 mx-auto mb-1 text-slate-300" />
+                          <p className="text-[12px] text-slate-400">No readings logged yet.</p>
+                          <Button size="sm" variant="outline" className="no-print mt-2" onClick={() => startAdd(m.id)}>
+                            <Plus /> Log the first reading
+                          </Button>
                         </td></tr>
                       )}
                     </tbody>
@@ -201,6 +213,8 @@ export default function EnergyLog() {
           })}
         </div>
       )}
+
+      {confirmDialog && <ConfirmDialog {...confirmDialog} onCancel={() => setConfirmDialog(null)} />}
     </div>
   );
 }
@@ -258,7 +272,7 @@ function RowEditor({ editing, onChange, onSave, onCancel, saving }) {
   const { form } = editing;
   const set = (k, v) => onChange({ ...editing, form: { ...form, [k]: v } });
   return (
-    <tr className="border-b border-primary-100 bg-primary-50/40 align-top">
+    <tr className="border-b border-primary-100 bg-primary-50/40 align-top" onKeyDown={rowEditorKeys({ onSave, onCancel, saving })}>
       <td className="px-3 py-2 font-mono text-[12px] text-slate-500">{form.srNo}</td>
       <td className="px-2 py-1.5"><Input value={form.furnaceCycleNo} onChange={(e) => set('furnaceCycleNo', e.target.value)} placeholder="VPT1-26/09/01" className="font-mono text-[12px] h-7" /></td>
       <td className="px-2 py-1.5"><Input type="number" value={form.cycleWeightKg} onChange={(e) => set('cycleWeightKg', e.target.value)} className="w-20 h-7 tabular-nums" /></td>
@@ -267,7 +281,7 @@ function RowEditor({ editing, onChange, onSave, onCancel, saving }) {
       <td colSpan={2} className="px-2 py-1.5">
         <div className="flex items-center justify-end gap-1">
           <Button size="sm" onClick={onSave} disabled={saving}>{saving ? '…' : 'Save'}</Button>
-          <Button size="icon-sm" variant="ghost" onClick={onCancel}><X /></Button>
+          <Button size="icon-sm" variant="ghost" title="Discard this row" aria-label="Discard this reading without saving" onClick={onCancel}><X /></Button>
         </div>
       </td>
     </tr>

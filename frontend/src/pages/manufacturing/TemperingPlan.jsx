@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, Pencil, Trash2, X, Printer, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
+import { rowEditorKeys } from '../../utils/rowEditorKeys';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PrintSheetHeader, PrintSheetFooter } from '../../components/manufacturing/PrintRegisterSheet';
@@ -36,6 +38,7 @@ export default function TemperingPlan() {
   const [slots, setSlots] = useState([]);
   const [runsheets, setRunsheets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [confirmDialog, setConfirmDialog] = useState(null);
   const [editing, setEditing] = useState(null); // { machineId, form }
   const [saving, setSaving] = useState(false);
 
@@ -99,16 +102,21 @@ export default function TemperingPlan() {
     }
   };
 
-  const remove = async (slot) => {
-    if (!window.confirm(`Delete this ${slot.title || 'slot'}?`)) return;
-    try {
-      await api.delete(`/manufacturing/tempering-slots/${slot.id}`);
-      toast.success('Slot deleted.');
-      load();
-    } catch {
-      toast.error('Failed to delete slot.');
-    }
-  };
+  const remove = (slot) => setConfirmDialog({
+    title: 'Delete this tempering slot?',
+    message: `${slot.title || 'This slot'} will be removed from the day's plan, along with the run sheets batched into it. This cannot be undone.`,
+    confirmLabel: 'Delete slot',
+    variant: 'danger',
+    onConfirm: async () => {
+      try {
+        await api.delete(`/manufacturing/tempering-slots/${slot.id}`);
+        toast.success('Slot deleted.');
+        load();
+      } catch (err) {
+        toast.error(err.response?.data?.message || 'Failed to delete slot.');
+      } finally { setConfirmDialog(null); }
+    },
+  });
 
   return (
     <div className="page-stack w-full space-y-5 animate-slide-up">
@@ -155,7 +163,7 @@ export default function TemperingPlan() {
                   <h2 className="font-mono text-base font-bold text-slate-900">{m.name || m.code}</h2>
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] uppercase tracking-wider text-slate-400">{mSlots.length} slots</span>
-                    <Button size="icon-sm" variant="ghost" className="no-print" onClick={() => startAdd(m.id)}><Plus /></Button>
+                    <Button size="icon-sm" variant="ghost" className="no-print" title={`Add a slot on ${m.name || m.code}`} aria-label={`Add a tempering slot on ${m.name || m.code}`} onClick={() => startAdd(m.id)}><Plus /></Button>
                   </div>
                 </div>
                 <ul className="flex-1 divide-y divide-slate-100">
@@ -197,7 +205,12 @@ export default function TemperingPlan() {
                     </li>
                   )}
                   {!mSlots.length && editing?.machineId !== m.id && (
-                    <li className="px-4 py-6 text-center text-[12px] text-slate-400">No slots yet.</li>
+                    <li className="px-4 py-6 text-center">
+                      <p className="text-[12px] text-slate-400">No slots yet.</p>
+                      <Button size="sm" variant="outline" className="no-print mt-2" onClick={() => startAdd(m.id)}>
+                        <Plus /> Add the first slot
+                      </Button>
+                    </li>
                   )}
                 </ul>
               </section>
@@ -205,6 +218,8 @@ export default function TemperingPlan() {
           })}
         </div>
       )}
+
+      {confirmDialog && <ConfirmDialog {...confirmDialog} onCancel={() => setConfirmDialog(null)} />}
     </div>
   );
 }
@@ -281,7 +296,7 @@ function SlotEditor({ editing, runsheets, onChange, onToggle, onSave, onCancel, 
   const { form } = editing;
   const set = (k, v) => onChange({ ...editing, form: { ...form, [k]: v } });
   return (
-    <div className="rounded-md border border-primary-200 bg-primary-50/40 p-2.5 space-y-2">
+    <div className="rounded-md border border-primary-200 bg-primary-50/40 p-2.5 space-y-2" onKeyDown={rowEditorKeys({ onSave, onCancel, saving })}>
       <div className="flex gap-2">
         <Input type="time" value={form.startTime} onChange={(e) => set('startTime', e.target.value)} className="w-28" />
         <Input type="time" value={form.endTime} onChange={(e) => set('endTime', e.target.value)} className="w-28" />

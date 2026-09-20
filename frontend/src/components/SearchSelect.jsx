@@ -108,13 +108,21 @@ export default function SearchSelect({
     setQuery('');
   };
 
+  // Enter and Escape mean something here only while the list is open. When
+  // they are consumed, propagation stops so an enclosing row editor does not
+  // also act on the same keystroke — picking an option should not also save
+  // the row. With the list closed they bubble, so Escape can still back out.
   const handleInputKeyDown = (e) => {
-    if (e.key === 'Escape') { setOpen(false); setQuery(''); return; }
+    if (e.key === 'Escape') {
+      if (open) { e.stopPropagation(); setOpen(false); setQuery(''); }
+      return;
+    }
     if (e.key === 'ArrowDown') { e.preventDefault(); setHighlightedIndex(p => Math.min(p + 1, filtered.length - 1)); return; }
     if (e.key === 'ArrowUp')   { e.preventDefault(); setHighlightedIndex(p => Math.max(p - 1, 0)); return; }
     if (e.key === 'Enter') {
+      const picking = open && filtered.length > 0 && filtered[highlightedIndex];
       e.preventDefault();
-      if (filtered.length > 0 && filtered[highlightedIndex]) handleSelect(filtered[highlightedIndex]);
+      if (picking) { e.stopPropagation(); handleSelect(filtered[highlightedIndex]); }
     }
   };
 
