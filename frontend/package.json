@@ -7,7 +7,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "e2e:install": "playwright install",
-    "e2e": "playwright test --config e2e/playwright.config.js"
+    "e2e": "playwright test --config e2e/playwright.config.js",
+    "test:ui": "npm run test:ui:walk && npm run test:ui:interact",
+    "test:ui:walk": "node tests/ui-walk.js",
+    "test:ui:interact": "node tests/ui-interact.js",
+    "test:ui:live": "node tests/live-check.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

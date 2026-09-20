@@ -1,0 +1,4 @@
+{
+  "//": "The frontend is ESM; these scripts are plain CommonJS so they can require the backend's prisma/jwt directly.",
+  "type": "commonjs"
+}

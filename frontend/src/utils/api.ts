@@ -148,11 +148,13 @@ api.interceptors.response.use(
       errorMessage = 'Upload timed out — check your connection and try again with a smaller image.';
     }
 
-    // Log error (development only)
-    if (import.meta.env.DEV) {
-      console.error(`❌ ${error.response?.status || 'ERR'} ${error.config?.url}`);
-      console.error(`   Error: ${errorMessage}`);
-      console.error(`   Code: ${errorCode}`);
+    // A request the app itself aborted (StrictMode double-mount, or a component
+    // unmounting mid-fetch) is normal — it is not something to shout about.
+    const wasCanceled = error.code === 'ERR_CANCELED' || axios.isCancel?.(error) || /^canceled$/i.test(error.message || '');
+
+    // Log error (development only), as one line so it reads as one event.
+    if (import.meta.env.DEV && !wasCanceled) {
+      console.error(`❌ ${error.response?.status || 'ERR'} ${error.config?.url} — ${errorMessage} [${errorCode}]`);
     }
 
     // Transform error for consistency
