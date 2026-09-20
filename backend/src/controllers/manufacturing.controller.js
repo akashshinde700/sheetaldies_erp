@@ -965,6 +965,78 @@ exports.upsertFurnaceUtilizationDay = async (req, res) => {
   }
 };
 
+// ── Clearing a register sheet ──────────────────────────────────
+// These three registers are saved as one whole sheet per day (or per month),
+// so there is no row to delete — only the sheet itself. Without this a sheet
+// filled in against the wrong furnace or date could only be zeroed out, which
+// leaves a real-looking record of a day that never happened.
+
+exports.deleteFurnaceUtilizationDay = async (req, res) => {
+  try {
+    const machineId = toInt(req.query.machineId);
+    const d = parseYMD(req.query.date);
+    if (!machineId || !d) return res.status(400).json({ success: false, message: 'machineId and a valid date are required.' });
+
+    const existing = await prisma.furnaceUtilizationDay.findUnique({
+      where: { machineId_utilDate: { machineId, utilDate: d } },
+      select: { id: true },
+    });
+    if (!existing) return res.status(404).json({ success: false, message: 'Nothing recorded for that furnace on that date.' });
+
+    await prisma.furnaceUtilizationDay.delete({ where: { id: existing.id } });
+    res.json({ success: true, message: 'Utilisation sheet cleared.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+exports.deleteDailyIdleSheet = async (req, res) => {
+  try {
+    const machineId = toInt(req.query.machineId);
+    const year = toInt(req.query.year);
+    const month = toInt(req.query.month);
+    if (!machineId || !year || !(month >= 1 && month <= 12)) {
+      return res.status(400).json({ success: false, message: 'machineId, year and month (1-12) are required.' });
+    }
+
+    // One row per day, so clearing the month means the days that fall inside it.
+    const from = new Date(Date.UTC(year, month - 1, 1));
+    const to = new Date(Date.UTC(year, month, 1));
+    const { count } = await prisma.dailyIdleLog.deleteMany({
+      where: { machineId, logDate: { gte: from, lt: to } },
+    });
+    if (!count) return res.status(404).json({ success: false, message: 'Nothing recorded for that furnace in that month.' });
+
+    res.json({ success: true, message: `Idle time cleared — ${count} day(s) removed.` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+exports.deletePlantLossMonth = async (req, res) => {
+  try {
+    const year = toInt(req.query.year);
+    const month = toInt(req.query.month);
+    if (!year || !(month >= 1 && month <= 12)) {
+      return res.status(400).json({ success: false, message: 'year and month (1-12) are required.' });
+    }
+
+    const existing = await prisma.plantLossMonth.findUnique({
+      where: { year_month: { year, month } },
+      select: { id: true },
+    });
+    if (!existing) return res.status(404).json({ success: false, message: 'Nothing recorded for that month.' });
+
+    await prisma.plantLossMonth.delete({ where: { id: existing.id } }); // entries cascade
+    res.json({ success: true, message: 'Plant losses cleared for that month.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
 // ── Daily Production Planning (QF/PD/03 page 1) ────────────────
 // The "plan" is simply the day's real VHT Run Sheets, furnace-wise, with
 // whatever tempering slots and energy-meter entries already point back to

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Save, Flame, Printer } from 'lucide-react';
+import { Save, Flame, Printer, Eraser } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
 import SearchSelect from '../../components/SearchSelect';
@@ -74,6 +74,7 @@ export default function FurnaceUtilization() {
   const [machines, setMachines] = useState([]);
   const [machineId, setMachineId] = useState('');
   const [date, setDate] = useState(todayStr());
+  const [reloadKey, setReloadKey] = useState(0);
   const [form, setForm] = useState(emptyForm());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -94,7 +95,20 @@ export default function FurnaceUtilization() {
       .then((r) => setForm(fromApiRow(r.data.data)))
       .catch(() => toast.error('Failed to load utilisation for this day.'))
       .finally(() => setLoading(false));
-  }, [machineId, date]);
+  }, [machineId, date, reloadKey]);
+
+  // Whole-sheet registers have no row to delete — only the sheet. Zeroing it
+  // out instead would leave a real-looking record of a day that never ran.
+  const handleClear = async () => {
+    if (!window.confirm(`Clear the whole utilisation sheet for ${machine?.name || machine?.code || 'this furnace'} on ${date}? This cannot be undone.`)) return;
+    try {
+      await api.delete('/manufacturing/furnace-utilization', { params: { machineId, date } });
+      toast.success('Utilisation sheet cleared.');
+      setReloadKey((k) => k + 1);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Sheet clear nahi hui.');
+    }
+  };
 
   const setShiftField = (n, key, value) => {
     setForm((f) => ({ ...f, [`shift${n}`]: { ...f[`shift${n}`], [key]: value } }));
@@ -156,6 +170,9 @@ export default function FurnaceUtilization() {
             >
               <Printer /> Print Pack
             </Link>
+          </Button>
+          <Button variant="ghost" onClick={handleClear} disabled={saving || loading || !machineId} className="text-slate-400 hover:text-rose-600" title="Clear this day's sheet">
+            <Eraser /> Clear day
           </Button>
           <Button onClick={handleSave} disabled={saving || loading || !machineId}>
             <Save /> {saving ? 'Saving…' : 'Save'}

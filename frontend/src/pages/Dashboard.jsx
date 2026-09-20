@@ -191,7 +191,7 @@ export default function Dashboard() {
           badge="Outward" badgeColor="bg-slate-100 text-slate-700"
           sub="Sent for heat treatment" icon="local_shipping"
           iconBg="bg-slate-100 text-slate-600"
-          to="/jobwork"
+          to="/jobwork/register"
         />
         <KpiCard
           label="Quality Alerts" value={stats?.qualityAlerts} loading={kpiLoading}

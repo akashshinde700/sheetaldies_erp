@@ -54,6 +54,7 @@ const NAV_ITEMS = [
   { label: 'Temp Cycle Graphs', icon: 'show_chart',              to: '/admin/temp-cycle-graphs',  gate: 'manager' },
   { label: 'Items',             icon: 'inventory',               to: '/admin/items',              gate: 'manager' },
   { label: 'Machines',          icon: 'precision_manufacturing', to: '/admin/machines',           gate: 'manager' },
+  { label: 'Invoice Series',    icon: 'tag',                     to: '/admin/invoice-series',     gate: 'manager' },
   { label: 'Users',      icon: 'manage_accounts', to: '/admin/users',      gate: 'admin' },
   { label: 'Audit Logs', icon: 'history',         to: '/admin/audit-logs', gate: 'admin' },
 ];

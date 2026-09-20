@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Printer, RefreshCw, Save, Plus, Trash2 } from 'lucide-react';
+import { Printer, RefreshCw, Save, Plus, Trash2, Eraser } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
 import SearchSelect from '../../components/SearchSelect';
@@ -105,6 +105,19 @@ export default function PlantLosses() {
     setRows((rs) => rs.filter((r) => r.key !== key));
   };
 
+  // Clearing removes the month's stored sheet outright, rather than leaving a
+  // row of zeros that reads as a real month with no losses.
+  const clearMonth = async () => {
+    if (!window.confirm(`Clear the whole plant-losses sheet for ${month}/${year}? This cannot be undone.`)) return;
+    try {
+      await api.delete('/manufacturing/plant-losses', { params: { year, month } });
+      toast.success('Plant losses cleared.');
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Sheet clear nahi hui.');
+    }
+  };
+
   const save = async () => {
     setSaving(true);
     try {
@@ -152,6 +165,9 @@ export default function PlantLosses() {
             <Printer /> Print sheet
           </Button>
           <Button variant="outline" onClick={derive} disabled={deriving}><RefreshCw /> {deriving ? 'Deriving…' : 'Derive from daily logs'}</Button>
+          <Button variant="ghost" onClick={clearMonth} disabled={saving} className="text-slate-400 hover:text-rose-600" title="Clear this month's sheet">
+            <Eraser /> Clear month
+          </Button>
           <Button onClick={save} disabled={saving || !rows.length}><Save /> {saving ? 'Saving…' : 'Save'}</Button>
         </div>
       </div>

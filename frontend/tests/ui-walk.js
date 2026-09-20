@@ -22,6 +22,7 @@ const ROUTES = [
   '/quality/rework-data', '/quality/nc-register',
   '/invoices', '/invoices/new',
   '/manufacturing/utilization', '/manufacturing/idle-time', '/manufacturing/plant-losses',
+  '/change-password', '/admin/invoice-series',
   '/customer-quotes', '/pending', '/analytics', '/dispatch', '/inventory',
   '/admin/parties', '/admin/party-rates', '/admin/processes', '/admin/heat-treat-specs',
   '/admin/temp-cycle-graphs', '/admin/items', '/admin/machines', '/admin/users', '/admin/audit-logs',

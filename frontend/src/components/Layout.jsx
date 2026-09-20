@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Search, LogOut, Sun, Moon } from 'lucide-react';
+import { Search, LogOut, KeyRound, Sun, Moon } from 'lucide-react';
 
 import Sidebar from './Sidebar';
 import CommandPalette from './CommandPalette';
@@ -289,6 +289,9 @@ export default function Layout() {
                     <span className="block truncate text-xs font-normal normal-case tracking-normal text-slate-500">{user?.email}</span>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => navigate('/change-password')}>
+                    <KeyRound /> Change password
+                  </DropdownMenuItem>
                   <DropdownMenuItem destructive onSelect={handleLogout}>
                     <LogOut /> Sign out
                   </DropdownMenuItem>

@@ -177,6 +177,30 @@ const prisma = new PrismaClient();
       r.ok('Invoice edit actually saves', !/\/edit$/.test(new URL(page.url()).pathname), page.url());
     }
 
+    // 3c. Change password: the page exists and refuses a weak new password
+    // before it ever reaches the server.
+    await page.goto(`${env.base}/change-password`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(1500);
+    r.ok('Change password page opens', /Change Password/i.test(await page.locator('body').innerText()));
+    await page.locator('input[autocomplete="new-password"]').first().fill('abc');
+    await page.waitForTimeout(400);
+    const weak = await page.locator('body').innerText();
+    r.ok('Weak password shows which rules fail', /At least 8 characters/i.test(weak));
+
+    // 3d. Invoice series admin page lists the series and can open the editor.
+    await page.goto(`${env.base}/admin/invoice-series`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(2000);
+    r.ok('Invoice series page opens', /Invoice Series/i.test(await page.locator('body').innerText()));
+    await page.getByRole('button', { name: /New series/i }).first().click();
+    await page.waitForTimeout(600);
+    r.ok('New-series form opens', /Create series/i.test(await page.locator('body').innerText()));
+
+    // 3e. The retired /jobwork page now lands on the register.
+    await page.goto(`${env.base}/jobwork`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(2000);
+    r.ok('Old /jobwork lands on the register',
+      new URL(page.url()).pathname === '/jobwork/register', page.url());
+
     // 4. Plant Losses working-days input
     await page.goto(`${env.base}/manufacturing/plant-losses`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1500);

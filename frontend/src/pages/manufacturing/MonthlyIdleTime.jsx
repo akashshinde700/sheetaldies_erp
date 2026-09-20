@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Save, Printer, Flame } from 'lucide-react';
+import { Save, Printer, Flame, Eraser } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
@@ -28,6 +28,7 @@ export default function MonthlyIdleTime() {
   const [machineId, setMachineId] = useState('');
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+  const [reloadKey, setReloadKey] = useState(0);
   const [days, setDays] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -48,7 +49,19 @@ export default function MonthlyIdleTime() {
       .then((r) => setDays(r.data.data.days || []))
       .catch(() => toast.error('Failed to load idle time sheet.'))
       .finally(() => setLoading(false));
-  }, [machineId, year, month]);
+  }, [machineId, year, month, reloadKey]);
+
+  // One sheet per furnace per month; clearing drops that month's day rows.
+  const handleClear = async () => {
+    if (!window.confirm(`Clear the whole idle-time sheet for ${machine?.name || machine?.code || 'this furnace'}, ${month}/${year}? This cannot be undone.`)) return;
+    try {
+      await api.delete('/manufacturing/idle-logs', { params: { machineId, year, month } });
+      toast.success('Idle time cleared.');
+      setReloadKey((k) => k + 1);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Sheet clear nahi hui.');
+    }
+  };
 
   const setCell = (day, key, value) => {
     setDays((rows) => rows.map((r) => (r.day === day ? { ...r, [key]: Math.max(0, Number(value) || 0) } : r)));
@@ -88,6 +101,9 @@ export default function MonthlyIdleTime() {
             <Link to={`/manufacturing/idle-time/print?machineId=${machineId}&year=${year}&month=${month}`} target="_blank" rel="noreferrer">
               <Printer /> Print sheet
             </Link>
+          </Button>
+          <Button variant="ghost" onClick={handleClear} disabled={saving || loading || !machineId} className="text-slate-400 hover:text-rose-600" title="Clear this month's sheet">
+            <Eraser /> Clear month
           </Button>
           <Button onClick={handleSave} disabled={saving || loading || !machineId}><Save /> {saving ? 'Saving…' : 'Save'}</Button>
         </div>

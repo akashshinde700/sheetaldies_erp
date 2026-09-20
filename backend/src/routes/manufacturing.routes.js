@@ -18,14 +18,17 @@ router.delete('/runsheets/:id',     requireRole('ADMIN', 'MANAGER'), ctrl.delete
 // Furnace Utilisation Statement (daily, shift-wise)
 router.get('/furnace-utilization', ctrl.getFurnaceUtilizationDay);
 router.post('/furnace-utilization', requireRole('ADMIN', 'MANAGER'), ctrl.upsertFurnaceUtilizationDay);
+router.delete('/furnace-utilization', requireRole('ADMIN', 'MANAGER'), ctrl.deleteFurnaceUtilizationDay);
 
 // Daily Idle Logs (machine-wise, monthly sheet)
 router.get('/idle-logs', ctrl.getDailyIdleSheet);
 router.post('/idle-logs', requireRole('ADMIN', 'MANAGER'), ctrl.upsertDailyIdleSheet);
+router.delete('/idle-logs', requireRole('ADMIN', 'MANAGER'), ctrl.deleteDailyIdleSheet);
 
 // Plant Losses (monthly, all-machine summary)
 router.get('/plant-losses', ctrl.getPlantLossMonth);
 router.post('/plant-losses', requireRole('ADMIN', 'MANAGER'), ctrl.upsertPlantLossMonth);
+router.delete('/plant-losses', requireRole('ADMIN', 'MANAGER'), ctrl.deletePlantLossMonth);
 router.post('/plant-losses/derive', requireRole('ADMIN', 'MANAGER'), ctrl.derivePlantLossFromDaily);
 
 // Daily Production Planning (furnace-wise view of the day's run sheets)

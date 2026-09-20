@@ -740,6 +740,9 @@ exports.listSeries = async (req, res) => {
     const series = await prisma.invoiceSeries.findMany({
       where: onlyActive ? { isActive: true } : undefined,
       orderBy: { id: 'asc' },
+      // How many invoices already carry each series — what tells you whether
+      // retiring one is harmless or whether it is carrying live numbering.
+      include: { _count: { select: { invoices: true } } },
     });
     res.json({ success: true, data: series });
   } catch (err) {
