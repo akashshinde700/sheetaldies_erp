@@ -178,8 +178,8 @@ export default function EnergyLog() {
                             </td>
                             <td className="px-3 py-2 no-print">
                               <div className="flex items-center justify-end gap-0.5">
-                                <Button size="icon-sm" variant="ghost" className="text-slate-400 hover:text-primary-700" onClick={() => startEdit(r)}><Pencil /></Button>
-                                <Button size="icon-sm" variant="ghost" className="text-slate-400 hover:text-rose-600" onClick={() => remove(r)}><Trash2 /></Button>
+                                <Button size="icon-sm" variant="ghost" title="Edit this entry" aria-label="Edit this energy log entry" className="text-slate-400 hover:text-primary-700" onClick={() => startEdit(r)}><Pencil /></Button>
+                                <Button size="icon-sm" variant="ghost" title="Delete this entry" aria-label="Delete this energy log entry" className="text-slate-400 hover:text-rose-600" onClick={() => remove(r)}><Trash2 /></Button>
                               </div>
                             </td>
                           </tr>

@@ -214,8 +214,8 @@ export default function ReworkData() {
                       <td className="td">{e.remark}</td>
                       <td className="td">
                         <div className="flex items-center justify-end gap-0.5">
-                          <Button size="icon-sm" variant="ghost" className="text-slate-400 hover:text-primary-700" onClick={() => startEdit(e)}><Pencil /></Button>
-                          <Button size="icon-sm" variant="ghost" className="text-slate-400 hover:text-rose-600" onClick={() => remove(e)}><Trash2 /></Button>
+                          <Button size="icon-sm" variant="ghost" title="Edit this entry" aria-label="Edit this rework entry" className="text-slate-400 hover:text-primary-700" onClick={() => startEdit(e)}><Pencil /></Button>
+                          <Button size="icon-sm" variant="ghost" title="Delete this entry" aria-label="Delete this rework entry" className="text-slate-400 hover:text-rose-600" onClick={() => remove(e)}><Trash2 /></Button>
                         </div>
                       </td>
                     </tr>

@@ -165,8 +165,8 @@ export default function NcRegister() {
                     <td className="td">{r.sign}</td>
                     <td className="td">
                       <div className="flex items-center justify-end gap-0.5">
-                        <Button size="icon-sm" variant="ghost" className="text-slate-400 hover:text-primary-700" onClick={() => startEdit(r)}><Pencil /></Button>
-                        <Button size="icon-sm" variant="ghost" className="text-slate-400 hover:text-rose-600" onClick={() => remove(r)}><Trash2 /></Button>
+                        <Button size="icon-sm" variant="ghost" title="Edit this entry" aria-label="Edit this NC entry" className="text-slate-400 hover:text-primary-700" onClick={() => startEdit(r)}><Pencil /></Button>
+                        <Button size="icon-sm" variant="ghost" title="Delete this entry" aria-label="Delete this NC entry" className="text-slate-400 hover:text-rose-600" onClick={() => remove(r)}><Trash2 /></Button>
                       </div>
                     </td>
                   </tr>

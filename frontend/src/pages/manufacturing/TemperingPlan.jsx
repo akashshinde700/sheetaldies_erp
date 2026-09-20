@@ -174,8 +174,8 @@ export default function TemperingPlan() {
                               <p className="text-right font-mono text-[12px] text-slate-700 tabular-nums">
                                 {hhmm(s.startTime)}<span className="block text-slate-400">{hhmm(s.endTime)}</span>
                               </p>
-                              <Button size="icon-sm" variant="ghost" className="no-print text-slate-400 hover:text-primary-700" onClick={() => startEdit(s)}><Pencil /></Button>
-                              <Button size="icon-sm" variant="ghost" className="no-print text-slate-400 hover:text-rose-600" onClick={() => remove(s)}><Trash2 /></Button>
+                              <Button size="icon-sm" variant="ghost" title="Edit this slot" aria-label="Edit this tempering slot" className="no-print text-slate-400 hover:text-primary-700" onClick={() => startEdit(s)}><Pencil /></Button>
+                              <Button size="icon-sm" variant="ghost" title="Delete this slot" aria-label="Delete this tempering slot" className="no-print text-slate-400 hover:text-rose-600" onClick={() => remove(s)}><Trash2 /></Button>
                             </div>
                           </div>
                           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
