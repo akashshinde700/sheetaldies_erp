@@ -68,28 +68,28 @@ const validateForIrp = (invoice) => {
 
   const docNo = String(invoice.invoiceNo || '');
   if (docNo.length > NIC_DOC_NO_MAX) {
-    problems.push(`Invoice number "${docNo}" ${docNo.length} character ka hai — NIC sirf ${NIC_DOC_NO_MAX} tak leta hai.`);
+    problems.push(`Invoice number "${docNo}" is ${docNo.length} characters — NIC allows only ${NIC_DOC_NO_MAX}.`);
   }
   if (/^[0/-]/.test(docNo)) {
-    problems.push(`Invoice number "${docNo}" 0, / ya - se shuru nahi ho sakta.`);
+    problems.push(`Invoice number "${docNo}" cannot start with 0, / or -.`);
   }
 
   if (!/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(String(seller?.gstin || '').trim())) {
-    problems.push(`Seller (${seller?.name || 'unknown'}) ka GSTIN theek nahi hai.`);
+    problems.push(`Seller (${seller?.name || 'unknown'}) has an invalid GSTIN.`);
   }
   if (!/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(String(buyer?.gstin || '').trim())) {
-    problems.push(`Buyer (${buyer?.name || 'unknown'}) ka GSTIN theek nahi hai — e-invoice sirf B2B ke liye hai.`);
+    problems.push(`Buyer (${buyer?.name || 'unknown'}) has an invalid GSTIN — e-invoice is for B2B only.`);
   }
-  if (!pinOf(seller)) problems.push('Seller ka 6-digit PIN code nahi hai.');
-  if (!pinOf(buyer)) problems.push('Buyer ka 6-digit PIN code nahi hai.');
-  if (!stateCodeOf(seller)) problems.push('Seller ka state code nahi mila.');
-  if (!stateCodeOf(buyer)) problems.push('Buyer ka state code nahi mila.');
+  if (!pinOf(seller)) problems.push('Seller is missing a 6-digit PIN code.');
+  if (!pinOf(buyer)) problems.push('Buyer is missing a 6-digit PIN code.');
+  if (!stateCodeOf(seller)) problems.push("Could not determine the seller's state code.");
+  if (!stateCodeOf(buyer)) problems.push("Could not determine the buyer's state code.");
 
-  if (!invoice.items?.length) problems.push('Invoice me koi item nahi hai.');
+  if (!invoice.items?.length) problems.push('Invoice has no items.');
   invoice.items?.forEach((it, i) => {
     const hsn = String(it.hsnSac || it.processType?.hsnSacCode || '').trim();
     if (!/^\d{4,8}$/.test(hsn)) {
-      problems.push(`Item ${i + 1} ("${it.description}") ka HSN/SAC code nahi hai ya galat hai.`);
+      problems.push(`Item ${i + 1} ("${it.description}") is missing a valid HSN/SAC code.`);
     }
   });
 
@@ -112,7 +112,12 @@ const buildEInvoiceJson = (invoice) => {
     // 99xx = SAC, yaani service. Heat treatment job work service hi hai.
     const isService = hsn.startsWith('99');
 
-    const qty = toNum(it.weight, 0) > 0 ? toNum(it.weight, 0) : toNum(it.quantity, 0);
+    // A KGS-billed line's Qty is its weight — never quantity (a piece count,
+    // not kilos). Falling back to quantity here would make Qty × UnitPrice
+    // disagree with TotAmt/AssAmt (which are already correctly 0 until the
+    // real weight is entered), a mismatch the portal can flag.
+    const unit = String(it.unit || 'KGS').toUpperCase();
+    const qty = unit === 'KGS' ? toNum(it.weight, 0) : toNum(it.quantity, 0);
     const assAmt = toMoney(it.amount);
     const rate = toNum(it.rate, 0);
 
@@ -132,7 +137,7 @@ const buildEInvoiceJson = (invoice) => {
       IsServc: isService ? 'Y' : 'N',
       HsnCd: hsn,
       Qty: Number(qty.toFixed(3)),
-      Unit: String(it.unit || 'KGS').toUpperCase().slice(0, 8),
+      Unit: unit.slice(0, 8),
       UnitPrice: Number(rate.toFixed(3)),
       TotAmt: assAmt,
       AssAmt: assAmt,
@@ -164,7 +169,7 @@ const buildEInvoiceJson = (invoice) => {
       Addr1: addr(seller),
       Loc: String(seller?.city || '').slice(0, 50),
       Pin: pinOf(seller),
-      Stcd: stateCodeOf(seller),
+      StCd: stateCodeOf(seller),
     },
     BuyerDtls: {
       Gstin: String(buyer?.gstin || '').trim(),
@@ -174,7 +179,19 @@ const buildEInvoiceJson = (invoice) => {
       Addr1: addr(buyer),
       Loc: String(buyer?.city || '').slice(0, 50),
       Pin: pinOf(buyer),
-      Stcd: stateCodeOf(buyer),
+      StCd: stateCodeOf(buyer),
+    },
+    // ShipDtls is optional per the NIC schema (needed only when the ship-to
+    // party differs from the buyer), but this ERP has no separate consignee —
+    // the buyer always receives the goods back. Sending it as a mirror of
+    // BuyerDtls matches known-working reference uploads and costs nothing.
+    ShipDtls: {
+      Gstin: String(buyer?.gstin || '').trim(),
+      LglNm: String(buyer?.name || '').slice(0, 100),
+      Addr1: addr(buyer),
+      Loc: String(buyer?.city || '').slice(0, 50),
+      Pin: pinOf(buyer),
+      StCd: stateCodeOf(buyer),
     },
     ItemList: items,
     ValDtls: {
@@ -302,7 +319,7 @@ exports.importEInvoiceExcel = async (req, res) => {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(req.file.buffer);
     const ws = wb.worksheets[0];
-    if (!ws) return res.status(400).json({ success: false, message: 'Excel me koi sheet nahi hai.' });
+    if (!ws) return res.status(400).json({ success: false, message: 'The Excel file has no sheets.' });
 
     const located = locateColumns(ws);
     const headerRow = located?.headerRow;

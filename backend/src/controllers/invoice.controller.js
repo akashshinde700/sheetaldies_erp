@@ -25,7 +25,7 @@ const getChallanBillingStatusInternal = async (challanId, db = prisma, excludeIn
         orderBy: { createdAt: 'asc' },
       },
       taxInvoices: {
-        include: { items: true },
+        include: { items: { include: { sources: true } } },
         orderBy: { createdAt: 'asc' },
       },
     },
@@ -42,7 +42,20 @@ const getChallanBillingStatusInternal = async (challanId, db = prisma, excludeIn
       dispatchedQty: 0,
       invoicedQty: 0,
       remainingQty: 0,
+      rejectedQty: 0,
     });
+  }
+
+  // Pieces raised as REJECT (scrapped) against certificate items that came from
+  // these challan items. Informational only — it does not change what can be
+  // billed, the invoice form just warns so rejected pieces are not billed by mistake.
+  const rejects = await db.reworkEntry.findMany({
+    where: { type: 'REJECT', certItem: { sourceChallanItemId: { in: challan.items.map((i) => i.id) } } },
+    select: { qty: true, certItem: { select: { sourceChallanItemId: true } } },
+  });
+  for (const r of rejects) {
+    const row = itemMap.get(r.certItem?.sourceChallanItemId);
+    if (row) row.rejectedQty += toNum(r.qty, 0);
   }
 
   // Dispatched qty from dispatch challans (only count sent/received/completed)
@@ -59,10 +72,23 @@ const getChallanBillingStatusInternal = async (challanId, db = prisma, excludeIn
   for (const inv of challan.taxInvoices) {
     if (excludeInvoiceId && inv.id === toInt(excludeInvoiceId)) continue;
     for (const ii of inv.items || []) {
-      if (!ii.sourceChallanItemId) continue;
-      const row = itemMap.get(ii.sourceChallanItemId);
-      if (!row) continue;
-      row.invoicedQty += toNum(ii.quantity, 0);
+      // A consolidated line (same process, several challan items merged into
+      // one invoice row) attributes its quantity per source challan item via
+      // InvoiceItemSource — never the whole line's quantity to one item.
+      // Older, single-source invoice items have no `sources` rows at all and
+      // fall back to the original scalar sourceChallanItemId behaviour.
+      if (ii.sources && ii.sources.length > 0) {
+        for (const src of ii.sources) {
+          if (!src.challanItemId) continue;
+          const row = itemMap.get(src.challanItemId);
+          if (!row) continue;
+          row.invoicedQty += toNum(src.quantity, 0);
+        }
+      } else if (ii.sourceChallanItemId) {
+        const row = itemMap.get(ii.sourceChallanItemId);
+        if (!row) continue;
+        row.invoicedQty += toNum(ii.quantity, 0);
+      }
     }
   }
 
@@ -93,6 +119,58 @@ const getChallanBillingStatusInternal = async (challanId, db = prisma, excludeIn
     lineStatus,
   };
 };
+
+/**
+ * Validates every incoming invoice line against the challan's remaining
+ * quantity, PER source challan item, decrementing a working copy of
+ * `remainingByItem` as it goes — so two lines (or two sources within one
+ * consolidated line) that both reference the same challan item can't
+ * collectively over-bill it within a single invoice submission.
+ *
+ * A line is either:
+ *  - consolidated: `it.sources` is a non-empty array of
+ *    `{ challanItemId, quantity }` (same-process items merged into one row —
+ *    quantity here is each source's own share, weight is NOT split — the
+ *    line's own `weight` stays the single process-level figure), or
+ *  - single-source (legacy/default): `it.sourceChallanItemId` alone.
+ *
+ * Throws with the same messages the old single-source-only loop used, so
+ * existing error-handling in the callers keeps working unchanged. Returns
+ * the parsed items annotated with a resolved `__sources` array ready to
+ * persist as InvoiceItemSource rows.
+ */
+function validateAndResolveSources(parsedItems, remainingByItem) {
+  const working = new Map(remainingByItem);
+  return parsedItems.map((it) => {
+    const rawSources = Array.isArray(it.sources) && it.sources.length > 0
+      ? it.sources
+      : (it.sourceChallanItemId ? [{ challanItemId: it.sourceChallanItemId, quantity: it.quantity }] : null);
+    if (!rawSources) throw new Error('Each invoice line must map to source challan item for partial dispatch tracking.');
+
+    const resolvedSources = rawSources.map((s) => {
+      const srcId = toInt(s.challanItemId);
+      if (!srcId) throw new Error(`Invalid source challan item id ${s.challanItemId}.`);
+      const rem = working.get(srcId);
+      if (rem === undefined) throw new Error(`Invalid source challan item id ${srcId}.`);
+      const q = toNum(s.quantity, 0);
+      if (q <= 0) throw new Error('Invoice quantity must be greater than zero.');
+      if (q > rem + 0.00001) throw new Error(`Over-quantity for challan item ${srcId}. Remaining ${rem}, attempted ${q}.`);
+      working.set(srcId, rem - q);
+      return { challanItemId: srcId, quantity: q };
+    });
+
+    // The line's own displayed quantity must equal what its sources actually
+    // account for — catches a stale `sources` array left over from an edit
+    // that changed quantity without keeping the split in sync.
+    const sourceQtySum = resolvedSources.reduce((s, x) => s + x.quantity, 0);
+    const lineQty = toNum(it.quantity, 0);
+    if (Math.abs(sourceQtySum - lineQty) > 0.01) {
+      throw new Error(`Line "${it.description || ''}" quantity (${lineQty}) does not match its source challan items' combined quantity (${sourceQtySum}).`);
+    }
+
+    return { ...it, __sources: resolvedSources };
+  });
+}
 
 // Number to words (simple Indian format)
 const numToWords = (n) => {
@@ -186,7 +264,7 @@ exports.getOne = async (req, res) => {
         fromParty:     true,
         toParty:       true,
         challan:       { select: { id: true, challanNo: true, items: true } },
-        items:         { include: { processType: true } },
+        items:         { include: { processType: true, sources: { include: { challanItem: true } } } },
         createdBy:     { select: { name: true } },
         invoiceSeries: { select: { id: true, code: true, label: true } },
       },
@@ -339,6 +417,9 @@ exports.create = async (req, res) => {
       try {
         invoice = await prisma.$transaction(async (tx) => {
           let txBillingType = 'MANUAL';
+          // Manual invoices (no linked challan) have no challan-item sources
+          // to reconcile — resolvedItems just stays the parsed items as-is.
+          let resolvedItems = parsedItems;
           if (challanId) {
             const challan = await tx.jobworkChallan.findUnique({
               where:  { id: toInt(challanId) },
@@ -362,17 +443,9 @@ exports.create = async (req, res) => {
             }
             const remainingByItem = new Map(status.lineStatus.map((x) => [x.challanItemId, x.remainingQty]));
 
-            for (const it of parsedItems) {
-              const srcId = it.sourceChallanItemId ? toInt(it.sourceChallanItemId) : null;
-              if (!srcId) throw new Error('Each invoice line must map to source challan item for partial dispatch tracking.');
-              const rem = remainingByItem.get(srcId);
-              if (rem === undefined) throw new Error(`Invalid source challan item id ${srcId}.`);
-              const q = toNum(it.quantity, 0);
-              if (q <= 0) throw new Error('Invoice quantity must be greater than zero.');
-              if (q > rem + 0.00001) throw new Error(`Over-quantity for challan item ${srcId}. Remaining ${rem}, attempted ${q}.`);
-            }
+            resolvedItems = validateAndResolveSources(parsedItems, remainingByItem);
 
-            const qtyAfter = status.totalRemainingQty - parsedItems.reduce((s, it) => s + toNum(it.quantity, 0), 0);
+            const qtyAfter = status.totalRemainingQty - resolvedItems.reduce((s, it) => s + toNum(it.quantity, 0), 0);
             txBillingType = qtyAfter <= 0.00001 ? 'FINAL_DISPATCH' : 'PARTIAL_DISPATCH';
           }
 
@@ -410,13 +483,19 @@ exports.create = async (req, res) => {
               showPartName:     showPartName !== false,
               createdById:      req.user.id,
               items: {
-                create: parsedItems.map((it) => ({
+                create: resolvedItems.map((it) => ({
                   description:   it.description,
                   material:      it.material      || null,
                   hrc:           it.hrc           || null,
                   woNo:          it.woNo          || null,
                   hsnSac:        it.hsnSac        || null,
-                  sourceChallanItemId: it.sourceChallanItemId ? toInt(it.sourceChallanItemId) : null,
+                  // A single-source line keeps the scalar FK (unchanged, old
+                  // behaviour); a consolidated line's sourceChallanItemId is
+                  // left null since it's ambiguous — `sources` below is the
+                  // source of truth for it.
+                  sourceChallanItemId: it.__sources?.length === 1
+                    ? it.__sources[0].challanItemId
+                    : (it.__sources ? null : (it.sourceChallanItemId ? toInt(it.sourceChallanItemId) : null)),
                   quantity:      toNum(it.quantity, 0),
                   unit:          it.unit          || 'KGS',
                   weight:        it.weight        ? toNum(it.weight, null) : null,
@@ -424,10 +503,15 @@ exports.create = async (req, res) => {
                   amount:        toNum(it.amount, 0),
                   processTypeId: it.processTypeId ? toInt(it.processTypeId) : null,
                   certId:        it.certId        ? toInt(it.certId)        : null,
+                  ...(it.__sources ? {
+                    sources: {
+                      create: it.__sources.map((s) => ({ challanItemId: s.challanItemId, quantity: s.quantity })),
+                    },
+                  } : {}),
                 })),
               },
             },
-            include: { fromParty: true, toParty: true, items: true },
+            include: { fromParty: true, toParty: true, items: { include: { sources: true } } },
           });
         }, { isolationLevel: 'Serializable' });
         break;
@@ -438,6 +522,8 @@ exports.create = async (req, res) => {
           txErr.message.includes('already fully invoiced') ||
           txErr.message.includes('Over-quantity') ||
           txErr.message.includes('source challan item') ||
+          txErr.message.includes('combined quantity') ||
+          txErr.message.includes('Invalid source challan item') ||
           txErr.message.includes('not found')
         )) {
           return res.status(400).json({ success: false, message: txErr.message });
@@ -521,25 +607,20 @@ exports.update = async (req, res) => {
     let updated;
     try {
       updated = await prisma.$transaction(async (tx) => {
+        // Manual invoices (no linked challan) have no sources to reconcile.
+        let resolvedItems = parsedItems;
         if (challanId) {
           // Is invoice ki apni purani lines ginti se bahar — warna edit khud
           // ko hi "already billed" maan kar block kar deta.
           const status = await getChallanBillingStatusInternal(challanId, tx, id);
           const remainingByItem = new Map(status.lineStatus.map((x) => [x.challanItemId, x.remainingQty]));
 
-          for (const it of parsedItems) {
-            const srcId = it.sourceChallanItemId ? toInt(it.sourceChallanItemId) : null;
-            if (!srcId) throw new Error('Each invoice line must map to source challan item for partial dispatch tracking.');
-            const rem = remainingByItem.get(srcId);
-            if (rem === undefined) throw new Error(`Invalid source challan item id ${srcId}.`);
-            const q = toNum(it.quantity, 0);
-            if (q <= 0) throw new Error('Invoice quantity must be greater than zero.');
-            if (q > rem + 0.00001) throw new Error(`Over-quantity for challan item ${srcId}. Remaining ${rem}, attempted ${q}.`);
-          }
+          resolvedItems = validateAndResolveSources(parsedItems, remainingByItem);
         }
 
         // Lines dobara likhi jaati hain — kaunsi badli ye pata karne se
-        // seedha replace karna saaf aur bharosemand hai.
+        // seedha replace karna saaf aur bharosemand hai. (InvoiceItemSource
+        // rows cascade-delete with their parent InvoiceItem automatically.)
         await tx.invoiceItem.deleteMany({ where: { invoiceId: id } });
 
         return tx.taxInvoice.update({
@@ -572,13 +653,15 @@ exports.update = async (req, res) => {
             taxAmountInWords: numToWords(cgst + sgst + igst + tcsAmt),
             showPartName:     showPartName !== false,
             items: {
-              create: parsedItems.map((it) => ({
+              create: resolvedItems.map((it) => ({
                 description:   it.description,
                 material:      it.material      || null,
                 hrc:           it.hrc           || null,
                 woNo:          it.woNo          || null,
                 hsnSac:        it.hsnSac        || null,
-                sourceChallanItemId: it.sourceChallanItemId ? toInt(it.sourceChallanItemId) : null,
+                sourceChallanItemId: it.__sources?.length === 1
+                  ? it.__sources[0].challanItemId
+                  : (it.__sources ? null : (it.sourceChallanItemId ? toInt(it.sourceChallanItemId) : null)),
                 quantity:      toNum(it.quantity, 0),
                 unit:          it.unit          || 'KGS',
                 weight:        it.weight        ? toNum(it.weight, null) : null,
@@ -586,16 +669,23 @@ exports.update = async (req, res) => {
                 amount:        toNum(it.amount, 0),
                 processTypeId: it.processTypeId ? toInt(it.processTypeId) : null,
                 certId:        it.certId        ? toInt(it.certId)        : null,
+                ...(it.__sources ? {
+                  sources: {
+                    create: it.__sources.map((s) => ({ challanItemId: s.challanItemId, quantity: s.quantity })),
+                  },
+                } : {}),
               })),
             },
           },
-          include: { fromParty: true, toParty: true, items: true },
+          include: { fromParty: true, toParty: true, items: { include: { sources: true } } },
         });
       }, { isolationLevel: 'Serializable' });
     } catch (txErr) {
       if (typeof txErr?.message === 'string' && (
         txErr.message.includes('Over-quantity') ||
         txErr.message.includes('source challan item') ||
+        txErr.message.includes('combined quantity') ||
+        txErr.message.includes('Invalid source challan item') ||
         txErr.message.includes('not found')
       )) {
         return res.status(400).json({ success: false, message: txErr.message });
@@ -1448,3 +1538,4 @@ exports.exportInvoices = async (req, res) => {
     res.status(500).json({ success: false, message: 'Error exporting invoices.' });
   }
 };
+

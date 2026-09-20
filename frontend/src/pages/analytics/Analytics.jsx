@@ -13,10 +13,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const COLORS = ['#2563eb', '#7c3aed', '#047857', '#b45309', '#e11d48', '#0e7490', '#a04606', '#4338ca'];
+const COLORS = ['#0369A1', '#7c3aed', '#059669', '#D97706', '#DC2626', '#C2410C', '#7C2D12', '#4338ca'];
 const STATUS_COLORS = {
-  'CREATED': '#687689', 'IN PROGRESS': '#2563eb', 'SENT FOR JOBWORK': '#b45309',
-  'INSPECTION': '#7c3aed', 'COMPLETED': '#047857', 'ON HOLD': '#e11d48',
+  'CREATED': '#756C60', 'IN PROGRESS': '#0369A1', 'SENT FOR JOBWORK': '#0369A1',
+  'INSPECTION': '#7c3aed', 'COMPLETED': '#059669', 'ON HOLD': '#DC2626',
 };
 
 const fmt = (n) => {
@@ -192,15 +192,15 @@ export default function Analytics() {
               <AreaChart data={revData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#2563eb" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0}   />
+                    <stop offset="5%"  stopColor="#0369A1" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="#0369A1" stopOpacity={0}   />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#687689' }} axisLine={false} tickLine={false} />
                 <YAxis tickFormatter={v => fmt(v)} tick={{ fontSize: 11, fill: '#687689' }} axisLine={false} tickLine={false} width={55} />
                 <Tooltip content={<CustomTooltip prefix="₹" />} />
-                <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#2563eb" strokeWidth={2} fill="url(#revGrad)" dot={{ r: 3, fill: '#2563eb' }} activeDot={{ r: 5 }} />
+                <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#0369A1" strokeWidth={2} fill="url(#revGrad)" dot={{ r: 3, fill: '#0369A1' }} activeDot={{ r: 5 }} />
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>
@@ -221,7 +221,7 @@ export default function Analytics() {
                 <Tooltip content={<CustomTooltip />} />
                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
                 <Bar dataKey="created"   name="Created"   fill="#7c3aed" radius={[3, 3, 0, 0]} maxBarSize={28} />
-                <Bar dataKey="completed" name="Completed" fill="#047857" radius={[3, 3, 0, 0]} maxBarSize={28} />
+                <Bar dataKey="completed" name="Completed" fill="#059669" radius={[3, 3, 0, 0]} maxBarSize={28} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -281,9 +281,9 @@ export default function Analytics() {
                 <ResponsiveContainer width="100%" height={170}>
                   <PieChart>
                     <Pie data={payment} cx="50%" cy="50%" innerRadius={45} outerRadius={75} dataKey="amount" nameKey="name" paddingAngle={3}>
-                      <Cell fill="#e11d48" />
-                      <Cell fill="#b45309" />
-                      <Cell fill="#047857" />
+                      <Cell fill="#DC2626" />
+                      <Cell fill="#D97706" />
+                      <Cell fill="#059669" />
                     </Pie>
                     <Tooltip formatter={(v) => [fmt(v), 'Amount']} />
                   </PieChart>
@@ -292,7 +292,7 @@ export default function Analytics() {
                   {payment.map((d, i) => (
                     <div key={`pay-leg-${i}-${d.name}`} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: ['#e11d48','#b45309','#047857'][i % 3] }} />
+                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: ['#DC2626','#D97706','#059669'][i % 3] }} />
                         <span className="text-[11px] text-slate-600 font-medium">{d.name}</span>
                         <span className="text-[10px] text-slate-400">({d.count})</span>
                       </div>
@@ -322,9 +322,9 @@ export default function Analytics() {
                   <YAxis tick={{ fontSize: 11, fill: '#687689' }} axisLine={false} tickLine={false} allowDecimals={false} />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-                  <Bar dataKey="PASS"        name="Pass"        fill="#047857" radius={[3, 3, 0, 0]} maxBarSize={18} />
-                  <Bar dataKey="FAIL"        name="Fail"        fill="#e11d48" radius={[3, 3, 0, 0]} maxBarSize={18} />
-                  <Bar dataKey="CONDITIONAL" name="Conditional" fill="#b45309" radius={[3, 3, 0, 0]} maxBarSize={18} />
+                  <Bar dataKey="PASS"        name="Pass"        fill="#059669" radius={[3, 3, 0, 0]} maxBarSize={18} />
+                  <Bar dataKey="FAIL"        name="Fail"        fill="#DC2626" radius={[3, 3, 0, 0]} maxBarSize={18} />
+                  <Bar dataKey="CONDITIONAL" name="Conditional" fill="#D97706" radius={[3, 3, 0, 0]} maxBarSize={18} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -405,7 +405,7 @@ export default function Analytics() {
                   formatter={(v, n) => [n === 'avgDays' ? `${v} days` : v, n === 'avgDays' ? 'Avg Days' : 'Jobs']}
                   labelFormatter={l => l}
                 />
-                <Bar dataKey="avgDays" name="Avg Days" fill="#f43f5e" radius={[4, 4, 0, 0]} maxBarSize={35} />
+                <Bar dataKey="avgDays" name="Avg Days" fill="#EF4444" radius={[4, 4, 0, 0]} maxBarSize={35} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>

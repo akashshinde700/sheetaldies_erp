@@ -1,5 +1,6 @@
 const multer = require('multer');
 const path   = require('path');
+const crypto = require('crypto');
 const fs     = require('fs');
 const { toInt } = require('../utils/normalize');
 
@@ -40,7 +41,7 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => {
     // CRITICAL FIX: Sanitize filename and prevent traversal attacks
     const sanitized = sanitizeFilename(file.originalname);
-    const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${sanitized}`;
+    const uniqueName = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}-${sanitized}`;
     cb(null, uniqueName);
   },
 });

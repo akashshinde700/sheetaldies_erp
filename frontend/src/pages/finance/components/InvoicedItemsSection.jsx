@@ -183,11 +183,23 @@ export default function InvoicedItemsSection({
           {it.sourceChallanItemId && remainingByChallanItem.has(String(it.sourceChallanItemId)) && (() => {
             const b = remainingByChallanItem.get(String(it.sourceChallanItemId));
             return (
-              <p className="text-[11px] text-slate-500">
-                Challan Qty: <strong>{b.totalQty}</strong> · Already Invoiced: <strong>{b.invoicedQty}</strong> · Remaining: <strong>{b.remainingQty}</strong>
-              </p>
+              <>
+                <p className="text-[11px] text-slate-500">
+                  Challan Qty: <strong>{b.totalQty}</strong> · Already Invoiced: <strong>{b.invoicedQty}</strong> · Remaining: <strong>{b.remainingQty}</strong>
+                </p>
+                {b.rejectedQty > 0 && (
+                  <p className="text-[11px] font-semibold text-rose-600">
+                    {b.rejectedQty} pc(s) of this item were rejected (Rework Data) — check before billing the full quantity.
+                  </p>
+                )}
+              </>
             );
           })()}
+          {/* Same-process lines (matching processTypeId) are billed as ONE
+              consolidated line on save/print — see the Process Summary bar
+              above this group, and buildConsolidatedItems() in
+              InvoiceForm.jsx's handleSubmit. This card stays exactly what it
+              was: one challan item, its own material/HRC/qty. */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-3">
             <FormField label="Material">
               <Input
@@ -237,7 +249,7 @@ export default function InvoicedItemsSection({
       <div key={`summary-${g.key}`} className="flex flex-wrap items-center gap-3 bg-indigo-50/70 border border-indigo-200 rounded-xl px-3 py-2 mb-1.5">
         <Layers className="h-4 w-4 shrink-0 text-indigo-500" />
         <span className="text-xs font-bold text-indigo-800">{proc?.name || 'Process'}</span>
-        <span className="text-[10px] text-indigo-400">({items.length} items)</span>
+        <span className="text-[10px] text-indigo-400">({items.length} items — billed &amp; printed as one line)</span>
         <div className="ml-auto flex items-center gap-2">
           <label className="text-[10px] font-extrabold text-indigo-500 uppercase tracking-widest">{GROUP_LABEL[type]}</label>
           <Input
@@ -255,15 +267,23 @@ export default function InvoicedItemsSection({
     );
   };
 
-  // The invoice bills on weight when it is filled in and falls back to the
-  // quantity otherwise — same rule the print page and the Tally export use, so
-  // this total is the kilos that will actually appear on the invoice.
-  const billedKg = (it) => toNum(it.weight, 0) || toNum(it.quantity, 0);
+  // A KGS line bills on its own weight only — quantity is a piece count, not
+  // a weight, so it's never substituted in. PCS/LOT lines bill by quantity,
+  // so that's what "weight" means for them here. This mirrors calcLineAmount
+  // exactly, so this total is the kilos that will actually appear on the invoice.
+  const billedKg = (it) => {
+    const type = it.billingType || 'KGS';
+    return type === 'KGS' ? toNum(it.weight, 0) : toNum(it.quantity, 0);
+  };
   const totalKg = lineItems.reduce((s, it) => s + billedKg(it), 0);
   const totalAmount = lineItems.reduce((s, it) => s + toNum(it.amount, 0), 0);
-  // What the challan brought in, so a partial delivery is obvious at a glance.
-  const challanKg = (challanInfo?.items || [])
-    .reduce((s, it) => s + (toNum(it.weight, 0) || toNum(it.quantity, 0)), 0);
+  // What the challan brought in, so a partial delivery is obvious at a glance —
+  // the inward's own recorded total, not a per-item guess from quantity.
+  const challanKg = toNum(challanInfo?.weightSummary?.inwardTotalWeight, 0)
+    || toNum(challanInfo?.totalInwardWeight, 0)
+    || toNum(challanInfo?.jobCard?.totalWeight, 0)
+    || (challanInfo?.relatedJobCards || []).reduce((s, j) => s + toNum(j.totalWeight, 0), 0)
+    || (challanInfo?.items || []).reduce((s, it) => s + toNum(it.weight, 0), 0);
   const kg = (v) => v.toFixed(3).replace(/\.?0+$/, '');
 
   return (

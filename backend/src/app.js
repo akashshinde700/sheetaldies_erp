@@ -191,8 +191,12 @@ app.get('/api/health', async (req, res) => {
 });
 
 // ── Swagger API Documentation ─────────────────────────────────
-app.use('/api-docs', swaggerUi.serve);
-app.get('/api-docs', swaggerUi.setup(swaggerSpecs, {
+// The API map is admin-only: it lists every endpoint and field, so it must not
+// be readable by anyone who merely knows the URL.
+const docsAuth = require('./middleware/auth');
+const { requireRole: docsRequireRole } = require('./middleware/role');
+app.use('/api-docs', docsAuth, docsRequireRole('ADMIN'), swaggerUi.serve);
+app.get('/api-docs', docsAuth, docsRequireRole('ADMIN'), swaggerUi.setup(swaggerSpecs, {
   customCss: '.swagger-ui .topbar { display: none }',
   customSiteTitle: 'Sheetal Dies ERP - API Documentation',
   swaggerOptions: {

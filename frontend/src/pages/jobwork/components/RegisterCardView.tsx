@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Eye, Pencil, FileText } from 'lucide-react';
+import { Eye, Pencil, FileText, AlertTriangle } from 'lucide-react';
 import type { RegisterRow } from '../InwardOutwardRegister';
 import { Button } from '../../../components/ui/button';
 import { Skeleton } from '../../../components/ui/skeleton';
@@ -109,6 +109,11 @@ export default function RegisterCardView({ loading, pagedRows, onCreateJobCard, 
                     </span>
                     {r.jobcardNo && r.jobcardNo !== '-' && (
                       <p className="text-xs font-bold text-slate-700 font-mono">{r.jobcardNo}</p>
+                    )}
+                    {r.reworkPending && (
+                      <span className="inline-flex w-fit items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-[10px] font-bold text-orange-700">
+                        <AlertTriangle className="h-2.5 w-2.5" /> Rework pending
+                      </span>
                     )}
                     {count > 0 && st !== 'DONE' && (
                       <p className="text-[10px] text-slate-400 tabular-nums">

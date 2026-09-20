@@ -36,7 +36,7 @@ export function Breadcrumbs({ items = [], className }) {
   );
 }
 
-export function PageHeader({ title, meta, breadcrumbs, backTo, actions, className }) {
+export function PageHeader({ title, meta, breadcrumbs, backTo, actions, className, inlineMeta = false }) {
   return (
     <div className={cn('space-y-2', className)}>
       {breadcrumbs?.length ? <Breadcrumbs items={breadcrumbs} /> : null}
@@ -49,10 +49,17 @@ export function PageHeader({ title, meta, breadcrumbs, backTo, actions, classNam
               </Link>
             </Button>
           )}
-          <div className="min-w-0 space-y-0.5">
-            <h1 className="text-lg font-bold tracking-tight text-slate-900 sm:text-xl">{title}</h1>
-            {meta && <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500">{meta}</div>}
-          </div>
+          {inlineMeta ? (
+            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+              <h1 className="text-lg font-bold tracking-tight text-slate-900 sm:text-xl">{title}</h1>
+              {meta && <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500">{meta}</div>}
+            </div>
+          ) : (
+            <div className="min-w-0 space-y-0.5">
+              <h1 className="text-lg font-bold tracking-tight text-slate-900 sm:text-xl">{title}</h1>
+              {meta && <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500">{meta}</div>}
+            </div>
+          )}
         </div>
         {actions && <div className="flex flex-wrap items-center gap-2 sm:justify-end shrink-0">{actions}</div>}
       </div>

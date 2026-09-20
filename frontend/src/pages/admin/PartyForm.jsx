@@ -109,8 +109,8 @@ export default function PartyForm() {
   const [ratesMap, setRatesMap] = useState({});
 
   const STEPS = [
-    { key: 'identity', label: 'Identity, address & contact' },
-    { key: 'contact', label: 'Banking & rates' },
+    { key: 'details', label: 'Party Details' },
+    { key: 'rates', label: 'Process Rates' },
   ];
   const wiz = useStepper(STEPS.length);
   const LAST = STEPS.length - 1;
@@ -202,7 +202,7 @@ export default function PartyForm() {
     if (Object.keys(eObj).length) {
       wiz.goto(0);
       setTimeout(() => focusField(Object.keys(eObj)[0] === 'name' ? 'party-name' : 'party-address'), 0);
-      toast.error('Please fix the highlighted fields on the first step.');
+      toast.error('Please fix the highlighted fields on the Party Details page.');
       return;
     }
     setSaving(true);
@@ -250,52 +250,51 @@ export default function PartyForm() {
       <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-3 pr-0.5 space-y-3">
 
-          {/* ── Step 1 · Identity & address ── */}
+          {/* ── Page 1 · Party details ── */}
           <div hidden={wiz.current !== 0} className="space-y-3">
             <FormErrorSummary
               errors={Object.fromEntries(Object.entries(errors).map(([k, v]) => [k, { message: v }]))}
               labels={{ name: 'Company / party name', address: 'Address' }}
-              onJump={(n) => { wiz.goto(0); focusField(n === 'name' ? 'party-name' : 'party-address'); }}
+              onJump={(n) => focusField(n === 'name' ? 'party-name' : 'party-address')}
             />
 
             <Card>
-              <CardHeader><CardTitle>Party &amp; address</CardTitle></CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-3 lg:grid-cols-12">
-                  <FormField label="Party Type" required className="col-span-2 lg:col-span-4">
-                    <div className="flex gap-1.5">
-                      {['CUSTOMER', 'VENDOR', 'BOTH'].map(t => (
-                        <button key={t} type="button" onClick={() => set('partyType', t)}
-                          className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
-                            form.partyType === t
-                              ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
-                              : 'bg-white border-slate-200 text-slate-500 hover:border-sky-300 hover:text-sky-600'
-                          }`}>
-                          {t}
-                        </button>
-                      ))}
-                    </div>
+              <CardHeader><CardTitle>Party details</CardTitle></CardHeader>
+              <CardContent className="space-y-3.5">
+
+                {/* Row 1 — party type / name / address / code */}
+                <div className="flex flex-wrap items-start gap-x-3 gap-y-3">
+                  <FormField label="Party Type" required htmlFor="party-type" className="w-full sm:w-[75px]">
+                    <select id="party-type" value={form.partyType} onChange={e => set('partyType', e.target.value)} className="form-input">
+                      <option value="CUSTOMER">Customer</option>
+                      <option value="VENDOR">Vendor</option>
+                      <option value="BOTH">Both</option>
+                    </select>
                   </FormField>
 
                   <FormField label="Company / Party Name" required htmlFor="party-name" error={errors.name}
-                    className="col-span-2 lg:col-span-6">
+                    className="w-full sm:flex-1 sm:basis-[50px]">
                     <Input id="party-name" value={form.name} onChange={e => set('name', e.target.value)} required
                       invalid={Boolean(errors.name)} placeholder="Sheetal Dies & Tools Pvt. Ltd." />
                   </FormField>
 
-                  <FormField label="Party Code" htmlFor="party-code" className="lg:col-span-2">
+                  <FormField label="Address" required htmlFor="party-address" error={errors.address}
+                    className="w-full sm:flex-1 sm:basis-[220px]">
+                    <Textarea id="party-address" value={form.address} onChange={e => set('address', e.target.value)}
+                      required invalid={Boolean(errors.address)} rows={1} className="min-h-[42px] max-h-[56px]"
+                      placeholder="Plot No. 5, Sector 10..." />
+                  </FormField>
+
+                  <FormField label="Party Code" htmlFor="party-code" className="w-full sm:w-[90px]">
                     <Input id="party-code" value={form.partyCode} readOnly={!isEdit}
                       onChange={e => set('partyCode', e.target.value.toUpperCase())}
                       className={`font-app-mono ${!isEdit ? 'bg-slate-50 text-slate-500 cursor-default' : ''}`} placeholder="S0004" />
                   </FormField>
+                </div>
 
-                  <FormField label="Address" required htmlFor="party-address" error={errors.address}
-                    className="col-span-2 lg:col-span-6">
-                    <Textarea id="party-address" value={form.address} onChange={e => set('address', e.target.value)}
-                      required invalid={Boolean(errors.address)} rows={2} placeholder="Plot No. 5, Sector 10..." />
-                  </FormField>
-
-                  <FormField label="City" htmlFor="party-city" className="lg:col-span-2">
+                {/* Row 2 — city / state / pin / GSTIN / state code / PAN / phone / email */}
+                <div className="flex flex-wrap items-start gap-x-3 gap-y-3 border-t border-slate-100 pt-3.5">
+                  <FormField label="City" htmlFor="party-city" className="w-full sm:w-[160px]">
                     <Input id="party-city" value={form.city} list="party-city-list"
                       onChange={e => set('city', e.target.value)} placeholder="Pune" />
                     <datalist id="party-city-list">
@@ -305,14 +304,14 @@ export default function PartyForm() {
                     </datalist>
                   </FormField>
 
-                  <FormField label="State" htmlFor="party-state" className="lg:col-span-2">
+                  <FormField label="State" htmlFor="party-state" className="w-full sm:w-[170px]">
                     <select id="party-state" value={form.state} onChange={e => set('state', e.target.value)} className="form-input">
                       <option value="">— Select —</option>
                       {STATE_NAMES.map(st => <option key={st} value={st}>{st}</option>)}
                     </select>
                   </FormField>
 
-                  <FormField label="PIN Code" htmlFor="party-pin" className="lg:col-span-2">
+                  <FormField label="PIN Code" htmlFor="party-pin" className="w-full sm:w-[90px]">
                     <Input id="party-pin" value={form.pinCode} list="party-pin-list"
                       onChange={e => set('pinCode', e.target.value)} placeholder="411014" maxLength={6}
                       className="tabular-nums" />
@@ -320,15 +319,8 @@ export default function PartyForm() {
                       {locations.pinCodes.map(pc => <option key={pc} value={pc} />)}
                     </datalist>
                   </FormField>
-                </div>
-              </CardContent>
-            </Card>
 
-            <Card>
-              <CardHeader><CardTitle>Tax identity</CardTitle></CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-3 lg:grid-cols-12">
-                  <FormField label="GSTIN" htmlFor="party-gstin" error={gstinError || null} className="col-span-2 lg:col-span-4">
+                  <FormField label="GSTIN" htmlFor="party-gstin" error={gstinError || null} className="w-full sm:w-[160px]">
                     <Input id="party-gstin" value={form.gstin} onChange={e => {
                       const v = e.target.value.toUpperCase();
                       set('gstin', v);
@@ -340,68 +332,58 @@ export default function PartyForm() {
                     {form.gstin.length === 15 && !gstinError && <p className="text-[10px] text-emerald-600 mt-0.5">✓ Valid GSTIN format</p>}
                   </FormField>
 
-                  <FormField label="State Code (auto)" htmlFor="party-statecode" className="lg:col-span-2">
+                  <FormField label="State Code (auto)" htmlFor="party-statecode" className="w-full sm:w-[80px]">
                     <Input id="party-statecode" value={form.stateCode} onChange={e => set('stateCode', e.target.value)}
-                      placeholder="27" maxLength={3} className="tabular-nums" />
+                      placeholder="27" maxLength={2} className="tabular-nums" />
                   </FormField>
 
-                  <FormField label="PAN" htmlFor="party-pan" error={validatePAN(form.pan)} className="lg:col-span-3">
+                  <FormField label="PAN" htmlFor="party-pan" error={validatePAN(form.pan)} className="w-full sm:w-[120px]">
                     <Input id="party-pan" value={form.pan} onChange={e => set('pan', e.target.value.toUpperCase())}
                       className={`font-app-mono ${validatePAN(form.pan) ? 'border-rose-300 bg-rose-50' : form.pan.length === 10 ? 'border-emerald-300' : ''}`}
                       placeholder="AAAAA0000A" maxLength={10} />
                   </FormField>
-                </div>
-              </CardContent>
-            </Card>
 
-            <Card>
-              <CardHeader><CardTitle>Contact &amp; tax</CardTitle></CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-3 lg:grid-cols-12">
-                  <FormField label="Phone" htmlFor="party-phone" className="lg:col-span-3">
-                    <Input id="party-phone" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="9876543210" />
+                  <FormField label="Phone" htmlFor="party-phone" className="w-full sm:w-[110px]">
+                    <Input id="party-phone" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="9876543210, 9123456789" />
                   </FormField>
-                  <FormField label="Email" htmlFor="party-email" className="lg:col-span-4">
+
+                  <FormField label="Email" htmlFor="party-email" className="w-full sm:flex-1 sm:basis-[140px]">
                     <Input id="party-email" type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="info@company.com" />
                   </FormField>
-                  <FormField label="VAT TIN" htmlFor="party-vat" className="lg:col-span-2">
+                </div>
+
+                {/* Row 3 — VAT / CST / bank details */}
+                <div className="flex flex-wrap items-start gap-x-3 gap-y-3 border-t border-slate-100 pt-3.5">
+                  <FormField label="VAT TIN" htmlFor="party-vat" className="w-full sm:w-[110px]">
                     <Input id="party-vat" value={form.vatTin} onChange={e => set('vatTin', e.target.value)} className="font-app-mono" placeholder="27501011577V" />
                   </FormField>
-                  <FormField label="CST No" htmlFor="party-cst" className="lg:col-span-3">
+                  <FormField label="CST No" htmlFor="party-cst" className="w-full sm:w-[110px]">
                     <Input id="party-cst" value={form.cstNo} onChange={e => set('cstNo', e.target.value)} className="font-app-mono" placeholder="27501011577C" />
+                  </FormField>
+                  <FormField label="A/c Holder Name" htmlFor="party-bank-holder" className="w-full sm:flex-1 sm:basis-[140px]">
+                    <Input id="party-bank-holder" value={form.bankAccountHolder} onChange={e => set('bankAccountHolder', e.target.value)} placeholder="Company Name as per bank" />
+                  </FormField>
+                  <FormField label="Bank Name" htmlFor="party-bank-name" className="w-full sm:flex-1 sm:basis-[140px]">
+                    <Input id="party-bank-name" value={form.bankName} onChange={e => set('bankName', e.target.value)} placeholder="Kotak Mahindra Bank" />
+                  </FormField>
+                  <FormField label="Account No" htmlFor="party-bank-ac" className="w-full sm:w-[150px]">
+                    <Input id="party-bank-ac" value={form.accountNo} onChange={e => set('accountNo', e.target.value)} className="font-app-mono" placeholder="6601016330" />
+                  </FormField>
+                  <FormField label="IFSC Code" htmlFor="party-ifsc" error={validateIFSC(form.ifscCode)} className="w-full sm:w-[130px]">
+                    <Input id="party-ifsc" value={form.ifscCode} onChange={e => set('ifscCode', e.target.value.toUpperCase())}
+                      className={`font-app-mono ${validateIFSC(form.ifscCode) ? 'border-rose-300 bg-rose-50' : form.ifscCode.length === 11 ? 'border-emerald-300' : ''}`}
+                      placeholder="KKBK0001788" maxLength={11} />
+                  </FormField>
+                  <FormField label="SWIFT Code" htmlFor="party-swift" className="w-full sm:w-[120px]">
+                    <Input id="party-swift" value={form.swiftCode} onChange={e => set('swiftCode', e.target.value.toUpperCase())} className="font-app-mono" placeholder="KKBKINBB" maxLength={11} />
                   </FormField>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* ── Step 2 · Banking & rates ── */}
+          {/* ── Page 2 · Process rates ── */}
           <div hidden={wiz.current !== 1} className="space-y-3">
-            <Card>
-              <CardHeader><CardTitle>Bank details</CardTitle></CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-3 lg:grid-cols-12">
-                  <FormField label="A/c Holder Name" htmlFor="party-bank-holder" className="col-span-2 lg:col-span-4">
-                    <Input id="party-bank-holder" value={form.bankAccountHolder} onChange={e => set('bankAccountHolder', e.target.value)} placeholder="Company Name as per bank" />
-                  </FormField>
-                  <FormField label="Bank Name" htmlFor="party-bank-name" className="lg:col-span-3">
-                    <Input id="party-bank-name" value={form.bankName} onChange={e => set('bankName', e.target.value)} placeholder="Kotak Mahindra Bank" />
-                  </FormField>
-                  <FormField label="Account No" htmlFor="party-bank-ac" className="lg:col-span-2">
-                    <Input id="party-bank-ac" value={form.accountNo} onChange={e => set('accountNo', e.target.value)} className="font-app-mono" placeholder="6601016330" />
-                  </FormField>
-                  <FormField label="IFSC Code" htmlFor="party-ifsc" error={validateIFSC(form.ifscCode)} className="lg:col-span-2">
-                    <Input id="party-ifsc" value={form.ifscCode} onChange={e => set('ifscCode', e.target.value.toUpperCase())}
-                      className={`font-app-mono ${validateIFSC(form.ifscCode) ? 'border-rose-300 bg-rose-50' : form.ifscCode.length === 11 ? 'border-emerald-300' : ''}`}
-                      placeholder="KKBK0001788" maxLength={11} />
-                  </FormField>
-                  <FormField label="SWIFT Code" htmlFor="party-swift" className="lg:col-span-1">
-                    <Input id="party-swift" value={form.swiftCode} onChange={e => set('swiftCode', e.target.value.toUpperCase())} className="font-app-mono" placeholder="KKBKINBB" />
-                  </FormField>
-                </div>
-              </CardContent>
-            </Card>
-
             <Card>
               <CardHeader className="flex-row items-center gap-2 space-y-0">
                 <CardTitle>Process rates (party-specific)</CardTitle>
@@ -453,9 +435,8 @@ export default function PartyForm() {
           </div>
         </div>
 
-        {/* ── Wizard navigation ── */}
         <div className="shrink-0 mt-2 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-card sm:px-5">
-          <span className="font-app-mono text-xs text-slate-400">Step {wiz.current + 1} of {STEPS.length}</span>
+          <span className="font-app-mono text-xs text-slate-400">Page {wiz.current + 1} of {STEPS.length}</span>
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <Button asChild variant="ghost">
               <Link to={isEdit ? `/admin/parties/${partyId}` : '/admin/parties'}>Cancel</Link>

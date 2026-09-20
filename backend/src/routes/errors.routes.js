@@ -5,13 +5,24 @@ const { requireRole } = require('../middleware/role');
 const { toInt } = require('../utils/normalize');
 const { capture } = require('../utils/errorTracker');
 const { parsePagination, formatListResponse } = require('../utils/validation');
+const rateLimit = require('express-rate-limit');
+
+// Unauthenticated on purpose (login-screen crashes must be reportable), so it
+// gets its own tight limit instead of being an open door into error_logs.
+const errorIntakeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: process.env.NODE_ENV === 'production' ? 20 : 500,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many error reports.' },
+});
 
 /**
  * Browser se aayi error report.
  * Auth zaroori nahi — login screen ya session marne ke baad wale crashes bhi
  * pakadne hain, aur wahi to sabse zyada chhup jate hain.
  */
-router.post('/', async (req, res) => {
+router.post('/', errorIntakeLimiter, async (req, res) => {
   const { message, stack, url, level, meta } = req.body || {};
   if (!message) return res.status(400).json({ success: false, message: 'message required.' });
 
@@ -21,10 +32,10 @@ router.post('/', async (req, res) => {
   await capture(err, {
     source: 'frontend',
     level: level === 'warning' ? 'warning' : 'error',
-    url: url || req.get('referer'),
-    userAgent: req.get('user-agent'),
+    url: String(url || req.get('referer') || '').slice(0, 500) || undefined,
+    userAgent: String(req.get('user-agent') || '').slice(0, 300),
     userId: req.user?.id ?? null,
-    meta: meta && typeof meta === 'object' ? meta : undefined,
+    meta: meta && typeof meta === 'object' && JSON.stringify(meta).length <= 4000 ? meta : undefined,
   });
 
   // 202: report le li, client ko iska natija jaanne ki zaroorat nahi.

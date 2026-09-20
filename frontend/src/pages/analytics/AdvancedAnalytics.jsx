@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 const fmtMoney = (n) =>
   new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(Number(n || 0));
 
-const COLORS = ['#2563eb', '#7c3aed', '#047857', '#b45309', '#e11d48', '#0e7490', '#a04606', '#4338ca'];
+const COLORS = ['#0369A1', '#7c3aed', '#059669', '#D97706', '#DC2626', '#C2410C', '#7C2D12', '#4338ca'];
 
 const CustomTooltip = ({ active, payload, label, prefix = '' }) => {
   if (!active || !payload?.length) return null;
@@ -240,8 +240,8 @@ export default function AdvancedAnalytics() {
                 <LineChart data={monthlyData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="jobGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#0369A1" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#0369A1" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -249,8 +249,8 @@ export default function AdvancedAnalytics() {
                   <YAxis tick={{ fontSize: 11, fill: '#687689' }} axisLine={false} tickLine={false} />
                   <Tooltip content={<CustomTooltip prefix="₹" />} />
                   <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-                  <Line type="monotone" dataKey="jobcards" stroke="#3b82f6" strokeWidth={2} name="Job Cards" dot={{ r: 3, fill: '#3b82f6' }} activeDot={{ r: 5 }} />
-                  <Line type="monotone" dataKey="revenue" stroke="#047857" strokeWidth={2} name="Revenue" dot={{ r: 3, fill: '#047857' }} activeDot={{ r: 5 }} />
+                  <Line type="monotone" dataKey="jobcards" stroke="#0369A1" strokeWidth={2} name="Job Cards" dot={{ r: 3, fill: '#0369A1' }} activeDot={{ r: 5 }} />
+                  <Line type="monotone" dataKey="revenue" stroke="#059669" strokeWidth={2} name="Revenue" dot={{ r: 3, fill: '#059669' }} activeDot={{ r: 5 }} />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
@@ -308,9 +308,9 @@ export default function AdvancedAnalytics() {
                 <YAxis tickFormatter={v => fmtMoney(v)} tick={{ fontSize: 11, fill: '#687689' }} axisLine={false} tickLine={false} width={60} />
                 <Tooltip content={<CustomTooltip prefix="₹" />} />
                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="invoiced" fill="#3b82f6" name="Invoiced" radius={[3, 3, 0, 0]} maxBarSize={28} />
-                <Bar dataKey="paid" fill="#047857" name="Paid" radius={[3, 3, 0, 0]} maxBarSize={28} />
-                <Bar dataKey="pending" fill="#b45309" name="Unpaid / Partial" radius={[3, 3, 0, 0]} maxBarSize={28} />
+                <Bar dataKey="invoiced" fill="#0369A1" name="Invoiced" radius={[3, 3, 0, 0]} maxBarSize={28} />
+                <Bar dataKey="paid" fill="#059669" name="Paid" radius={[3, 3, 0, 0]} maxBarSize={28} />
+                <Bar dataKey="pending" fill="#D97706" name="Unpaid / Partial" radius={[3, 3, 0, 0]} maxBarSize={28} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -357,7 +357,7 @@ export default function AdvancedAnalytics() {
                     <XAxis dataKey="material" tick={{ fontSize: 11, fill: '#687689' }} axisLine={false} tickLine={false} interval={0} angle={-35} textAnchor="end" height={70} />
                     <YAxis tickFormatter={v => fmtMoney(v)} tick={{ fontSize: 11, fill: '#687689' }} axisLine={false} tickLine={false} width={60} />
                     <Tooltip content={<CustomTooltip prefix="₹" />} />
-                    <Bar dataKey="totalAmount" fill="#2563eb" name="Amount" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="totalAmount" fill="#0369A1" name="Amount" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

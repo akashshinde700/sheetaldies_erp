@@ -1425,16 +1425,16 @@ exports.register = async (req, res) => {
     if (challanNo) where.challanNo = { contains: challanNo };
     if (companyName) where.fromParty = { name: { contains: companyName } };
 
-    const [total, challans] = await Promise.all([
+    const [total, challans, reworkPendingRows] = await Promise.all([
       prisma.jobworkChallan.count({ where }),
       prisma.jobworkChallan.findMany({
         where,
         include: {
           fromParty: { select: { name: true } },
           toParty: { select: { name: true } },
-          jobCard: { select: { jobCardNo: true, createdAt: true } },
+          jobCard: { select: { id: true, jobCardNo: true, createdAt: true } },
           items: {
-            include: { jobCard: { select: { jobCardNo: true, createdAt: true } } },
+            include: { jobCard: { select: { id: true, jobCardNo: true, createdAt: true } } },
           },
           taxInvoices: {
             include: { items: true },
@@ -1445,7 +1445,13 @@ exports.register = async (req, res) => {
         skip: (toInt(page, 1) - 1) * toInt(limit, 10),
         take: toInt(limit, 10),
       }),
+      // Job cards with an unresolved Rework (Reject is terminal, never "pending" here)
+      prisma.reworkEntry.findMany({
+        where: { type: 'REWORK', jobCardId: { not: null }, OR: [{ afterProcessResults: null }, { afterProcessResults: '' }] },
+        select: { jobCardId: true },
+      }),
     ]);
+    const reworkPendingJobCardIds = new Set(reworkPendingRows.map((r) => r.jobCardId));
 
     const rows = [];
     for (const ch of challans) {
@@ -1467,8 +1473,10 @@ exports.register = async (req, res) => {
       let jobcardDate = ch.jobCard?.createdAt || null;
 
       const jcNoSet = new Set();
+      const jcIdSet = new Set();
       let itemsWithJobCard = 0;
       if (ch.jobCard?.jobCardNo) jcNoSet.add(ch.jobCard.jobCardNo);
+      if (ch.jobCard?.id) jcIdSet.add(ch.jobCard.id);
       for (const it of ch.items) {
         qty += toNum(it.quantity, 0);
         weight += toNum(it.weight, 0);
@@ -1478,11 +1486,13 @@ exports.register = async (req, res) => {
         if (it.material) materials.add(it.material);
         if (it.jobCardId || it.jobCard?.jobCardNo) itemsWithJobCard += 1;
         if (it.jobCard?.jobCardNo) jcNoSet.add(it.jobCard.jobCardNo);
+        if (it.jobCard?.id) jcIdSet.add(it.jobCard.id);
         if (jobcardNo === '-' && it.jobCard?.jobCardNo) {
           jobcardNo = it.jobCard.jobCardNo;
           jobcardDate = it.jobCard.createdAt;
         }
       }
+      const reworkPending = [...jcIdSet].some((jid) => reworkPendingJobCardIds.has(jid));
 
       const itemCount = ch.items.length;
       // Challan-level link OR every item carded = DONE; some items = PARTIAL.
@@ -1523,6 +1533,7 @@ exports.register = async (req, res) => {
         itemsPending,
         jobCardStatus,
         jobCardNos: [...jcNoSet],
+        reworkPending,
       });
     }
 

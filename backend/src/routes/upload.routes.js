@@ -3,6 +3,7 @@ const auth   = require('../middleware/auth');
 const { upload } = require('../middleware/upload');
 const fs     = require('fs');
 const path   = require('path');
+const { isInsideDir } = require('../utils/inputs');
 
 // Single image upload
 router.post('/single', auth, upload.single('file'), (req, res) => {
@@ -20,7 +21,7 @@ router.delete('/', auth, (req, res) => {
   }
   const abs = path.resolve(__dirname, '../../', filepath);
   const uploadsRoot = path.resolve(__dirname, '../../uploads');
-  if (!abs.startsWith(uploadsRoot)) {
+  if (!isInsideDir(uploadsRoot, abs)) {
     return res.status(403).json({ success: false, message: 'Cannot delete files outside uploads directory.' });
   }
   if (fs.existsSync(abs)) {

@@ -93,12 +93,9 @@ export default function Login() {
   }
 
   return (
-    <div className="relative min-h-dvh min-h-screen flex items-center justify-center p-4 sm:p-6 bg-app-shell safe-pt safe-pb safe-pl safe-pr">
+    <div className="login-shell relative min-h-dvh min-h-screen flex items-center justify-center p-4 sm:p-6 bg-app-shell safe-pt safe-pb safe-pl safe-pr">
 
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-72 sm:w-96 h-72 sm:h-96 rounded-full opacity-[0.14] bg-sky-300 blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-72 sm:w-96 h-72 sm:h-96 rounded-full opacity-[0.12] bg-blue-200 blur-3xl" />
-      </div>
+      <div className="login-grid absolute inset-0 pointer-events-none" aria-hidden="true" />
 
       <div className="w-full max-w-sm relative z-10 animate-scale-in">
         <div className="text-center mb-6 sm:mb-8">

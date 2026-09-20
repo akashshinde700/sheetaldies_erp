@@ -230,6 +230,10 @@ export default function CertPrint() {
     ? (_challanDateStr ? `${_dcBase}/${_challanDateStr}` : _dcBase)
     : '—';
   const cycleNo  = cert.heatNo || '';
+  // Both live on the job card — this certificate is always printed from its
+  // linked job card's own record, never a copy on the certificate itself.
+  const controlPlanNo   = jc.controlPlanNo || '—';
+  const specificationVal = jc.specification || '';
 
   // Material — prefer JC value (cert may have been created before material was filled)
   const material  = jc.dieMaterial || cert.dieMaterial || challanItems[0]?.material || '—';
@@ -454,7 +458,16 @@ export default function CertPrint() {
                       return wt ? Number(wt).toFixed(3) : '—';
                     })()}
                   </td>
-                  <td className="p-0.5 text-center">{it.remarks || ''}</td>
+                  {/* The certificate-level Remarks isn't per-item — it's one note
+                      for the whole items block, so it's a single cell spanning
+                      every item row + the Total row (rowSpan below), written
+                      once from the first row, rather than a separate copy sitting
+                      alone in the Total row with the item rows blank above it. */}
+                  {i === 0 && (
+                    <td className="p-1 text-center" rowSpan={items.length + 1} style={{ verticalAlign: 'top' }}>
+                      {cert.remarks || ''}
+                    </td>
+                  )}
                 </tr>
               );
             })}
@@ -465,7 +478,12 @@ export default function CertPrint() {
                 <td style={{ borderRight: '1px solid black' }}></td>
                 <td style={{ borderRight: '1px solid black' }}></td>
                 <td style={{ borderRight: '1px solid black' }}></td>
-                <td></td>
+                {items.length === 0 && (
+                  // No item rows at all — this filler row + the Total row below
+                  // it are the only two rows, so span both (mirrors the i===0
+                  // rowSpan above for the normal case).
+                  <td className="p-1 text-center" rowSpan={2} style={{ verticalAlign: 'top' }}>{cert.remarks || ''}</td>
+                )}
               </tr>
             ))}
             <tr style={{ borderTop: '1px solid black' }}>
@@ -474,7 +492,6 @@ export default function CertPrint() {
               <td className="p-1 text-center font-bold font-mono" style={{ borderRight: '1px solid black' }}>
                 {totalWt ? totalWt.toFixed(3) : '—'}
               </td>
-              <td></td>
             </tr>
           </tbody>
         </table>
@@ -548,14 +565,26 @@ export default function CertPrint() {
 
         {/* ── HEAT TREATMENT PROCESS GRAPH ── */}
         <div style={{ borderBottom: '1px solid black' }}>
-          <div className="flex items-center gap-4 px-2 py-0.5 font-bold" style={{ borderBottom: '1px solid black' }}>
-            <span>HEAT TREATMENT PROCESS</span>
-            <span className="font-normal">
-              CYCLE NO: <span className="font-mono">{cycleNo}</span>
-            </span>
-          </div>
+          <table className="w-full border-collapse" style={{ borderBottom: '1px solid black' }}>
+            <tbody>
+              <tr>
+                {/* Widths match the Categorization/Process/Visual Inspection/Hardness-box
+                    row below (22% / 22% / 28% / 28%) so every vertical line lines up. */}
+                <td className="px-2 py-0.5 font-bold" style={{ width: '22%', borderRight: '1px solid black' }}>HEAT TREATMENT PROCESS</td>
+                <td className="px-2 py-0.5" style={{ width: '22%', borderRight: '1px solid black' }}>
+                  CYCLE NO: <span className="font-mono font-bold">{cycleNo}</span>
+                </td>
+                <td className="px-2 py-0.5" style={{ width: '28%', borderRight: '1px solid black' }}>
+                  CONTROL PLAN NO: <span className="font-mono font-bold">{controlPlanNo}</span>
+                </td>
+                <td className="px-2 py-0.5" style={{ width: '28%' }}>
+                  SPECIFICATION: <span className="font-mono font-bold">{specificationVal}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
           <div className="px-2" style={{ paddingTop: 0, paddingBottom: 0, height: 170 }}>
-            <HeatCycleStepGraph segments={derived.tempSegments || []} stroke="#000" viewW={1400} labelFontSize={13} strokeWidth={3} showYAxisTicks />
+            <HeatCycleStepGraph segments={derived.tempSegments || []} stroke="#000" viewW={1400} labelFontSize={13} strokeWidth={3} />
           </div>
         </div>
 
@@ -623,19 +652,14 @@ export default function CertPrint() {
                   </tbody>
                 </table>
               </td>
-              <td className="p-1" style={{ width: '23%' }}>
-                <table className="w-full border-collapse text-[9px]" style={{ border: '1px solid black', height: '46px' }}>
-                  <thead>
-                    <tr>
-                      <th className="p-1 font-bold" style={{ border: '1px solid black' }}>APPROVED BY:</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td className="p-1 text-center" style={{ border: '1px solid black', verticalAlign: 'middle', height: 'calc(46px - 24px)' }}>{cert.approvedBy || ''}</td>
-                    </tr>
-                  </tbody>
-                </table>
+              <td className="p-1" style={{ width: '23%', height: '1px' }}>
+                {/* height:1px on the <td> + h-full below is the standard trick to make
+                    a block fill its table-cell's real (row-matched) height — percentage
+                    heights on nested <table>s don't reliably propagate the same way. */}
+                <div className="h-full flex flex-col text-[9px]" style={{ border: '1px solid black' }}>
+                  <div className="p-1 font-bold text-center" style={{ borderBottom: '1px solid black' }}>APPROVED BY:</div>
+                  <div className="p-1 text-center flex-1 flex items-center justify-center">{cert.approvedBy || ''}</div>
+                </div>
               </td>
             </tr>
           </tbody>

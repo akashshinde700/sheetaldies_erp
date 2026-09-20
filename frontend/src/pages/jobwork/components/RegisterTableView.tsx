@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Eye, Pencil, Printer, Trash2, Loader2, FileText } from 'lucide-react';
+import { Eye, Pencil, Printer, Trash2, Loader2, FileText, AlertTriangle } from 'lucide-react';
 import type { RegisterRow } from '../InwardOutwardRegister';
 import { Button } from '../../../components/ui/button';
 import { Skeleton } from '../../../components/ui/skeleton';
@@ -129,6 +129,11 @@ export default function RegisterTableView({
                           {new Date(r.jobcardDate).toLocaleDateString('en-IN')}
                         </p>
                       )}
+                      {r.reworkPending && (
+                        <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-[10px] font-bold text-orange-700">
+                          <AlertTriangle className="h-2.5 w-2.5" /> Rework pending
+                        </span>
+                      )}
                     </>
                   ) : (
                     <span className="text-[11px] text-slate-300">—</span>
@@ -141,17 +146,13 @@ export default function RegisterTableView({
                         type="button"
                         onClick={() => onCreateJobCard(r.challanId, r.challanNo)}
                         disabled={busy}
-                        className="btn-primary text-[11px] px-3 py-1.5 h-auto whitespace-nowrap"
-                        title="Create job card from this inward"
+                        className="btn-primary h-auto w-auto p-1.5"
+                        title={st === 'PARTIAL' ? 'Card remaining' : 'Create job card from this inward'}
+                        aria-label={st === 'PARTIAL' ? 'Card remaining' : 'Create job card from this inward'}
                       >
-                        {busy ? (
-                          <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
-                        ) : (
-                          <>
-                            <span className="material-symbols-outlined text-sm">add_card</span>
-                            {st === 'PARTIAL' ? 'Card remaining' : 'Create Job Card'}
-                          </>
-                        )}
+                        <span className={`material-symbols-outlined text-sm ${busy ? 'animate-spin' : ''}`}>
+                          {busy ? 'progress_activity' : 'add_card'}
+                        </span>
                       </button>
                     )}
                     <Button variant="ghost" size="icon-sm" asChild

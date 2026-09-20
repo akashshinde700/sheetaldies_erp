@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { toNum, toInt } from '../../utils/normalize';
@@ -74,11 +74,16 @@ export default function VHTRunsheetForm() {
   const { id } = useParams();
   const isNew = !id || id === 'new';
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // Arriving from Daily Planning's "Plan New Cycle" button — seed the date
+  // (and mark it PLANNED, not IN_PROGRESS) instead of always defaulting to today.
+  const prefillDate = isNew ? searchParams.get('date') : null;
+  const prefillStatus = isNew ? searchParams.get('status') : null;
+  const prefillFurnaceId = isNew ? searchParams.get('furnaceId') : null;
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(!isNew);
   const [machines, setMachines] = useState([]);
   const [jobCards, setJobCards] = useState([]);
-  const [jobCardNoLookup, setJobCardNoLookup] = useState('');
   const [fillingJobCard, setFillingJobCard] = useState(false);
   const [masterGraphs, setMasterGraphs] = useState([]);
 
@@ -104,8 +109,9 @@ export default function VHTRunsheetForm() {
 
   const [form, setForm] = useState({
     batchId: '',
-    furnaceId: '',
-    runDate: todayISODate(),
+    furnaceId: prefillFurnaceId || '',
+    furnaceCycleNo: '',
+    runDate: prefillDate || todayISODate(),
     cycleStartTime: '',
     cycleEndTime: '',
     totalTimeDisplay: '',
@@ -133,7 +139,7 @@ export default function VHTRunsheetForm() {
     powerFailureFrom: '',
     powerFailureTo: '',
     otherCheckpoint: '',
-    status: 'IN_PROGRESS',
+    status: prefillStatus || 'IN_PROGRESS',
     actualOutput: '',
     remarks: '',
     items: [emptyLine()],
@@ -166,6 +172,30 @@ export default function VHTRunsheetForm() {
       .catch(console.error);
   }, []);
 
+  // Cycles planned on Daily Planning (or still running) that can be pulled
+  // into this form by their cycle no — new-run-sheet mode only.
+  const [plannedCycles, setPlannedCycles] = useState([]);
+  useEffect(() => {
+    if (!isNew) return;
+    Promise.all([
+      api.get('/manufacturing/runsheets', { params: { status: 'PLANNED', limit: 100 } }),
+      api.get('/manufacturing/runsheets', { params: { status: 'IN_PROGRESS', limit: 100 } }),
+    ])
+      .then(([p, r]) => setPlannedCycles([...(p.data.data || []), ...(r.data.data || [])]))
+      .catch(() => {});
+  }, [isNew]);
+  const startFromPlan = searchParams.get('start') === '1';
+
+  const [nextCycleNo, setNextCycleNo] = useState('');
+  useEffect(() => {
+    if (!isNew || !form.furnaceId || !form.runDate) { setNextCycleNo(''); return; }
+    let cancelled = false;
+    api.get('/manufacturing/next-cycle-no', { params: { furnaceId: form.furnaceId, date: form.runDate } })
+      .then((r) => { if (!cancelled) setNextCycleNo(r.data.data?.nextCycleNo || ''); })
+      .catch(() => { if (!cancelled) setNextCycleNo(''); });
+    return () => { cancelled = true; };
+  }, [isNew, form.furnaceId, form.runDate]);
+
   useEffect(() => {
     if (isNew) return;
     setLoading(true);
@@ -179,6 +209,7 @@ export default function VHTRunsheetForm() {
         setForm({
           batchId: r.batchId ? String(r.batchId) : '',
           furnaceId: String(r.furnaceId || ''),
+          furnaceCycleNo: r.furnaceCycleNo || '',
           runDate: r.runDate ? r.runDate.slice(0, 10) : todayISODate(),
           cycleStartTime: r.cycleStartTime || '',
           cycleEndTime: r.cycleEndTime || '',
@@ -209,7 +240,8 @@ export default function VHTRunsheetForm() {
           powerFailureFrom: r.powerFailureFrom || '',
           powerFailureTo: r.powerFailureTo || '',
           otherCheckpoint: r.otherCheckpoint || '',
-          status: r.status || 'PLANNED',
+          // Pulled in from a planned cycle → it is being run now.
+          status: startFromPlan && r.status === 'PLANNED' ? 'IN_PROGRESS' : (r.status || 'PLANNED'),
           actualOutput: r.actualOutput != null ? String(r.actualOutput) : '',
           remarks: r.remarks || '',
           items:
@@ -288,22 +320,6 @@ export default function VHTRunsheetForm() {
     });
   };
 
-  const fillFromJobCardNumber = () => {
-    const number = jobCardNoLookup.trim();
-    if (!number) {
-      toast.error('Enter a job card number to fill the run sheet.');
-      return;
-    }
-    const found = jobCards.find((jc) => String(jc.jobCardNo).toLowerCase() === number.toLowerCase());
-    if (!found) {
-      toast.error('Job card number not found.');
-      return;
-    }
-    setForm(prev => ({ ...prev, items: [emptyLine()] }));
-    onSelectJobCard(0, String(found.id));
-    toast.success(`Loaded job card ${found.jobCardNo}.`);
-  };
-
   const updateGraphRow = (idx, field, value) => {
     setForm(prev => {
       const next = [...(prev.tempGraphPoints || [])];
@@ -320,11 +336,7 @@ export default function VHTRunsheetForm() {
 
   const RS_STEPS = [
     { key: 'run',    label: 'Run details' },
-    { key: 'jobs',   label: 'Jobs' },
-    { key: 'cycle',  label: 'Cycle params' },
     { key: 'graph',  label: 'Temp graph' },
-    { key: 'checks', label: 'Check points' },
-    { key: 'verify', label: 'Verification' },
   ];
   const wiz = useStepper(RS_STEPS.length);
   const LAST = RS_STEPS.length - 1;
@@ -353,7 +365,7 @@ export default function VHTRunsheetForm() {
       }));
     if (!lines.length) {
       toast.error('Add at least one line with a job card.');
-      wiz.goto(1);
+      wiz.goto(0);
       return;
     }
 
@@ -367,13 +379,14 @@ export default function VHTRunsheetForm() {
 
     if (!validGraphPoints.length) {
       toast.error('Add at least one temperature segment for the graph.');
-      wiz.goto(3);
+      wiz.goto(1);
       return;
     }
 
     const payload = {
       batchId: form.batchId ? toInt(form.batchId) : null,
       furnaceId: toInt(form.furnaceId),
+      furnaceCycleNo: form.furnaceCycleNo || null,
       runDate: form.runDate,
       cycleStartTime: form.cycleStartTime || null,
       cycleEndTime: form.cycleEndTime || null,
@@ -461,6 +474,27 @@ export default function VHTRunsheetForm() {
 
         {/* ── Step 1 · Run details ── */}
         <div hidden={wiz.current !== 0} className="space-y-4">
+        {isNew && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Load planned cycle</CardTitle>
+              <CardDescription>
+                Type or pick the cycle no created on Daily Planning — furnace, date, job cards and parameters load into this run sheet.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SearchSelect
+                value=""
+                onChange={(v) => { if (v) navigate(`/manufacturing/runsheet/${v}?start=1`); }}
+                options={plannedCycles.map((c) => ({
+                  value: c.id,
+                  label: `${c.runsheetNumber} — ${c.furnace?.name || ''} · ${(c.runDate || '').slice(0, 10)} · ${(c.items || []).map((it) => it.customerName).filter(Boolean).slice(0, 2).join(', ') || 'no customer'} (${c.status === 'PLANNED' ? 'Planned' : 'In progress'})`,
+                }))}
+                placeholder="Enter / select cycle no…"
+              />
+            </CardContent>
+          </Card>
+        )}
         <Card>
           <CardHeader>
             <CardTitle>Run Details</CardTitle>
@@ -468,9 +502,8 @@ export default function VHTRunsheetForm() {
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="space-y-3">
-              <GroupTitle>Schedule &amp; Furnace</GroupTitle>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
-                <FormField label="Run Date" htmlFor="runDate" required>
+              <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
+                <FormField label="Run Date" htmlFor="runDate" required className="w-full sm:w-[150px]">
                   <Input
                     id="runDate"
                     type="date"
@@ -479,7 +512,7 @@ export default function VHTRunsheetForm() {
                     onChange={(e) => setForm({ ...form, runDate: e.target.value })}
                   />
                 </FormField>
-                <FormField label="Furnace" required>
+                <FormField label="Furnace" required className="w-full sm:flex-1 sm:basis-[140px]">
                   <SearchSelect
                     value={String(form.furnaceId || '')}
                     onChange={v => setForm({ ...form, furnaceId: v })}
@@ -488,7 +521,16 @@ export default function VHTRunsheetForm() {
                     required
                   />
                 </FormField>
-                <FormField label="Cycle (minutes)" htmlFor="cycleTime">
+                <FormField label="Furnace Cycle No" htmlFor="furnaceCycleNo" className="w-full sm:w-[160px]">
+                  <Input
+                    id="furnaceCycleNo"
+                    placeholder="Auto — pick a furnace"
+                    value={form.furnaceCycleNo || (isNew && nextCycleNo ? `${nextCycleNo} (next)` : '')}
+                    disabled
+                    className="bg-slate-50 text-slate-500"
+                  />
+                </FormField>
+                <FormField label="Cycle (minutes)" htmlFor="cycleTime" className="w-full sm:w-[130px]">
                   <Input
                     id="cycleTime"
                     type="number"
@@ -498,7 +540,7 @@ export default function VHTRunsheetForm() {
                     className="text-right tabular-nums"
                   />
                 </FormField>
-                <FormField label="Cycle Start Time" htmlFor="cycleStartTime">
+                <FormField label="Cycle Start Time" htmlFor="cycleStartTime" className="w-full sm:w-[130px]">
                   <Input
                     id="cycleStartTime"
                     type="time"
@@ -506,7 +548,7 @@ export default function VHTRunsheetForm() {
                     onChange={(e) => setForm({ ...form, cycleStartTime: e.target.value })}
                   />
                 </FormField>
-                <FormField label="Cycle End Time" htmlFor="cycleEndTime">
+                <FormField label="Cycle End Time" htmlFor="cycleEndTime" className="w-full sm:w-[130px]">
                   <Input
                     id="cycleEndTime"
                     type="time"
@@ -514,7 +556,7 @@ export default function VHTRunsheetForm() {
                     onChange={(e) => setForm({ ...form, cycleEndTime: e.target.value })}
                   />
                 </FormField>
-                <FormField label="Total Time" htmlFor="totalTimeDisplay" hint="Auto — from start/end">
+                <FormField label="Total Time" htmlFor="totalTimeDisplay" hint="Auto — from start/end" className="w-full sm:w-[120px]">
                   <Input
                     id="totalTimeDisplay"
                     type="text"
@@ -524,13 +566,7 @@ export default function VHTRunsheetForm() {
                     className="bg-slate-50 text-slate-500 tabular-nums"
                   />
                 </FormField>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <GroupTitle>Meter Reading &amp; Operator</GroupTitle>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-4 gap-y-3">
-                <FormField label="M.R. Start" htmlFor="mrStart">
+                <FormField label="M.R. Start" htmlFor="mrStart" className="w-full sm:w-[110px]">
                   <Input
                     id="mrStart"
                     type="number"
@@ -540,7 +576,7 @@ export default function VHTRunsheetForm() {
                     className="text-right tabular-nums"
                   />
                 </FormField>
-                <FormField label="M.R. End" htmlFor="mrEnd">
+                <FormField label="M.R. End" htmlFor="mrEnd" className="w-full sm:w-[110px]">
                   <Input
                     id="mrEnd"
                     type="number"
@@ -550,7 +586,12 @@ export default function VHTRunsheetForm() {
                     className="text-right tabular-nums"
                   />
                 </FormField>
-                <FormField label="Total M.R." htmlFor="totalMr" hint="Auto — end − start">
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
+                <FormField label="Total M.R." htmlFor="totalMr" hint="Auto — end − start" className="w-full sm:w-[120px]">
                   <Input
                     id="totalMr"
                     type="text"
@@ -559,7 +600,7 @@ export default function VHTRunsheetForm() {
                     className="bg-slate-50 text-slate-500 text-right tabular-nums"
                   />
                 </FormField>
-                <FormField label="Loading Operator" htmlFor="loadingOperatorName" className="col-span-2">
+                <FormField label="Loading Operator" htmlFor="loadingOperatorName" className="w-full sm:w-[140px]">
                   <Input
                     id="loadingOperatorName"
                     type="text"
@@ -567,13 +608,7 @@ export default function VHTRunsheetForm() {
                     onChange={(e) => setForm({ ...form, loadingOperatorName: e.target.value })}
                   />
                 </FormField>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <GroupTitle>Document Control</GroupTitle>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
-                <FormField label="Doc Rev." htmlFor="docRevNo">
+                <FormField label="Doc Rev." htmlFor="docRevNo" className="w-full sm:w-[100px]">
                   <Input
                     id="docRevNo"
                     type="text"
@@ -581,7 +616,7 @@ export default function VHTRunsheetForm() {
                     onChange={(e) => setForm({ ...form, docRevNo: e.target.value })}
                   />
                 </FormField>
-                <FormField label="Effective Date" htmlFor="docEffectiveDate">
+                <FormField label="Effective Date" htmlFor="docEffectiveDate" className="w-full sm:w-[150px]">
                   <Input
                     id="docEffectiveDate"
                     type="date"
@@ -589,7 +624,7 @@ export default function VHTRunsheetForm() {
                     onChange={(e) => setForm({ ...form, docEffectiveDate: e.target.value })}
                   />
                 </FormField>
-                <FormField label="Page" htmlFor="docPageOf">
+                <FormField label="Page" htmlFor="docPageOf" className="w-full sm:w-[100px]">
                   <Input
                     id="docPageOf"
                     type="text"
@@ -597,14 +632,163 @@ export default function VHTRunsheetForm() {
                     onChange={(e) => setForm({ ...form, docPageOf: e.target.value })}
                   />
                 </FormField>
+                <FormField label="Type of Hardening / Mix" htmlFor="hardeningType" className="w-full sm:flex-1 sm:basis-[160px]">
+                  <Input
+                    id="hardeningType"
+                    value={form.hardeningType}
+                    onChange={(e) => setForm({ ...form, hardeningType: e.target.value })}
+                    placeholder="e.g. D2, SS303 + D2"
+                  />
+                </FormField>
+                <FormField label="Temp Profile (text)" htmlFor="tempProfile" className="w-full sm:flex-1 sm:basis-[160px]">
+                  <Input
+                    id="tempProfile"
+                    value={form.tempProfile}
+                    onChange={(e) => setForm({ ...form, tempProfile: e.target.value })}
+                  />
+                </FormField>
+              </div>
+            </div>
+
+            <div className="space-y-3 border-t border-slate-100 pt-4">
+              <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
+                <FormField label="Fan Speed (RPM)" htmlFor="fanRpm" className="w-full sm:w-[130px]">
+                  <Input
+                    id="fanRpm"
+                    type="number"
+                    inputMode="numeric"
+                    value={form.fanRpm}
+                    onChange={(e) => setForm({ ...form, fanRpm: e.target.value })}
+                    className="text-right tabular-nums"
+                  />
+                </FormField>
+                <FormField label="Fixtures / T.C. Position" htmlFor="fixturesPosition" className="w-full sm:flex-1 sm:basis-[160px]">
+                  <Input
+                    id="fixturesPosition"
+                    value={form.fixturesPosition}
+                    onChange={(e) => setForm({ ...form, fixturesPosition: e.target.value })}
+                    placeholder="e.g. LH-02"
+                  />
+                </FormField>
+                <FormField label="Gas Pressure" htmlFor="gasPressure" className="w-full sm:w-[130px]">
+                  <Input
+                    id="gasPressure"
+                    value={form.gasPressure}
+                    onChange={(e) => setForm({ ...form, gasPressure: e.target.value })}
+                  />
+                </FormField>
+                <FormField label="Water Circulation" htmlFor="waterCirculationFrom" className="w-full sm:w-[150px]">
+                  {/* Native select kept: has a value="" placeholder option (Radix Select breaks on '') */}
+                  <select
+                    id="waterCirculationFrom"
+                    value={form.waterCirculationFrom}
+                    onChange={(e) => setForm({ ...form, waterCirculationFrom: e.target.value })}
+                    className="form-input"
+                  >
+                    <option value="">—</option>
+                    <option value="OK">OK</option>
+                    <option value="NOT OK">NOT OK</option>
+                  </select>
+                </FormField>
+                <FormField label={<span className="whitespace-nowrap">Power Failure — From</span>} htmlFor="powerFailureFrom" className="w-full sm:w-[160px]">
+                  <Input
+                    id="powerFailureFrom"
+                    type="time"
+                    value={form.powerFailureFrom}
+                    onChange={(e) => setForm({ ...form, powerFailureFrom: e.target.value })}
+                  />
+                </FormField>
+              </div>
+            </div>
+
+            <div className="space-y-3 border-t border-slate-100 pt-4">
+              <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
+                <FormField label={<span className="whitespace-nowrap">Power Failure — To</span>} htmlFor="powerFailureTo" className="w-full sm:w-[160px]">
+                  <Input
+                    id="powerFailureTo"
+                    type="time"
+                    value={form.powerFailureTo}
+                    onChange={(e) => setForm({ ...form, powerFailureTo: e.target.value })}
+                  />
+                </FormField>
+                <FormField label="Other" htmlFor="otherCheckpoint" className="w-full sm:w-[150px]">
+                  <Textarea
+                    id="otherCheckpoint"
+                    value={form.otherCheckpoint}
+                    onChange={(e) => setForm({ ...form, otherCheckpoint: e.target.value })}
+                    rows={1}
+                    style={{ minHeight: 38 }}
+                  />
+                </FormField>
+                <FormField label="Operator Sign" htmlFor="operatorSign" className="w-full sm:w-[140px]">
+                  <Input
+                    id="operatorSign"
+                    value={form.operatorSign}
+                    onChange={(e) => setForm({ ...form, operatorSign: e.target.value })}
+                  />
+                </FormField>
+                <FormField label={<span className="whitespace-nowrap">Production Supervisor Sign</span>} htmlFor="supervisorSign" className="w-full sm:w-[210px]">
+                  <Input
+                    id="supervisorSign"
+                    value={form.supervisorSign}
+                    onChange={(e) => setForm({ ...form, supervisorSign: e.target.value })}
+                  />
+                </FormField>
+                <FormField label="Supervisor Verified At" htmlFor="supervisorVerifiedAt" className="w-full sm:w-[190px]">
+                  <Input
+                    id="supervisorVerifiedAt"
+                    type="datetime-local"
+                    value={form.supervisorVerifiedAt}
+                    onChange={(e) => setForm({ ...form, supervisorVerifiedAt: e.target.value })}
+                  />
+                </FormField>
+                <FormField label="Status" className="w-full sm:w-[140px]">
+                  <Select
+                    value={form.status}
+                    onValueChange={(v) => setForm({ ...form, status: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PLANNED">Planned</SelectItem>
+                      <SelectItem value="IN_PROGRESS">In progress</SelectItem>
+                      <SelectItem value="TEMPERING">Tempering</SelectItem>
+                      <SelectItem value="COMPLETED">Completed</SelectItem>
+                      <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FormField>
+              </div>
+            </div>
+
+            <div className="space-y-3 border-t border-slate-100 pt-4">
+              <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
+                <FormField label="Verification Note" htmlFor="verificationNote" className="w-full sm:flex-[2] sm:basis-[280px]">
+                  <Textarea
+                    id="verificationNote"
+                    value={form.verificationNote}
+                    onChange={(e) => setForm({ ...form, verificationNote: e.target.value })}
+                    rows={1}
+                    style={{ minHeight: 38 }}
+                    placeholder="After processing within 24 hrs, supervisor shall verify process parameter (graph) & sign."
+                  />
+                </FormField>
+                <FormField label="Remarks" htmlFor="remarks" className="w-full sm:flex-1 sm:basis-[180px]">
+                  <Textarea
+                    id="remarks"
+                    value={form.remarks}
+                    onChange={(e) => setForm({ ...form, remarks: e.target.value })}
+                    rows={1}
+                    style={{ minHeight: 38 }}
+                  />
+                </FormField>
               </div>
             </div>
           </CardContent>
         </Card>
-        </div>
 
-        {/* ── Step 2 · Jobs in this batch ── */}
-        <div hidden={wiz.current !== 1} className="space-y-4">
+        {/* ── Jobs in this batch ── */}
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0 gap-3">
             <div className="space-y-1">
@@ -616,21 +800,6 @@ export default function VHTRunsheetForm() {
             </span>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,320px)_auto] gap-x-3 gap-y-3 items-end">
-              <FormField label="Job Card Number" htmlFor="jobCardNoLookup">
-                <Input
-                  id="jobCardNoLookup"
-                  type="text"
-                  value={jobCardNoLookup}
-                  onChange={(e) => setJobCardNoLookup(e.target.value)}
-                  placeholder="Enter job card number"
-                />
-              </FormField>
-              <Button type="button" variant="secondary" onClick={fillFromJobCardNumber}>
-                Load from job card
-              </Button>
-            </div>
-
             <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
               <table className="w-full text-xs min-w-[860px]">
                 <thead>
@@ -737,68 +906,11 @@ export default function VHTRunsheetForm() {
             </Button>
           </CardContent>
         </Card>
+
         </div>
 
-        {/* ── Step 3 · Cycle parameters ── */}
-        <div hidden={wiz.current !== 2} className="space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Cycle Parameters</CardTitle>
-            <CardDescription>Hardening mix, quench and fixture setup for this run.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-3">
-              <FormField label="Type of Hardening / Mix" htmlFor="hardeningType">
-                <Input
-                  id="hardeningType"
-                  value={form.hardeningType}
-                  onChange={(e) => setForm({ ...form, hardeningType: e.target.value })}
-                  placeholder="e.g. D2, SS303 + D2"
-                />
-              </FormField>
-              <FormField label="Temp Profile (text)" htmlFor="tempProfile">
-                <Input
-                  id="tempProfile"
-                  value={form.tempProfile}
-                  onChange={(e) => setForm({ ...form, tempProfile: e.target.value })}
-                />
-              </FormField>
-              <FormField label="Quenching Pressure (bar)" htmlFor="quenchPressureBar">
-                <Input
-                  id="quenchPressureBar"
-                  type="number"
-                  step="0.01"
-                  inputMode="decimal"
-                  value={form.quenchPressureBar}
-                  onChange={(e) => setForm({ ...form, quenchPressureBar: e.target.value })}
-                  className="text-right tabular-nums"
-                />
-              </FormField>
-              <FormField label="Fan Speed (RPM)" htmlFor="fanRpm">
-                <Input
-                  id="fanRpm"
-                  type="number"
-                  inputMode="numeric"
-                  value={form.fanRpm}
-                  onChange={(e) => setForm({ ...form, fanRpm: e.target.value })}
-                  className="text-right tabular-nums"
-                />
-              </FormField>
-              <FormField label="Fixtures / T.C. Position" htmlFor="fixturesPosition" className="sm:col-span-2">
-                <Input
-                  id="fixturesPosition"
-                  value={form.fixturesPosition}
-                  onChange={(e) => setForm({ ...form, fixturesPosition: e.target.value })}
-                  placeholder="e.g. LH-02"
-                />
-              </FormField>
-            </div>
-          </CardContent>
-        </Card>
-        </div>
-
-        {/* ── Step 4 · Temperature–time graph ── */}
-        <div hidden={wiz.current !== 3} className="space-y-4">
+        {/* ── Step 2 · Temperature–time graph ── */}
+        <div hidden={wiz.current !== 1} className="space-y-4">
         <Card>
           <CardHeader>
             <CardTitle>Temperature–Time Graph (Steps)</CardTitle>
@@ -926,133 +1038,6 @@ export default function VHTRunsheetForm() {
             </div>
 
             <HeatCycleGraphPreview segments={form.tempGraphPoints} />
-          </CardContent>
-        </Card>
-        </div>
-
-        {/* ── Step 5 · Check points ── */}
-        <div hidden={wiz.current !== 4} className="space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Check Points</CardTitle>
-            <CardDescription>Utilities and interruptions observed during the run.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-3">
-              <FormField label="Gas Pressure" htmlFor="gasPressure">
-                <Input
-                  id="gasPressure"
-                  value={form.gasPressure}
-                  onChange={(e) => setForm({ ...form, gasPressure: e.target.value })}
-                />
-              </FormField>
-              <FormField label="Water Circulation" htmlFor="waterCirculationFrom">
-                {/* Native select kept: has a value="" placeholder option (Radix Select breaks on '') */}
-                <select
-                  id="waterCirculationFrom"
-                  value={form.waterCirculationFrom}
-                  onChange={(e) => setForm({ ...form, waterCirculationFrom: e.target.value })}
-                  className="form-input"
-                >
-                  <option value="">—</option>
-                  <option value="OK">OK</option>
-                  <option value="NOT OK">NOT OK</option>
-                </select>
-              </FormField>
-              <FormField label="Power Failure — From" htmlFor="powerFailureFrom">
-                <Input
-                  id="powerFailureFrom"
-                  type="time"
-                  value={form.powerFailureFrom}
-                  onChange={(e) => setForm({ ...form, powerFailureFrom: e.target.value })}
-                />
-              </FormField>
-              <FormField label="Power Failure — To" htmlFor="powerFailureTo">
-                <Input
-                  id="powerFailureTo"
-                  type="time"
-                  value={form.powerFailureTo}
-                  onChange={(e) => setForm({ ...form, powerFailureTo: e.target.value })}
-                />
-              </FormField>
-              <FormField label="Other" htmlFor="otherCheckpoint" className="sm:col-span-2 lg:col-span-4">
-                <Textarea
-                  id="otherCheckpoint"
-                  value={form.otherCheckpoint}
-                  onChange={(e) => setForm({ ...form, otherCheckpoint: e.target.value })}
-                  rows={2}
-                />
-              </FormField>
-            </div>
-          </CardContent>
-        </Card>
-        </div>
-
-        {/* ── Step 6 · Verification & status ── */}
-        <div hidden={wiz.current !== 5} className="space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Verification &amp; Status</CardTitle>
-            <CardDescription>Sign-offs, supervisor verification and run status.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-3">
-              <FormField label="Operator Sign" htmlFor="operatorSign">
-                <Input
-                  id="operatorSign"
-                  value={form.operatorSign}
-                  onChange={(e) => setForm({ ...form, operatorSign: e.target.value })}
-                />
-              </FormField>
-              <FormField label="Production Supervisor Sign" htmlFor="supervisorSign">
-                <Input
-                  id="supervisorSign"
-                  value={form.supervisorSign}
-                  onChange={(e) => setForm({ ...form, supervisorSign: e.target.value })}
-                />
-              </FormField>
-              <FormField label="Supervisor Verified At" htmlFor="supervisorVerifiedAt">
-                <Input
-                  id="supervisorVerifiedAt"
-                  type="datetime-local"
-                  value={form.supervisorVerifiedAt}
-                  onChange={(e) => setForm({ ...form, supervisorVerifiedAt: e.target.value })}
-                />
-              </FormField>
-              <FormField label="Status">
-                <Select
-                  value={form.status}
-                  onValueChange={(v) => setForm({ ...form, status: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="PLANNED">Planned</SelectItem>
-                    <SelectItem value="IN_PROGRESS">In progress</SelectItem>
-                    <SelectItem value="COMPLETED">Completed</SelectItem>
-                    <SelectItem value="CANCELLED">Cancelled</SelectItem>
-                  </SelectContent>
-                </Select>
-              </FormField>
-              <FormField label="Verification Note" htmlFor="verificationNote" className="sm:col-span-2">
-                <Textarea
-                  id="verificationNote"
-                  value={form.verificationNote}
-                  onChange={(e) => setForm({ ...form, verificationNote: e.target.value })}
-                  rows={2}
-                  placeholder="After processing within 24 hrs, supervisor shall verify process parameter (graph) & sign."
-                />
-              </FormField>
-              <FormField label="Remarks" htmlFor="remarks" className="sm:col-span-2">
-                <Textarea
-                  id="remarks"
-                  value={form.remarks}
-                  onChange={(e) => setForm({ ...form, remarks: e.target.value })}
-                  rows={2}
-                />
-              </FormField>
-            </div>
           </CardContent>
         </Card>
         </div>

@@ -130,6 +130,10 @@ model User {
   dailyIdleLogsCreated        DailyIdleLog[]
   furnaceUtilDaysCreated      FurnaceUtilizationDay[]
   furnacePlanDaysCreated      FurnacePlanDay[]
+  energyLogEntriesCreated     EnergyLogEntry[]
+  reworkMonthsCreated         ReworkMonth[]
+  reworkEntriesCreated        ReworkEntry[]
+  ncRegisterEntriesCreated    NcRegisterEntry[]
   workflowTemplatesCreated    WorkflowTemplate[]      @relation("WorkflowTemplateCreatedBy")
   workflowTemplatesUpdated    WorkflowTemplate[]      @relation("WorkflowTemplateUpdatedBy")
   workflowInstancesStarted    JobWorkflow[]           @relation("JobWorkflowStartedBy")
@@ -238,6 +242,7 @@ model Machine {
   dailyIdleLogs    DailyIdleLog[]
   furnaceUtilDays  FurnaceUtilizationDay[]
   furnacePlanSlots FurnacePlanSlot[]
+  energyLogEntries EnergyLogEntry[]
 
   @@map("machines")
 }
@@ -375,6 +380,7 @@ model JobCard {
   furnacePlanSlots     FurnacePlanSlot[]
   vhtRunsheetItems     VHTRunsheetItem[]
   attachments          Attachment[]                @relation("JobCardAttachments")
+  reworkEntries        ReworkEntry[]
 
   @@index([status])
   @@index([customerId])
@@ -809,15 +815,65 @@ model FurnacePlanSlot {
   holdAtC      Int?     @map("hold_at_c")
   holdExtraMin Int?     @map("hold_extra_min")
 
-  title   String? @db.VarChar(200) // free text line title
-  remarks String? @db.Text
+  title      String? @db.VarChar(200) // free text line title
+  /// Second free-text line on the tempering board (e.g. "SHIRODKAR + D2");
+  /// unused for HARDENING-stage slots.
+  batchLabel String? @map("batch_label") @db.VarChar(200)
+  remarks    String? @db.Text
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  /// Which hardening run sheets (HT Cycle Nos) this slot is tempering —
+  /// a tempering slot can batch more than one hardening load together.
+  runsheetLinks FurnacePlanSlotRunsheet[]
+
   @@index([planDayId, machineId])
   @@index([jobCardId])
   @@map("furnace_plan_slots")
+}
+
+/// Join table: one tempering FurnacePlanSlot <-> many VHTRunsheet (HT Cycle
+/// Nos) it is tempering in that slot.
+model FurnacePlanSlotRunsheet {
+  id         Int             @id @default(autoincrement())
+  slotId     Int             @map("slot_id")
+  slot       FurnacePlanSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  runsheetId Int             @map("runsheet_id")
+  runsheet   VHTRunsheet     @relation(fields: [runsheetId], references: [id], onDelete: Cascade)
+
+  @@unique([slotId, runsheetId])
+  @@map("furnace_plan_slot_runsheets")
+}
+
+/// Monthly power-meter register per furnace cycle (QF energy consumption
+/// register). Optionally resolves to the real VHTRunsheet once that run
+/// sheet is closed out, so kW can be traced back to a customer job card.
+model EnergyLogEntry {
+  id             Int          @id @default(autoincrement())
+  machineId      Int?         @map("machine_id")
+  machine        Machine?     @relation(fields: [machineId], references: [id])
+  furnaceName    String?      @map("furnace_name") @db.VarChar(100) // fallback when machine not set
+  logYear        Int          @map("log_year")
+  logMonth       Int          @map("log_month") // 1-12
+  srNo           Int          @map("sr_no")
+  furnaceCycleNo String       @map("furnace_cycle_no") @db.VarChar(50)
+  runsheetId     Int?         @map("runsheet_id")
+  runsheet       VHTRunsheet? @relation(fields: [runsheetId], references: [id], onDelete: SetNull)
+
+  cycleWeightKg Decimal? @map("cycle_weight_kg") @db.Decimal(10, 2)
+  startMeter    Decimal? @map("start_meter") @db.Decimal(14, 2)
+  endMeter      Decimal? @map("end_meter") @db.Decimal(14, 2)
+  consumptionKw Decimal? @map("consumption_kw") @db.Decimal(10, 2)
+
+  createdById Int      @map("created_by")
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([logYear, logMonth, machineId])
+  @@index([runsheetId])
+  @@map("energy_log_entries")
 }
 
 // ============================================================
@@ -893,39 +949,40 @@ model JobworkChallan {
 }
 
 model ChallanItem {
-  id                Int                   @id @default(autoincrement())
-  challanId         Int                   @map("challan_id")
-  challan           JobworkChallan        @relation(fields: [challanId], references: [id], onDelete: Cascade)
-  itemId            Int?                  @map("item_id")
-  item              Item?                 @relation(fields: [itemId], references: [id])
-  description       String?               @db.VarChar(300)
-  drawingNo         String?               @map("drawing_no") @db.VarChar(50)
-  drawingNoLabel    String?               @map("drawing_no_label") @db.VarChar(50)
-  material          String?               @db.VarChar(100)
-  hrc               String?               @db.VarChar(30)
-  woNo              String?               @map("wo_no") @db.VarChar(50)
-  hsnCode           String?               @map("hsn_code") @db.VarChar(20)
-  sacNo             String?               @map("sac_no") @db.VarChar(20)
-  quantity          Decimal               @db.Decimal(12, 3)
-  qtyOut            Decimal?              @map("qty_out") @db.Decimal(12, 3)
-  dispatchDate      DateTime?             @map("dispatch_date") @db.Date
-  uom               String?               @default("KGS") @db.VarChar(10)
-  weight            Decimal?              @db.Decimal(12, 3)
-  rate              Decimal               @db.Decimal(12, 2)
-  amount            Decimal               @db.Decimal(12, 2)
-  pcQty             Decimal?              @map("pc_qty") @db.Decimal(12, 3)
-  lotQty            Decimal?              @map("lot_qty") @db.Decimal(12, 3)
-  processTypeId     Int?                  @map("process_type_id")
-  processType       ProcessType?          @relation(fields: [processTypeId], references: [id])
-  processName       String?               @map("process_name") @db.VarChar(150)
-  jobCardId         Int?                  @map("job_card_id")
-  jobCard           JobCard?              @relation("ChallanItemJobCard", fields: [jobCardId], references: [id], onDelete: SetNull)
-  itemStatus        String                @default("PENDING") @map("item_status") @db.VarChar(20)
-  certStatus        String                @default("PENDING_CERT") @map("cert_status") @db.VarChar(20)
-  invoiceItems      InvoiceItem[]
-  dispatchItems     DispatchChallanItem[]
-  productionEntries ProductionEntry[]
-  certItems         CertItem[]
+  id                 Int                   @id @default(autoincrement())
+  challanId          Int                   @map("challan_id")
+  challan            JobworkChallan        @relation(fields: [challanId], references: [id], onDelete: Cascade)
+  itemId             Int?                  @map("item_id")
+  item               Item?                 @relation(fields: [itemId], references: [id])
+  description        String?               @db.VarChar(300)
+  drawingNo          String?               @map("drawing_no") @db.VarChar(50)
+  drawingNoLabel     String?               @map("drawing_no_label") @db.VarChar(50)
+  material           String?               @db.VarChar(100)
+  hrc                String?               @db.VarChar(30)
+  woNo               String?               @map("wo_no") @db.VarChar(50)
+  hsnCode            String?               @map("hsn_code") @db.VarChar(20)
+  sacNo              String?               @map("sac_no") @db.VarChar(20)
+  quantity           Decimal               @db.Decimal(12, 3)
+  qtyOut             Decimal?              @map("qty_out") @db.Decimal(12, 3)
+  dispatchDate       DateTime?             @map("dispatch_date") @db.Date
+  uom                String?               @default("KGS") @db.VarChar(10)
+  weight             Decimal?              @db.Decimal(12, 3)
+  rate               Decimal               @db.Decimal(12, 2)
+  amount             Decimal               @db.Decimal(12, 2)
+  pcQty              Decimal?              @map("pc_qty") @db.Decimal(12, 3)
+  lotQty             Decimal?              @map("lot_qty") @db.Decimal(12, 3)
+  processTypeId      Int?                  @map("process_type_id")
+  processType        ProcessType?          @relation(fields: [processTypeId], references: [id])
+  processName        String?               @map("process_name") @db.VarChar(150)
+  jobCardId          Int?                  @map("job_card_id")
+  jobCard            JobCard?              @relation("ChallanItemJobCard", fields: [jobCardId], references: [id], onDelete: SetNull)
+  itemStatus         String                @default("PENDING") @map("item_status") @db.VarChar(20)
+  certStatus         String                @default("PENDING_CERT") @map("cert_status") @db.VarChar(20)
+  invoiceItems       InvoiceItem[]
+  invoiceItemSources InvoiceItemSource[]
+  dispatchItems      DispatchChallanItem[]
+  productionEntries  ProductionEntry[]
+  certItems          CertItem[]
 
   @@index([challanId])
   @@index([itemId])
@@ -1102,6 +1159,7 @@ model TestCertificate {
   packedBy            String?    @map("packed_by") @db.VarChar(100)
   approvedBy          String?    @map("approved_by") @db.VarChar(100)
   finalInspectionBy   String?    @map("final_inspection_by") @db.VarChar(100)
+  remarks             String?    @db.Text
   status              CertStatus @default(DRAFT)
 
   createdById Int      @map("created_by")
@@ -1113,6 +1171,9 @@ model TestCertificate {
   inspectionResults CertInspectionResult[]
   invoiceItems      InvoiceItem[]
   attachments       Attachment[]           @relation("TestCertAttachments")
+  reworkAsOriginal  ReworkEntry[]          @relation("ReworkOriginalCert")
+  reworkAsResult    ReworkEntry[]          @relation("ReworkResultCert")
+  ncRegisterEntries NcRegisterEntry[]      @relation("NcCert")
 
   @@index([jobCardId])
   @@index([customerId])
@@ -1134,6 +1195,8 @@ model CertItem {
   sourceChallanItemId Int?            @map("source_challan_item_id")
   sourceChallanItem   ChallanItem?    @relation(fields: [sourceChallanItemId], references: [id], onDelete: SetNull)
 
+  reworkEntries ReworkEntry[]
+
   @@index([sourceChallanItemId])
   @@map("cert_items")
 }
@@ -1150,6 +1213,118 @@ model CertInspectionResult {
   finalInspection String?         @map("final_inspection") @db.VarChar(100)
 
   @@map("cert_inspection_results")
+}
+
+// ============================================================
+// 7b. QUALITY REGISTERS — Rework Data (QF-QA-07) & Inhouse NC Register (QF-QA-20)
+// A failed cert (hardness below spec) is logged as a ReworkEntry; that same
+// incident is also logged as an NcRegisterEntry (QA's separate non-conformance
+// paper trail) — the two are cross-linked, same as the physical paper forms.
+// ============================================================
+model ReworkMonth {
+  id                     Int      @id @default(autoincrement())
+  year                   Int
+  month                  Int // 1-12
+  totalProcessedWeightKg Decimal? @map("total_processed_weight_kg") @db.Decimal(12, 2)
+  targetPercent          Decimal  @default(1.00) @map("target_percent") @db.Decimal(5, 2)
+  /// string[] — printed as numbered "CAUSES" rows on the register
+  causes                 Json?
+  /// string[] — printed as numbered "CORRECTIVE ACTIONS" rows
+  correctiveActions      Json?    @map("corrective_actions")
+
+  createdById Int      @map("created_by")
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  entries ReworkEntry[]
+
+  @@unique([year, month])
+  @@map("rework_months")
+}
+
+model ReworkEntry {
+  id      Int         @id @default(autoincrement())
+  monthId Int         @map("month_id")
+  month   ReworkMonth @relation(fields: [monthId], references: [id], onDelete: Cascade)
+  srNo    Int         @map("sr_no") // resets every month, matches the paper register
+
+  entryDate DateTime @map("entry_date") @db.Date
+
+  /// Rework (redo the cycle, expect it to pass) vs Reject (scrapped, no redo).
+  type ReworkType @default(REWORK)
+
+  jobCardId           Int?             @map("job_card_id")
+  jobCard             JobCard?         @relation(fields: [jobCardId], references: [id])
+  /// The original (failed) certificate.
+  certificateId       Int?             @map("certificate_id")
+  certificate         TestCertificate? @relation("ReworkOriginalCert", fields: [certificateId], references: [id])
+  /// The specific certificate item line this was raised from (a partial
+  /// qty/weight out of that line — the rest of the line still stands as pass).
+  certItemId          Int?             @map("cert_item_id")
+  certItem            CertItem?        @relation(fields: [certItemId], references: [id], onDelete: SetNull)
+  /// The certificate issued after rework, once it passes.
+  reworkCertificateId Int?             @map("rework_certificate_id")
+  reworkCertificate   TestCertificate? @relation("ReworkResultCert", fields: [reworkCertificateId], references: [id])
+
+  // Snapshots — kept editable/free-text even when linked, so the register
+  // still reads correctly if the source job card/cert is edited later.
+  customerName        String?  @map("customer_name") @db.VarChar(200)
+  description         String?  @db.VarChar(300)
+  qty                 Int?
+  weightKg            Decimal? @map("weight_kg") @db.Decimal(10, 3)
+  jobCardNoText       String?  @map("job_card_no_text") @db.VarChar(50)
+  hardnessRequired    String?  @map("hardness_required") @db.VarChar(50)
+  cycleNo             String?  @map("cycle_no") @db.VarChar(50)
+  reason              String?  @db.Text
+  reworkCycleNo       String?  @map("rework_cycle_no") @db.VarChar(50)
+  afterProcessResults String?  @map("after_process_results") @db.VarChar(100)
+  remark              String?  @db.VarChar(200)
+
+  createdById Int      @map("created_by")
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  ncEntries NcRegisterEntry[]
+
+  @@unique([monthId, srNo])
+  @@index([jobCardId])
+  @@index([certificateId])
+  @@map("rework_entries")
+}
+
+model NcRegisterEntry {
+  id   Int @id @default(autoincrement())
+  srNo Int @map("sr_no") // continuous running register, not month-scoped
+
+  entryDate DateTime @map("entry_date") @db.Date
+
+  reworkEntryId Int?             @map("rework_entry_id")
+  reworkEntry   ReworkEntry?     @relation(fields: [reworkEntryId], references: [id])
+  certificateId Int?             @map("certificate_id")
+  certificate   TestCertificate? @relation("NcCert", fields: [certificateId], references: [id])
+
+  customerName      String? @map("customer_name") @db.VarChar(200)
+  testReport        String? @map("test_report") @db.VarChar(100)
+  process           String? @db.VarChar(200)
+  stage             String? @db.VarChar(200)
+  ncQty             String? @map("nc_qty") @db.VarChar(20)
+  ncDetails         String? @map("nc_details") @db.Text
+  disposition       String? @db.Text
+  rootCauseAnalysis String? @map("root_cause_analysis") @db.Text
+  correctiveAction  String? @map("corrective_action") @db.Text
+  reVerification    String? @map("re_verification") @db.VarChar(200)
+  sign              String? @db.VarChar(100)
+
+  createdById Int      @map("created_by")
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([reworkEntryId])
+  @@index([certificateId])
+  @@map("nc_register_entries")
 }
 
 // ============================================================
@@ -1259,31 +1434,58 @@ model InvoiceSeries {
 }
 
 model InvoiceItem {
-  id                  Int              @id @default(autoincrement())
-  invoiceId           Int              @map("invoice_id")
-  invoice             TaxInvoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  certId              Int?             @map("cert_id")
-  cert                TestCertificate? @relation(fields: [certId], references: [id])
-  sourceChallanItemId Int?             @map("source_challan_item_id")
-  sourceChallanItem   ChallanItem?     @relation(fields: [sourceChallanItemId], references: [id])
-  description         String           @db.VarChar(300)
-  material            String?          @db.VarChar(100)
-  hrc                 String?          @db.VarChar(30)
-  woNo                String?          @map("wo_no") @db.VarChar(50)
-  hsnSac              String?          @map("hsn_sac") @db.VarChar(20)
-  quantity            Decimal          @db.Decimal(12, 3)
-  unit                String           @default("KGS") @db.VarChar(10)
-  weight              Decimal?         @db.Decimal(12, 3)
-  rate                Decimal          @db.Decimal(12, 2)
-  amount              Decimal          @db.Decimal(12, 2)
-  processTypeId       Int?             @map("process_type_id")
-  processType         ProcessType?     @relation(fields: [processTypeId], references: [id])
+  id                  Int                 @id @default(autoincrement())
+  invoiceId           Int                 @map("invoice_id")
+  invoice             TaxInvoice          @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  certId              Int?                @map("cert_id")
+  cert                TestCertificate?    @relation(fields: [certId], references: [id])
+  sourceChallanItemId Int?                @map("source_challan_item_id")
+  sourceChallanItem   ChallanItem?        @relation(fields: [sourceChallanItemId], references: [id])
+  description         String              @db.VarChar(300)
+  material            String?             @db.VarChar(100)
+  hrc                 String?             @db.VarChar(30)
+  woNo                String?             @map("wo_no") @db.VarChar(50)
+  hsnSac              String?             @map("hsn_sac") @db.VarChar(20)
+  quantity            Decimal             @db.Decimal(12, 3)
+  unit                String              @default("KGS") @db.VarChar(10)
+  weight              Decimal?            @db.Decimal(12, 3)
+  rate                Decimal             @db.Decimal(12, 2)
+  amount              Decimal             @db.Decimal(12, 2)
+  processTypeId       Int?                @map("process_type_id")
+  processType         ProcessType?        @relation(fields: [processTypeId], references: [id])
+  // Multiple challan items sharing one process consolidate into a single
+  // InvoiceItem (one line, combined quantity, one process-level weight) —
+  // sourceChallanItemId above stays the single-source case for old rows and
+  // is left null once a line has 2+ sources; `sources` is the source of
+  // truth for billing/remaining-qty whenever it has more than one entry.
+  sources             InvoiceItemSource[]
 
   @@index([invoiceId])
   @@index([certId])
   @@index([sourceChallanItemId])
   @@index([processTypeId])
   @@map("invoice_items")
+}
+
+// Join table: one consolidated InvoiceItem <- many ChallanItems, each with
+// its own billed quantity (so the challan's per-item remaining-qty tracking
+// stays accurate even when several challan items were merged into one
+// invoice line). Weight is intentionally NOT tracked per source — weight is
+// entered once, process-wide, on the parent InvoiceItem.weight, never split.
+model InvoiceItemSource {
+  id            Int          @id @default(autoincrement())
+  invoiceItemId Int          @map("invoice_item_id")
+  invoiceItem   InvoiceItem  @relation(fields: [invoiceItemId], references: [id], onDelete: Cascade)
+  // Nullable + SET NULL to match sourceChallanItemId's own existing FK
+  // convention on InvoiceItem/DispatchChallanItem/CertItem elsewhere in this
+  // schema, rather than introducing a new deletion policy for challan items.
+  challanItemId Int?         @map("challan_item_id")
+  challanItem   ChallanItem? @relation(fields: [challanItemId], references: [id])
+  quantity      Decimal      @db.Decimal(12, 3)
+
+  @@index([invoiceItemId])
+  @@index([challanItemId])
+  @@map("invoice_item_sources")
 }
 
 // ============================================================
@@ -1357,9 +1559,17 @@ enum BatchStatus {
   @@map("batch_status")
 }
 
+enum ReworkType {
+  REWORK
+  REJECT
+
+  @@map("rework_type")
+}
+
 enum RunsheetStatus {
   PLANNED
   IN_PROGRESS
+  TEMPERING
   COMPLETED
   CANCELLED
 
@@ -1591,6 +1801,10 @@ model ManufacturingBatchJobCard {
 model VHTRunsheet {
   id             Int                 @id @default(autoincrement())
   runsheetNumber String              @unique @map("runsheet_number") @db.VarChar(50)
+  /// Shop-floor per-furnace serial (e.g. "VPT1-26/09/01") — distinct from the
+  /// system-wide runsheetNumber; this is what the paper register and the
+  /// tempering/energy sheets actually key off.
+  furnaceCycleNo String?             @map("furnace_cycle_no") @db.VarChar(50)
   batchId        Int?                @map("batch_id")
   batch          ManufacturingBatch? @relation(fields: [batchId], references: [id])
   furnaceId      Int                 @map("furnace_id")
@@ -1641,10 +1855,13 @@ model VHTRunsheet {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  items VHTRunsheetItem[]
+  items            VHTRunsheetItem[]
+  temperingLinks   FurnacePlanSlotRunsheet[]
+  energyLogEntries EnergyLogEntry[]
 
   @@index([runDate, furnaceId])
   @@index([batchId])
+  @@index([furnaceCycleNo])
   @@map("vht_runsheets")
 }
 

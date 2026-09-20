@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback, useId } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Loader2, Save, Package, Layers, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Loader2, Save, Package, Layers } from 'lucide-react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { useParties, useProcesses, useItems } from '../../hooks/useMasterData';
@@ -12,17 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/ui/page-header';
-import { Stepper, useStepper } from '@/components/ui/stepper';
-import { Sheet, SheetContent, SheetHeader, SheetFooter, SheetTitle, SheetDescription } from '@/components/ui/sheet';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 
 // AutocompleteInput renders a raw <input>, so it takes the same visual classes
 // as the shared <Input> component to stay aligned inside FormField grids.
@@ -159,7 +148,6 @@ function AutocompleteInput({ value, onChange, suggestions, placeholder, classNam
 }
 
 export default function InwardEntryForm() {
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { data: parties = [] } = useParties();
   const { data: processesRaw = [] } = useProcesses();
@@ -249,15 +237,6 @@ export default function InwardEntryForm() {
       return sum + (direct > 0 ? direct : sumQty);
     }, 0);
   }, [materialSummary, materialQtys, directGrandTotalQty]);
-  const [partyModal, setPartyModal] = useState({
-    open: false,
-    name: '',
-    address: '',
-    email: '',
-    partyType: 'CUSTOMER',
-    saving: false,
-    rates: {}, // { [processTypeId]: pricePerKg }
-  });
   const [form, setForm] = useState({
     fromPartyId: '',
     challanNo: '',
@@ -480,7 +459,7 @@ export default function InwardEntryForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validateForm()) { wiz.goto(form.fromPartyId ? 1 : 0); return; }
+    if (!validateForm()) return;
     setCreatingFullFlow(true);
     try {
       const payload = buildPayload();
@@ -497,66 +476,13 @@ export default function InwardEntryForm() {
     }
   };
 
-  const openPartyModal = () => {
-    setPartyModal({
-      open: true,
-      name: '',
-      address: '',
-      email: '',
-      partyType: 'CUSTOMER',
-      saving: false,
-      rates: {},
-    });
-  };
-
-  const closePartyModal = () => {
-    setPartyModal(p => ({ ...p, open: false, saving: false }));
-  };
-
-  const setPartyRate = (ptId, value) => {
-    setPartyModal(p => ({ ...p, rates: { ...p.rates, [ptId]: value } }));
-  };
-
-  const createPartyQuick = async () => {
-    if (!partyModal.name.trim() || !partyModal.address.trim()) {
-      toast.error('Party Name and Address are required');
-      return;
-    }
-    setPartyModal(p => ({ ...p, saving: true }));
-    try {
-      const r = await api.post('/parties/quick', {
-        name: partyModal.name.trim(),
-        address: partyModal.address.trim(),
-        email: partyModal.email.trim() || null,
-        partyType: partyModal.partyType,
-        rates: Object.entries(partyModal.rates).map(([ptId, pricePerKg]) => ({
-          processTypeId: Number(ptId),
-          pricePerKg: pricePerKg !== '' ? Number(pricePerKg) : null,
-        })),
-      });
-      const created = r.data.data;
-      toast.success(`Party "${created.name}" created!`);
-      closePartyModal();
-      // Invalidate query cache so party list refreshes without page reload
-      await queryClient.invalidateQueries({ queryKey: ['parties'] });
-      // Auto-select the newly created party
-      if (created?.id) handleFormChange('fromPartyId', created.id);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to create party');
-      setPartyModal(p => ({ ...p, saving: false }));
-    }
-  };
+  // (Quick-create-party sheet removed — the "+ New" button now opens the
+  // full Party form at /admin/parties/new in a new tab, so parties get the
+  // complete master-data form instead of this cut-down one.)
 
   const totalQty    = items.reduce((sum, it) => sum + toNum(it.qty, 0), 0);
   const totalWeight = items.reduce((sum, it) => sum + toNum(it.weight, 0), 0);
   const totalAmount = items.reduce((sum, it) => sum + toNum(it.amount, 0), 0);
-
-  const IN_STEPS = [
-    { key: 'challan', label: 'Challan details' },
-    { key: 'items',   label: 'Items received' },
-  ];
-  const wiz = useStepper(IN_STEPS.length);
-  const LAST = IN_STEPS.length - 1;
 
   return (
     <div className="font-app flex flex-col h-full min-h-0">
@@ -566,25 +492,17 @@ export default function InwardEntryForm() {
         breadcrumbs={[{ label: 'Inwards', to: '/jobwork/register' }, { label: 'New' }]}
       />
 
-      <div className="mt-2 shrink-0 rounded-xl border border-slate-200 bg-white p-2 shadow-card">
-        <Stepper steps={IN_STEPS} current={wiz.current} completed={wiz.completed} onStepClick={(i) => wiz.goto(i)} />
-      </div>
-
-      <form onSubmit={(e) => { e.preventDefault(); if (wiz.current === LAST) handleSubmit(e); }} className="flex-1 min-h-0 flex flex-col" id="inward-form">
+      <form onSubmit={(e) => { e.preventDefault(); handleSubmit(e); }} className="flex-1 min-h-0 flex flex-col" id="inward-form">
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-3 pr-0.5 space-y-5">
-        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-          Step {wiz.current + 1} of {IN_STEPS.length} · {IN_STEPS[wiz.current].label}
-        </p>
 
-        {/* ── Step 1 · Challan Details ── */}
-        <div hidden={wiz.current !== 0} className="space-y-5">
+        {/* ── Challan Details ── */}
         <Card>
           <CardHeader>
             <CardTitle>Challan Details</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-3 lg:grid-cols-12">
-              <FormField label="Company Name" required className="col-span-2 lg:col-span-4">
+            <div className="flex flex-wrap items-start gap-x-3 gap-y-3">
+              <FormField label="Company Name" required className="w-full sm:flex-1 sm:basis-[280px]">
                 <div className="flex gap-2">
                   <SearchSelect
                     value={String(form.fromPartyId || '')}
@@ -594,13 +512,18 @@ export default function InwardEntryForm() {
                     required
                     className="flex-1 font-semibold"
                   />
-                  <Button type="button" variant="outline" onClick={openPartyModal} className="shrink-0">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => window.open('/admin/parties/new', '_blank', 'noopener,noreferrer')}
+                    className="shrink-0"
+                  >
                     <Plus /> New
                   </Button>
                 </div>
               </FormField>
 
-              <FormField label="Challan No" htmlFor="in-challan-no" hint="Auto-generated if blank" className="lg:col-span-2">
+              <FormField label="Challan No" htmlFor="in-challan-no" className="w-full sm:w-[170px]">
                 <Input
                   id="in-challan-no"
                   value={form.challanNo}
@@ -609,7 +532,7 @@ export default function InwardEntryForm() {
                 />
               </FormField>
 
-              <FormField label="Challan Date" htmlFor="in-challan-date" className="lg:col-span-2">
+              <FormField label="Challan Date" htmlFor="in-challan-date" className="w-full sm:w-[140px]">
                 <Input
                   id="in-challan-date"
                   type="date"
@@ -618,7 +541,7 @@ export default function InwardEntryForm() {
                 />
               </FormField>
 
-              <FormField label="Material In Date" htmlFor="in-material-date" className="lg:col-span-2">
+              <FormField label="Material In Date" htmlFor="in-material-date" className="w-full sm:w-[150px]">
                 <Input
                   id="in-material-date"
                   type="date"
@@ -627,7 +550,7 @@ export default function InwardEntryForm() {
                 />
               </FormField>
 
-              <FormField label="PO No" htmlFor="in-po-no" className="lg:col-span-2">
+              <FormField label="PO No" htmlFor="in-po-no" className="w-full sm:w-[120px]">
                 <Input
                   id="in-po-no"
                   value={form.poNo}
@@ -636,7 +559,7 @@ export default function InwardEntryForm() {
                 />
               </FormField>
 
-              <FormField label="PO Date" htmlFor="in-po-date" className="lg:col-span-2">
+              <FormField label="PO Date" htmlFor="in-po-date" className="w-full sm:w-[130px]">
                 <Input
                   id="in-po-date"
                   type="date"
@@ -645,7 +568,7 @@ export default function InwardEntryForm() {
                 />
               </FormField>
 
-              <FormField label="Vehicle No" htmlFor="in-vehicle-no" className="lg:col-span-3">
+              <FormField label="Vehicle No" htmlFor="in-vehicle-no" className="w-full sm:w-[150px]">
                 <Input
                   id="in-vehicle-no"
                   value={form.vehicleNo}
@@ -654,7 +577,7 @@ export default function InwardEntryForm() {
                 />
               </FormField>
 
-              <FormField label="Delivery Person" htmlFor="in-delivery-person" className="lg:col-span-4">
+              <FormField label="Delivery Person" htmlFor="in-delivery-person" className="w-full sm:w-[170px]">
                 <Input
                   id="in-delivery-person"
                   value={form.deliveryPerson}
@@ -663,7 +586,7 @@ export default function InwardEntryForm() {
                 />
               </FormField>
 
-              <FormField label="Issued By" className="lg:col-span-3">
+              <FormField label="Issued By" className="w-full sm:w-[180px]">
                 <AutocompleteInput
                   value={form.issuedBy}
                   onChange={v => handleFormChange('issuedBy', v)}
@@ -673,22 +596,11 @@ export default function InwardEntryForm() {
                 />
               </FormField>
 
-              <FormField label="Processing Notes" htmlFor="in-processing-notes" className="col-span-2 lg:col-span-12">
-                <Textarea
-                  id="in-processing-notes"
-                  value={form.processingNotes}
-                  onChange={(e) => handleFormChange('processingNotes', e.target.value)}
-                  placeholder="Any special instructions..."
-                  rows={2}
-                />
-              </FormField>
             </div>
           </CardContent>
         </Card>
-        </div>
 
-        {/* ── Step 2 · Items Received ── */}
-        <div hidden={wiz.current !== 1} className="space-y-5">
+        {/* ── Items Received ── */}
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <div className="space-y-1">
@@ -742,10 +654,10 @@ export default function InwardEntryForm() {
                       </Button>
                     </div>
 
-                    {/* Primary fields — Process / Part / Material / HRC / Qty / Wt in one line */}
+                    {/* Primary fields — Process / Part / Material / HRC / Qty / Pc / Lot / Wt in one line */}
                     <div className="p-4 space-y-3">
-                      <div className="grid grid-cols-2 gap-x-3 gap-y-3 lg:grid-cols-12">
-                        <FormField label="Process" className="lg:col-span-3">
+                      <div className="flex flex-wrap items-start gap-x-3 gap-y-3">
+                        <FormField label="Process" className="w-full sm:w-[210px]">
                           <SearchSelect
                             value={String(item.processTypeId || '')}
                             onChange={v => handleProcessChange(item.id, v)}
@@ -756,7 +668,7 @@ export default function InwardEntryForm() {
                             className="w-full"
                           />
                         </FormField>
-                        <FormField label="Part Name" className="col-span-2 lg:col-span-3">
+                        <FormField label="Part Name" className="w-full sm:flex-1 sm:basis-[140px]">
                           <AutocompleteInput
                             value={item.partName || ''}
                             onChange={(v) => handleItemChange(item.id, 'partName', v)}
@@ -765,7 +677,7 @@ export default function InwardEntryForm() {
                             className={`${INPUT_CLS} font-semibold`}
                           />
                         </FormField>
-                        <FormField label="Material" className="lg:col-span-2">
+                        <FormField label="Material" className="w-full sm:w-[110px]">
                           <AutocompleteInput
                             value={item.material || ''}
                             onChange={(v) => handleItemChange(item.id, 'material', v)}
@@ -774,7 +686,7 @@ export default function InwardEntryForm() {
                             className={`${INPUT_CLS} font-semibold`}
                           />
                         </FormField>
-                        <FormField label="HRC" className="lg:col-span-2">
+                        <FormField label="HRC" className="w-full sm:w-[90px]">
                           <AutocompleteInput
                             value={item.hrc || ''}
                             onChange={(v) => handleItemChange(item.id, 'hrc', v)}
@@ -783,7 +695,7 @@ export default function InwardEntryForm() {
                             className={INPUT_CLS}
                           />
                         </FormField>
-                        <FormField label="Qty" className="lg:col-span-1">
+                        <FormField label="Qty" className="w-full sm:w-[80px]">
                           <Input
                             type="number"
                             inputMode="numeric"
@@ -794,7 +706,17 @@ export default function InwardEntryForm() {
                             min="0" step="1"
                           />
                         </FormField>
-                        <FormField label="Wt (kg)" className="lg:col-span-1">
+                        <FormField label="Pc" className="w-full sm:w-[70px]">
+                          <Input type="number" inputMode="numeric" value={item.pcQty}
+                            onChange={(e) => handleItemChange(item.id, 'pcQty', e.target.value.replace(/[^0-9]/g, ''))}
+                            placeholder="0" className="text-right tabular-nums" min="0" step="1" />
+                        </FormField>
+                        <FormField label="Lot" className="w-full sm:w-[70px]">
+                          <Input type="number" inputMode="numeric" value={item.lotQty}
+                            onChange={(e) => handleItemChange(item.id, 'lotQty', e.target.value.replace(/[^0-9]/g, ''))}
+                            placeholder="0" className="text-right tabular-nums" min="0" step="1" />
+                        </FormField>
+                        <FormField label="Wt (kg)" className="w-full sm:w-[90px]">
                           <Input
                             type="number"
                             inputMode="decimal"
@@ -808,30 +730,20 @@ export default function InwardEntryForm() {
                       </div>
 
                       {/* Secondary fields — hidden until needed */}
-                      <div className="grid grid-cols-2 gap-x-3 gap-y-3 lg:grid-cols-12">
-                        <FormField label="Pc" className="lg:col-span-1">
-                          <Input type="number" inputMode="numeric" value={item.pcQty}
-                            onChange={(e) => handleItemChange(item.id, 'pcQty', e.target.value.replace(/[^0-9]/g, ''))}
-                            placeholder="0" className="text-right tabular-nums" min="0" step="1" />
-                        </FormField>
-                        <FormField label="Lot" className="lg:col-span-1">
-                          <Input type="number" inputMode="numeric" value={item.lotQty}
-                            onChange={(e) => handleItemChange(item.id, 'lotQty', e.target.value.replace(/[^0-9]/g, ''))}
-                            placeholder="0" className="text-right tabular-nums" min="0" step="1" />
-                        </FormField>
-                        <FormField label="Drawing No" className="lg:col-span-3">
+                      <div className="flex flex-wrap items-start gap-x-3 gap-y-3">
+                        <FormField label="Drawing No" className="w-full sm:w-[150px]">
                           <Input value={item.drawingNo}
                             onChange={(e) => handleItemChange(item.id, 'drawingNo', e.target.value)} placeholder="Optional" />
                         </FormField>
-                        <FormField label="WO / Ref No" className="lg:col-span-3">
+                        <FormField label="WO / Ref No" className="w-full sm:w-[150px]">
                           <Input value={item.woNo || ''}
                             onChange={(e) => handleItemChange(item.id, 'woNo', e.target.value)} placeholder="Optional" />
                         </FormField>
-                        <FormField label="HSN Code" className="lg:col-span-2">
+                        <FormField label="HSN Code" className="w-full sm:w-[110px]">
                           <Input value={item.hsnCode || ''}
                             onChange={(e) => handleItemChange(item.id, 'hsnCode', e.target.value)} placeholder="Optional" />
                         </FormField>
-                        <FormField label="SAC No" className="lg:col-span-2">
+                        <FormField label="SAC No" className="w-full sm:w-[110px]">
                           <Input value={item.sacNo || ''}
                             onChange={(e) => handleItemChange(item.id, 'sacNo', e.target.value)} placeholder="Optional" />
                         </FormField>
@@ -972,136 +884,18 @@ export default function InwardEntryForm() {
           </CardContent>
         </Card>
         </div>
-        </div>
 
-        {/* ── Wizard navigation ── */}
         <div className="shrink-0 mt-2 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-card sm:px-5">
-          <span className="font-app-mono text-xs text-slate-400">Step {wiz.current + 1} of {IN_STEPS.length}</span>
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <Button asChild variant="ghost"><Link to="/jobwork/register">Cancel</Link></Button>
-            <Button type="button" variant="ghost" disabled={wiz.isFirst} onClick={wiz.back}>
-              <ChevronLeft className="h-4 w-4" /> Back
+            <Button type="button" onClick={handleSubmit} disabled={creatingFullFlow}>
+              {creatingFullFlow
+                ? <><Loader2 className="animate-spin" /> Creating…</>
+                : <><Save /> Create Inward</>}
             </Button>
-            {wiz.current < LAST ? (
-              <Button type="button" onClick={wiz.next}>Next <ChevronRight className="h-4 w-4" /></Button>
-            ) : (
-              <Button type="button" onClick={handleSubmit} disabled={creatingFullFlow}>
-                {creatingFullFlow
-                  ? <><Loader2 className="animate-spin" /> Creating…</>
-                  : <><Save /> Create Inward</>}
-              </Button>
-            )}
           </div>
         </div>
       </form>
-
-      {/* Quick Create Party — Sheet */}
-      <Sheet open={partyModal.open} onOpenChange={(o) => { if (!o) closePartyModal(); }}>
-        <SheetContent side="right" className="font-app sm:max-w-xl">
-          <SheetHeader>
-            <SheetTitle>New customer</SheetTitle>
-            <SheetDescription>Add a party and, optionally, its per-process rates.</SheetDescription>
-          </SheetHeader>
-
-          <div className="mt-4 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
-                <FormField label="Party Type">
-                  <Select
-                    value={partyModal.partyType}
-                    onValueChange={v => setPartyModal(p => ({ ...p, partyType: v }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Party type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="CUSTOMER">CUSTOMER</SelectItem>
-                      <SelectItem value="VENDOR">VENDOR</SelectItem>
-                      <SelectItem value="BOTH">BOTH</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </FormField>
-                <FormField label="Email" htmlFor="pm-email" hint="Optional">
-                  <Input
-                    id="pm-email"
-                    type="email"
-                    value={partyModal.email}
-                    onChange={(e) => setPartyModal(p => ({ ...p, email: e.target.value }))}
-                    placeholder="email@company.com"
-                  />
-                </FormField>
-              </div>
-
-              <FormField label="Party Name" htmlFor="pm-name" required>
-                <Input
-                  id="pm-name"
-                  value={partyModal.name}
-                  onChange={(e) => setPartyModal(p => ({ ...p, name: e.target.value }))}
-                  placeholder="Company / Party name"
-                />
-              </FormField>
-
-              <FormField label="Address" htmlFor="pm-address" required>
-                <Textarea
-                  id="pm-address"
-                  value={partyModal.address}
-                  onChange={(e) => setPartyModal(p => ({ ...p, address: e.target.value }))}
-                  rows={2}
-                  placeholder="Full address"
-                />
-              </FormField>
-
-              {/* Process Rates */}
-              {processes.length > 0 && (
-                <div className="border-t border-slate-100 pt-4 space-y-3">
-                  <GroupTitle>Process Rates (₹/kg)</GroupTitle>
-                  <div className="rounded-xl border border-slate-200 overflow-hidden">
-                    <div className="table-responsive">
-                      <table className="w-full text-xs min-w-[400px]">
-                        <thead>
-                          <tr>
-                            <th className="th">Process</th>
-                            <th className="th">Rate/Kg (₹)</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50/80">
-                          {processes.filter(p => p.isActive !== false).map(pt => (
-                            <tr key={pt.id} className="tr">
-                              <td className="td font-medium text-slate-700">
-                                {pt.name}
-                              </td>
-                              <td className="td">
-                                <input
-                                  type="number" step="0.01" min="0"
-                                  inputMode="decimal"
-                                  value={partyModal.rates[pt.id] ?? ''}
-                                  onChange={(e) => setPartyRate(pt.id, e.target.value)}
-                                  className="form-input py-1 text-xs text-right tabular-nums w-24"
-                                  placeholder={pt.pricePerKg ?? '—'}
-                                  aria-label={`Rate per kg for ${pt.name}`}
-                                />
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                  <p className="text-[10px] text-slate-400">Leave blank to use global process rate. Party rate takes priority during inward entry.</p>
-                </div>
-              )}
-          </div>
-
-          <SheetFooter>
-            <Button type="button" variant="ghost" onClick={closePartyModal}>Cancel</Button>
-            <Button type="button" onClick={createPartyQuick} disabled={partyModal.saving}>
-              {partyModal.saving
-                ? <><Loader2 className="animate-spin" /> Saving...</>
-                : <><Save /> Create Party</>
-              }
-            </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }

@@ -118,22 +118,49 @@ export default function InvoiceForm() {
           extraAmt:         String(d.extraAmt ?? '0'),
           showPartName:     d.showPartName !== false,
         });
-        setLineItems((d.items || []).map((it) => ({
-          _id: it.id,
-          description:  it.description  || '',
-          material:     it.material     || '',
-          hrc:          it.hrc          || '',
-          woNo:         it.woNo         || '',
-          hsnSac:       it.hsnSac       || '998898',
-          quantity:     it.quantity != null ? String(it.quantity) : '',
-          unit:         it.unit         || 'KGS',
-          billingType:  it.unit         || 'KGS',
-          weight:       it.weight != null ? String(it.weight) : '',
-          rate:         it.rate   != null ? String(it.rate)   : '',
-          amount:       it.amount != null ? String(it.amount) : '',
-          processTypeId: it.processTypeId ? String(it.processTypeId) : '',
-          sourceChallanItemId: it.sourceChallanItemId ? String(it.sourceChallanItemId) : '',
-        })));
+        // A consolidated InvoiceItem (2+ sources) is expanded back into one
+        // editable card per source challan item — same shape the form uses
+        // right after loading a challan — so editing an existing invoice
+        // looks the same as creating one. The saved line's weight (process-
+        // level, never split) goes on the first card only; the rest stay
+        // blank, matching how it's normally entered in the first place.
+        const expandedLines = (d.items || []).flatMap((it) => {
+          if (it.sources?.length > 1) {
+            return it.sources.map((s, si) => ({
+              _id: `${it.id}-${s.challanItemId ?? si}`,
+              description:  s.challanItem?.partName || s.challanItem?.description || it.description || '',
+              material:     s.challanItem?.material || it.material || '',
+              hrc:          s.challanItem?.hrc      || it.hrc      || '',
+              woNo:         s.challanItem?.woNo     || it.woNo     || '',
+              hsnSac:       it.hsnSac || '998898',
+              quantity:     String(toNum(s.quantity, 0)),
+              unit:         it.unit        || 'KGS',
+              billingType:  it.unit        || 'KGS',
+              weight:       si === 0 && it.weight != null ? String(it.weight) : '',
+              rate:         it.rate  != null ? String(it.rate) : '',
+              amount:       si === 0 ? (it.amount != null ? String(it.amount) : '') : '0.00',
+              processTypeId: it.processTypeId ? String(it.processTypeId) : '',
+              sourceChallanItemId: s.challanItemId ? String(s.challanItemId) : '',
+            }));
+          }
+          return [{
+            _id: it.id,
+            description:  it.description  || '',
+            material:     it.material     || '',
+            hrc:          it.hrc          || '',
+            woNo:         it.woNo         || '',
+            hsnSac:       it.hsnSac       || '998898',
+            quantity:     it.quantity != null ? String(it.quantity) : '',
+            unit:         it.unit         || 'KGS',
+            billingType:  it.unit         || 'KGS',
+            weight:       it.weight != null ? String(it.weight) : '',
+            rate:         it.rate   != null ? String(it.rate)   : '',
+            amount:       it.amount != null ? String(it.amount) : '',
+            processTypeId: it.processTypeId ? String(it.processTypeId) : '',
+            sourceChallanItemId: it.sourceChallanItemId ? String(it.sourceChallanItemId) : '',
+          }];
+        });
+        setLineItems(expandedLines);
       })
       .catch((err) => toast.error(err.response?.data?.message || 'Invoice load nahi ho payi.'))
       .finally(() => setEditLoading(false));
@@ -263,24 +290,10 @@ export default function InvoiceForm() {
       if (ch.items?.length > 0) {
         // Weight to bill each line on. If a line has its own weight, use it.
         // Otherwise — the inward's weight was entered as one total, not per
-        // item — give each line its quantity-proportional share of that total
-        // so KGS billing (weight × rate) still works instead of silently
-        // falling back to quantity × per-kg rate.
-        const anyOwnWeight = ch.items.some(it => toNum(it.weight, 0) > 0);
-        const weightPool = toNum(ch.weightSummary?.inwardTotalWeight, 0)
-          || toNum(ch.totalInwardWeight, 0)
-          || toNum(ch.jobCard?.totalWeight, 0)
-          || (ch.relatedJobCards || []).reduce((s, j) => s + toNum(j.totalWeight, 0), 0);
-        const totalChallanQty = ch.items.reduce((s, it) => s + toNum(it.quantity, 0), 0);
-        const billWeight = (it) => {
-          const own = toNum(it.weight, 0);
-          if (own > 0) return own;
-          if (!anyOwnWeight && weightPool > 0 && totalChallanQty > 0) {
-            return weightPool * toNum(it.quantity, 0) / totalChallanQty;
-          }
-          return 0;
-        };
-        setLineItems(ch.items.map(it => {
+        // item — leave it blank. Don't split the total proportionally by qty;
+        // user enters each line's weight by hand.
+        const billWeight = (it) => toNum(it.weight, 0);
+        const draftLines = ch.items.map(it => {
           const line = (billRes.data.data?.lineStatus || []).find(x => x.challanItemId === it.id);
           const origQty = toNum(it.quantity, 0);
           const dispatchQty = line ? line.remainingQty : origQty;
@@ -323,8 +336,17 @@ export default function InvoiceForm() {
             amount:        calcLineAmount({ unit, billingType, quantity: lineQty, rate, weight: proratedWeight }),
             processTypeId: it.processTypeId ? String(it.processTypeId) : '',
             sourceChallanItemId: String(it.id),
-          }
-        }));
+          };
+        });
+
+        // Lines stay one-per-challan-item on screen — each part keeps its own
+        // editable card (material/HRC/qty), and same-process lines still get
+        // the shared "Process Summary" total-weight bar above them (see
+        // renderGroupSummary/applyGroupTotal in InvoicedItemsSection.jsx).
+        // Consolidation into one billed process line happens only at submit
+        // time (buildConsolidatedItems, in handleSubmit) — so print/billing
+        // see one clean row per process without changing how this form looks.
+        setLineItems(draftLines);
       } else {
         setLineItems([newEmptyLine()]);
       }
@@ -435,12 +457,16 @@ export default function InvoiceForm() {
   // PCS/NOS by pieces (quantity), LOT by number of lots (quantity). This
   // matches how the challan item itself was priced at inward time, so a
   // full-quantity invoice reproduces the challan's own subtotal.
+  // KGS never falls back to quantity: quantity is a piece count, not a
+  // weight, so treating it as kilos would silently under/over-bill. Until
+  // the real weight is entered, a KGS line bills for ₹0 rather than a
+  // plausible-looking wrong amount.
   const calcLineAmount = (it) => {
     const qty    = toNum(it.quantity, 0);
     const rate   = toNum(it.rate, 0);
     const weight = toNum(it.weight, 0);
     const type   = it.billingType || it.unit || 'KGS';
-    const base = (type === 'KGS') ? (weight > 0 ? weight : qty) : qty;
+    const base = (type === 'KGS') ? weight : qty;
     return (base * rate).toFixed(2);
   };
 
@@ -522,6 +548,58 @@ export default function InvoiceForm() {
     });
   };
 
+  // Same-process consolidation happens here, at submit time only — the form
+  // itself keeps showing one editable card per challan item (with the
+  // existing "Process Summary" total-weight bar above same-process cards),
+  // but what actually gets saved/printed is one InvoiceItem per process:
+  // quantity summed across its cards, weight summed too (each card's weight
+  // is 0 unless something was actually typed there, so a shared figure
+  // typed into just one card is never double-counted), amount recalculated
+  // from that combined weight. Cards with no process (manual lines) never
+  // merge. `sources` records each underlying challan item's own billed
+  // quantity, for accurate per-item remaining-qty tracking server-side.
+  const buildConsolidatedItems = (lines) => {
+    const byProcess = new Map();
+    const order = [];
+    for (const line of lines) {
+      const key = line.processTypeId || `__single_${line._id}`;
+      if (!byProcess.has(key)) { byProcess.set(key, []); order.push(key); }
+      byProcess.get(key).push(line);
+    }
+    return order.map(key => {
+      const group = byProcess.get(key);
+      const sources = group
+        .filter(l => l.sourceChallanItemId)
+        .map(l => ({ challanItemId: toInt(l.sourceChallanItemId), quantity: toNum(l.quantity, 0) }));
+      if (group.length === 1) {
+        return { ...group[0], ...(sources.length ? { sources } : {}) };
+      }
+      const first = group[0];
+      const quantity = group.reduce((s, l) => s + toNum(l.quantity, 0), 0);
+      const weight = group.reduce((s, l) => s + toNum(l.weight, 0), 0);
+      const amount = calcLineAmount({ unit: first.unit, billingType: first.billingType, quantity, rate: first.rate, weight });
+      const partNames = [...new Set(group.map(l => l.description).filter(Boolean))];
+      return {
+        _id:           `merged-${key}`,
+        description:   partNames.join(', '),
+        material:      first.material,
+        hrc:           first.hrc,
+        woNo:          first.woNo,
+        hsnSac:        first.hsnSac,
+        quantity:      String(quantity),
+        unit:          first.unit,
+        billingType:   first.billingType,
+        weight:        weight ? String(weight.toFixed(3)) : '',
+        rate:          first.rate,
+        amount,
+        processTypeId: first.processTypeId,
+        certId:        first.certId,
+        sourceChallanItemId: '', // ambiguous once merged — `sources` is authoritative
+        sources,
+      };
+    });
+  };
+
   const subtotal   = lineItems.reduce((s, it) => s + toNum(it.amount, 0), 0);
   const cgst       = subtotal * toNum(form.cgstRate, 0) / 100;
   const sgst       = subtotal * toNum(form.sgstRate, 0) / 100;
@@ -560,21 +638,44 @@ export default function InvoiceForm() {
       toast.error('Please fix the highlighted fields.');
       return;
     }
+    // Consolidate once here — the form kept one card per challan item, but
+    // what gets validated and saved is one line per process.
+    const consolidatedItems = buildConsolidatedItems(lineItems);
     if (form.challanId) {
-      for (const it of lineItems) {
-        const mapped = remainingByChallanItem.get(String(it.sourceChallanItemId || ''));
-        if (!mapped) { wiz.goto(2); toast.error('Each line must be mapped to a challan item for partial dispatch billing.'); return; }
-        if (toNum(it.quantity, 0) > mapped.remainingQty + 0.00001) {
+      // Working copy of "remaining" per challan item, decremented as each
+      // source is checked — so two lines/sources referencing the same
+      // challan item can't both pass this check while collectively
+      // over-billing it (mirrors the backend's own validation).
+      const working = new Map(Array.from(remainingByChallanItem.entries()).map(([k, v]) => [k, v.remainingQty]));
+      for (const it of consolidatedItems) {
+        const sources = Array.isArray(it.sources) && it.sources.length > 0
+          ? it.sources
+          : (it.sourceChallanItemId ? [{ challanItemId: it.sourceChallanItemId, quantity: toNum(it.quantity, 0) }] : []);
+        if (!sources.length) { wiz.goto(2); toast.error('Each line must be mapped to a challan item for partial dispatch billing.'); return; }
+        const sourceQtySum = sources.reduce((s, src) => s + toNum(src.quantity, 0), 0);
+        if (Math.abs(sourceQtySum - toNum(it.quantity, 0)) > 0.01) {
           wiz.goto(2);
-          toast.error(`Line qty exceeds remaining challan qty (remaining ${mapped.remainingQty}).`);
+          toast.error(`"${it.description || 'A line'}" quantity doesn't match its combined source challan items — edit and retype the quantity.`);
           return;
+        }
+        for (const src of sources) {
+          const key = String(src.challanItemId || '');
+          const rem = working.has(key) ? working.get(key) : undefined;
+          if (rem === undefined) { wiz.goto(2); toast.error('Each line must be mapped to a challan item for partial dispatch billing.'); return; }
+          const q = toNum(src.quantity, 0);
+          if (q > rem + 0.00001) {
+            wiz.goto(2);
+            toast.error(`Line qty exceeds remaining challan qty (remaining ${rem}).`);
+            return;
+          }
+          working.set(key, rem - q);
         }
       }
     }
     if (fullyInvoiced) { toast.error('This challan is already fully invoiced.'); return; }
     setLoading(true);
     try {
-      const payload = { ...form, items: lineItems };
+      const payload = { ...form, items: consolidatedItems };
       if (!payload.challanId) delete payload.challanId;
 
       if (isEdit) {

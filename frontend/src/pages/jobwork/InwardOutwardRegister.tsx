@@ -41,6 +41,8 @@ export interface RegisterRow {
   itemsPending?: number;
   jobCardStatus?: 'DONE' | 'PARTIAL' | 'PENDING';
   jobCardNos?: string[];
+  /** true when a linked job card has an unresolved Rework (Reject is terminal, never flagged here) */
+  reworkPending?: boolean;
 }
 
 export default function InwardOutwardRegister() {
@@ -137,15 +139,16 @@ export default function InwardOutwardRegister() {
   }, [rows, search, fromDate, toDate]);
 
   const stats = useMemo(() => {
-    let pendingJc = 0, partialJc = 0, doneJc = 0, weight = 0;
+    let pendingJc = 0, partialJc = 0, doneJc = 0, weight = 0, reworkPending = 0;
     for (const r of filtered) {
       const st = r.jobCardStatus || (r.jobcardNo && r.jobcardNo !== '-' ? 'DONE' : 'PENDING');
       if (st === 'DONE') doneJc += 1;
       else if (st === 'PARTIAL') partialJc += 1;
       else pendingJc += 1;
+      if (r.reworkPending) reworkPending += 1;
       weight += Number(r.weight) || 0;
     }
-    return { total: filtered.length, pendingJc, partialJc, doneJc, weight };
+    return { total: filtered.length, pendingJc, partialJc, doneJc, weight, reworkPending };
   }, [filtered]);
 
   useEffect(() => {
@@ -204,7 +207,7 @@ export default function InwardOutwardRegister() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="card p-3 border-l-4 border-sky-400">
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">Total Inwards</p>
           <p className="text-xl sm:text-2xl font-extrabold text-sky-600 mt-0.5 tabular-nums">{stats.total}</p>
@@ -224,6 +227,11 @@ export default function InwardOutwardRegister() {
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">Job Card Done</p>
           <p className="text-xl sm:text-2xl font-extrabold text-emerald-600 mt-0.5 tabular-nums">{stats.doneJc}</p>
           <p className="text-[10px] text-slate-400">all items carded</p>
+        </div>
+        <div className="card p-3 border-l-4 border-orange-400">
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">Rework Pending</p>
+          <p className="text-xl sm:text-2xl font-extrabold text-orange-600 mt-0.5 tabular-nums">{stats.reworkPending}</p>
+          <p className="text-[10px] text-slate-400">job card awaiting redo</p>
         </div>
       </div>
 

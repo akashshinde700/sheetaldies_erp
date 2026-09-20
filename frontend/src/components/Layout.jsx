@@ -50,7 +50,13 @@ export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
-    try { return localStorage.getItem('svt_sidebar_collapsed') === '1'; } catch { return false; }
+    // Collapsed (icon-only) by default — clicking the toggle expands it. Once
+    // the user picks a state it's remembered; only a never-set preference
+    // falls back to collapsed.
+    try {
+      const saved = localStorage.getItem('svt_sidebar_collapsed');
+      return saved === null ? true : saved === '1';
+    } catch { return true; }
   });
   const [isDark, setIsDark] = useState(resolveDark);
   const mainRef = useRef(null);
@@ -241,7 +247,7 @@ export default function Layout() {
               aria-checked={isDark}
               aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
               title={isDark ? 'Light mode' : 'Dark mode'}
-              style={{ background: isDark ? '#2563EB' : '#E2E8F0', borderColor: isDark ? '#3B82F6' : '#CBD5E1' }}
+              style={{ background: isDark ? '#D97706' : '#E8E4DE', borderColor: isDark ? '#F59E0B' : '#D6D0C7' }}
               className="shrink-0 relative inline-flex h-[34px] w-[58px] items-center rounded-full border transition-colors
                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
             >

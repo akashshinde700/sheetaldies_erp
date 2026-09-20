@@ -3,6 +3,7 @@
 // ============================================================
 const prisma = require('../utils/prisma');
 const path = require('path');
+const { isInsideDir } = require('../utils/inputs');
 const fs = require('fs').promises;
 
 /**
@@ -185,7 +186,7 @@ exports.downloadAttachment = async (req, res) => {
 
     const uploadsRoot = path.resolve(__dirname, '../../uploads');
     const filePath = path.resolve(attachment.filePath);
-    if (!filePath.startsWith(uploadsRoot)) {
+    if (!isInsideDir(uploadsRoot, filePath)) {
       return res.status(400).json({
         code: 'INVALID_FILE_PATH',
         message: 'Invalid attachment file path'
@@ -299,7 +300,7 @@ exports.deleteAttachment = async (req, res) => {
     try {
       const uploadsRoot = path.resolve(__dirname, '../../uploads');
       const filePath = path.resolve(attachment.filePath);
-      if (filePath.startsWith(uploadsRoot)) {
+      if (isInsideDir(uploadsRoot, filePath)) {
       await fs.unlink(filePath);
       } else {
         console.warn('Warning: Refusing to delete file outside uploads root');

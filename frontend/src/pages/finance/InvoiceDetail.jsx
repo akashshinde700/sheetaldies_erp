@@ -143,9 +143,9 @@ export default function InvoiceDetail() {
 
       if (problems.length) {
         setConfirmDialog({
-          title: 'e-Invoice me ye dikkat hai',
-          message: problems.join('\n') + '\n\nPhir bhi file download karein? Portal ise reject kar sakta hai.',
-          confirmLabel: 'Phir bhi download karo',
+          title: 'e-Invoice has issues',
+          message: problems.join('\n') + '\n\nDownload the file anyway? The portal may reject it.',
+          confirmLabel: 'Download anyway',
           variant: 'primary',
           onConfirm: () => { setConfirmDialog(null); doDownloadEInvoiceJson(); },
         });

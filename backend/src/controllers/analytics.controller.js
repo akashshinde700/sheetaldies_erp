@@ -485,6 +485,7 @@ exports.pendingItems = async (req, res) => {
       jobCardsNeedCert,
       certsNeedInvoice,
       invoicesPendingPayment,
+      reworkPendingItems,
     ] = await Promise.all([
 
       // 1. Challans that have NO job card yet and are still active
@@ -544,6 +545,23 @@ exports.pendingItems = async (req, res) => {
         orderBy: { invoiceDate: 'asc' },
         take: 100,
       }),
+
+      // 5. Rework raised but not yet redone/resolved (Reject is terminal —
+      // it never shows here, only REWORK awaiting its after-process result)
+      prisma.reworkEntry.findMany({
+        where: {
+          type: 'REWORK',
+          OR: [{ afterProcessResults: null }, { afterProcessResults: '' }],
+        },
+        select: {
+          id: true, srNo: true, entryDate: true, customerName: true, description: true,
+          qty: true, weightKg: true, cycleNo: true, reworkCycleNo: true, reason: true,
+          jobCard: { select: { id: true, jobCardNo: true } },
+          certificate: { select: { id: true, certNo: true } },
+        },
+        orderBy: { entryDate: 'asc' },
+        take: 100,
+      }),
     ]);
 
     const invoiceAmountPending = invoicesPendingPayment.reduce(
@@ -557,14 +575,17 @@ exports.pendingItems = async (req, res) => {
         jobCardsNeedCert,
         certsNeedInvoice,
         invoicesPendingPayment,
+        reworkPendingItems,
         summary: {
           challansNeedJobCard: challansNeedJobCard.length,
           jobCardsNeedCert:    jobCardsNeedCert.length,
           certsNeedInvoice:    certsNeedInvoice.length,
           invoicesPendingPayment: invoicesPendingPayment.length,
           invoiceAmountPending,
+          reworkPendingItems: reworkPendingItems.length,
           totalPending: challansNeedJobCard.length + jobCardsNeedCert.length +
-                        certsNeedInvoice.length + invoicesPendingPayment.length,
+                        certsNeedInvoice.length + invoicesPendingPayment.length +
+                        reworkPendingItems.length,
         },
       },
     });

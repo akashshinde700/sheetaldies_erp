@@ -872,11 +872,9 @@ export default function JobCardPrint() {
             <div style={{ borderBottom: B, padding: '6px 10px', flex: 1 }}>
               <div style={labelStyle()}>Packed Quantity</div>
               <div style={{ fontFamily: 'monospace', fontSize: 10, marginTop: 4, fontWeight: 600 }}>{inspState.packedQty || ''}</div>
-              <div style={sigLine}>Packed By</div>
             </div>
             <div style={{ padding: '6px 10px', flex: 1 }}>
-              <div style={labelStyle()}>Quality Approved By</div>
-              <div style={sigLine}>Signature</div>
+              <div style={labelStyle()}>Packed By</div>
             </div>
           </div>
         </div>

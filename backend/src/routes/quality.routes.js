@@ -23,6 +23,17 @@ router.post('/temp-cycle-templates/:id/duplicate', auth, requireRole('OPERATOR')
 router.patch('/temp-cycle-templates/:id/set-default', auth, requireRole('OPERATOR'), ctrl.setDefaultTempCycleTemplate);
 router.delete('/temp-cycle-templates/:id', auth, requireRole('MANAGER'), ctrl.deleteTempCycleTemplate);
 
+// Rework Data register (QF-QA-07)
+router.get('/rework-entries', auth, ctrl.getReworkMonth);
+router.post('/rework-entries', auth, requireRole('OPERATOR'), ctrl.upsertReworkEntry);
+router.delete('/rework-entries/:id', auth, requireRole('MANAGER'), ctrl.deleteReworkEntry);
+router.post('/rework-months', auth, requireRole('OPERATOR'), ctrl.upsertReworkMonth);
+
+// Inhouse NC Register (QF-QA-20)
+router.get('/nc-register', auth, ctrl.listNcRegister);
+router.post('/nc-register', auth, requireRole('OPERATOR'), ctrl.upsertNcRegisterEntry);
+router.delete('/nc-register/:id', auth, requireRole('MANAGER'), ctrl.deleteNcRegisterEntry);
+
 // Inspections
 router.get('/:jobCardId/inspection', auth, ctrl.getInspection);
 router.post('/:jobCardId/inspection', auth, requireRole('OPERATOR'), uploadFiveImages('inspections'), ctrl.upsertInspection);

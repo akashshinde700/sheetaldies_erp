@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { Printer, Pencil, ClipboardCheck, BadgeCheck } from 'lucide-react';
+import { Printer, Pencil, ClipboardCheck, BadgeCheck, AlertTriangle } from 'lucide-react';
 import api from '../../utils/api';
 import { formatDate } from '../../utils/formatters';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatusPill } from '@/components/ui/status-pill';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -125,6 +126,12 @@ export default function JobCardDetail() {
         meta={
           <>
             <StatusPill status={jc.status} />
+            {jc.reworkEntries?.some((r) => r.type === 'REWORK' && !r.afterProcessResults) && (
+              <Badge variant="warning" className="gap-1"><AlertTriangle className="h-3 w-3" /> Rework pending</Badge>
+            )}
+            {jc.reworkEntries?.some((r) => r.type === 'REJECT') && (
+              <Badge variant="error" className="gap-1"><AlertTriangle className="h-3 w-3" /> Reject raised</Badge>
+            )}
             {challan?.inwardNo && (
               <span>
                 Inward{' '}
@@ -260,6 +267,53 @@ export default function JobCardDetail() {
           )}
         </CardContent>
       </Card>
+
+      {jc.reworkEntries?.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between gap-3">
+              <span>Rework / Reject ({jc.reworkEntries.length})</span>
+              <Button asChild variant="outline" size="sm"><Link to="/quality/rework-data">Open Rework Data</Link></Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto rounded-lg border border-slate-200">
+              <table className="w-full min-w-[720px] text-sm">
+                <thead>
+                  <tr className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <th className="px-3 py-2">Date</th>
+                    <th className="px-3 py-2">Type</th>
+                    <th className="px-3 py-2">Description</th>
+                    <th className="px-3 py-2 text-right">Qty</th>
+                    <th className="px-3 py-2">Cycle No</th>
+                    <th className="px-3 py-2">Rework Cycle No</th>
+                    <th className="px-3 py-2">Result</th>
+                    <th className="px-3 py-2">Reason</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {jc.reworkEntries.map((r) => (
+                    <tr key={r.id}>
+                      <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{formatDate(r.entryDate)}</td>
+                      <td className="px-3 py-2">
+                        <Badge variant={r.type === 'REJECT' ? 'error' : r.afterProcessResults ? 'success' : 'warning'}>
+                          {r.type === 'REJECT' ? 'Reject' : r.afterProcessResults ? 'Reworked' : 'Rework pending'}
+                        </Badge>
+                      </td>
+                      <td className="px-3 py-2 text-slate-700">{r.description || '—'}</td>
+                      <td className="px-3 py-2 text-right font-app-mono text-slate-700">{r.qty ?? '—'}</td>
+                      <td className="px-3 py-2 font-app-mono text-slate-500">{r.cycleNo || '—'}</td>
+                      <td className="px-3 py-2 font-app-mono text-slate-500">{r.reworkCycleNo || '—'}</td>
+                      <td className="px-3 py-2 text-slate-600">{r.afterProcessResults || '—'}</td>
+                      <td className="px-3 py-2 text-slate-500">{r.reason || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {images.length > 0 && (
         <Card>

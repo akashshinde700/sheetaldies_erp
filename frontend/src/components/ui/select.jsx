@@ -12,7 +12,7 @@ const SelectTrigger = React.forwardRef(({ className, invalid = false, children, 
     ref={ref}
     aria-invalid={invalid || undefined}
     className={cn(
-      'flex w-full items-center justify-between gap-2 min-h-[40px] sm:min-h-0 sm:h-8 rounded-lg border border-slate-200/90 bg-white px-2.5 py-1 text-[13px] text-slate-800',
+      'flex w-full items-center justify-between gap-2 min-h-[40px] sm:min-h-0 sm:h-8 rounded-lg border border-slate-200/90 bg-white px-2.5 py-1 text-[13px] text-slate-800 dark:border-neutral-300/40 dark:bg-neutral-100 dark:text-neutral-900',
       'hover:border-slate-300/90 focus:outline-none focus:ring-2 focus:ring-sky-400/30 focus:border-sky-400',
       'transition-all duration-200 ease-out',
       'disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 disabled:opacity-70',
@@ -58,7 +58,7 @@ const SelectContent = React.forwardRef(({ className, children, position = 'poppe
       ref={ref}
       position={position}
       className={cn(
-        'relative z-50 max-h-72 min-w-[8rem] overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-800 shadow-lg animate-scale-in',
+        'relative z-50 max-h-72 min-w-[8rem] overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-800 shadow-lg animate-scale-in dark:border-neutral-300/40 dark:bg-neutral-100 dark:text-neutral-900',
         position === 'popper' &&
           'data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1 w-full min-w-[var(--radix-select-trigger-width)]',
         className
@@ -87,7 +87,7 @@ const SelectItem = React.forwardRef(({ className, children, ...props }, ref) => 
     ref={ref}
     className={cn(
       'relative flex w-full cursor-pointer select-none items-center rounded-md py-1.5 pl-3 pr-8 text-sm outline-none',
-      'focus:bg-sky-50 focus:text-sky-950 data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      'focus:bg-sky-50 focus:text-sky-950 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 dark:focus:bg-primary-950 dark:focus:text-primary-100',
       className
     )}
     {...props}
@@ -103,7 +103,7 @@ const SelectItem = React.forwardRef(({ className, children, ...props }, ref) => 
 SelectItem.displayName = 'SelectItem';
 
 const SelectSeparator = React.forwardRef(({ className, ...props }, ref) => (
-  <SelectPrimitive.Separator ref={ref} className={cn('-mx-1 my-1 h-px bg-slate-100', className)} {...props} />
+  <SelectPrimitive.Separator ref={ref} className={cn('-mx-1 my-1 h-px bg-slate-100 dark:bg-neutral-300/20', className)} {...props} />
 ));
 SelectSeparator.displayName = 'SelectSeparator';
 

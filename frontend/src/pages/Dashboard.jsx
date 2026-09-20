@@ -120,6 +120,7 @@ export default function Dashboard() {
       {/* ── Page Title (industrial header: title + primary CTA, stacks on small screens) ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between min-w-0">
         <div className="min-w-0 pr-1">
+          <span className="page-kicker">Operations overview</span>
           <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 font-headline tracking-tight">
             Production Dashboard
           </h2>
@@ -168,25 +169,28 @@ export default function Dashboard() {
 
       {/* ── KPIs ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Decorative-neutral by default; a card only takes a semantic
+            color when the metric itself needs attention (Molten Steel
+            KPI-color rule — see ERP_UI_UX_DESIGN_CONTEXT.md §4/§20). */}
         <KpiCard
           label="Total Job Cards" value={stats?.total} loading={kpiLoading}
-          badge="All time" badgeColor="bg-sky-100 text-sky-900"
+          badge="All time" badgeColor="bg-slate-100 text-slate-700"
           sub="All production records" icon="description"
-          iconBg="bg-sky-100 text-sky-700"
+          iconBg="bg-slate-100 text-slate-600"
           to="/jobcards"
         />
         <KpiCard
           label="In Progress" value={stats?.inProgress} loading={kpiLoading}
-          badge="Floor" badgeColor="bg-blue-100 text-blue-900"
+          badge="Floor" badgeColor="bg-info-100 text-info-900"
           sub="Currently on machines" icon="precision_manufacturing"
-          iconBg="bg-blue-100 text-blue-700"
+          iconBg="bg-info-100 text-info-700"
           to="/jobcards"
         />
         <KpiCard
           label="Pending Job Work" value={stats?.sentForJobwork} loading={kpiLoading}
-          badge="Outward" badgeColor="bg-amber-100 text-amber-900"
+          badge="Outward" badgeColor="bg-slate-100 text-slate-700"
           sub="Sent for heat treatment" icon="local_shipping"
-          iconBg="bg-amber-100 text-amber-700"
+          iconBg="bg-slate-100 text-slate-600"
           to="/jobwork"
         />
         <KpiCard
@@ -207,10 +211,10 @@ export default function Dashboard() {
           <KpiCard
             label="Pending Invoices" value={invoiceMeta.pending} loading={kpiLoading}
             badge={invoiceMeta.partial > 0 ? `${invoiceMeta.partial} Partial` : invoiceMeta.pending > 0 ? 'Follow up' : 'All clear'}
-            badgeColor={invoiceMeta.partial > 0 ? 'bg-amber-100 text-amber-900' : invoiceMeta.pending > 0 ? 'bg-orange-100 text-orange-900' : 'bg-emerald-100 text-emerald-800'}
+            badgeColor={invoiceMeta.partial > 0 || invoiceMeta.pending > 0 ? 'bg-primary-100 text-primary-900' : 'bg-emerald-100 text-emerald-800'}
             sub={`${invoiceMeta.partial > 0 ? `${invoiceMeta.partial} partial · ` : ''}Tap to view`}
             icon="receipt_long"
-            iconBg="bg-orange-100 text-orange-700"
+            iconBg={invoiceMeta.partial > 0 || invoiceMeta.pending > 0 ? 'bg-primary-100 text-primary-700' : 'bg-emerald-100 text-emerald-700'}
             to="/invoices"
           />
         )}
@@ -236,7 +240,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Recent Job Cards ── */}
-      <div className="card overflow-hidden min-w-0">
+      <div className="dashboard-surface overflow-hidden min-w-0">
         <div className="px-3 sm:px-4 py-2.5 sm:py-3 flex flex-col xs:flex-row xs:justify-between xs:items-center gap-2 border-b border-slate-200/80">
           <div>
             <h3 className="text-sm font-bold text-slate-900 font-headline">Recent Job Cards</h3>

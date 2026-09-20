@@ -31,7 +31,7 @@ const DropdownMenuSubContent = React.forwardRef(({ className, ...props }, ref) =
   <DropdownMenuPrimitive.SubContent
     ref={ref}
     className={cn(
-      'z-50 min-w-[8rem] overflow-hidden rounded-lg border border-slate-200 bg-white p-1 text-slate-800 shadow-lg animate-scale-in',
+      'z-50 min-w-[8rem] overflow-hidden rounded-lg border border-slate-200 bg-white p-1 text-slate-800 shadow-lg animate-scale-in dark:border-neutral-300/40 dark:bg-neutral-100 dark:text-neutral-900',
       className
     )}
     {...props}
@@ -45,7 +45,7 @@ const DropdownMenuContent = React.forwardRef(({ className, sideOffset = 4, ...pr
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        'z-50 min-w-[9rem] overflow-hidden rounded-lg border border-slate-200 bg-white p-1 text-slate-800 shadow-lg',
+        'z-50 min-w-[9rem] overflow-hidden rounded-lg border border-slate-200 bg-white p-1 text-slate-800 shadow-lg dark:border-neutral-300/40 dark:bg-neutral-100 dark:text-neutral-900',
         'animate-scale-in',
         className
       )}
@@ -60,7 +60,7 @@ const DropdownMenuItem = React.forwardRef(({ className, inset, destructive, ...p
     ref={ref}
     className={cn(
       'relative flex min-h-[40px] sm:min-h-0 cursor-pointer select-none items-center gap-2 rounded-md px-2 py-2 sm:py-1.5 text-sm outline-none',
-      'transition-colors focus:bg-slate-100 data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      'transition-colors focus:bg-slate-100 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 dark:focus:bg-neutral-200/70',
       '[&>svg]:h-4 [&>svg]:w-4 [&>svg]:shrink-0 [&>svg]:text-slate-400',
       destructive && 'text-rose-600 focus:bg-rose-50 [&>svg]:text-rose-500',
       inset && 'pl-8',

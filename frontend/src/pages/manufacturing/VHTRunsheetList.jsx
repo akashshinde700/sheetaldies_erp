@@ -18,6 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 const STATUS_VARIANT = {
   PLANNED:     'info',
   IN_PROGRESS: 'warning',
+  TEMPERING:   'info',
   COMPLETED:   'success',
   CANCELLED:   'neutral',
 };

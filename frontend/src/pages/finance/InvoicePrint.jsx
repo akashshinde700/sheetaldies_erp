@@ -73,6 +73,15 @@ const tdStyle = (extra = {}) => ({ border: B, padding: '3px 5px', ...extra });
 // unit too.
 const billedOnWeight = (it) => n(it.weight) > 0;
 const perUnit = (it) => (billedOnWeight(it) ? 'Kgs' : (it.unit || 'Nos'));
+// `it.unit` stores the *billing* unit (KGS/PCS/LOT), not the unit the
+// physical Quantity count is in — a KGS-billed line's quantity is still a
+// piece count, so labelling it "KGS" (as if quantity itself were kilos) is
+// wrong. The Quantity column always shows a piece/lot count, so a KGS
+// billing unit maps to Nos there; PCS/LOT print as-is.
+const qtyUnitOf = (it) => {
+  const u = (it.unit || 'Nos').toUpperCase();
+  return u === 'KGS' ? 'Nos' : (it.unit || 'Nos');
+};
 // A piece count is a whole number and should print as one: 12, not 12.000.
 const qtyText = (v) => {
   const x = n(v);
@@ -153,8 +162,10 @@ export default function InvoicePrint() {
     const totalWt   = items.reduce((s, it) => s + n(it.weight), 0);
     const totalQty  = items.reduce((s, it) => s + n(it.quantity), 0);
     // Adding a piece count to a weight would be meaningless, so the quantity
-    // total is only shown when every line is counted in the same unit.
-    const qtyUnits  = new Set(items.map(it => (it.unit || 'Nos').toUpperCase()));
+    // total is only shown when every line is counted in the same unit. Uses
+    // qtyUnitOf so a KGS-billed line (quantity = piece count, not kilos)
+    // groups under Nos here too, matching each line's own Quantity cell.
+    const qtyUnits  = new Set(items.map(it => qtyUnitOf(it).toUpperCase()));
     const qtyUnit   = qtyUnits.size === 1 ? [...qtyUnits][0] : null;
 
     const hsnMap = {};
@@ -404,7 +415,7 @@ export default function InvoicePrint() {
                 </td>
                 <td style={{ ...tdStyle({ textAlign: 'center', fontFamily: 'monospace' }) }}>{it.hsnSac || '998873'}</td>
                 <td style={{ ...tdStyle({ textAlign: 'right', fontFamily: 'monospace' }) }}>
-                  {qtyText(it.quantity)} {it.unit || 'Nos'}
+                  {qtyText(it.quantity)} {qtyUnitOf(it)}
                 </td>
                 <td style={{ ...tdStyle({ textAlign: 'right', fontFamily: 'monospace' }) }}>
                   {n(it.weight) > 0 ? `${fmt(it.weight, 3)} Kgs` : ''}

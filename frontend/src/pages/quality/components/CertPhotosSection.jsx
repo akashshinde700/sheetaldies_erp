@@ -58,14 +58,15 @@ export default function CertPhotosSection({ handleImageChange, existingImages = 
         <CardTitle>Part Photos</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
+        <div className="flex flex-wrap gap-2.5">
           {[1, 2, 3, 4, 5].map(i => (
-            <ImageSlot
-              key={i}
-              index={i}
-              initialUrl={existingImages[`image${i}`]}
-              onChange={handleImageChange}
-            />
+            <div key={i} className="w-24 sm:w-28">
+              <ImageSlot
+                index={i}
+                initialUrl={existingImages[`image${i}`]}
+                onChange={handleImageChange}
+              />
+            </div>
           ))}
         </div>
       </CardContent>

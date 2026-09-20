@@ -58,6 +58,16 @@ const invoiceItemSchema = Joi.object({
   rate: Joi.number().min(0).required(),
   amount: Joi.number().min(0).required(),
   processTypeId: Joi.number().integer().positive().allow(null, ''),
+  certId: Joi.number().integer().positive().allow(null, ''),
+  // Same-process consolidation: several challan items billed as one line.
+  // Without this declared, stripUnknown:true silently deletes it before it
+  // ever reaches the controller — that was the entire bug.
+  sources: Joi.array().items(
+    Joi.object({
+      challanItemId: Joi.number().integer().positive().required(),
+      quantity: Joi.number().positive().required(),
+    })
+  ).optional(),
 });
 
 exports.createInvoiceSchema = Joi.object({

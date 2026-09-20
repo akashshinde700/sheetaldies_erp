@@ -40,7 +40,10 @@ export default {
           primary, neutral, success, warning, danger, accent, info, heat,
 
           // legacy hue aliases → roles
-          sky: primary, blue: primary, indigo: primary, cyan: primary, brand: primary,
+          // indigo IS the brand hue now; sky/blue/cyan read as the distinct
+          // "info" role (see index.css) since primary moved off blue.
+          indigo: primary, brand: primary,
+          sky: info, blue: info, cyan: info,
           slate: neutral, gray: neutral, zinc: neutral,
           emerald: success, green: success, teal: success,
           amber: warning, yellow: warning, orange: warning,
@@ -61,18 +64,20 @@ export default {
             success: 'rgb(var(--c-success-600) / <alpha-value>)',
             error:   'rgb(var(--c-danger-600) / <alpha-value>)',
             warning: 'rgb(var(--c-warning-600) / <alpha-value>)',
-            info:    'rgb(var(--c-primary-600) / <alpha-value>)',
+            info:    'rgb(var(--c-info-600) / <alpha-value>)',
           },
         };
       })(),
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
-        headline: ['Manrope', 'Inter', 'system-ui', 'sans-serif'],
+        headline: ['"Plus Jakarta Sans"', 'Inter', 'system-ui', 'sans-serif'],
         // App UI face for the modernized screens. Opt-in via `font-app`;
         // `body` stays Inter so not-yet-migrated pages and every print
-        // sheet keep their current typography.
-        app: ['"IBM Plex Sans"', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
-        'app-mono': ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+        // sheet keep their current typography. (Was IBM Plex Sans — folded
+        // onto Inter so the app carries only two faces: Jakarta for
+        // headings, Inter for everything else, per the Molten Steel system.)
+        app: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        'app-mono': ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       boxShadow: {
         card: '0 1px 2px rgb(15 23 42 / 0.04), 0 4px 16px -4px rgb(15 23 42 / 0.06)',

@@ -28,7 +28,7 @@ export const applyTheme = (theme = getStoredTheme()) => {
   if (cs) cs.setAttribute('content', dark ? 'dark' : 'light');
   // mobile address-bar tint
   document.querySelectorAll('meta[name="theme-color"]').forEach((m) => {
-    m.setAttribute('content', dark ? '#0B1220' : '#0f172a');
+    m.setAttribute('content', dark ? '#171412' : '#262220');
   });
 };
 

@@ -17,7 +17,7 @@ export default function PageNav({ page, totalPages, total, limit, setPage }) {
   const to = Math.min(page * limit, total);
 
   return (
-    <div className="flex flex-col xs:flex-row xs:items-center xs:justify-between gap-2 px-4 py-3 border-t border-slate-100 bg-slate-50/50">
+    <div className="flex flex-col xs:flex-row xs:items-center xs:justify-between gap-2 px-4 py-3 border-t border-slate-100 bg-slate-50/50 dark:border-neutral-300/20 dark:bg-neutral-50/40">
       <span className="text-xs text-slate-500">
         {from}–{to} of <span className="font-semibold text-slate-700">{total}</span>
       </span>
@@ -27,7 +27,7 @@ export default function PageNav({ page, totalPages, total, limit, setPage }) {
           onClick={() => setPage((p) => Math.max(1, p - 1))}
           disabled={page <= 1}
           aria-label="Previous page"
-          className="flex items-center gap-1 text-xs px-3 py-1.5 min-h-[36px] rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 hover:bg-sky-50 hover:border-sky-200 hover:text-sky-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-1"
+          className="flex items-center gap-1 text-xs px-3 py-1.5 min-h-[36px] rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 hover:bg-sky-50 hover:border-sky-200 hover:text-sky-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-1 dark:border-neutral-300/40 dark:text-neutral-700 dark:hover:bg-primary-950 dark:hover:border-primary-700 dark:hover:text-primary-100"
         >
           <span className="material-symbols-outlined text-sm">chevron_left</span> Prev
         </button>
@@ -37,7 +37,7 @@ export default function PageNav({ page, totalPages, total, limit, setPage }) {
           onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
           disabled={page >= totalPages}
           aria-label="Next page"
-          className="flex items-center gap-1 text-xs px-3 py-1.5 min-h-[36px] rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 hover:bg-sky-50 hover:border-sky-200 hover:text-sky-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-1"
+          className="flex items-center gap-1 text-xs px-3 py-1.5 min-h-[36px] rounded-lg border border-slate-200 text-slate-600 disabled:opacity-40 hover:bg-sky-50 hover:border-sky-200 hover:text-sky-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-1 dark:border-neutral-300/40 dark:text-neutral-700 dark:hover:bg-primary-950 dark:hover:border-primary-700 dark:hover:text-primary-100"
         >
           Next <span className="material-symbols-outlined text-sm">chevron_right</span>
         </button>

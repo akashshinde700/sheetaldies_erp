@@ -12,6 +12,7 @@ const PENDING_TABS = [
   { key: 's2', label: 'Certificate', dataKey: 'jobCardsNeedCert' },
   { key: 's3', label: 'Invoice', dataKey: 'certsNeedInvoice' },
   { key: 's4', label: 'Payment', dataKey: 'invoicesPendingPayment' },
+  { key: 's5', label: 'Rework', dataKey: 'reworkPendingItems' },
 ];
 
 function SectionHeader({ icon, iconBg, iconColor, title, count, countColor }) {
@@ -125,7 +126,7 @@ export default function PendingDashboard() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="card p-3 border-l-4 border-amber-400">
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">Challan → Job Card</p>
           <p className="text-xl sm:text-2xl font-extrabold text-amber-600 mt-0.5 tabular-nums">{summary.challansNeedJobCard ?? 0}</p>
@@ -145,6 +146,11 @@ export default function PendingDashboard() {
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">Payment Pending</p>
           <p className="text-xl sm:text-2xl font-extrabold text-rose-600 mt-0.5 tabular-nums">{summary.invoicesPendingPayment ?? 0}</p>
           <p className="text-[10px] text-slate-400 tabular-nums truncate">{formatCurrency(summary.invoiceAmountPending ?? 0)}</p>
+        </div>
+        <div className="card p-3 border-l-4 border-orange-400">
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">Rework Pending</p>
+          <p className="text-xl sm:text-2xl font-extrabold text-orange-600 mt-0.5 tabular-nums">{summary.reworkPendingItems ?? 0}</p>
+          <p className="text-[10px] text-slate-400">awaiting redo &amp; re-verification</p>
         </div>
       </div>
 
@@ -406,6 +412,60 @@ export default function PendingDashboard() {
                   <td />
                 </tr>
               </tfoot>
+            </table>
+          </div>
+        )}
+      </div>
+      </TabsContent>
+
+      <TabsContent value="s5">
+      {/* Section 5: Rework raised, not yet redone/re-verified */}
+      <div className="card p-4">
+        <SectionHeader
+          icon="build_circle"
+          iconBg="bg-orange-50"
+          iconColor="text-orange-500"
+          title="Rework — Redo Pending"
+          count={data?.reworkPendingItems?.length ?? 0}
+          countColor="bg-orange-100 text-orange-700"
+        />
+        {!data?.reworkPendingItems?.length ? (
+          <EmptyState message="No rework awaiting redo!" hint="Every open rework entry has an after-process result recorded." />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs min-w-[720px]">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200/80">
+                  {['Date', 'Customer', 'Description', 'Job Card', 'Cycle No', 'Rework Cycle No', 'Reason', 'Action'].map(h => (
+                    <th key={h} className="px-3 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {data.reworkPendingItems.map(r => (
+                  <tr key={r.id} className="hover:bg-orange-50/30 transition-colors">
+                    <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{formatDate(r.entryDate)}</td>
+                    <td className="px-3 py-2 font-medium text-slate-800">{r.customerName || '—'}</td>
+                    <td className="px-3 py-2 text-slate-600">{r.description || '—'}</td>
+                    <td className="px-3 py-2">
+                      {r.jobCard ? (
+                        <Link to={`/jobcards/${r.jobCard.id}`} className="font-mono text-sky-600 hover:underline">
+                          {r.jobCard.jobCardNo}
+                        </Link>
+                      ) : '—'}
+                    </td>
+                    <td className="px-3 py-2 font-mono text-slate-600">{r.cycleNo || '—'}</td>
+                    <td className="px-3 py-2 font-mono text-slate-600">{r.reworkCycleNo || '—'}</td>
+                    <td className="px-3 py-2 text-slate-500">{r.reason || '—'}</td>
+                    <td className="px-3 py-2">
+                      <Link to="/quality/rework-data" className="btn-outline text-[11px] px-3 py-1.5 h-auto border-orange-200 text-orange-700 hover:bg-orange-50">
+                        <span className="material-symbols-outlined text-sm">build_circle</span>
+                        Open Rework Data
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
             </table>
           </div>
         )}

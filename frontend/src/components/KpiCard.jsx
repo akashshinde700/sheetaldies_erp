@@ -1,5 +1,16 @@
 import { Link } from 'react-router-dom';
 
+// Static map, not string interpolation — Tailwind's build-time class scanner
+// greps literal source text, so a template-built "bg-${hue}-500" would never
+// get generated into the shipped CSS. Every hue any page passes to `iconBg`
+// must have an entry here.
+const ACCENT_LINE = {
+  slate: 'bg-slate-300', amber: 'bg-amber-500', blue: 'bg-blue-500',
+  emerald: 'bg-emerald-500', rose: 'bg-rose-500', sky: 'bg-sky-500',
+  info: 'bg-info-500', violet: 'bg-violet-500', primary: 'bg-primary-500',
+  warning: 'bg-warning-500', success: 'bg-success-500', danger: 'bg-danger-500',
+};
+
 export default function KpiCard({
   label,
   value,
@@ -11,8 +22,15 @@ export default function KpiCard({
   to,
   loading = false,
 }) {
+  // Top accent line picks up the same hue as the icon chip (e.g. "bg-emerald-100
+  // text-emerald-700" -> "bg-emerald-500") so a card's one moment of color reads
+  // as one coherent signal, not a separate decorative stripe.
+  const hueMatch = iconBg.match(/bg-([a-z]+)-100/);
+  const accentClass = (hueMatch && ACCENT_LINE[hueMatch[1]]) || 'bg-slate-300';
+
   const Inner = (
-    <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm hover:border-slate-300 hover:shadow transition-all duration-150 p-3 sm:p-4 h-full flex flex-col justify-between gap-2 min-w-0">
+    <div className="relative overflow-hidden bg-white/95 rounded-xl border border-slate-200/90 shadow-sm hover:border-slate-300 hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-200 p-3 sm:p-4 h-full flex flex-col justify-between gap-3 min-w-0">
+      <span className={`absolute inset-x-0 top-0 h-0.5 ${accentClass}`} aria-hidden="true" />
       <div className="flex items-start justify-between gap-2 min-w-0">
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 truncate">{label}</p>

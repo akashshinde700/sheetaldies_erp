@@ -141,9 +141,9 @@ export default function InvoiceList() {
       const problems = check.data?.data?.problems || [];
       if (problems.length) {
         setConfirmDialog({
-          title: `${inv.invoiceNo} — e-Invoice me dikkat`,
-          message: problems.join('\n') + '\n\nPhir bhi file download karein? Portal ise reject kar sakta hai.',
-          confirmLabel: 'Phir bhi download karo',
+          title: `${inv.invoiceNo} — e-Invoice issue`,
+          message: problems.join('\n') + '\n\nDownload the file anyway? The portal may reject it.',
+          confirmLabel: 'Download anyway',
           variant: 'primary',
           onConfirm: async () => { setConfirmDialog(null); await doDownloadEInvoiceJson(inv); },
         });

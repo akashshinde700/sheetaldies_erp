@@ -4,7 +4,7 @@ import api from '../../utils/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMachines, useParties } from '../../hooks/useMasterData';
 import toast from 'react-hot-toast';
-import { Printer, Plus, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Printer, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,6 @@ import { FormErrorSummary, focusField } from '@/components/ui/field';
 import CustomerSection from './components/CustomerSection';
 import JobCardHeaderInfoSection from './components/JobCardHeaderInfoSection';
 import IssueInstructionsSection from './components/IssueInstructionsSection';
-import ProductionSection from './components/ProductionSection';
 import StatusRemarksSection from './components/StatusRemarksSection';
 import PhotoSection from './components/PhotoSection';
 import LinkedDataSection from './components/LinkedDataSection';
@@ -201,11 +200,16 @@ export default function JobCardForm() {
   // items table (LinkedDataSection) saves totalWeight on its own via a
   // separate PUT; without this the parent form keeps a stale value and the
   // main "Update" button would overwrite the DB weight with null on submit.
+  // Until a weight is actually saved, default it to the inward's total
+  // weight so the field isn't left showing a bare 0.000.
   useEffect(() => {
-    if (cardData?.totalWeight != null) {
+    if (cardData?.totalWeight != null && Number(cardData.totalWeight) > 0) {
       setForm(prev => ({ ...prev, totalWeight: String(Number(cardData.totalWeight)) }));
+    } else if (cardData?.weightSummary?.inwardTotalWeight > 0) {
+      const inward = String(Number(cardData.weightSummary.inwardTotalWeight));
+      setForm(prev => (prev.totalWeight ? prev : { ...prev, totalWeight: inward }));
     }
-  }, [cardData?.totalWeight]);
+  }, [cardData?.totalWeight, cardData?.weightSummary?.inwardTotalWeight]);
 
   // Auto-populate address when customerId is set but address is empty (e.g. customers load after form fill)
   useEffect(() => {
@@ -327,7 +331,7 @@ export default function JobCardForm() {
     if (Object.keys(errs).length) {
       const firstKey = Object.keys(errs)[0];
       if (isEdit) {
-        const stepByKey = { customerId: 0, customerNameSnapshot: 0, quantity: 1 };
+        const stepByKey = { customerId: 0, customerNameSnapshot: 0, quantity: 0 };
         wiz.goto(stepByKey[firstKey] ?? 0);
       }
       setTimeout(() => focusField(firstKey), 0);
@@ -402,7 +406,11 @@ export default function JobCardForm() {
       } else {
         const r = await api.post('/jobcards', fd);
         toast.success(`Job card ${r.data.data.jobCardNo} created!`);
-        navigate('/jobcards');
+        // Land on the edit page (not the list) so Inspection and Items — only
+        // available once the job card has a real id — are immediately usable,
+        // same as the other creation paths (Create Job Card from an inward,
+        // Fill Form + Create here).
+        navigate(`/jobcards/${r.data.data.id}/edit`);
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error saving job card.');
@@ -465,10 +473,8 @@ export default function JobCardForm() {
 
   const JC_STEPS = [
     { key: 'customer', label: 'Customer & job' },
-    { key: 'production', label: 'Production' },
     { key: 'inspection', label: 'Inspection' },
     { key: 'items', label: linkedItemCount ? `Items (${linkedItemCount})` : 'Items' },
-    { key: 'docs', label: 'Document control' },
   ];
   const wiz = useStepper(JC_STEPS.length);
   const LAST = JC_STEPS.length - 1;
@@ -479,22 +485,21 @@ export default function JobCardForm() {
         errors={Object.fromEntries(Object.entries(formErrors).map(([k, v]) => [k, { message: v }]))}
         labels={{ customerId: 'Party / customer', quantity: 'Quantity' }}
       />
-      <CustomerSection
-        form={form}
-        setForm={setForm}
-        customers={customers}
-        applyCustomerFromParty={applyCustomerFromParty}
-        errors={formErrors}
-      />
-      <JobCardHeaderInfoSection form={form} setForm={setForm} cardData={cardData} />
-      <IssueInstructionsSection form={form} setForm={setForm} />
-    </>
-  );
-
-  const stepProduction = (
-    <>
-      <ProductionSection form={form} setForm={setForm} weightSummary={cardData?.weightSummary} errors={formErrors} />
-      <StatusRemarksSection form={form} setForm={setForm} />
+      <Card>
+        <CardHeader><CardTitle>Job Card Details</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <CustomerSection
+            form={form}
+            setForm={setForm}
+            customers={customers}
+            applyCustomerFromParty={applyCustomerFromParty}
+            errors={formErrors}
+          />
+          <JobCardHeaderInfoSection form={form} setForm={setForm} cardData={cardData} />
+          <IssueInstructionsSection form={form} setForm={setForm} errors={formErrors} cardData={cardData} />
+          <StatusRemarksSection form={form} setForm={setForm} />
+        </CardContent>
+      </Card>
       <PhotoSection handleImageChange={handleImageChange} existingImages={cardData} savingSlot={savingSlot} />
     </>
   );
@@ -532,6 +537,7 @@ export default function JobCardForm() {
     <div className="font-app flex flex-col h-full min-h-0">
       <PageHeader
         title={isEdit ? `Edit Job Card ${cardData?.jobCardNo ?? ''}`.trim() : 'Create Job Card'}
+        inlineMeta
         backTo={isEdit && id ? `/jobcards/${id}` : '/jobcards'}
         breadcrumbs={
           isEdit
@@ -700,28 +706,16 @@ export default function JobCardForm() {
         <>
           <form id="job-card-form" onSubmit={handleSubmit} className="space-y-3">
             <div hidden={wiz.current !== 0} className="space-y-3">{stepCustomer}</div>
-            <div hidden={wiz.current !== 1} className="space-y-3">{stepProduction}</div>
-            <div hidden={wiz.current !== 4} className="space-y-3">{docControlSection}</div>
+            <div hidden={wiz.current !== 2} className="space-y-3">{docControlSection}</div>
           </form>
 
-          <div hidden={wiz.current !== 2} className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-              <p className="text-xs text-slate-600">
-                Quick categorization &amp; required-hardness edits — use <strong>Save Inspection</strong> here, or they are also saved with <strong>Save job card</strong>.
-              </p>
-              <Button asChild variant="outline" size="sm">
-                <Link to={`/jobcards/${id}/inspection`}><ExternalLink className="h-3.5 w-3.5" /> Full final inspection</Link>
-              </Button>
-            </div>
+          <div hidden={wiz.current !== 1} className="space-y-3">
             {cardData && (
               <InspectionEditSection ref={inspectionRef} id={id} inspection={cardData.inspection} hrcRange={form.hrcRange} />
             )}
           </div>
 
-          <div hidden={wiz.current !== 3} className="space-y-3">
-            <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-              Each item row saves with its own <strong>Save</strong>. Total weight can also be set on <strong>Production</strong> — both write the same field.
-            </p>
+          <div hidden={wiz.current !== 2} className="space-y-3">
             <LinkedDataSection
               ref={linkedDataRef}
               isEdit={isEdit}
@@ -754,7 +748,6 @@ export default function JobCardForm() {
         <>
           <form id="job-card-form" onSubmit={handleSubmit} className="space-y-3">
             {stepCustomer}
-            {stepProduction}
             {docControlSection}
           </form>
           <div className="sticky bottom-0 z-30 mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white/95 px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-card backdrop-blur sm:px-5">
