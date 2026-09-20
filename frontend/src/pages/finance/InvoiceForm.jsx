@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams, useParams, Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
@@ -241,6 +241,38 @@ export default function InvoiceForm() {
     }
   }, [challansLoaded]);
 
+  /**
+   * The three reads that give a challan its billing context. Kept separate
+   * from handleChallanChange because edit mode needs exactly this and must
+   * NOT have the invoice's own saved lines rebuilt from the challan.
+   */
+  const loadChallanContext = useCallback(async (challanId) => {
+    const [detailRes, histRes, billRes] = await Promise.all([
+      api.get(`/jobwork/${challanId}`),
+      api.get('/invoices', { params: { challanId } }),
+      // Edit me apni hi invoice ko ginti se bahar rakho, warna wo khud ko
+      // "already fully invoiced" bata kar save block kar degi.
+      api.get(`/invoices/challan/${challanId}/billing-status`, {
+        params: isEdit ? { excludeInvoiceId: id } : undefined,
+      }),
+    ]);
+    setChallanInfo(detailRes.data.data);
+    setChallanHistory(histRes.data.data || []);
+    setBillingStatus(billRes.data.data || null);
+    return { detailRes, billRes };
+  }, [isEdit, id]);
+
+  // Edit mode fills challanId straight from the saved invoice, so this context
+  // was never fetched — leaving remainingByChallanItem empty, which made every
+  // line look unmapped and refused the save with "Each line must be mapped to
+  // a challan item". Load it here, without touching the loaded lines.
+  useEffect(() => {
+    if (!isEdit || !form.challanId || challanInfo) return;
+    loadChallanContext(form.challanId).catch(() => {
+      toast.error('Challan ka billing status load nahi hua — qty check ke bina save block rahega.');
+    });
+  }, [isEdit, form.challanId, challanInfo, loadChallanContext]);
+
   const handleChallanChange = async (val) => {
     setJobCardLookupMessage('');
     setChallanInfo(null);
@@ -251,19 +283,8 @@ export default function InvoiceForm() {
 
     setLoadingChallan(true);
     try {
-      const [detailRes, histRes, billRes] = await Promise.all([
-        api.get(`/jobwork/${val}`),
-        api.get('/invoices', { params: { challanId: val } }),
-        // Edit me apni hi invoice ko ginti se bahar rakho, warna wo khud ko
-        // "already fully invoiced" bata kar save block kar degi.
-        api.get(`/invoices/challan/${val}/billing-status`, {
-          params: isEdit ? { excludeInvoiceId: id } : undefined,
-        }),
-      ]);
+      const { detailRes, billRes } = await loadChallanContext(val);
       const ch = detailRes.data.data;
-      setChallanInfo(ch);
-      setChallanHistory(histRes.data.data || []);
-      setBillingStatus(billRes.data.data || null);
       // Challan: fromParty=customer, toParty=processor
       // Invoice: fromParty=processor (bills), toParty=customer (pays) — reversed
       const invoiceToPartyId = String(ch.fromPartyId || form.toPartyId);
@@ -626,6 +647,10 @@ export default function InvoiceForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Only the Review step saves. A stray submit reaching here from any other
+    // step would save behind the user's back, without them ever seeing the
+    // review — so refuse it outright rather than trusting the button alone.
+    if (wiz.current !== LAST_STEP) return;
     const errs = {};
     if (!form.fromPartyId) errs.fromPartyId = 'Billing party is required.';
     if (!form.toPartyId) errs.toPartyId = 'Customer is required.';
@@ -868,10 +893,15 @@ export default function InvoiceForm() {
             <Button type="button" variant="ghost" disabled={wiz.isFirst} onClick={wiz.back}>
               <ChevronLeft className="h-4 w-4" /> Back
             </Button>
+            {/* Distinct keys matter here: without them React reuses the same
+                <button> node and merely flips type="button" to type="submit"
+                while the Next click is still being handled — the browser then
+                runs that click's default action on the now-submit button and
+                saves the invoice instead of showing the Review step. */}
             {wiz.current < LAST_STEP ? (
-              <Button type="button" onClick={goNext}>Next <ChevronRight className="h-4 w-4" /></Button>
+              <Button key="wizard-next" type="button" onClick={goNext}>Next <ChevronRight className="h-4 w-4" /></Button>
             ) : (
-              <Button type="submit" loading={loading} disabled={loading || editLoading || fullyInvoiced || loadingChallan}>
+              <Button key="wizard-submit" type="submit" loading={loading} disabled={loading || editLoading || fullyInvoiced || loadingChallan}>
                 {!loading && <ReceiptText />}
                 {loading ? (isEdit ? 'Saving…' : 'Creating…') : (isEdit ? 'Save Changes' : 'Create Invoice')}
               </Button>

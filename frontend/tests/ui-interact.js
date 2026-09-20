@@ -35,7 +35,32 @@ const prisma = new PrismaClient();
       createdBy: { connect: { id: 1 } },
       items: { create: [{ description: 'UI TEST PART', quantity: 3, weight: 6, rate: 10, amount: 60 }] },
     },
+    include: { items: true },
   });
+
+  // A job card, so a cycle can actually be planned (a plan needs a load).
+  const jobCard = await prisma.jobCard.create({
+    data: { jobCardNo: 'UIT-JC-1', quantity: 3, customerId: customer.id, createdById: 1 },
+  });
+
+  // An invoice against that challan, so editing one can be exercised.
+  const series = await prisma.invoiceSeries.findFirst({ select: { id: true } });
+  let invoice = null;
+  if (series) {
+    invoice = await prisma.taxInvoice.create({
+      data: {
+        invoiceNo: 'UIT-INV-1', invoiceDate: new Date(),
+        fromPartyId: processor.id, toPartyId: customer.id,
+        invoiceSeriesId: series.id, challanId: challan.id, createdById: 1,
+        items: {
+          create: [{
+            description: 'UI TEST PART', quantity: 3, weight: 6, rate: 10, amount: 30,
+            sourceChallanItemId: challan.items[0].id,
+          }],
+        },
+      },
+    });
+  }
 
   const browser = await launch();
   try {
@@ -75,6 +100,37 @@ const prisma = new PrismaClient();
     r.ok('Next cycle no follows the furnace picked', /UIT-FURNACE\/\d{2}\/\d{2}\/01/.test(cycleText), cycleText.slice(0, 90));
     r.ok('First cycle of the month is called out', /first cycle this month/i.test(cycleText), cycleText.slice(0, 120));
 
+    // 2b. A planned cycle can be edited and deleted from the same page.
+    await page.getByText('Select job card').first().click();
+    await page.waitForTimeout(500);
+    await page.getByText(/UIT-JC-1/).first().click();
+    await page.waitForTimeout(1200);
+    await page.getByRole('button', { name: /Save plan/i }).first().click();
+    await page.waitForTimeout(2500);
+    const planned = await page.locator('body').innerText();
+    const cycleNo = (planned.match(/UIT-FURNACE\/\d{2}\/\d{2}\/\d+/) || [])[0] || '';
+    r.ok('A cycle can actually be planned', Boolean(cycleNo), planned.slice(0, 120).replace(/\n/g, ' '));
+
+    await page.getByTitle('Edit this cycle').first().click();
+    await page.waitForTimeout(800);
+    r.ok('Edit opens the cycle with its number fixed',
+      /Cycle no stays/i.test(await page.locator('body').innerText()));
+    await page.locator('input[placeholder*="VACUUM HARDENING"]').first().fill('EDITED BY UI TEST');
+    await page.getByRole('button', { name: /Save changes/i }).first().click();
+    await page.waitForTimeout(2500);
+    r.ok('Editing a planned cycle saves',
+      /EDITED BY UI TEST/i.test(await page.locator('body').innerText()));
+
+    await page.getByTitle('Delete this cycle').first().click();
+    await page.waitForTimeout(600);
+    r.ok('Delete asks before removing', /cannot be undone/i.test(await page.locator('body').innerText()));
+    await page.getByRole('button', { name: /Delete cycle/i }).first().click();
+    await page.waitForTimeout(2500);
+    // Check the row itself, not the page text — the success toast repeats the
+    // cycle no and would still be on screen.
+    r.ok('Deleting a planned cycle removes it',
+      (await page.getByRole('link', { name: cycleNo }).count()) === 0, cycleNo);
+
     // 3. Run sheet: the same number appears, read-only, in Furnace Cycle No
     await page.goto(`${env.base}/manufacturing/runsheet/new`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(2000);
@@ -86,6 +142,40 @@ const prisma = new PrismaClient();
     const preview = await page.locator('#furnaceCycleNo').inputValue().catch(() => '');
     r.ok('Furnace Cycle No previews the next number', /UIT-FURNACE\/\d{2}\/\d{2}\/01 \(next\)/.test(preview), preview);
     r.ok('Furnace Cycle No cannot be typed into', await page.locator('#furnaceCycleNo').isDisabled().catch(() => false));
+
+    // 3b. Editing an invoice that is linked to a challan must save.
+    // Edit mode fills challanId from the saved invoice without fetching the
+    // challan's billing status, which once left every line looking unmapped
+    // and refused the save outright.
+    if (invoice) {
+      await page.goto(`${env.base}/invoices/${invoice.id}/edit`, { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(3000);
+      r.ok('Invoice edit page opens', /Edit Tax Invoice/i.test(await page.locator('body').innerText()));
+
+      // Walk the wizard to Review. Next must never save on the way — it once
+      // did, because React swapped the Next button into the submit button
+      // mid-click, so the invoice saved without the user seeing the review.
+      const save = page.getByRole('button', { name: /Save Changes/i }).first();
+      let savedEarly = false;
+      for (let step = 0; step < 4; step += 1) {
+        await page.getByRole('button', { name: /^Next/i }).first().click();
+        await page.waitForTimeout(900);
+        if (!/\/edit$/.test(new URL(page.url()).pathname)) { savedEarly = true; break; }
+        if (step === 1) {
+          r.ok('Invoice edit shows the saved line',
+            await page.locator('text=UI TEST PART').first().isVisible().catch(() => false));
+        }
+      }
+      r.ok('"Next" never saves the invoice on its own', !savedEarly, 'left the form before Review');
+      r.ok('Invoice edit reaches the Review step', await save.isVisible().catch(() => false));
+      await save.click();
+      await page.waitForTimeout(3500);
+      const afterSave = await page.locator('body').innerText();
+      r.ok('Editing a challan-linked invoice is not refused as "unmapped"',
+        !/mapped to a challan item/i.test(afterSave),
+        afterSave.slice(0, 160).replace(/\n/g, ' '));
+      r.ok('Invoice edit actually saves', !/\/edit$/.test(new URL(page.url()).pathname), page.url());
+    }
 
     // 4. Plant Losses working-days input
     await page.goto(`${env.base}/manufacturing/plant-losses`, { waitUntil: 'domcontentloaded' });
@@ -115,12 +205,17 @@ const prisma = new PrismaClient();
     r.ok('No uncaught JS errors anywhere', jsErrors.length === 0, jsErrors[0] || '');
   } finally {
     await browser.close();
+    if (invoice) {
+      await prisma.invoiceItem.deleteMany({ where: { invoiceId: invoice.id } }).catch(() => {});
+      await prisma.taxInvoice.delete({ where: { id: invoice.id } }).catch(() => {});
+    }
     const runsheetIds = (await prisma.vHTRunsheet.findMany({ where: { furnaceId: machine.id }, select: { id: true } })).map((x) => x.id);
     await prisma.vHTRunsheetItem.deleteMany({ where: { runsheetId: { in: runsheetIds } } });
     await prisma.vHTRunsheet.deleteMany({ where: { id: { in: runsheetIds } } });
     await prisma.challanItem.deleteMany({ where: { challanId: challan.id } });
     await prisma.jobworkChallan.delete({ where: { id: challan.id } });
     await prisma.party.deleteMany({ where: { id: { in: [customer.id, processor.id] } } });
+    await prisma.jobCard.delete({ where: { id: jobCard.id } }).catch(() => {});
     await prisma.machine.delete({ where: { id: machine.id } });
     await prisma.item.delete({ where: { id: item.id } });
     await prisma.$disconnect();

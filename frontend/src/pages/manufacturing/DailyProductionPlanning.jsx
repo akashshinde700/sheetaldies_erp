@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Printer, Zap, Flame, Plus, Trash2, X, Save } from 'lucide-react';
+import { ArrowRight, Printer, Zap, Flame, Plus, Trash2, Pencil, X, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
 import { Button } from '@/components/ui/button';
@@ -32,7 +32,7 @@ function loadTotals(items) {
   }), { qty: 0, wt: 0 });
 }
 
-function FurnaceBlock({ furnace, rows, onPlan }) {
+function FurnaceBlock({ furnace, rows, onPlan, onEdit, onDelete }) {
   const planned = rows.reduce((n, r) => n + loadTotals(r.items).wt, 0);
   return (
     <section className="overflow-hidden rounded-lg border border-slate-200 bg-white print:break-inside-avoid print:rounded-none print:border-slate-900">
@@ -59,7 +59,7 @@ function FurnaceBlock({ furnace, rows, onPlan }) {
               <th className="w-40 px-3 py-2 font-semibold print:px-1 print:py-1">Parameters</th>
               <th className="w-24 px-3 py-2 font-semibold print:px-1 print:py-1">Time</th>
               <th className="w-56 px-3 py-2 font-semibold print:hidden">Linked downstream</th>
-              <th className="w-10 px-3 py-2 print:hidden" />
+              <th className="w-28 px-3 py-2 print:hidden" />
             </tr>
           </thead>
           <tbody>
@@ -103,9 +103,17 @@ function FurnaceBlock({ furnace, rows, onPlan }) {
                     </p>
                   </td>
                   <td className="px-3 py-2.5 print:hidden">
-                    <Link to={`/manufacturing/runsheet/${r.id}`} className="inline-flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-slate-50 hover:text-primary-700">
-                      <ArrowRight className="h-4 w-4" />
-                    </Link>
+                    <div className="flex items-center gap-0.5">
+                      <button type="button" title="Edit this cycle" onClick={() => onEdit(r)} className="inline-flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-slate-50 hover:text-primary-700">
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button type="button" title="Delete this cycle" onClick={() => onDelete(r)} className="inline-flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-rose-50 hover:text-rose-600">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                      <Link to={`/manufacturing/runsheet/${r.id}`} title="Open in VHT Run Sheet" className="inline-flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-slate-50 hover:text-primary-700">
+                        <ArrowRight className="h-4 w-4" />
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               );
@@ -126,8 +134,23 @@ const emptyLine = () => ({ key: Math.random(), jobCardId: '', quantity: '', weig
 // Plan a cycle: furnace + date + job cards -> creates a PLANNED VHT Run Sheet
 // whose auto-generated cycle no is what the operator later enters on the
 // VHT Run Sheet page to pull everything in.
-function PlanCycleForm({ machines, jobCards, initial, onSaved, onCancel }) {
-  const [form, setForm] = useState({
+function PlanCycleForm({ machines, jobCards, initial, editing, onSaved, onCancel }) {
+  const [form, setForm] = useState(() => (editing ? {
+    furnaceId: editing.furnaceId ? String(editing.furnaceId) : '',
+    runDate: String(editing.runDate || '').split('T')[0] || initial.date,
+    cycleStartTime: editing.cycleStartTime && editing.cycleStartTime !== '-' ? editing.cycleStartTime : '',
+    cycleEndTime: editing.cycleEndTime && editing.cycleEndTime !== '-' ? editing.cycleEndTime : '',
+    hardeningType: editing.hardeningType || '',
+    tempProfile: editing.tempProfile || '',
+    lines: (editing.items || []).length
+      ? editing.items.map((it) => ({
+        key: it.id,
+        jobCardId: it.jobCardId ? String(it.jobCardId) : '',
+        quantity: it.quantity != null ? String(it.quantity) : '',
+        weightKg: it.weightKg != null ? String(it.weightKg) : '',
+      }))
+      : [emptyLine()],
+  } : {
     furnaceId: initial.furnaceId ? String(initial.furnaceId) : '',
     runDate: initial.date,
     cycleStartTime: '',
@@ -135,20 +158,22 @@ function PlanCycleForm({ machines, jobCards, initial, onSaved, onCancel }) {
     hardeningType: '',
     tempProfile: '',
     lines: [emptyLine()],
-  });
+  }));
   const [saving, setSaving] = useState(false);
   const [cycleInfo, setCycleInfo] = useState(null); // { nextCycleNo, lastCycleNo }
 
   // Show the number this cycle will get, and the last one already issued for
-  // that furnace + month, as soon as a furnace (and date) is picked.
+  // that furnace + month, as soon as a furnace (and date) is picked. An
+  // existing cycle already has its number and never gets a new one.
   useEffect(() => {
+    if (editing) { setCycleInfo(null); return; }
     if (!form.furnaceId || !form.runDate) { setCycleInfo(null); return; }
     let cancelled = false;
     api.get('/manufacturing/next-cycle-no', { params: { furnaceId: form.furnaceId, date: form.runDate } })
       .then((r) => { if (!cancelled) setCycleInfo(r.data.data); })
       .catch(() => { if (!cancelled) setCycleInfo(null); });
     return () => { cancelled = true; };
-  }, [form.furnaceId, form.runDate]);
+  }, [editing, form.furnaceId, form.runDate]);
 
   const setLine = (key, patch) => setForm((f) => ({ ...f, lines: f.lines.map((l) => (l.key === key ? { ...l, ...patch } : l)) }));
 
@@ -180,20 +205,24 @@ function PlanCycleForm({ machines, jobCards, initial, onSaved, onCancel }) {
     }));
     if (!items.length) { toast.error('Add at least one job card.'); return; }
     setSaving(true);
+    const body = {
+      furnaceId: Number(form.furnaceId),
+      runDate: form.runDate,
+      cycleStartTime: form.cycleStartTime || null,
+      cycleEndTime: form.cycleEndTime || null,
+      hardeningType: form.hardeningType || null,
+      tempProfile: form.tempProfile || null,
+      items,
+    };
     try {
-      const r = await api.post('/manufacturing/runsheets', {
-        furnaceId: Number(form.furnaceId),
-        runDate: form.runDate,
-        cycleStartTime: form.cycleStartTime || null,
-        cycleEndTime: form.cycleEndTime || null,
-        hardeningType: form.hardeningType || null,
-        tempProfile: form.tempProfile || null,
-        status: 'PLANNED',
-        items,
-      });
+      // An existing cycle keeps its status and its number; only a new one is
+      // born PLANNED.
+      const r = editing
+        ? await api.put(`/manufacturing/runsheets/${editing.id}`, body)
+        : await api.post('/manufacturing/runsheets', { ...body, status: 'PLANNED' });
       onSaved(r.data.data, form.runDate);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to plan cycle.');
+      toast.error(err.response?.data?.message || (editing ? 'Cycle update nahi hui.' : 'Failed to plan cycle.'));
     } finally {
       setSaving(false);
     }
@@ -203,7 +232,9 @@ function PlanCycleForm({ machines, jobCards, initial, onSaved, onCancel }) {
     <Card className="no-print border-primary-200">
       <CardContent className="p-4 space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-700">Plan a cycle</h3>
+          <h3 className="text-sm font-bold text-slate-700">
+            {editing ? <>Edit cycle <span className="font-mono text-primary-700">{editing.runsheetNumber}</span></> : 'Plan a cycle'}
+          </h3>
           <Button size="icon-sm" variant="ghost" onClick={onCancel}><X /></Button>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -249,8 +280,12 @@ function PlanCycleForm({ machines, jobCards, initial, onSaved, onCancel }) {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button onClick={save} disabled={saving}><Save /> {saving ? 'Saving…' : 'Save plan'}</Button>
-          {cycleInfo ? (
+          <Button onClick={save} disabled={saving}><Save /> {saving ? 'Saving…' : (editing ? 'Save changes' : 'Save plan')}</Button>
+          {editing ? (
+            <p className="text-[12px] text-slate-500">
+              Cycle no stays <span className="font-mono font-bold text-primary-700">{editing.runsheetNumber}</span> — it never changes once issued.
+            </p>
+          ) : cycleInfo ? (
             <p className="text-[12px] text-slate-500">
               Next cycle no: <span className="font-mono font-bold text-primary-700">{cycleInfo.nextCycleNo}</span>
               {cycleInfo.lastCycleNo ? <> · last created: <span className="font-mono">{cycleInfo.lastCycleNo}</span></> : <> · first cycle this month for this furnace</>}
@@ -270,9 +305,10 @@ export default function DailyProductionPlanning() {
   const [machines, setMachines] = useState([]);
   const [loading, setLoading] = useState(true);
   const [jobCards, setJobCards] = useState([]);
-  const [planForm, setPlanForm] = useState(null); // { furnaceId? } when open
+  const [planForm, setPlanForm] = useState(null); // { furnaceId?, editing? } when open
   const [justPlanned, setJustPlanned] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [deleting, setDeleting] = useState(null); // the run sheet awaiting confirmation
 
   useEffect(() => { api.get('/jobcards', { params: { limit: 500 } }).then((r) => setJobCards(r.data.data || [])).catch(() => {}); }, []);
   useEffect(() => { api.get('/machines').then((r) => setMachines(r.data.data || [])).catch(() => {}); }, []);
@@ -326,18 +362,42 @@ export default function DailyProductionPlanning() {
 
       {planForm && (
         <PlanCycleForm
-          key={planForm.furnaceId || 'new'}
+          key={planForm.editing ? `edit-${planForm.editing.id}` : (planForm.furnaceId || 'new')}
           machines={machines}
           jobCards={jobCards}
           initial={{ furnaceId: planForm.furnaceId, date }}
+          editing={planForm.editing || null}
           onCancel={() => setPlanForm(null)}
           onSaved={(rs, runDate) => {
-            toast.success(`Cycle ${rs.runsheetNumber} planned.`);
-            setJustPlanned(rs);
+            const wasEdit = Boolean(planForm.editing);
+            toast.success(`Cycle ${rs.runsheetNumber} ${wasEdit ? 'updated' : 'planned'}.`);
+            if (!wasEdit) setJustPlanned(rs);
             setPlanForm(null);
             if (runDate !== date) setDate(runDate); else setReloadKey((k) => k + 1);
           }}
         />
+      )}
+
+      {deleting && (
+        <div className="no-print rounded-lg border border-rose-200 bg-rose-50 px-4 py-3">
+          <p className="text-sm text-rose-900">
+            Delete cycle <span className="font-mono font-bold">{deleting.runsheetNumber}</span>?
+            {' '}Its {(deleting.items || []).length} job card line(s) come off this plan. This cannot be undone.
+          </p>
+          <div className="mt-2 flex items-center gap-2">
+            <Button size="sm" variant="danger" onClick={async () => {
+              try {
+                await api.delete(`/manufacturing/runsheets/${deleting.id}`);
+                toast.success(`Cycle ${deleting.runsheetNumber} deleted.`);
+                setDeleting(null);
+                setReloadKey((k) => k + 1);
+              } catch (err) {
+                toast.error(err.response?.data?.message || 'Cycle delete nahi hui.');
+              }
+            }}><Trash2 /> Delete cycle</Button>
+            <Button size="sm" variant="ghost" onClick={() => setDeleting(null)}>Keep it</Button>
+          </div>
+        </div>
       )}
 
       <PrintSheetHeader title="Daily Production Planning" date={date.split('-').reverse().join('/')} />
@@ -353,7 +413,14 @@ export default function DailyProductionPlanning() {
       ) : (
         <div className="space-y-5 print:space-y-2">
           {byMachine.map((m) => (
-            <FurnaceBlock key={m.id} furnace={m} rows={runsheets.filter((r) => r.furnaceId === m.id)} onPlan={(fid) => setPlanForm({ furnaceId: fid })} />
+            <FurnaceBlock
+              key={m.id}
+              furnace={m}
+              rows={runsheets.filter((r) => r.furnaceId === m.id)}
+              onPlan={(fid) => { setDeleting(null); setPlanForm({ furnaceId: fid }); }}
+              onEdit={(rs) => { setDeleting(null); setJustPlanned(null); setPlanForm({ editing: rs }); }}
+              onDelete={(rs) => { setPlanForm(null); setDeleting(rs); }}
+            />
           ))}
         </div>
       )}
