@@ -342,9 +342,9 @@ export default function InvoicedItemsSection({
               className="mt-0.5"
             />
             <span className="min-w-0">
-              <span className="text-xs font-bold text-slate-700">Print me item ka naam bhi dikhao</span>
+              <span className="text-xs font-bold text-slate-700">Show the item name on the print too</span>
               <span className="block text-[10px] text-slate-400 mt-0.5">
-                Invoice pe process ka naam hamesha aayega. Ye tick hai to uske neeche item ka naam bhi chhapega.
+                The process name always appears on the invoice. Tick this and the item name prints under it.
               </span>
               <span className="block mt-1.5 text-[10px] font-mono leading-relaxed text-slate-600 bg-white border border-slate-200 rounded-lg px-2 py-1.5">
                 <span className="font-bold">{processes.find(p => String(p.id) === String(lineItems[0]?.processTypeId))?.name || 'HARDENING & TEMPERING'}</span>

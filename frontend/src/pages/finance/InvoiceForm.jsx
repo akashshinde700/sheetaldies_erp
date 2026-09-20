@@ -162,7 +162,7 @@ export default function InvoiceForm() {
         });
         setLineItems(expandedLines);
       })
-      .catch((err) => toast.error(err.response?.data?.message || 'Invoice load nahi ho payi.'))
+      .catch((err) => toast.error(err.response?.data?.message || 'Could not load the invoice.'))
       .finally(() => setEditLoading(false));
   }, [isEdit, id]);
 
@@ -269,7 +269,7 @@ export default function InvoiceForm() {
   useEffect(() => {
     if (!isEdit || !form.challanId || challanInfo) return;
     loadChallanContext(form.challanId).catch(() => {
-      toast.error('Challan ka billing status load nahi hua — qty check ke bina save block rahega.');
+      toast.error('Could not load the challan billing status — saving stays blocked until the quantity check can run.');
     });
   }, [isEdit, form.challanId, challanInfo, loadChallanContext]);
 
@@ -713,7 +713,7 @@ export default function InvoiceForm() {
         navigate('/invoices');
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || (isEdit ? 'Invoice update nahi hui.' : 'Error creating invoice.'));
+      toast.error(err.response?.data?.message || (isEdit ? 'Could not update the invoice.' : 'Could not create the invoice.'));
     } finally { setLoading(false); }
   };
 

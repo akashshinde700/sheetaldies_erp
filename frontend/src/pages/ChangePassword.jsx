@@ -49,7 +49,7 @@ export default function ChangePassword() {
       // The server sends the failed rules back in `errors` — show those rather
       // than a generic message, so it is clear what to fix.
       const detail = err.response?.data?.errors;
-      toast.error(Array.isArray(detail) && detail.length ? detail[0] : (err.response?.data?.message || 'Password change nahi hui.'));
+      toast.error(Array.isArray(detail) && detail.length ? detail[0] : (err.response?.data?.message || 'Could not change the password.'));
     } finally {
       setSaving(false);
     }

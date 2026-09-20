@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Printer, Zap, Flame, Plus, Trash2, Pencil, X, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
@@ -157,7 +157,9 @@ function PlanCycleForm({ machines, jobCards, initial, editing, onSaved, onCancel
     cycleEndTime: '',
     hardeningType: '',
     tempProfile: '',
-    lines: [emptyLine()],
+    // Arriving from a job card ("Plan a cycle" on that page) starts the load
+    // with it already on the first line.
+    lines: [initial.jobCardId ? { ...emptyLine(), jobCardId: String(initial.jobCardId) } : emptyLine()],
   }));
   const [saving, setSaving] = useState(false);
   const [cycleInfo, setCycleInfo] = useState(null); // { nextCycleNo, lastCycleNo }
@@ -196,6 +198,14 @@ function PlanCycleForm({ machines, jobCards, initial, editing, onSaved, onCancel
     } catch { /* keep the list-row values */ }
   };
 
+  // A line seeded from ?jobCardId= has no qty/weight yet — fetch them the same
+  // way picking the card by hand would.
+  useEffect(() => {
+    if (editing || !initial.jobCardId) return;
+    const seeded = form.lines.find((l) => String(l.jobCardId) === String(initial.jobCardId));
+    if (seeded) pickJobCard(seeded.key, String(initial.jobCardId));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const save = async () => {
     if (!form.furnaceId) { toast.error('Select a furnace.'); return; }
     const items = form.lines.filter((l) => l.jobCardId).map((l) => ({
@@ -222,7 +232,7 @@ function PlanCycleForm({ machines, jobCards, initial, editing, onSaved, onCancel
         : await api.post('/manufacturing/runsheets', { ...body, status: 'PLANNED' });
       onSaved(r.data.data, form.runDate);
     } catch (err) {
-      toast.error(err.response?.data?.message || (editing ? 'Cycle update nahi hui.' : 'Failed to plan cycle.'));
+      toast.error(err.response?.data?.message || (editing ? 'Could not update the cycle.' : 'Could not plan the cycle.'));
     } finally {
       setSaving(false);
     }
@@ -309,8 +319,19 @@ export default function DailyProductionPlanning() {
   const [justPlanned, setJustPlanned] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [deleting, setDeleting] = useState(null); // the run sheet awaiting confirmation
+  const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => { api.get('/jobcards', { params: { limit: 500 } }).then((r) => setJobCards(r.data.data || [])).catch(() => {}); }, []);
+
+  // "Plan a cycle" on a job card lands here with that card in hand — open the
+  // form on it, then drop the parameter so a refresh does not reopen the form.
+  useEffect(() => {
+    const jcId = searchParams.get('jobCardId');
+    if (!jcId) return;
+    setPlanForm({ jobCardId: jcId });
+    searchParams.delete('jobCardId');
+    setSearchParams(searchParams, { replace: true });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { api.get('/machines').then((r) => setMachines(r.data.data || [])).catch(() => {}); }, []);
 
   useEffect(() => {
@@ -362,10 +383,10 @@ export default function DailyProductionPlanning() {
 
       {planForm && (
         <PlanCycleForm
-          key={planForm.editing ? `edit-${planForm.editing.id}` : (planForm.furnaceId || 'new')}
+          key={planForm.editing ? `edit-${planForm.editing.id}` : `new-${planForm.furnaceId || ''}-${planForm.jobCardId || ''}`}
           machines={machines}
           jobCards={jobCards}
-          initial={{ furnaceId: planForm.furnaceId, date }}
+          initial={{ furnaceId: planForm.furnaceId, date, jobCardId: planForm.jobCardId }}
           editing={planForm.editing || null}
           onCancel={() => setPlanForm(null)}
           onSaved={(rs, runDate) => {
@@ -392,7 +413,7 @@ export default function DailyProductionPlanning() {
                 setDeleting(null);
                 setReloadKey((k) => k + 1);
               } catch (err) {
-                toast.error(err.response?.data?.message || 'Cycle delete nahi hui.');
+                toast.error(err.response?.data?.message || 'Could not delete the cycle.');
               }
             }}><Trash2 /> Delete cycle</Button>
             <Button size="sm" variant="ghost" onClick={() => setDeleting(null)}>Keep it</Button>

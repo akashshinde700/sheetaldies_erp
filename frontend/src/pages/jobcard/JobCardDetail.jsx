@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { Printer, Pencil, ClipboardCheck, BadgeCheck, AlertTriangle } from 'lucide-react';
+import { Printer, Pencil, ClipboardCheck, BadgeCheck, AlertTriangle, Flame } from 'lucide-react';
 import api from '../../utils/api';
 import { formatDate } from '../../utils/formatters';
 import { PageHeader } from '@/components/ui/page-header';
@@ -152,6 +152,12 @@ export default function JobCardDetail() {
           <>
             <Button asChild variant="outline"><Link to={`/jobcards/${id}/inspection`}><ClipboardCheck /> Inspection</Link></Button>
             <Button asChild variant="outline"><Link to={`/jobcards/${id}/print`}><Printer /> Print</Link></Button>
+            {/* The next step in the flow: this card goes into a furnace cycle.
+                Daily Planning opens with it already on the load. */}
+            <Button asChild variant="outline"
+              className="border-amber-300 text-amber-700 hover:bg-amber-50 hover:border-amber-400">
+              <Link to={`/manufacturing/planning?jobCardId=${id}`}><Flame /> Plan cycle</Link>
+            </Button>
             <Button asChild variant="outline">
               <Link to={`/quality/certificates/new?jobCardId=${id}`}><BadgeCheck /> Certificate</Link>
             </Button>

@@ -128,9 +128,9 @@ export default function InvoiceList() {
       URL.revokeObjectURL(blobUrl);
 
       window.open(IRP_BULK_UPLOAD_URL, '_blank', 'noopener,noreferrer');
-      toast.success('JSON download ho gayi. Portal naye tab me khul raha hai — wahan ye file upload kijiye.');
+      toast.success('JSON downloaded. The portal is opening in a new tab — upload this file there.');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'e-Invoice JSON nahi ban payi.');
+      toast.error(err.response?.data?.message || 'Could not build the e-Invoice JSON.');
     }
   };
 
@@ -151,7 +151,7 @@ export default function InvoiceList() {
       }
       await doDownloadEInvoiceJson(inv);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'e-Invoice jaanch nahi ho payi.');
+      toast.error(err.response?.data?.message || 'Could not check the e-Invoice details.');
     }
   };
 
@@ -181,7 +181,7 @@ export default function InvoiceList() {
       const msg = err.response?.data instanceof Blob
         ? JSON.parse(await err.response.data.text())?.message
         : err.response?.data?.message;
-      toast.error(msg || 'Register nahi ban paya.');
+      toast.error(msg || 'Could not build the register.');
     } finally {
       setGstRegBusy(false);
     }
@@ -236,14 +236,14 @@ export default function InvoiceList() {
       const { updated = [], notFound = [], skipped = [] } = r.data?.data || {};
 
       if (updated.length) toast.success(`${updated.length} invoice me IRN save ho gaya.`);
-      else toast.error('Ek bhi invoice update nahi hui.');
+      else toast.error('Not one invoice was updated.');
 
       if (notFound.length || skipped.length) {
         setConfirmDialog({
           title: 'Import ka nateeja',
           message: [
             `Update hui: ${updated.length}`,
-            notFound.length ? `\nERP me ye invoice number nahi mile (${notFound.length}):\n${notFound.join(', ')}` : '',
+            notFound.length ? `\nThese invoice numbers are not in the ERP (${notFound.length}):\n${notFound.join(', ')}` : '',
             skipped.length ? `\nIRN khali tha, chhod diya (${skipped.length}):\n${skipped.map(s => s.invoiceNo).join(', ')}` : '',
           ].filter(Boolean).join('\n'),
           confirmLabel: 'Theek hai',
@@ -253,7 +253,7 @@ export default function InvoiceList() {
       }
       fetchData();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Excel import nahi ho payi.');
+      toast.error(err.response?.data?.message || 'Could not import the Excel file.');
     } finally {
       setEinvImporting(false);
     }
@@ -378,12 +378,12 @@ export default function InvoiceList() {
           <Button type="button" variant="outline" onClick={() => einvFileRef.current?.click()}
             disabled={einvImporting}
             className="border-sky-300 text-sky-700 hover:bg-sky-50 hover:border-sky-400">
-            <FileUp /> {einvImporting ? 'Import ho raha hai…' : 'Import e-Invoice Excel'}
+            <FileUp /> {einvImporting ? 'Importing…' : 'Import e-Invoice Excel'}
           </Button>
           <Button type="button" variant="outline" onClick={downloadGstRegister} disabled={gstRegBusy}
-            title="From/To date range ka sales register — CA / GSTR-1 ke liye"
+            title="Sales register for the From/To date range — for your CA and GSTR-1"
             className="border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-400">
-            <FileDown /> {gstRegBusy ? 'Ban raha hai…' : 'GST Register (CA)'}
+            <FileDown /> {gstRegBusy ? 'Building…' : 'GST Register (CA)'}
           </Button>
           <Button type="button" variant="outline" onClick={exportInvoices}>
             <Download /> Export Excel
@@ -402,9 +402,9 @@ export default function InvoiceList() {
             <div className="flex items-start gap-2">
               <Wrench className="h-4 w-4 text-violet-500 shrink-0 mt-0.5" />
               <div className="min-w-0">
-                <p className="text-sm font-bold text-violet-800">Tally Setup — ek baar ka kaam</p>
+                <p className="text-sm font-bold text-violet-800">Tally Setup — a one-time job</p>
                 <p className="text-[11px] text-violet-600 mt-0.5">
-                  Har naye computer par ek baar. Roz ki invoice ke liye ye zaroori nahi.
+                  Once on each new computer. You do not need this for day-to-day invoicing.
                 </p>
               </div>
             </div>

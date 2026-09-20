@@ -10,7 +10,7 @@ import {
   CYCLE_NAMES,
   DEFAULT_GRAPH_SEGMENTS,
 } from '../../data/heatTreatmentCycles';
-import { Plus, Printer, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Printer, Trash2, ChevronLeft, ChevronRight, BadgeCheck } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
@@ -185,6 +185,9 @@ export default function VHTRunsheetForm() {
       .catch(() => {});
   }, [isNew]);
   const startFromPlan = searchParams.get('start') === '1';
+  // A load can hold several job cards; certifying starts from the first
+  // one, which is what the operator reaches for anyway.
+  const certifyJobCardId = form.items?.find((it) => it.jobCardId)?.jobCardId || null;
 
   const [nextCycleNo, setNextCycleNo] = useState('');
   useEffect(() => {
@@ -454,11 +457,23 @@ export default function VHTRunsheetForm() {
           { label: isNew ? 'New' : 'Edit' },
         ]}
         actions={!isNew ? (
-          <Button asChild variant="outline" size="sm">
-            <Link to={`/manufacturing/runsheet/${id}/print`} target="_blank" rel="noreferrer">
-              <Printer /> Open print view
-            </Link>
-          </Button>
+          <>
+            {/* The next step once the load is out of the furnace: certify it.
+                The certificate opens on the first job card in this load. */}
+            {certifyJobCardId && (
+              <Button asChild variant="outline" size="sm"
+                className="border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-400">
+                <Link to={`/quality/certificates/new?jobCardId=${certifyJobCardId}`}>
+                  <BadgeCheck /> Certificate
+                </Link>
+              </Button>
+            )}
+            <Button asChild variant="outline" size="sm">
+              <Link to={`/manufacturing/runsheet/${id}/print`} target="_blank" rel="noreferrer">
+                <Printer /> Open print view
+              </Link>
+            </Button>
+          </>
         ) : null}
       />
 

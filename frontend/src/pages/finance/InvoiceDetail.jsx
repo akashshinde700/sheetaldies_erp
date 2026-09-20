@@ -153,7 +153,7 @@ export default function InvoiceDetail() {
       }
       doDownloadEInvoiceJson();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'e-Invoice jaanch nahi ho payi.');
+      toast.error(err.response?.data?.message || 'Could not check the e-Invoice details.');
     }
   };
 
@@ -169,9 +169,9 @@ export default function InvoiceDetail() {
       URL.revokeObjectURL(blobUrl);
 
       window.open(IRP_BULK_UPLOAD_URL, '_blank', 'noopener,noreferrer');
-      toast.success('JSON download ho gayi. Portal naye tab me khul raha hai — wahan ye file upload kijiye.');
+      toast.success('JSON downloaded. The portal is opening in a new tab — upload this file there.');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'e-Invoice JSON nahi ban payi.');
+      toast.error(err.response?.data?.message || 'Could not build the e-Invoice JSON.');
     }
   };
 
@@ -321,7 +321,7 @@ export default function InvoiceDetail() {
           <div>
             <p className="text-sm font-bold text-sky-800">GST e-Invoice (IRN)</p>
             <p className="text-xs text-sky-600 mt-0.5">
-              JSON portal par upload kijiye, wahan IRN aur e-Way Bill banaiye, phir result Excel Invoices page se wapas import kijiye.
+              Upload the JSON to the portal, generate the IRN and e-Way Bill there, then import the result Excel back from the Invoices page.
             </p>
           </div>
 
@@ -329,7 +329,7 @@ export default function InvoiceDetail() {
             <div className="bg-white rounded-xl border-2 border-emerald-300 p-4 space-y-2">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">IRN mil chuka hai</p>
+                <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">IRN received</p>
               </div>
               <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
                 <div className="sm:col-span-2">
@@ -352,12 +352,12 @@ export default function InvoiceDetail() {
             </div>
           ) : (
             <div className="bg-white rounded-xl border-2 border-sky-300 p-4 space-y-3">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Portal ke liye JSON</p>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">JSON for the portal</p>
               <ol className="text-xs text-slate-500 list-decimal ml-4 space-y-0.5">
-                <li>Neeche se JSON download kijiye — portal apne aap naye tab me khulega</li>
-                <li>Portal par <strong>Choose File → Upload</strong> se ye JSON daaliye</li>
-                <li>IRN aur e-Way Bill generate kijiye, phir result Excel download kar lijiye</li>
-                <li>Wo Excel <strong>Invoices</strong> page ke "Import e-Invoice Excel" se wapas daal dijiye</li>
+                <li>Download the JSON below — the portal opens by itself in a new tab</li>
+                <li>On the portal, use <strong>Choose File → Upload</strong> to send this JSON</li>
+                <li>Generate the IRN and e-Way Bill, then download the result Excel</li>
+                <li>Bring that Excel back in from <strong>Invoices</strong> → "Import e-Invoice Excel"</li>
               </ol>
               <Button type="button" onClick={downloadEInvoiceJson}
                 className="bg-gradient-to-br from-sky-600 to-cyan-500 hover:from-sky-700 hover:to-cyan-600 shadow-sky-600/20 focus-visible:ring-sky-400">

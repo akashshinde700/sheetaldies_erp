@@ -244,6 +244,25 @@ const prisma = new PrismaClient();
     const ncAfter = await page.locator('tbody tr').count();
     r.ok('Enter saves the row', ncAfter > ncBefore || /saved|added/i.test(await page.locator('body').innerText()), `${ncBefore} -> ${ncAfter}`);
 
+    // 3h. Workflow shortcuts: each step offers the next one, carrying its
+    // context, so nothing has to be looked up again from the sidebar.
+    const jc = await prisma.jobCard.findUnique({ where: { id: jobCard.id }, select: { id: true } });
+    await page.goto(`${env.base}/jobcards/${jc.id}`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(2500);
+    const jcPage = await page.locator('body').innerText();
+    r.ok('Job card offers "Plan cycle"', /Plan cycle/i.test(jcPage), jcPage.slice(0, 120).replace(/\n/g, ' '));
+    r.ok('Job card offers "Certificate"', /Certificate/i.test(jcPage));
+
+    await page.getByRole('link', { name: /Plan cycle/i }).first().click();
+    await page.waitForTimeout(3000);
+    r.ok('Plan cycle lands on Daily Planning with the form open',
+      new URL(page.url()).pathname === '/manufacturing/planning'
+      && /Plan a cycle/i.test(await page.locator('body').innerText()), page.url());
+    r.ok('The job card is already on the load',
+      (await page.locator('body').innerText()).includes('UIT-JC-1'));
+    r.ok('The jobCardId parameter is dropped after use',
+      !page.url().includes('jobCardId'), page.url());
+
     // 4. Plant Losses working-days input
     await page.goto(`${env.base}/manufacturing/plant-losses`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1500);

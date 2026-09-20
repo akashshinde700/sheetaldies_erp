@@ -218,19 +218,20 @@ export default function ProcessList() {
                     <Input
                       id="proc-tally"
                       className={form.tallyStockItem ? 'border-violet-300 bg-violet-50/40' : ''}
-                      placeholder={form.name || 'Tally me jo stock item hai'}
+                      placeholder={form.name || 'Stock item name as it is in Tally'}
                       value={form.tallyStockItem}
                       onChange={(e) => setForm((f) => ({ ...f, tallyStockItem: e.target.value }))}
                     />
                   </FormField>
                   <p className="text-[10px] text-slate-400 mt-1">
-                    Khali chhodo to upar wala process naam hi Tally me jayega. Tally me is process ka
-                    stock item kisi aur naam se hai to wahi yahan likho — <strong>bilkul waisa hi</strong>.
-                    Tally import pe stock item khud nahi banata.
+                    Leave this blank and the process name above is what goes to Tally. If this
+                    process is a stock item under a different name in Tally, type that name here —
+                    <strong>exactly as it appears</strong>. A Tally import will not create the stock
+                    item for you.
                   </p>
                   {form.tallyStockItem && form.tallyStockItem.trim() !== form.name.trim() && (
                     <p className="text-[10px] text-violet-600 mt-0.5">
-                      Invoice pe: <strong>{form.name || '—'}</strong> · Tally me: <strong>{form.tallyStockItem.trim()}</strong>
+                      On the invoice: <strong>{form.name || '—'}</strong> · In Tally: <strong>{form.tallyStockItem.trim()}</strong>
                     </p>
                   )}
                 </div>

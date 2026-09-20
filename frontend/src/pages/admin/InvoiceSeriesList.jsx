@@ -59,7 +59,7 @@ export default function InvoiceSeriesList() {
       setEditing(null);
       load();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Series save nahi hui.');
+      toast.error(err.response?.data?.message || 'Could not save the series.');
     } finally {
       setSaving(false);
     }

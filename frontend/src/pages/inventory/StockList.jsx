@@ -79,7 +79,7 @@ export default function StockList() {
     try {
       const r = await api.get('/stock', { params: { search: debounced, view } });
       setItems(r.data.data || []);
-    } catch { toast.error('Stock items load nahi hue.'); }
+    } catch { toast.error('Could not load the stock items.'); }
     finally { setLoading(false); }
   };
   const loadStats = async () => {
@@ -99,7 +99,7 @@ export default function StockList() {
       });
       setMoves(r.data.data || []);
       setMovesTotal(r.data.total || 0);
-    } catch { toast.error('Movements load nahi hue.'); }
+    } catch { toast.error('Could not load the movements.'); }
   };
 
   useEffect(() => { loadStats(); loadCategories(); }, []);
@@ -122,7 +122,7 @@ export default function StockList() {
 
   const saveItem = async (e) => {
     e.preventDefault();
-    if (!itemSheet.name.trim()) return toast.error('Name zaroori hai.');
+    if (!itemSheet.name.trim()) return toast.error('A name is required.');
     setSavingItem(true);
     try {
       const body = {
@@ -146,23 +146,23 @@ export default function StockList() {
       setItemSheet(null);
       refreshAll();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Save nahi hua.');
+      toast.error(err.response?.data?.message || 'Could not save.');
     } finally { setSavingItem(false); }
   };
 
   const askDelete = (it) => setConfirm({
-    title: `"${it.name}" hataayein?`,
+    title: `Remove "${it.name}"?`,
     message: it.quantityOnHand > 0
-      ? `Abhi ${fmtQty(it.quantityOnHand)} ${it.unit} stock hai. Movements wale item ko delete nahi karte — deactivate ho jayega.`
-      : 'Ye stock item hata diya jayega.',
-    confirmLabel: 'Haan, hatao',
+      ? `There is still ${fmtQty(it.quantityOnHand)} ${it.unit} in stock. An item with movements is never deleted — it is deactivated instead.`
+      : 'This stock item will be removed.',
+    confirmLabel: 'Remove item',
     variant: 'danger',
     onConfirm: async () => {
       try {
         const r = await api.delete(`/stock/${it.id}`);
         toast.success(r.data.message || 'Ho gaya.');
         refreshAll();
-      } catch (err) { toast.error(err.response?.data?.message || 'Delete nahi hua.'); }
+      } catch (err) { toast.error(err.response?.data?.message || 'Could not delete.'); }
       finally { setConfirm(null); }
     },
   });
@@ -195,7 +195,7 @@ export default function StockList() {
       setMoveModal(null);
       refreshAll();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Movement save nahi hua.');
+      toast.error(err.response?.data?.message || 'Could not save the movement.');
     } finally { setSavingMove(false); }
   };
 
@@ -213,7 +213,7 @@ export default function StockList() {
       a.download = `StockRegister_${new Date().toISOString().slice(0, 10)}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch { toast.error('Export nahi hua.'); }
+    } catch { toast.error('Could not export.'); }
   };
 
   const movesPages = Math.max(1, Math.ceil(movesTotal / MOVES_LIMIT));
@@ -324,7 +324,7 @@ export default function StockList() {
                   <tr><td colSpan={7} className="py-10 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <div className="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center"><PackageSearch className="h-5 w-5 text-sky-300" /></div>
-                      <p className="text-sm text-slate-500">{debounced || view === 'low' ? 'Kuch nahi mila.' : 'Abhi koi stock item nahi. "Add Item" se shuru karo.'}</p>
+                      <p className="text-sm text-slate-500">{debounced || view === 'low' ? 'Nothing matched.' : 'No stock items yet — start with "Add Item".'}</p>
                     </div>
                   </td></tr>
                 ) : items.map((it) => {
@@ -397,7 +397,7 @@ export default function StockList() {
                 </thead>
                 <tbody className="divide-y divide-slate-50/80">
                   {moves.length === 0 ? (
-                    <tr><td colSpan={7} className="py-10 text-center text-sm text-slate-500">Koi movement nahi.</td></tr>
+                    <tr><td colSpan={7} className="py-10 text-center text-sm text-slate-500">No movements yet.</td></tr>
                   ) : moves.map((m) => {
                     const meta = MOVE_META[m.type] || MOVE_META.ADJUST;
                     const signed = (m.type === 'OUT' ? -1 : 1) * num(m.quantity);
