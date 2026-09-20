@@ -47,8 +47,8 @@ const getChallanBillingStatusInternal = async (challanId, db = prisma, excludeIn
   }
 
   // Pieces raised as REJECT (scrapped) against certificate items that came from
-  // these challan items. Informational only — it does not change what can be
-  // billed, the invoice form just warns so rejected pieces are not billed by mistake.
+  // these challan items. Rejected work cannot be redone and is never delivered,
+  // so it is taken out of the billable quantity below — not merely flagged.
   const rejects = await db.reworkEntry.findMany({
     where: { type: 'REJECT', certItem: { sourceChallanItemId: { in: challan.items.map((i) => i.id) } } },
     select: { qty: true, certItem: { select: { sourceChallanItemId: true } } },
@@ -98,7 +98,12 @@ const getChallanBillingStatusInternal = async (challanId, db = prisma, excludeIn
   );
   for (const row of itemMap.values()) {
     const base = hasDispatch ? row.dispatchedQty : row.totalQty;
-    row.remainingQty = Math.max(0, base - row.invoicedQty);
+    // Rejected pieces are scrap — they can never be billed. Where dispatch
+    // challans exist the rejected pieces were simply never dispatched, so
+    // dispatchedQty already leaves them out and deducting again would
+    // under-bill; capping against both bases is right either way.
+    const billableQty = Math.min(base, row.totalQty - row.rejectedQty);
+    row.remainingQty = Math.max(0, billableQty - row.invoicedQty);
   }
 
   const lineStatus = Array.from(itemMap.values());
@@ -139,7 +144,7 @@ const getChallanBillingStatusInternal = async (challanId, db = prisma, excludeIn
  * the parsed items annotated with a resolved `__sources` array ready to
  * persist as InvoiceItemSource rows.
  */
-function validateAndResolveSources(parsedItems, remainingByItem) {
+function validateAndResolveSources(parsedItems, remainingByItem, rejectedByItem = new Map()) {
   const working = new Map(remainingByItem);
   return parsedItems.map((it) => {
     const rawSources = Array.isArray(it.sources) && it.sources.length > 0
@@ -154,7 +159,13 @@ function validateAndResolveSources(parsedItems, remainingByItem) {
       if (rem === undefined) throw new Error(`Invalid source challan item id ${srcId}.`);
       const q = toNum(s.quantity, 0);
       if (q <= 0) throw new Error('Invoice quantity must be greater than zero.');
-      if (q > rem + 0.00001) throw new Error(`Over-quantity for challan item ${srcId}. Remaining ${rem}, attempted ${q}.`);
+      if (q > rem + 0.00001) {
+        const rejected = toNum(rejectedByItem.get(srcId), 0);
+        const because = rejected > 0
+          ? ` ${rejected} piece(s) were rejected and cannot be billed.`
+          : '';
+        throw new Error(`Over-quantity for challan item ${srcId}. Remaining ${rem}, attempted ${q}.${because}`);
+      }
       working.set(srcId, rem - q);
       return { challanItemId: srcId, quantity: q };
     });
@@ -442,8 +453,9 @@ exports.create = async (req, res) => {
               throw new Error(`Challan ${challan.challanNo} is already fully invoiced. No further billing allowed.`);
             }
             const remainingByItem = new Map(status.lineStatus.map((x) => [x.challanItemId, x.remainingQty]));
+            const rejectedByItem = new Map(status.lineStatus.map((x) => [x.challanItemId, x.rejectedQty]));
 
-            resolvedItems = validateAndResolveSources(parsedItems, remainingByItem);
+            resolvedItems = validateAndResolveSources(parsedItems, remainingByItem, rejectedByItem);
 
             const qtyAfter = status.totalRemainingQty - resolvedItems.reduce((s, it) => s + toNum(it.quantity, 0), 0);
             txBillingType = qtyAfter <= 0.00001 ? 'FINAL_DISPATCH' : 'PARTIAL_DISPATCH';
@@ -614,8 +626,9 @@ exports.update = async (req, res) => {
           // ko hi "already billed" maan kar block kar deta.
           const status = await getChallanBillingStatusInternal(challanId, tx, id);
           const remainingByItem = new Map(status.lineStatus.map((x) => [x.challanItemId, x.remainingQty]));
+          const rejectedByItem = new Map(status.lineStatus.map((x) => [x.challanItemId, x.rejectedQty]));
 
-          resolvedItems = validateAndResolveSources(parsedItems, remainingByItem);
+          resolvedItems = validateAndResolveSources(parsedItems, remainingByItem, rejectedByItem);
         }
 
         // Lines dobara likhi jaati hain — kaunsi badli ye pata karne se

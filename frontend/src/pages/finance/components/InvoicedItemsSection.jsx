@@ -189,7 +189,7 @@ export default function InvoicedItemsSection({
                 </p>
                 {b.rejectedQty > 0 && (
                   <p className="text-[11px] font-semibold text-rose-600">
-                    {b.rejectedQty} pc(s) of this item were rejected (Rework Data) — check before billing the full quantity.
+                    {b.rejectedQty} pc(s) rejected (Rework Data) — already taken out of Remaining. They cannot be billed.
                   </p>
                 )}
               </>

@@ -25,6 +25,7 @@
     "test:e2e:workflow": "node scripts/e2e-workflow-flow-test.js",
     "test": "node --test test/smoke.test.js test/inputs.test.js",
     "test:api": "node --test test/api.test.js",
+    "test:billing": "node --test test/reject-billing.test.js",
     "test:all": "node --test test/"
   },
   "dependencies": {
