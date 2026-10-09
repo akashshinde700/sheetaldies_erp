@@ -94,3 +94,7 @@ __pycache__/
 # Built frontend, staged here for local prod-parity testing and written by
 # deploy.py on the server. Never a source file.
 backend/public/
+
+# On-premise deploy script — holds the plant server credentials.
+deploy-onprem.py
+onprem-restore/
