@@ -13,7 +13,7 @@
  *
  * Read-only against the app's data: it navigates and inspects caches.
  */
-const { reporter, launch, signIn, isRealConsoleError } = require('./lib');
+const { reporter, launch, signIn, isRealConsoleError, env } = require('./lib');
 
 const BASE = process.env.PWA_BASE || 'http://localhost:5000';
 
@@ -21,12 +21,29 @@ const BASE = process.env.PWA_BASE || 'http://localhost:5000';
   const r = reporter();
   const browser = await launch();
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-  await signIn(ctx, BASE, {});
+  // Against localhost a token is minted locally; anywhere else (an on-prem
+  // box, say) UI_EMAIL / UI_PASSWORD sign in through the real form.
+  await signIn(ctx, BASE, env);
   const page = await ctx.newPage();
   const consoleErrors = [];
   page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text().slice(0, 240)); });
 
   await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
+
+  // Service workers and the Cache API exist only in a secure context: HTTPS,
+  // or localhost. Over plain http://<lan-ip> the browser does not expose them
+  // at all, so nothing below can pass and saying why beats a stack trace.
+  const secure = await page.evaluate(() => window.isSecureContext);
+  if (!secure) {
+    console.log(`\n${BASE} is not a secure context — the browser withholds service`);
+    console.log('workers and the Cache API over plain HTTP on a LAN address.');
+    console.log('The app works as an ordinary site; installability and offline');
+    console.log('start working once it is served over HTTPS.\n');
+    r.ok('Served over HTTPS or localhost, so the PWA can work at all', false,
+      'insecure origin — re-run this once the certificate is in place');
+    await browser.close();
+    process.exit(r.summary() ? 1 : 0);
+  }
 
   // 1. The worker registers and takes control.
   const swState = await page.evaluate(async () => {
