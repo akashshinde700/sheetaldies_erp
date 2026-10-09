@@ -27,6 +27,26 @@ Then, from `frontend/`:
 Locally you are signed in automatically with a token minted from
 `backend/.env` — no password needed.
 
+## PWA
+
+`npm run test:pwa` checks the app is installable and — the part that matters —
+that the service worker never caches `/api`. A cached billing status or
+furnace cycle no is a wrong invoice.
+
+It needs a **production** build served the way the server serves it, because
+the worker only registers in prod and the MIME types come from
+`express.static`:
+
+```bash
+cd frontend && npm run build
+rm -rf ../backend/public && cp -r dist ../backend/public
+cd ../backend && npm start          # http://localhost:5000
+cd ../frontend && npm run test:pwa
+```
+
+`backend/public` is gitignored — it is build output, and deploy.py writes the
+same thing on the server.
+
 ## Checking a deployed site
 
 `live-check.js` only navigates and reads. It never saves, deletes or creates

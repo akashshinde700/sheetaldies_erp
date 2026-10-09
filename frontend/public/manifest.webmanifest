@@ -1,0 +1,40 @@
+{
+  "name": "SVT ERP — Shital Vacuum Treat",
+  "short_name": "SVT ERP",
+  "description": "Job-work heat treatment ERP: inwards, job cards, furnace cycles, certificates and invoices.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#faf8f5",
+  "theme_color": "#262220",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "/pwa-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "New inward entry",
+      "short_name": "Inward",
+      "url": "/jobwork/inward-entry",
+      "icons": [{ "src": "/pwa-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Daily production planning",
+      "short_name": "Planning",
+      "url": "/manufacturing/planning",
+      "icons": [{ "src": "/pwa-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Pending work",
+      "short_name": "Pending",
+      "url": "/pending",
+      "icons": [{ "src": "/pwa-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

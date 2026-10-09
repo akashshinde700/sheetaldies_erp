@@ -4,14 +4,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/build-asset-manifest.js",
     "preview": "vite preview",
     "e2e:install": "playwright install",
     "e2e": "playwright test --config e2e/playwright.config.js",
     "test:ui": "npm run test:ui:walk && npm run test:ui:interact",
     "test:ui:walk": "node tests/ui-walk.js",
     "test:ui:interact": "node tests/ui-interact.js",
-    "test:ui:live": "node tests/live-check.js"
+    "test:ui:live": "node tests/live-check.js",
+    "test:pwa": "node tests/pwa.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

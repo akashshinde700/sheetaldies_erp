@@ -90,3 +90,7 @@ server-setup.sh
 nul_
 **/nul_
 __pycache__/
+
+# Built frontend, staged here for local prod-parity testing and written by
+# deploy.py on the server. Never a source file.
+backend/public/
