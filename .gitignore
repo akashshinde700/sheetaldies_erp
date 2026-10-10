@@ -98,3 +98,9 @@ backend/public/
 # On-premise deploy script — holds the plant server credentials.
 deploy-onprem.py
 onprem-restore/
+
+# Final snapshot of the cloud install taken before shutting it down.
+cloud-final-backup/
+
+# SSH deploy key for the on-premise server.
+onprem-ssh/
