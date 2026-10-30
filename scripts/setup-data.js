@@ -172,8 +172,10 @@ async function main() {
   await page.goto(`${BASE}/login`);
   await page.waitForSelector('input[type="email"], input[name="email"]', { timeout: 10000 });
 
-  await page.fill('input[type="email"]',    'admin@sheetaldies.com');
-  await page.fill('input[type="password"]', '***REDACTED-SEE-ENV***');
+  // Read from the environment, never from this file: it is committed, and
+  // the password it used to carry is the real one on the live site.
+  await page.fill('input[type="email"]',    process.env.ERP_ADMIN_EMAIL || 'admin@sheetaldies.com');
+  await page.fill('input[type="password"]', process.env.ERP_ADMIN_PASSWORD || '');
   await page.click('button[type="submit"]');
 
   await page.waitForURL('**/dashboard', { timeout: 15000 });

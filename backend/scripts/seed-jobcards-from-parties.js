@@ -41,7 +41,7 @@ async function main() {
   if (!user) {
     console.error(
       'No user in database. Run:\n  npm run db:ensure-admin\nThen re-run this script.\n' +
-        '(Default login: admin@shitalvaccumtreat.com / ***REDACTED-SEE-ENV***)'
+        '(Credentials: ADMIN_EMAIL / ADMIN_PASSWORD in backend/.env)'
     );
     process.exit(1);
   }

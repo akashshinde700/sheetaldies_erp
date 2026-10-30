@@ -104,3 +104,11 @@ cloud-final-backup/
 
 # SSH deploy key for the on-premise server.
 onprem-ssh/
+
+# Compiled Python. A .pyc of a deploy script was committed once and carries
+# whatever string constants that script held.
+*.pyc
+*.pyo
+
+# Per-developer Claude Code settings (the shared ones are committed).
+.claude/settings.local.json
