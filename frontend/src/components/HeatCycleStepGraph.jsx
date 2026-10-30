@@ -1,13 +1,17 @@
 import { useMemo } from 'react';
 
-// Ramp rates + room-temp lead-in mirror
-// heatTreatmentCycles.js#expandSegmentsToPlot so this curve matches the
-// form/preview exactly. Replicated locally here because this graph also needs
-// each hold's temperature + hold-minutes to draw the plateau labels.
 const ROOM_TEMP_C = 50;
-const HEAT_RATE = 10; // °C per minute while heating
-const COOL_RATE = 20; // °C per minute while cooling
 const FONT = 'Arial, Helvetica, sans-serif';
+// Every ramp gets the same x-width, every hold gets the same x-width — NOT
+// scaled to its real duration. A real cycle mixes short 10-30min ramps/holds
+// with long 120-150min holds; plotting those time-proportionally crams the
+// short, detail-heavy stages (the actual hardening ramp, with 3-4 close-
+// together temperature labels) into an unreadable sliver on one side while
+// the long tempering holds stretch out and dominate the page. Fixed slot
+// widths keep every stage equally readable, matching the schematic (not
+// time-accurate) look of the customer's own Excel "Graphs" sheet.
+const RAMP_UNIT = 0.6;
+const HOLD_UNIT = 1.4;
 
 // Build both the polyline points AND a `holds` list (one entry per flat hold
 // segment, with its mid-point time, temperature and hold-minutes) so the graph
@@ -48,15 +52,13 @@ function buildPlot(rawSegments) {
     if (!Number.isFinite(temp)) continue;
 
     if (temp !== prevTemp) {
-      const rate = temp > prevTemp ? HEAT_RATE : COOL_RATE;
-      const rampMin = Math.max(1, Math.round(Math.abs(temp - prevTemp) / rate));
-      t += rampMin;
+      t += RAMP_UNIT;
       pts.push({ t, temp });
     }
 
     if (hold > 0) {
       const tStart = t;
-      t += hold;
+      t += HOLD_UNIT;
       pts.push({ t, temp });
       holds.push({ tMid: (tStart + t) / 2, temp, holdMin: hold });
     }

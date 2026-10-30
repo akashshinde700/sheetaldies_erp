@@ -1,9 +1,17 @@
-import { useEffect, useState, useRef } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { useNavigate, useSearchParams, useParams, Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { toInt, toNum } from '../../utils/normalize';
 import { useParties, useProcesses, useChallans } from '../../hooks/useMasterData';
+import { Ban, AlertTriangle, ReceiptText, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { FormField } from '@/components/ui/form-field';
+import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
+import { Stepper, useStepper } from '@/components/ui/stepper';
+import { FormErrorSummary } from '@/components/ui/field';
 
 // Subcomponents
 import ChallanSelectionSection from './components/ChallanSelectionSection';
@@ -35,6 +43,10 @@ const rateForType = (rateObj, type) => {
 export default function InvoiceForm() {
   const navigate    = useNavigate();
   const [searchParams] = useSearchParams();
+  const { id }      = useParams();
+  const isEdit      = Boolean(id);
+  const [editInvoiceNo, setEditInvoiceNo] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
   const { data: parties = [] } = useParties();
   const { data: processes = [] } = useProcesses();
   const { data: challans = [], isSuccess: challansLoaded } = useChallans();
@@ -74,6 +86,85 @@ export default function InvoiceForm() {
   const [jobCardNoInput, setJobCardNoInput] = useState('');
   const [jobCardLookupLoading, setJobCardLookupLoading] = useState(false);
   const [jobCardLookupMessage, setJobCardLookupMessage] = useState('');
+
+  // ── Edit mode: maujooda invoice form me bharna ──
+  useEffect(() => {
+    if (!isEdit) return;
+    setEditLoading(true);
+    api.get(`/invoices/${id}`)
+      .then((r) => {
+        const d = r.data.data;
+        if (!d) return;
+        setEditInvoiceNo(d.invoiceNo || '');
+        const dateOnly = (v) => (v ? String(v).split('T')[0] : '');
+        setForm({
+          invoiceDate:      dateOnly(d.invoiceDate),
+          dispatchDate:     dateOnly(d.dispatchDate),
+          fromPartyId:      d.fromPartyId ? String(d.fromPartyId) : '',
+          toPartyId:        d.toPartyId   ? String(d.toPartyId)   : '',
+          invoiceSeriesId:  d.invoiceSeriesId ? String(d.invoiceSeriesId) : '',
+          challanId:        d.challanId ? String(d.challanId) : '',
+          challanRef:       d.challanRef      || '',
+          poRef:            d.poRef           || '',
+          jobCardRef:       d.jobCardRef      || '',
+          otherReferences:  d.otherReferences || '',
+          dispatchDocNo:    d.dispatchDocNo   || '',
+          eWayBillNo:       d.eWayBillNo      || '',
+          cgstRate:         String(d.cgstRate ?? '9'),
+          sgstRate:         String(d.sgstRate ?? '9'),
+          igstRate:         String(d.igstRate ?? '0'),
+          transportFreight: String(d.transportFreight ?? '0'),
+          tcsRate:          String(d.tcsRate ?? '0'),
+          extraAmt:         String(d.extraAmt ?? '0'),
+          showPartName:     d.showPartName !== false,
+        });
+        // A consolidated InvoiceItem (2+ sources) is expanded back into one
+        // editable card per source challan item — same shape the form uses
+        // right after loading a challan — so editing an existing invoice
+        // looks the same as creating one. The saved line's weight (process-
+        // level, never split) goes on the first card only; the rest stay
+        // blank, matching how it's normally entered in the first place.
+        const expandedLines = (d.items || []).flatMap((it) => {
+          if (it.sources?.length > 1) {
+            return it.sources.map((s, si) => ({
+              _id: `${it.id}-${s.challanItemId ?? si}`,
+              description:  s.challanItem?.partName || s.challanItem?.description || it.description || '',
+              material:     s.challanItem?.material || it.material || '',
+              hrc:          s.challanItem?.hrc      || it.hrc      || '',
+              woNo:         s.challanItem?.woNo     || it.woNo     || '',
+              hsnSac:       it.hsnSac || '998898',
+              quantity:     String(toNum(s.quantity, 0)),
+              unit:         it.unit        || 'KGS',
+              billingType:  it.unit        || 'KGS',
+              weight:       si === 0 && it.weight != null ? String(it.weight) : '',
+              rate:         it.rate  != null ? String(it.rate) : '',
+              amount:       si === 0 ? (it.amount != null ? String(it.amount) : '') : '0.00',
+              processTypeId: it.processTypeId ? String(it.processTypeId) : '',
+              sourceChallanItemId: s.challanItemId ? String(s.challanItemId) : '',
+            }));
+          }
+          return [{
+            _id: it.id,
+            description:  it.description  || '',
+            material:     it.material     || '',
+            hrc:          it.hrc          || '',
+            woNo:         it.woNo         || '',
+            hsnSac:       it.hsnSac       || '998898',
+            quantity:     it.quantity != null ? String(it.quantity) : '',
+            unit:         it.unit         || 'KGS',
+            billingType:  it.unit         || 'KGS',
+            weight:       it.weight != null ? String(it.weight) : '',
+            rate:         it.rate   != null ? String(it.rate)   : '',
+            amount:       it.amount != null ? String(it.amount) : '',
+            processTypeId: it.processTypeId ? String(it.processTypeId) : '',
+            sourceChallanItemId: it.sourceChallanItemId ? String(it.sourceChallanItemId) : '',
+          }];
+        });
+        setLineItems(expandedLines);
+      })
+      .catch((err) => toast.error(err.response?.data?.message || 'Could not load the invoice.'))
+      .finally(() => setEditLoading(false));
+  }, [isEdit, id]);
 
   useEffect(() => {
     if (parties.length > 0 && !form.fromPartyId) {
@@ -150,6 +241,38 @@ export default function InvoiceForm() {
     }
   }, [challansLoaded]);
 
+  /**
+   * The three reads that give a challan its billing context. Kept separate
+   * from handleChallanChange because edit mode needs exactly this and must
+   * NOT have the invoice's own saved lines rebuilt from the challan.
+   */
+  const loadChallanContext = useCallback(async (challanId) => {
+    const [detailRes, histRes, billRes] = await Promise.all([
+      api.get(`/jobwork/${challanId}`),
+      api.get('/invoices', { params: { challanId } }),
+      // Edit me apni hi invoice ko ginti se bahar rakho, warna wo khud ko
+      // "already fully invoiced" bata kar save block kar degi.
+      api.get(`/invoices/challan/${challanId}/billing-status`, {
+        params: isEdit ? { excludeInvoiceId: id } : undefined,
+      }),
+    ]);
+    setChallanInfo(detailRes.data.data);
+    setChallanHistory(histRes.data.data || []);
+    setBillingStatus(billRes.data.data || null);
+    return { detailRes, billRes };
+  }, [isEdit, id]);
+
+  // Edit mode fills challanId straight from the saved invoice, so this context
+  // was never fetched — leaving remainingByChallanItem empty, which made every
+  // line look unmapped and refused the save with "Each line must be mapped to
+  // a challan item". Load it here, without touching the loaded lines.
+  useEffect(() => {
+    if (!isEdit || !form.challanId || challanInfo) return;
+    loadChallanContext(form.challanId).catch(() => {
+      toast.error('Could not load the challan billing status — saving stays blocked until the quantity check can run.');
+    });
+  }, [isEdit, form.challanId, challanInfo, loadChallanContext]);
+
   const handleChallanChange = async (val) => {
     setJobCardLookupMessage('');
     setChallanInfo(null);
@@ -160,15 +283,8 @@ export default function InvoiceForm() {
 
     setLoadingChallan(true);
     try {
-      const [detailRes, histRes, billRes] = await Promise.all([
-        api.get(`/jobwork/${val}`),
-        api.get('/invoices', { params: { challanId: val } }),
-        api.get(`/invoices/challan/${val}/billing-status`),
-      ]);
+      const { detailRes, billRes } = await loadChallanContext(val);
       const ch = detailRes.data.data;
-      setChallanInfo(ch);
-      setChallanHistory(histRes.data.data || []);
-      setBillingStatus(billRes.data.data || null);
       // Challan: fromParty=customer, toParty=processor
       // Invoice: fromParty=processor (bills), toParty=customer (pays) — reversed
       const invoiceToPartyId = String(ch.fromPartyId || form.toPartyId);
@@ -193,7 +309,12 @@ export default function InvoiceForm() {
       }
 
       if (ch.items?.length > 0) {
-        setLineItems(ch.items.map(it => {
+        // Weight to bill each line on. If a line has its own weight, use it.
+        // Otherwise — the inward's weight was entered as one total, not per
+        // item — leave it blank. Don't split the total proportionally by qty;
+        // user enters each line's weight by hand.
+        const billWeight = (it) => toNum(it.weight, 0);
+        const draftLines = ch.items.map(it => {
           const line = (billRes.data.data?.lineStatus || []).find(x => x.challanItemId === it.id);
           const origQty = toNum(it.quantity, 0);
           const dispatchQty = line ? line.remainingQty : origQty;
@@ -217,7 +338,7 @@ export default function InvoiceForm() {
           const lineQty = billingType === 'LOT' ? 1 : dispatchQty;
           // Prorate weight to the quantity actually being invoiced (dispatchQty
           // may be less than the challan item's original qty on a partial bill).
-          const origWeight = toNum(it.weight, 0);
+          const origWeight = billWeight(it);
           const proratedWeight = (billingType === 'KGS' && origQty > 0 && origWeight > 0)
             ? (origWeight * dispatchQty / origQty)
             : origWeight;
@@ -236,8 +357,17 @@ export default function InvoiceForm() {
             amount:        calcLineAmount({ unit, billingType, quantity: lineQty, rate, weight: proratedWeight }),
             processTypeId: it.processTypeId ? String(it.processTypeId) : '',
             sourceChallanItemId: String(it.id),
-          }
-        }));
+          };
+        });
+
+        // Lines stay one-per-challan-item on screen — each part keeps its own
+        // editable card (material/HRC/qty), and same-process lines still get
+        // the shared "Process Summary" total-weight bar above them (see
+        // renderGroupSummary/applyGroupTotal in InvoicedItemsSection.jsx).
+        // Consolidation into one billed process line happens only at submit
+        // time (buildConsolidatedItems, in handleSubmit) — so print/billing
+        // see one clean row per process without changing how this form looks.
+        setLineItems(draftLines);
       } else {
         setLineItems([newEmptyLine()]);
       }
@@ -348,12 +478,16 @@ export default function InvoiceForm() {
   // PCS/NOS by pieces (quantity), LOT by number of lots (quantity). This
   // matches how the challan item itself was priced at inward time, so a
   // full-quantity invoice reproduces the challan's own subtotal.
+  // KGS never falls back to quantity: quantity is a piece count, not a
+  // weight, so treating it as kilos would silently under/over-bill. Until
+  // the real weight is entered, a KGS line bills for ₹0 rather than a
+  // plausible-looking wrong amount.
   const calcLineAmount = (it) => {
     const qty    = toNum(it.quantity, 0);
     const rate   = toNum(it.rate, 0);
     const weight = toNum(it.weight, 0);
     const type   = it.billingType || it.unit || 'KGS';
-    const base = (type === 'KGS') ? (weight > 0 ? weight : qty) : qty;
+    const base = (type === 'KGS') ? weight : qty;
     return (base * rate).toFixed(2);
   };
 
@@ -435,6 +569,58 @@ export default function InvoiceForm() {
     });
   };
 
+  // Same-process consolidation happens here, at submit time only — the form
+  // itself keeps showing one editable card per challan item (with the
+  // existing "Process Summary" total-weight bar above same-process cards),
+  // but what actually gets saved/printed is one InvoiceItem per process:
+  // quantity summed across its cards, weight summed too (each card's weight
+  // is 0 unless something was actually typed there, so a shared figure
+  // typed into just one card is never double-counted), amount recalculated
+  // from that combined weight. Cards with no process (manual lines) never
+  // merge. `sources` records each underlying challan item's own billed
+  // quantity, for accurate per-item remaining-qty tracking server-side.
+  const buildConsolidatedItems = (lines) => {
+    const byProcess = new Map();
+    const order = [];
+    for (const line of lines) {
+      const key = line.processTypeId || `__single_${line._id}`;
+      if (!byProcess.has(key)) { byProcess.set(key, []); order.push(key); }
+      byProcess.get(key).push(line);
+    }
+    return order.map(key => {
+      const group = byProcess.get(key);
+      const sources = group
+        .filter(l => l.sourceChallanItemId)
+        .map(l => ({ challanItemId: toInt(l.sourceChallanItemId), quantity: toNum(l.quantity, 0) }));
+      if (group.length === 1) {
+        return { ...group[0], ...(sources.length ? { sources } : {}) };
+      }
+      const first = group[0];
+      const quantity = group.reduce((s, l) => s + toNum(l.quantity, 0), 0);
+      const weight = group.reduce((s, l) => s + toNum(l.weight, 0), 0);
+      const amount = calcLineAmount({ unit: first.unit, billingType: first.billingType, quantity, rate: first.rate, weight });
+      const partNames = [...new Set(group.map(l => l.description).filter(Boolean))];
+      return {
+        _id:           `merged-${key}`,
+        description:   partNames.join(', '),
+        material:      first.material,
+        hrc:           first.hrc,
+        woNo:          first.woNo,
+        hsnSac:        first.hsnSac,
+        quantity:      String(quantity),
+        unit:          first.unit,
+        billingType:   first.billingType,
+        weight:        weight ? String(weight.toFixed(3)) : '',
+        rate:          first.rate,
+        amount,
+        processTypeId: first.processTypeId,
+        certId:        first.certId,
+        sourceChallanItemId: '', // ambiguous once merged — `sources` is authoritative
+        sources,
+      };
+    });
+  };
+
   const subtotal   = lineItems.reduce((s, it) => s + toNum(it.amount, 0), 0);
   const cgst       = subtotal * toNum(form.cgstRate, 0) / 100;
   const sgst       = subtotal * toNum(form.sgstRate, 0) / 100;
@@ -461,133 +647,232 @@ export default function InvoiceForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.fromPartyId || !form.toPartyId) { toast.error('From and To party are required.'); return; }
-    if (!form.invoiceSeriesId) { toast.error('Invoice series is required.'); return; }
-    if (!lineItems.length || !lineItems.some(it => it.description && toNum(it.quantity, 0) > 0 && toNum(it.rate, 0) > 0)) {
-      toast.error('At least one line item with description, quantity and rate is required.'); return;
+    // Only the Review step saves. A stray submit reaching here from any other
+    // step would save behind the user's back, without them ever seeing the
+    // review — so refuse it outright rather than trusting the button alone.
+    if (wiz.current !== LAST_STEP) return;
+    const errs = {};
+    if (!form.fromPartyId) errs.fromPartyId = 'Billing party is required.';
+    if (!form.toPartyId) errs.toPartyId = 'Customer is required.';
+    if (!form.invoiceSeriesId) errs.invoiceSeriesId = 'Pick an invoice series.';
+    const linesOk = lineItems.length && lineItems.some(it => it.description && toNum(it.quantity, 0) > 0 && toNum(it.rate, 0) > 0);
+    if (!linesOk) errs.lineItems = 'Add at least one line with a description, quantity and rate.';
+    setInvErrors(errs);
+    if (Object.keys(errs).length) {
+      wiz.goto(errs.lineItems && !errs.fromPartyId && !errs.toPartyId && !errs.invoiceSeriesId ? 2 : 1);
+      toast.error('Please fix the highlighted fields.');
+      return;
     }
+    // Consolidate once here — the form kept one card per challan item, but
+    // what gets validated and saved is one line per process.
+    const consolidatedItems = buildConsolidatedItems(lineItems);
     if (form.challanId) {
-      for (const it of lineItems) {
-        const mapped = remainingByChallanItem.get(String(it.sourceChallanItemId || ''));
-        if (!mapped) { toast.error('Each line must be mapped to challan item for partial dispatch billing.'); return; }
-        if (toNum(it.quantity, 0) > mapped.remainingQty + 0.00001) {
-          toast.error(`Line qty exceeds remaining challan qty (remaining ${mapped.remainingQty}).`);
+      // Working copy of "remaining" per challan item, decremented as each
+      // source is checked — so two lines/sources referencing the same
+      // challan item can't both pass this check while collectively
+      // over-billing it (mirrors the backend's own validation).
+      const working = new Map(Array.from(remainingByChallanItem.entries()).map(([k, v]) => [k, v.remainingQty]));
+      for (const it of consolidatedItems) {
+        const sources = Array.isArray(it.sources) && it.sources.length > 0
+          ? it.sources
+          : (it.sourceChallanItemId ? [{ challanItemId: it.sourceChallanItemId, quantity: toNum(it.quantity, 0) }] : []);
+        if (!sources.length) { wiz.goto(2); toast.error('Each line must be mapped to a challan item for partial dispatch billing.'); return; }
+        const sourceQtySum = sources.reduce((s, src) => s + toNum(src.quantity, 0), 0);
+        if (Math.abs(sourceQtySum - toNum(it.quantity, 0)) > 0.01) {
+          wiz.goto(2);
+          toast.error(`"${it.description || 'A line'}" quantity doesn't match its combined source challan items — edit and retype the quantity.`);
           return;
+        }
+        for (const src of sources) {
+          const key = String(src.challanItemId || '');
+          const rem = working.has(key) ? working.get(key) : undefined;
+          if (rem === undefined) { wiz.goto(2); toast.error('Each line must be mapped to a challan item for partial dispatch billing.'); return; }
+          const q = toNum(src.quantity, 0);
+          if (q > rem + 0.00001) {
+            wiz.goto(2);
+            toast.error(`Line qty exceeds remaining challan qty (remaining ${rem}).`);
+            return;
+          }
+          working.set(key, rem - q);
         }
       }
     }
     if (fullyInvoiced) { toast.error('This challan is already fully invoiced.'); return; }
     setLoading(true);
     try {
-      const payload = { ...form, items: lineItems };
+      const payload = { ...form, items: consolidatedItems };
       if (!payload.challanId) delete payload.challanId;
-      const r = await api.post('/invoices', payload);
-      toast.success(`Invoice ${r.data.data.invoiceNo} created!`);
-      navigate('/invoices');
+
+      if (isEdit) {
+        const r = await api.put(`/invoices/${id}`, payload);
+        toast.success(`Invoice ${r.data.data.invoiceNo} update ho gayi.`);
+        navigate(`/invoices/${id}`);
+      } else {
+        const r = await api.post('/invoices', payload);
+        toast.success(`Invoice ${r.data.data.invoiceNo} created!`);
+        navigate('/invoices');
+      }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Error creating invoice.');
+      toast.error(err.response?.data?.message || (isEdit ? 'Could not update the invoice.' : 'Could not create the invoice.'));
     } finally { setLoading(false); }
   };
 
   const PAY_BADGE = { PENDING:'bg-orange-100 text-orange-700', PARTIAL:'bg-sky-100 text-sky-700', PAID:'bg-emerald-100 text-emerald-700' };
 
+  const INV_STEPS = [
+    { key: 'source', label: 'Source' },
+    { key: 'parties', label: 'Parties & references' },
+    { key: 'lines', label: 'Invoice lines' },
+    { key: 'tax', label: 'Tax & totals' },
+    { key: 'review', label: 'Review' },
+  ];
+  const LAST_STEP = INV_STEPS.length - 1;
+  const wiz = useStepper(INV_STEPS.length);
+  const [invErrors, setInvErrors] = useState({});
+  const invErrObj = Object.fromEntries(Object.entries(invErrors).map(([k, v]) => [k, { message: v }]));
+  const goNext = () => { if (wiz.current < LAST_STEP) wiz.next(); };
+  const toParty = parties.find(p => String(p.id) === String(form.toPartyId));
+  const fromParty = parties.find(p => String(p.id) === String(form.fromPartyId));
+
   return (
-    <div className="page-stack w-full min-w-0 max-w-5xl 3xl:max-w-6xl mx-auto animate-slide-up">
-      {/* Header */}
-      <div className="page-header">
-        <div className="flex items-start gap-3 min-w-0 flex-1">
-          <Link to="/invoices"
-            className="w-11 h-11 shrink-0 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-colors shadow-sm">
-            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-          </Link>
-          <div className="space-y-2 min-w-0">
-            <h1 className="page-title">Create Tax Invoice</h1>
-            <p className="page-subtitle max-w-2xl">Generate a GST invoice linked to challans, job cards, and customer parties.</p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 sm:justify-end shrink-0">
-          <button type="button" onClick={fillFromImage} className="btn-outline w-full sm:w-auto">
-            <span className="material-symbols-outlined text-sm">file_upload</span> Load sample data
-          </button>
-          <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1.5 rounded-full">
-            <span className="material-symbols-outlined text-[12px]">receipt_long</span> Tax Invoice
-          </span>
-        </div>
+    <div className="font-app flex flex-col h-full min-h-0">
+      <PageHeader
+        title={isEdit ? 'Edit Tax Invoice' : 'Create Tax Invoice'}
+        backTo="/invoices"
+        breadcrumbs={[{ label: 'Invoices', to: '/invoices' }, { label: isEdit ? (editInvoiceNo || 'Edit') : 'New' }]}
+        meta={
+          <>
+            {isEdit && editInvoiceNo && (
+              <span className="font-app-mono">Invoice {editInvoiceNo} <span className="text-slate-400">· number is fixed</span></span>
+            )}
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-info-200 bg-info-50 px-2 py-0.5 text-[11px] font-bold text-info-700">
+              <ReceiptText className="h-3 w-3" /> Tax Invoice
+            </span>
+          </>
+        }
+      />
+
+      <div className="mt-2 shrink-0 rounded-xl border border-slate-200 bg-white p-2 shadow-card">
+        <Stepper steps={INV_STEPS} current={wiz.current} completed={wiz.completed} onStepClick={(i) => wiz.goto(i)} />
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="card p-4 sm:p-5 space-y-3">
-          <div className="flex items-center justify-between gap-3 mb-3">
-            <p className="section-title">Lookup by Job Card No</p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="sm:col-span-2">
-              <label className="form-label">Job Card No</label>
-              <input
-                type="text"
-                value={jobCardNoInput}
-                onChange={(e) => setJobCardNoInput(e.target.value)}
-                placeholder="Enter job card number"
-                className="form-input"
-              />
-            </div>
-            <div className="sm:col-span-1 flex items-end">
-              <button
-                type="button"
-                onClick={() => lookupByJobCardNo()}
-                disabled={jobCardLookupLoading}
-                className="btn-secondary w-full"
-              >
-                {jobCardLookupLoading ? 'Looking up…' : 'Lookup Job Card'}
-              </button>
-            </div>
-          </div>
-          {jobCardLookupMessage && (
-            <p className="text-sm text-slate-600">{jobCardLookupMessage}</p>
-          )}
+      <form
+        noValidate
+        onSubmit={(e) => { if (wiz.current !== LAST_STEP) { e.preventDefault(); return; } handleSubmit(e); }}
+        className="flex-1 min-h-0 flex flex-col"
+      >
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-3 pr-0.5 space-y-4">
+        {/* ── Step 1 · Source ── */}
+        <div hidden={wiz.current !== 0} className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Lookup by Job Card No</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <FormField label="Job Card No" htmlFor="jobCardNoLookup" className="sm:col-span-2">
+                  <Input
+                    id="jobCardNoLookup"
+                    type="text"
+                    value={jobCardNoInput}
+                    onChange={(e) => setJobCardNoInput(e.target.value)}
+                    placeholder="Enter job card number"
+                  />
+                </FormField>
+                <div className="flex items-end sm:col-span-1">
+                  <Button type="button" variant="secondary" onClick={() => lookupByJobCardNo()} loading={jobCardLookupLoading} className="w-full">
+                    {!jobCardLookupLoading && <Search />}
+                    {jobCardLookupLoading ? 'Looking up…' : 'Lookup Job Card'}
+                  </Button>
+                </div>
+              </div>
+              {jobCardLookupMessage && <p className="text-sm text-slate-600">{jobCardLookupMessage}</p>}
+            </CardContent>
+          </Card>
+
+          <ChallanSelectionSection
+            form={form}
+            handleChallanChange={handleChallanChange}
+            challans={challans}
+            loadingChallan={loadingChallan}
+            challanInfo={challanInfo}
+            fullyInvoiced={fullyInvoiced}
+            wouldExceed={wouldExceed}
+            challanHistory={challanHistory}
+            alreadyInvoiced={alreadyInvoiced}
+            subtotal={subtotal}
+            grandTotal={grandTotal}
+            remaining={remaining}
+            PAY_BADGE={PAY_BADGE}
+          />
         </div>
 
-        <ChallanSelectionSection 
-          form={form} 
-          handleChallanChange={handleChallanChange} 
-          challans={challans} 
-          loadingChallan={loadingChallan} 
-          challanInfo={challanInfo} 
-          fullyInvoiced={fullyInvoiced} 
-          wouldExceed={wouldExceed} 
-          challanHistory={challanHistory} 
-          alreadyInvoiced={alreadyInvoiced} 
-          subtotal={subtotal} 
-          grandTotal={grandTotal} 
-          remaining={remaining} 
-          PAY_BADGE={PAY_BADGE} 
-        />
+        {/* ── Step 2 · Parties & references ── */}
+        <div hidden={wiz.current !== 1} className="space-y-4">
+          <FormErrorSummary errors={invErrObj} labels={{ fromPartyId: 'Billing party', toPartyId: 'Customer', invoiceSeriesId: 'Invoice series', lineItems: 'Invoice lines' }} />
+          <InvoiceDetailsSection form={form} setForm={setForm} parties={parties} invoiceSeries={invoiceSeries} />
+        </div>
 
-        <InvoiceDetailsSection form={form} setForm={setForm} parties={parties} invoiceSeries={invoiceSeries} />
+        {/* ── Step 3 · Invoice lines ── */}
+        <div hidden={wiz.current !== 2} className="space-y-4">
+          {invErrors.lineItems && (
+            <FormErrorSummary errors={{ lineItems: { message: invErrors.lineItems } }} labels={{ lineItems: 'Invoice lines' }} />
+          )}
+          <InvoicedItemsSection
+            lineItems={lineItems}
+            setLineItems={setLineItems}
+            processes={processes}
+            updateLine={updateLine}
+            challanInfo={challanInfo}
+            newEmptyLine={newEmptyLine}
+            remainingByChallanItem={remainingByChallanItem}
+            applyGroupTotal={applyGroupTotal}
+            showPartName={form.showPartName}
+            setShowPartName={v => setForm(f => ({ ...f, showPartName: v }))}
+          />
+        </div>
 
-        <InvoicedItemsSection
-          lineItems={lineItems}
-          setLineItems={setLineItems}
-          processes={processes}
-          updateLine={updateLine}
-          challanInfo={challanInfo}
-          newEmptyLine={newEmptyLine}
-          remainingByChallanItem={remainingByChallanItem}
-          applyGroupTotal={applyGroupTotal}
-          showPartName={form.showPartName}
-          setShowPartName={v => setForm(f => ({ ...f, showPartName: v }))}
-        />
+        {/* ── Step 4 · Tax & totals ── */}
+        <div hidden={wiz.current !== 3} className="space-y-4">
+          <InvoiceTaxTotalsSection
+            form={form}
+            setForm={setForm}
+            subtotal={subtotal}
+            cgst={cgst}
+            sgst={sgst}
+            igst={igst}
+            tcsAmt={tcsAmt}
+            grandTotal={grandTotal}
+          />
+        </div>
 
-        <InvoiceTaxTotalsSection 
-          form={form} 
-          setForm={setForm} 
-          subtotal={subtotal} 
-          cgst={cgst} 
-          sgst={sgst} 
-          igst={igst} 
-          tcsAmt={tcsAmt} 
-          grandTotal={grandTotal} 
-        />
+        {/* ── Step 5 · Review ── */}
+        <div hidden={wiz.current !== 4} className="space-y-4">
+          <Card>
+            <CardContent>
+              <dl className="grid grid-cols-1 gap-x-6 gap-y-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">From</dt><dd className="mt-0.5 text-slate-800">{fromParty?.name || '—'}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">To (customer)</dt><dd className="mt-0.5 text-slate-800">{toParty?.name || '—'}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Invoice date</dt><dd className="mt-0.5 text-slate-800">{form.invoiceDate || '—'}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Challan / job card</dt><dd className="mt-0.5 font-app-mono text-slate-800">{[form.challanRef, form.jobCardRef].filter(Boolean).join(' · ') || '—'}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Lines</dt><dd className="mt-0.5 text-slate-800">{lineItems.filter(it => it.description).length}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Subtotal</dt><dd className="mt-0.5 font-app-mono text-slate-800">₹{subtotal.toFixed(2)}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">CGST / SGST / IGST</dt><dd className="mt-0.5 font-app-mono text-slate-800">₹{cgst.toFixed(2)} / ₹{sgst.toFixed(2)} / ₹{igst.toFixed(2)}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Grand total</dt><dd className="mt-0.5 font-app-mono text-base font-bold text-slate-900">₹{grandTotal.toFixed(2)}</dd></div>
+              </dl>
+              {fullyInvoiced && (
+                <p className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-rose-600">
+                  <Ban className="h-4 w-4 shrink-0" /> This challan is fully invoiced — cannot create a new bill.
+                </p>
+              )}
+              {wouldExceed && !fullyInvoiced && (
+                <p className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-amber-600">
+                  <AlertTriangle className="h-4 w-4 shrink-0" /> Amount exceeds the remaining challan balance.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
         <datalist id="desc-suggestions">
           {processes.map(p => <option key={p.id} value={p.name} />)}
@@ -598,22 +883,30 @@ export default function InvoiceForm() {
           <option value="Stress Relieving" />
           <option value="Annealing" />
         </datalist>
+        </div>
 
-        {/* Actions stack */}
-        <div className="flex gap-3 items-center pb-4">
-          <button type="submit" disabled={loading || fullyInvoiced || loadingChallan} className="btn-primary">
-            {loading
-              ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Creating...</>
-              : <><span className="material-symbols-outlined text-sm">receipt_long</span> Create Invoice</>
-            }
-          </button>
-          {fullyInvoiced && (
-            <span className="text-sm text-rose-600 font-semibold">⛔ Fully invoiced — cannot create new bill</span>
-          )}
-          {wouldExceed && !fullyInvoiced && (
-            <span className="text-sm text-amber-600 font-semibold">⚠️ Amount exceeds remaining balance</span>
-          )}
-          <Link to="/invoices" className="ml-auto btn-ghost">Cancel</Link>
+        {/* ── Wizard navigation ── */}
+        <div className="shrink-0 mt-2 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-card sm:px-5">
+          <span className="font-app-mono text-xs text-slate-400">Step {wiz.current + 1} of {INV_STEPS.length}</span>
+          <div className="ml-auto flex items-center gap-2">
+            <Button asChild variant="ghost"><Link to="/invoices">Cancel</Link></Button>
+            <Button type="button" variant="ghost" disabled={wiz.isFirst} onClick={wiz.back}>
+              <ChevronLeft className="h-4 w-4" /> Back
+            </Button>
+            {/* Distinct keys matter here: without them React reuses the same
+                <button> node and merely flips type="button" to type="submit"
+                while the Next click is still being handled — the browser then
+                runs that click's default action on the now-submit button and
+                saves the invoice instead of showing the Review step. */}
+            {wiz.current < LAST_STEP ? (
+              <Button key="wizard-next" type="button" onClick={goNext}>Next <ChevronRight className="h-4 w-4" /></Button>
+            ) : (
+              <Button key="wizard-submit" type="submit" loading={loading} disabled={loading || editLoading || fullyInvoiced || loadingChallan}>
+                {!loading && <ReceiptText />}
+                {loading ? (isEdit ? 'Saving…' : 'Creating…') : (isEdit ? 'Save Changes' : 'Create Invoice')}
+              </Button>
+            )}
+          </div>
         </div>
       </form>
     </div>

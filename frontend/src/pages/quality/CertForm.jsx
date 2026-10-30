@@ -2,7 +2,16 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams, useParams, Link } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getCycleSegments, segmentsToTempCycleData } from '../../data/heatTreatmentCycles';
+
+// UI Components
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/ui/page-header';
+import { Stepper, useStepper } from '@/components/ui/stepper';
+import { FormErrorSummary } from '@/components/ui/field';
 
 // Master Data Hooks
 import { useParties, useMasterJobCards, useProcesses } from '../../hooks/useMasterData';
@@ -82,7 +91,7 @@ export default function CertForm() {
     hardnessMin: '', hardnessMax: '', hardnessUnit: 'HRC', achievedHardness: '',
     hardnessAfter1: '', hardnessAfter2: '', hardnessAfter3: '', hardnessAfter4: '',
     distortionBefore: Array(8).fill(''), distortionAfter: Array(8).fill(''),
-    packedQty: '', packedBy: '', approvedBy: '', finalInspectionBy: '',
+    packedQty: '', packedBy: '', approvedBy: '', finalInspectionBy: '', remarks: '',
     issuedTo: '', heatNo: '', dispatchByOurVehicle: false, dispatchByCourier: false, collectedByCustomer: false,
     dispatchChallanNo: '', dispatchChallanDate: '', dispatchedThrough: '',
     specialInstruction: '',
@@ -109,6 +118,17 @@ export default function CertForm() {
   const [selectedGraphId, setSelectedGraphId] = useState('');
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  // ── Wizard steps ──────────────────────────────────────────────
+  const CERT_STEPS = [
+    { key: 'job',    label: 'Job card',   full: 'Job card & customer' },
+    { key: 'cat',    label: 'Category',   full: 'Categorization & process' },
+    { key: 'temp',   label: 'Temp cycle', full: 'Temperature cycle' },
+    { key: 'pack',   label: 'Items',      full: 'Items & photos' },
+  ];
+  const LAST_STEP = CERT_STEPS.length - 1;
+  const wiz = useStepper(CERT_STEPS.length);
+  const [certErrors, setCertErrors] = useState({});
 
   const loadTempCycleFromRunsheet = async (jobCardId) => {
     if (!jobCardId) return false;
@@ -215,6 +235,7 @@ export default function CertForm() {
           packedBy:             c.packedBy   || '',
           approvedBy:           c.approvedBy || '',
           finalInspectionBy:    c.finalInspectionBy || '',
+          remarks:              c.remarks    || '',
           issuedTo:             c.issuedTo   || '',
           heatNo:               c.heatNo     || '',
           dispatchByOurVehicle: !!(c.dispatchedThrough || '').toLowerCase().includes('vehicle'),
@@ -226,14 +247,44 @@ export default function CertForm() {
           specialInstruction:   '',
         });
         if (c.items?.length) {
-          setCertItems(c.items.map(it => ({
-            description:  it.description  || '',
-            quantity:     it.quantity != null ? String(it.quantity) : '1',
-            weightPerPc:  it.weightPerPc  != null ? String(it.weightPerPc) : '',
-            totalWeight:  it.totalWeight  != null ? String(it.totalWeight) : '',
-            samplingPlan: it.samplingPlan || '',
-            remarks:      it.remarks      || '',
-          })));
+          // The certificate is issued against a job card, so the job card's
+          // weight is what it shows — including a weight corrected after this
+          // certificate was saved. The saved value stands in only when the job
+          // card has no weight of its own. Print applies the same order.
+          const jcData = c.jobCard || {};
+          const chItems = (jcData.challanItemLinks || []).length
+            ? jcData.challanItemLinks
+            : (jcData.challans || []).flatMap(x => x.items || []);
+          const chById = {};
+          chItems.forEach(ci => { chById[ci.id] = ci; });
+          // Per-item weight = the linked inward item's own weight only. The job
+          // card's Total Weight is NEVER divided across the items; an item with
+          // no weight of its own stays blank.
+          const jcWeightFor = (it, i) => {
+            const ch = (it.sourceChallanItemId && chById[it.sourceChallanItemId]) || chItems[i];
+            return Number(ch?.weight) || 0;
+          };
+
+          setCertItems(c.items.map((it, i) => {
+            const qty = Math.max(Number(it.quantity) || 1, 1);
+            const fromInward = jcWeightFor(it, i);
+            // Trust the cert's own saved weight only for a standalone item (no
+            // inward link) — older certs stored a divided total here.
+            const linked = !!((it.sourceChallanItemId && chById[it.sourceChallanItemId]) || chItems[i]);
+            const total = fromInward > 0
+              ? fromInward
+              : (!linked && it.totalWeight != null ? Number(it.totalWeight) : 0);
+            return {
+              id:           it.id,  // needed by "raise Rework / Reject" on this row
+              sourceChallanItemId: it.sourceChallanItemId ?? null, // keep the inward-item link across saves
+              description:  it.description  || '',
+              quantity:     it.quantity != null ? String(it.quantity) : '1',
+              weightPerPc:  total > 0 ? String(Number((total / qty).toFixed(3))) : '',
+              totalWeight:  total > 0 ? String(Number(total.toFixed(3))) : '',
+              samplingPlan: it.samplingPlan || '',
+              remarks:      it.remarks      || '',
+            };
+          }));
         }
         const rawTemp = c.tempCycleData;
         const parsedTemp = rawTemp ? (typeof rawTemp === 'string' ? JSON.parse(rawTemp) : rawTemp) : null;
@@ -290,20 +341,10 @@ export default function CertForm() {
         ? jc.challanItemLinks
         : (jc.challans?.flatMap(ch => ch.items || []) || []);
       if (linkedItems.length > 0) {
-        // The job card's weight is what this certificate is for — a job card may
-        // take only part of an inward, and the operator may correct the weight
-        // there. So when the job card carries a total, that total wins and is
-        // spread over the items (in proportion to their own weights when they
-        // have any, equally otherwise) so the certificate adds up to it.
-        // Item weights are used as-is only when the job card has no total.
-        const jcTotalWt = Number(jc.totalWeight) || 0;
-        const itemWtSum = linkedItems.reduce((sum, it) => sum + (Number(it.weight) || 0), 0);
-        const weightFor = (it) => {
-          const own = Number(it.weight) || 0;
-          if (!(jcTotalWt > 0)) return own;
-          if (itemWtSum > 0) return (own / itemWtSum) * jcTotalWt;
-          return jcTotalWt / linkedItems.length;
-        };
+        // Per-item weight = the linked inward item's own weight only. The job
+        // card's Total Weight is NEVER divided across the items — an item with
+        // no weight of its own stays blank until someone fills it in.
+        const weightFor = (it) => Number(it.weight) || 0;
         setCertItems(linkedItems.map(it => {
           const qty = Math.max(Number(it.qty ?? it.quantity ?? 1), 1);
           return {
@@ -315,9 +356,7 @@ export default function CertForm() {
               return d;
             })(),
             quantity:    String(qty),
-            // The challan item carries the weight, and the job card's total is
-            // already split per item above — both were computed and then
-            // thrown away, so every certificate came out with a blank weight.
+            // Only the inward item's own weight — blank when it has none.
             ...(() => {
               const wt = weightFor(it);
               if (!(wt > 0)) return { weightPerPc: '', totalWeight: '' };
@@ -522,8 +561,15 @@ export default function CertForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.customerId) { toast.error('Customer is required.'); return; }
-    if (!isEdit && !form.jobCardId) { toast.error('Job Card is required.'); return; }
+    const errs = {};
+    if (!isEdit && !form.jobCardId) errs.jobCardId = 'Select the job card this certificate is for.';
+    if (!form.customerId) errs.customerId = 'Customer is required — it fills in from the job card.';
+    setCertErrors(errs);
+    if (Object.keys(errs).length) {
+      wiz.goto(0);
+      toast.error('Please fix the highlighted fields on step 1.');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -570,138 +616,210 @@ export default function CertForm() {
 
   if (loadingCert) return <div className="p-10 text-slate-400 text-sm">Loading certificate…</div>;
 
-  return (
-    <div className="page-stack w-full animate-slide-up">
-      <div className="page-header">
-        <div className="flex items-start gap-3">
-          <Link to="/quality/certificates" className="w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-colors shadow-sm">
-            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-          </Link>
-          <div className="space-y-2">
-            <h1 className="page-title">{isEdit ? 'Edit Test Certificate' : 'Create Test Certificate'}</h1>
-            <p className="page-subtitle max-w-2xl">Use this form to generate or update quality certificates, link job cards, and capture inspection details in one place.</p>
-          </div>
-        </div>
-      </div>
+  const jcNo = jcData?.jobCardNo || '';
+  const goNext = () => { if (wiz.current < LAST_STEP) wiz.next(); };
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <CertHeaderSection form={form} set={set} parties={parties} jobCards={jobCards} jcData={jcData} />
-        <CertTechnicalSection form={form} set={set} updateTemperatureCycle={updateTemperatureCycle} jcData={jcData} />
-        <CertCategorizationSection form={form} set={set} jcData={jcData} />
-
-        {/* ── Item Selection Panel (create mode only, when JC selected) ── */}
-        {!isEdit && form.jobCardId && (
-          <div className="card p-5">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-4">
-              <div>
-                <p className="section-title">Select Items to Certify</p>
-                <p className="text-xs text-slate-400 mt-0.5">Only pending items shown. Already certified items are locked.</p>
-              </div>
-              {pendingCertItems.length > 0 && (
-                <button type="button"
-                  onClick={() => setSelectedItemIds(
-                    selectedItemIds.size === pendingCertItems.length
-                      ? new Set()
-                      : new Set(pendingCertItems.map(it => it.id))
-                  )}
-                  className="text-xs font-semibold text-sky-600 hover:underline">
-                  {selectedItemIds.size === pendingCertItems.length ? 'Deselect All' : 'Select All'}
-                </button>
-              )}
+  const itemsStepContent = (
+    <>
+      {!isEdit && form.jobCardId && (
+        <Card>
+          <CardHeader className="flex-row items-center justify-between space-y-0 gap-3">
+            <div className="space-y-1 min-w-0">
+              <CardTitle>Select Items to Certify</CardTitle>
             </div>
-
-            {loadingCertItems ? (
-              <p className="text-xs text-slate-400 py-3">Loading items…</p>
-            ) : pendingCertItems.length === 0 && certifiedItems.length === 0 ? (
-              <p className="text-xs text-slate-400 py-3">No items linked to this Job Card.</p>
-            ) : (
-              <div className="space-y-1.5">
-                {/* Pending items — selectable */}
-                {pendingCertItems.map(it => {
-                  const checked = selectedItemIds.has(it.id);
-                  return (
-                    <div key={it.id}
-                      onClick={() => setSelectedItemIds(prev => {
-                        const next = new Set(prev);
-                        if (next.has(it.id)) next.delete(it.id); else next.add(it.id);
-                        return next;
-                      })}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-lg border cursor-pointer transition-colors
-                        ${checked
-                          ? 'bg-sky-50 border-sky-300 border-l-4 border-l-sky-500'
-                          : 'bg-white border-slate-200 hover:bg-slate-50'
-                        }`}
-                    >
-                      <input type="checkbox" checked={checked} readOnly
-                        className="w-3.5 h-3.5 accent-sky-600 cursor-pointer flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <span className="text-xs font-semibold text-slate-800 truncate block">
-                          {it.description || it.processName || '—'}
-                        </span>
-                        {it.material && <span className="text-[10px] text-slate-500">{it.material}</span>}
-                      </div>
-                      <div className="flex items-center gap-4 text-xs text-slate-500 flex-shrink-0">
-                        <span>Qty: <span className="font-bold text-slate-700">{Number(it.quantity)}</span></span>
-                        {it.weight && <span>Wt: <span className="font-bold text-amber-700">{Number(it.weight).toFixed(3)} kg</span></span>}
-                        <span className="badge bg-amber-100 text-amber-700 text-[10px]">Pending Cert</span>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* Already certified items — locked */}
-                {certifiedItems.map(it => (
+            {pendingCertItems.length > 0 && (
+              <Button type="button" variant="link" size="sm" className="shrink-0"
+                onClick={() => setSelectedItemIds(
+                  selectedItemIds.size === pendingCertItems.length
+                    ? new Set()
+                    : new Set(pendingCertItems.map(it => it.id))
+                )}>
+                {selectedItemIds.size === pendingCertItems.length ? 'Deselect All' : 'Select All'}
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent>
+          {loadingCertItems ? (
+            <p className="text-xs text-slate-400 py-1">Loading items…</p>
+          ) : pendingCertItems.length === 0 && certifiedItems.length === 0 ? (
+            <p className="text-xs text-slate-400 py-1">No items linked to this Job Card.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {pendingCertItems.map(it => {
+                const checked = selectedItemIds.has(it.id);
+                return (
                   <div key={it.id}
-                    className="flex items-center gap-3 px-3 py-2 rounded-lg border border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed">
-                    <span className="w-3.5 h-3.5 flex-shrink-0 text-emerald-500 text-sm">✓</span>
+                    onClick={() => setSelectedItemIds(prev => {
+                      const next = new Set(prev);
+                      if (next.has(it.id)) next.delete(it.id); else next.add(it.id);
+                      return next;
+                    })}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg border cursor-pointer transition-colors
+                      ${checked
+                        ? 'bg-sky-50 border-sky-300 border-l-4 border-l-sky-500'
+                        : 'bg-white border-slate-200 hover:bg-slate-50'
+                      }`}
+                  >
+                    <input type="checkbox" checked={checked} readOnly
+                      className="w-3.5 h-3.5 accent-sky-600 cursor-pointer flex-shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <span className="text-xs font-semibold text-slate-600 truncate block">
+                      <span className="text-xs font-semibold text-slate-800 truncate block">
                         {it.description || it.processName || '—'}
                       </span>
+                      {it.material && <span className="text-[10px] text-slate-500">{it.material}</span>}
                     </div>
-                    <div className="flex items-center gap-3 text-xs flex-shrink-0">
-                      <span className="badge bg-emerald-100 text-emerald-700 text-[10px]">
-                        Certified {it.certItems?.[0]?.cert?.certNo ? `→ ${it.certItems[0].cert.certNo}` : ''}
-                      </span>
+                    <div className="flex items-center gap-4 text-xs text-slate-500 flex-shrink-0 tabular-nums">
+                      <span>Qty: <span className="font-bold text-slate-700">{Number(it.quantity)}</span></span>
+                      {it.weight && <span>Wt: <span className="font-bold text-amber-700">{Number(it.weight).toFixed(3)} kg</span></span>}
+                      <Badge variant="warning" className="text-[10px]">Pending Cert</Badge>
                     </div>
                   </div>
-                ))}
+                );
+              })}
 
-                {selectedItemIds.size > 0 && (
-                  <div className="mt-2 px-3 py-2 bg-sky-50 rounded-lg text-xs text-sky-700 font-medium">
-                    {selectedItemIds.size} item{selectedItemIds.size > 1 ? 's' : ''} selected for this certificate
+              {certifiedItems.map(it => (
+                <div key={it.id}
+                  className="flex items-center gap-3 px-3 py-2 rounded-lg border border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed">
+                  <Check className="w-3.5 h-3.5 flex-shrink-0 text-emerald-500" strokeWidth={3} />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs font-semibold text-slate-600 truncate block">
+                      {it.description || it.processName || '—'}
+                    </span>
                   </div>
-                )}
-              </div>
+                  <div className="flex items-center gap-3 text-xs flex-shrink-0">
+                    <Badge variant="success" className="text-[10px]">
+                      Certified {it.certItems?.[0]?.cert?.certNo ? `→ ${it.certItems[0].cert.certNo}` : ''}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+
+              {selectedItemIds.size > 0 && (
+                <div className="mt-2 px-3 py-2 bg-sky-50 rounded-lg text-xs text-sky-700 font-medium">
+                  {selectedItemIds.size} item{selectedItemIds.size > 1 ? 's' : ''} selected for this certificate
+                </div>
+              )}
+            </div>
+          )}
+          </CardContent>
+        </Card>
+      )}
+      <CertItemsTable
+        certItems={certItems}
+        setCertItems={setCertItems}
+        certId={isEdit ? editId : null}
+        jobCardId={form.jobCardId}
+        jobCardNo={jcNo}
+        customerName={form.issuedTo}
+        hardnessRequired={form.hardnessMin && form.hardnessMax ? `${form.hardnessMin}-${form.hardnessMax} ${form.hardnessUnit || 'HRC'}` : ''}
+      />
+    </>
+  );
+
+  return (
+    <div className="font-app flex flex-col h-full min-h-0">
+      <PageHeader
+        title={isEdit ? 'Edit Test Certificate' : 'Create Test Certificate'}
+        inlineMeta
+        backTo="/quality/certificates"
+        breadcrumbs={[
+          { label: 'Certificates', to: '/quality/certificates' },
+          { label: isEdit ? (form.issueNo || 'Edit') : 'New' },
+        ]}
+        meta={
+          <>
+            {form.issueNo && <span className="font-app-mono">Cert {form.issueNo}</span>}
+            {jcNo && (
+              <span>
+                Job Card{' '}
+                {form.jobCardId
+                  ? <Link to={`/jobcards/${form.jobCardId}`} className="font-app-mono font-semibold text-sky-700 hover:underline">{jcNo}</Link>
+                  : <span className="font-app-mono font-semibold text-slate-700">{jcNo}</span>}
+              </span>
             )}
-          </div>
-        )}
+          </>
+        }
+      />
 
-        <CertItemsTable certItems={certItems} setCertItems={setCertItems} />
-        <CertHardnessSection form={form} set={set} jcData={jcData} />
-        <DistortionTable form={form} setForm={setForm} set={set} />
-        <TemperatureCurve
-          tempRows={tempRows}
-          setTempRows={(rows) => { tempRowsUserEdited.current = true; setTempRows(rows); }}
-          form={form}
-          masterGraphs={masterGraphs}
-          selectGraph={(id) => { tempRowsUserEdited.current = false; return selectGraph(id); }}
-          selectedGraphId={selectedGraphId}
-          noDefaultTemplate={!isEdit && noDefaultTemplate}
+      <div className="mt-2 shrink-0 rounded-xl border border-slate-200 bg-white p-2 shadow-card">
+        <Stepper
+          steps={CERT_STEPS}
+          current={wiz.current}
+          completed={wiz.completed}
+          onStepClick={(i) => wiz.goto(i)}
         />
-        <CertPhotosSection handleImageChange={handleImageChange} existingImages={{ ...jcImages, ...existingImages }} />
-        <CertPackingSection form={form} set={set} jcData={jcData} />
+      </div>
 
-        <div className="card p-4 flex flex-wrap items-center justify-between gap-3 border-slate-200 shadow-sm">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-slate-700">Ready to finalize?</p>
-            <p className="text-xs text-slate-500">Save the certificate once all sections are complete.</p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <button type="submit" disabled={loading} className="btn-primary">
-              {loading ? (isEdit ? 'Saving…' : 'Creating…') : (isEdit ? 'Update Certificate' : 'Create Certificate')}
-            </button>
-            <Link to="/quality/certificates" className="btn-ghost">Cancel</Link>
+      <form
+        onSubmit={(e) => { e.preventDefault(); if (wiz.current === LAST_STEP) handleSubmit(e); }}
+        className="flex-1 min-h-0 flex flex-col"
+      >
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-3 pr-0.5 space-y-4">
+        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+          Step {wiz.current + 1} of {CERT_STEPS.length} · {CERT_STEPS[wiz.current].full}
+        </p>
+
+        {/* ── Step 1 · Job card & customer ── */}
+        <div hidden={wiz.current !== 0} className="space-y-4">
+          <FormErrorSummary
+            errors={Object.fromEntries(Object.entries(certErrors).map(([k, v]) => [k, { message: v }]))}
+            labels={{ jobCardId: 'Job card', customerId: 'Customer' }}
+          />
+          <Card>
+            <CardHeader><CardTitle>Certificate Details</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <CertHeaderSection form={form} set={set} parties={parties} jobCards={jobCards} jcData={jcData} />
+              <CertTechnicalSection form={form} set={set} updateTemperatureCycle={updateTemperatureCycle} jcData={jcData} />
+              <CertHardnessSection form={form} set={set} />
+              <CertPackingSection form={form} set={set} jcData={jcData} />
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ── Step 2 · Categorization & process ── */}
+        <div hidden={wiz.current !== 1} className="space-y-4">
+          <CertCategorizationSection form={form} set={set} jcData={jcData} />
+          <DistortionTable form={form} setForm={setForm} set={set} />
+        </div>
+
+        {/* ── Step 3 · Temperature cycle ── */}
+        <div hidden={wiz.current !== 2} className="space-y-4">
+          <TemperatureCurve
+            tempRows={tempRows}
+            setTempRows={(rows) => { tempRowsUserEdited.current = true; setTempRows(rows); }}
+            form={form}
+            masterGraphs={masterGraphs}
+            selectGraph={(id) => { tempRowsUserEdited.current = false; return selectGraph(id); }}
+            selectedGraphId={selectedGraphId}
+            noDefaultTemplate={!isEdit && noDefaultTemplate}
+          />
+        </div>
+
+        {/* ── Step 4 · Items & photos ── */}
+        <div hidden={wiz.current !== 3} className="space-y-4">
+          {itemsStepContent}
+          <CertPhotosSection handleImageChange={handleImageChange} existingImages={{ ...jcImages, ...existingImages }} />
+        </div>
+
+        </div>
+
+        {/* ── Wizard navigation ── */}
+        <div className="shrink-0 mt-2 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-card sm:px-5">
+          <span className="font-app-mono text-xs text-slate-400">Step {wiz.current + 1} of {CERT_STEPS.length}</span>
+          <div className="ml-auto flex items-center gap-2">
+            <Button asChild variant="ghost"><Link to="/quality/certificates">Cancel</Link></Button>
+            <Button type="button" variant="ghost" disabled={wiz.isFirst} onClick={wiz.back}>
+              <ChevronLeft className="h-4 w-4" /> Back
+            </Button>
+            {wiz.current < LAST_STEP ? (
+              <Button type="button" onClick={goNext}>
+                Next <ChevronRight className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button type="button" onClick={handleSubmit} loading={loading} disabled={loading}>
+                {loading ? (isEdit ? 'Saving…' : 'Creating…') : (isEdit ? 'Update Certificate' : 'Create Certificate')}
+              </Button>
+            )}
           </div>
         </div>
       </form>

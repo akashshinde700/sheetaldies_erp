@@ -367,6 +367,16 @@ exports.getOne = async (req, res) => {
           select: { id: true, certNo: true, status: true, createdAt: true },
           orderBy: { createdAt: 'desc' },
         },
+        reworkEntries: {
+          select: {
+            id: true, srNo: true, type: true, entryDate: true, description: true,
+            qty: true, weightKg: true, cycleNo: true, reworkCycleNo: true, reason: true,
+            afterProcessResults: true, remark: true,
+            certificate: { select: { id: true, certNo: true } },
+            reworkCertificate: { select: { id: true, certNo: true } },
+          },
+          orderBy: { entryDate: 'desc' },
+        },
         parentJobCard: { select: { id: true, jobCardNo: true, quantity: true } },
         childJobCards: {
           select: { id: true, jobCardNo: true, quantity: true, status: true, remarks: true, hrcRange: true },

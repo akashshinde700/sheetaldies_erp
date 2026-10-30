@@ -1,8 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
-import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import { Plus, Eye, Pencil, Trash2, X, Package } from 'lucide-react';
+import api from '../../utils/api';
 import ListSearchInput from '../../components/ListSearchInput';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
+import { Sheet, SheetContent, SheetHeader, SheetFooter, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { FormField } from '@/components/ui/form-field';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const emptyForm = () => ({
   partNo: '',
@@ -13,6 +22,25 @@ const emptyForm = () => ({
   material: '',
   weightKg: '',
 });
+
+const FilterLabel = ({ children, htmlFor }) => (
+  <label htmlFor={htmlFor} className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+    {children}
+  </label>
+);
+
+const SkeletonRow = () => (
+  <tr>
+    <td className="td sticky left-0 z-[1] bg-white"><Skeleton className="h-3.5 w-20" /></td>
+    <td className="td"><Skeleton className="h-3.5 w-16" /></td>
+    <td className="td"><Skeleton className="h-3.5 w-16" /></td>
+    <td className="td"><Skeleton className="h-3.5 w-10 ml-auto" /></td>
+    <td className="td"><Skeleton className="h-3.5 w-10" /></td>
+    <td className="td"><Skeleton className="h-3.5 w-14" /></td>
+    <td className="td"><Skeleton className="h-3.5 w-32" /></td>
+    <td className="td"><Skeleton className="h-3.5 w-24 ml-auto" /></td>
+  </tr>
+);
 
 export default function ItemList() {
   const PAGE_SIZE = 10;
@@ -120,152 +148,201 @@ export default function ItemList() {
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
   const pagedItems = items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  const closeForm = () => { setShowForm(false); setEditingId(null); setFormData(emptyForm()); };
+
   return (
-    <div className="page-stack w-full space-y-6 animate-slide-up">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="page-title">Items</h1>
-          <p className="page-subtitle">Parts, units, and HSN</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            setShowForm(!showForm);
-            if (editingId) {
-              setEditingId(null);
-              setFormData(emptyForm());
-            }
-          }}
-          className="btn-primary shrink-0 inline-flex items-center gap-2"
-        >
-          <span className="material-symbols-outlined text-[20px]">add</span> Add item
-        </button>
-      </div>
+    <div className="font-app page-fill w-full space-y-3 animate-slide-up">
+      <PageHeader
+        title="Items"
+        breadcrumbs={[{ label: 'Admin' }, { label: 'Items' }]}
+        actions={
+          <Button type="button" onClick={() => { setEditingId(null); setFormData(emptyForm()); setShowForm(true); }}>
+            <Plus /> Add item
+          </Button>
+        }
+      />
 
-      {showForm && (
-        <div className="card p-5 sm:p-6">
-          <h2 className="text-lg font-bold text-slate-900 font-headline mb-4">{editingId ? 'Edit item' : 'New item'}</h2>
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input type="text" placeholder="Part no *" value={formData.partNo} onChange={(e) => setFormData({ ...formData, partNo: e.target.value })} className="form-input" required />
-            <input type="text" placeholder="Unit (default NOS)" value={formData.unit} onChange={(e) => setFormData({ ...formData, unit: e.target.value })} className="form-input" />
-            <input type="text" placeholder="Drawing no." value={formData.drawingNo} onChange={(e) => setFormData({ ...formData, drawingNo: e.target.value })} className="form-input" />
-            <input type="text" placeholder="Material" value={formData.material} onChange={(e) => setFormData({ ...formData, material: e.target.value })} className="form-input" />
-            <input type="text" placeholder="Weight (kg)" value={formData.weightKg} onChange={(e) => setFormData({ ...formData, weightKg: e.target.value })} className="form-input" />
-            <input type="text" placeholder="HSN code" value={formData.hsnCode} onChange={(e) => setFormData({ ...formData, hsnCode: e.target.value })} className="form-input" />
-            <textarea placeholder="Description" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className="form-input col-span-1 md:col-span-2 min-h-[88px]" rows={3} />
-            <div className="col-span-1 md:col-span-2 flex flex-wrap gap-2">
-              <button type="submit" className="btn-primary">{editingId ? 'Update' : 'Create'}</button>
-              <button type="button" onClick={() => { setShowForm(false); setEditingId(null); setFormData(emptyForm()); }} className="btn-ghost">Cancel</button>
-            </div>
+      {/* Add / Edit form — side sheet */}
+      <Sheet open={showForm} onOpenChange={(o) => { if (!o) closeForm(); }}>
+        <SheetContent side="right" className="font-app sm:max-w-lg">
+          <SheetHeader>
+            <SheetTitle>{editingId ? 'Edit item' : 'New item'}</SheetTitle>
+            <SheetDescription>Parts, units and HSN.</SheetDescription>
+          </SheetHeader>
+          <form id="item-form" onSubmit={handleSubmit} className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <FormField label="Part no" htmlFor="item-partno" required>
+                <Input id="item-partno" placeholder="Part no" value={formData.partNo} onChange={(e) => setFormData({ ...formData, partNo: e.target.value })} required className="font-mono" />
+              </FormField>
+              <FormField label="Unit" htmlFor="item-unit" hint="Default NOS">
+                <Input id="item-unit" placeholder="NOS" value={formData.unit} onChange={(e) => setFormData({ ...formData, unit: e.target.value })} />
+              </FormField>
+              <FormField label="Drawing no" htmlFor="item-drawing">
+                <Input id="item-drawing" placeholder="Drawing no." value={formData.drawingNo} onChange={(e) => setFormData({ ...formData, drawingNo: e.target.value })} className="font-mono" />
+              </FormField>
+              <FormField label="Material" htmlFor="item-material">
+                <Input id="item-material" placeholder="e.g. D2" value={formData.material} onChange={(e) => setFormData({ ...formData, material: e.target.value })} />
+              </FormField>
+              <FormField label="Weight (kg)" htmlFor="item-weight">
+                <Input id="item-weight" placeholder="0.00" value={formData.weightKg} onChange={(e) => setFormData({ ...formData, weightKg: e.target.value })} className="text-right tabular-nums" />
+              </FormField>
+              <FormField label="HSN code" htmlFor="item-hsn">
+                <Input id="item-hsn" placeholder="HSN code" value={formData.hsnCode} onChange={(e) => setFormData({ ...formData, hsnCode: e.target.value })} className="font-mono" />
+              </FormField>
+              <FormField label="Description" htmlFor="item-desc" className="col-span-1 md:col-span-2">
+                <Textarea id="item-desc" placeholder="Description" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={3} className="min-h-[88px]" />
+              </FormField>
           </form>
-        </div>
-      )}
+          <SheetFooter>
+            <Button type="button" variant="ghost" onClick={closeForm}>Cancel</Button>
+            <Button type="submit" form="item-form">{editingId ? 'Update' : 'Create'}</Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] items-end">
-        <div className="flex items-center gap-2">
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Search</label>
-          <ListSearchInput
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search part no, drawing, material, description..."
-          />
-        </div>
-        {searchTerm && (
-          <button
-            type="button"
-            onClick={() => setSearchTerm('')}
-            className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-500 transition-colors font-medium"
-          >
-            <span className="material-symbols-outlined text-sm">close</span> Clear
-          </button>
-        )}
-      </div>
-      <div className="card overflow-hidden">
-        {loading ? (
-          <div className="text-center py-10 text-slate-500 text-sm">Loading…</div>
-        ) : items.length === 0 ? (
-          <div className="text-center py-10 text-slate-500 text-sm">No items found</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead>
-                <tr className="border-b border-slate-200/80">
-                  <th className="th text-left sticky left-0 z-[1] bg-slate-50/95 backdrop-blur-sm shadow-[4px_0_12px_-8px_rgba(15,23,42,0.25)]">Part no</th>
-                  <th className="th text-left">Drawing</th>
-                  <th className="th text-left">Material</th>
-                  <th className="th text-left">Wt (kg)</th>
-                  <th className="th text-left">Unit</th>
-                  <th className="th text-left">HSN</th>
-                  <th className="th text-left">Description</th>
-                  <th className="th text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {pagedItems.map((item) => (
-                  <tr key={item.id} className="tr group">
-                    <td className="td font-semibold text-slate-800 sticky left-0 z-[1] bg-white group-hover:bg-slate-50/80 shadow-[4px_0_12px_-8px_rgba(15,23,42,0.12)]">{item.partNo}</td>
-                    <td className="td font-mono text-xs text-slate-600">{item.drawingNo || '—'}</td>
-                    <td className="td text-slate-600">{item.material || '—'}</td>
-                    <td className="td text-slate-600">{item.weightKg != null ? item.weightKg : '—'}</td>
-                    <td className="td">{item.unit || '—'}</td>
-                    <td className="td font-mono text-slate-600">{item.hsnCode || '—'}</td>
-                    <td className="td text-slate-600 max-w-[200px] truncate" title={item.description}>{item.description || '—'}</td>
-                    <td className="td">
-                      <div className="flex justify-center gap-1">
-                        <button type="button" onClick={() => setViewItem(item)} className="p-2 rounded-lg text-slate-700 hover:bg-slate-100" aria-label="View"><span className="material-symbols-outlined text-[18px]">visibility</span></button>
-                        <button type="button" onClick={() => handleEdit(item)} className="p-2 rounded-lg text-sky-800 hover:bg-sky-50" aria-label="Edit"><span className="material-symbols-outlined text-[18px]">edit</span></button>
-                        <button type="button" onClick={() => handleDelete(item.id)} className="p-2 rounded-lg text-rose-600 hover:bg-rose-50" aria-label="Delete"><span className="material-symbols-outlined text-[18px]">delete</span></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {/* Filters */}
+      <Card>
+        <CardContent className="p-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:gap-3">
+            <div className="space-y-1 flex-1 min-w-[220px]">
+              <FilterLabel>Search</FilterLabel>
+              <ListSearchInput
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search part no, drawing, material, description..."
+                className="w-full"
+              />
+            </div>
+            {searchTerm && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setSearchTerm('')}
+                className="text-slate-500 hover:text-rose-600"
+              >
+                <X /> Clear
+              </Button>
+            )}
           </div>
-        )}
+        </CardContent>
+      </Card>
+
+      {/* Table */}
+      <div className="card overflow-hidden">
+        <div className="table-responsive">
+          <table className="w-full text-left min-w-[720px]">
+            <thead>
+              <tr>
+                <th className="th sticky left-0 z-[1] bg-slate-50/95 backdrop-blur-sm shadow-[4px_0_12px_-8px_rgba(15,23,42,0.25)]">Part no</th>
+                <th className="th">Drawing</th>
+                <th className="th">Material</th>
+                <th className="th text-right">Wt (kg)</th>
+                <th className="th">Unit</th>
+                <th className="th">HSN</th>
+                <th className="th">Description</th>
+                <th className="th text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50/80">
+              {loading ? (
+                Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
+              ) : items.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-10 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center">
+                        <Package className="h-5 w-5 text-sky-300" />
+                      </div>
+                      <p className="text-sm text-slate-500">
+                        {searchTerm ? 'No items match your search.' : 'No items yet.'}
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : pagedItems.map((item) => (
+                <tr key={item.id} className="tr group">
+                  <td className="td font-semibold text-slate-800 sticky left-0 z-[1] bg-white group-hover:bg-slate-50/80 shadow-[4px_0_12px_-8px_rgba(15,23,42,0.12)]">{item.partNo}</td>
+                  <td className="td font-mono text-xs text-slate-600">{item.drawingNo || '—'}</td>
+                  <td className="td text-slate-600">{item.material || '—'}</td>
+                  <td className="td text-right tabular-nums text-slate-700">{item.weightKg != null ? item.weightKg : '—'}</td>
+                  <td className="td text-slate-600">{item.unit || '—'}</td>
+                  <td className="td font-mono text-xs text-slate-600">{item.hsnCode || '—'}</td>
+                  <td className="td text-slate-600 max-w-[200px] truncate" title={item.description}>{item.description || '—'}</td>
+                  <td className="td">
+                    <div className="flex items-center justify-end gap-0.5">
+                      <Button type="button" variant="ghost" size="icon-sm"
+                        onClick={() => setViewItem(item)}
+                        title="View" aria-label={`View item ${item.partNo}`}
+                        className="text-slate-400 hover:text-slate-700">
+                        <Eye />
+                      </Button>
+                      <Button type="button" variant="ghost" size="icon-sm"
+                        onClick={() => handleEdit(item)}
+                        title="Edit" aria-label={`Edit item ${item.partNo}`}
+                        className="text-slate-400 hover:text-sky-700 hover:bg-sky-50">
+                        <Pencil />
+                      </Button>
+                      <Button type="button" variant="ghost" size="icon-sm"
+                        onClick={() => handleDelete(item.id)}
+                        title="Delete" aria-label={`Delete item ${item.partNo}`}
+                        className="text-slate-400 hover:text-rose-600 hover:bg-rose-50">
+                        <Trash2 />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         {!loading && items.length > 0 && (
           <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 tabular-nums">
               {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, items.length)} of {items.length}
             </p>
             <div className="flex items-center gap-2">
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="btn-outline text-xs disabled:opacity-40"
               >
                 Prev
-              </button>
-              <span className="text-xs font-semibold text-slate-600">{page} / {totalPages}</span>
-              <button
+              </Button>
+              <span className="text-xs font-semibold text-slate-600 tabular-nums">{page} / {totalPages}</span>
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="btn-outline text-xs disabled:opacity-40"
               >
                 Next
-              </button>
+              </Button>
             </div>
           </div>
         )}
       </div>
 
+      {/* View modal */}
       {viewItem && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/50 p-4" role="dialog" aria-modal="true">
-          <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl border border-slate-200">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/40 backdrop-blur-[2px] p-4 animate-backdrop-in" role="dialog" aria-modal="true">
+          <div className="w-full max-w-xl rounded-2xl bg-white shadow-card-elevated border border-slate-200 animate-scale-in">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-800">Item details</h3>
-              <button type="button" onClick={() => setViewItem(null)} className="btn-ghost">Close</button>
+              <h3 className="text-base font-bold text-slate-900 leading-none tracking-tight">Item details</h3>
+              <Button type="button" variant="ghost" size="icon-sm" onClick={() => setViewItem(null)} aria-label="Close" className="text-slate-400 hover:text-slate-700">
+                <X />
+              </Button>
             </div>
-            <div className="p-5 grid grid-cols-2 gap-3 text-sm">
-              <div><p className="text-slate-400 text-xs">Part no</p><p className="font-semibold">{viewItem.partNo || '—'}</p></div>
-              <div><p className="text-slate-400 text-xs">Unit</p><p className="font-semibold">{viewItem.unit || '—'}</p></div>
-              <div><p className="text-slate-400 text-xs">Drawing</p><p className="font-semibold">{viewItem.drawingNo || '—'}</p></div>
-              <div><p className="text-slate-400 text-xs">Material</p><p className="font-semibold">{viewItem.material || '—'}</p></div>
-              <div><p className="text-slate-400 text-xs">Weight (kg)</p><p className="font-semibold">{viewItem.weightKg ?? '—'}</p></div>
-              <div><p className="text-slate-400 text-xs">HSN</p><p className="font-semibold">{viewItem.hsnCode || '—'}</p></div>
-              <div className="col-span-2"><p className="text-slate-400 text-xs">Description</p><p className="font-semibold">{viewItem.description || '—'}</p></div>
+            <div className="p-5 grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Part no</p><p className="font-semibold text-slate-800 mt-0.5">{viewItem.partNo || '—'}</p></div>
+              <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Unit</p><p className="font-semibold text-slate-800 mt-0.5">{viewItem.unit || '—'}</p></div>
+              <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Drawing</p><p className="font-semibold text-slate-800 font-mono mt-0.5">{viewItem.drawingNo || '—'}</p></div>
+              <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Material</p><p className="font-semibold text-slate-800 mt-0.5">{viewItem.material || '—'}</p></div>
+              <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Weight (kg)</p><p className="font-semibold text-slate-800 tabular-nums mt-0.5">{viewItem.weightKg ?? '—'}</p></div>
+              <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">HSN</p><p className="font-semibold text-slate-800 font-mono mt-0.5">{viewItem.hsnCode || '—'}</p></div>
+              <div className="col-span-2"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Description</p><p className="font-semibold text-slate-800 mt-0.5">{viewItem.description || '—'}</p></div>
             </div>
           </div>
         </div>

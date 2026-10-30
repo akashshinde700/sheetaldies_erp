@@ -13,46 +13,76 @@ export default {
       '3xl': '1920px',
     },
     extend: {
-      colors: {
-        brand: {
-          50: '#eef2ff',
-          100: '#e0e7ff',
-          200: '#c7d2fe',
-          300: '#a5b4fc',
-          400: '#818cf8',
-          500: '#6366f1',
-          600: '#4f46e5',
-          700: '#4338ca',
-          800: '#3730a3',
-          900: '#312e81',
-          950: '#1e1b4b',
-        },
-        surface: {
-          DEFAULT: '#ffffff',
-          muted: '#f4f6fb',
-          subtle: '#e8ecf7',
-        },
-        ink: {
-          DEFAULT: '#0f172a',
-          secondary: '#475569',
-          muted: '#94a3b8',
-        },
-        // ✅ NEW: Semantic state colors
-        state: {
-          success: '#10b981',    // Emerald
-          error: '#ef4444',      // Rose
-          warning: '#f59e0b',    // Amber
-          info: '#0ea5e9',       // Sky
-        },
-      },
+      colors: (() => {
+        // ─────────────────────────────────────────────────────────────
+        //  SVT ERP palette — 6 roles, wired through CSS variables so the
+        //  same class works in light AND dark mode. The `--c-<role>-<n>`
+        //  vars live in index.css (:root = light, :root.dark = dark,
+        //  scoped @media screen so PRINT is always the light palette).
+        //  Legacy hue names (sky/emerald/rose/…) are remapped onto the
+        //  roles here, so `text-sky-700` etc. keep working everywhere.
+        // ─────────────────────────────────────────────────────────────
+        const ramp = (ns) => Object.fromEntries(
+          ['50','100','200','300','400','500','600','700','800','900','950']
+            .map((k) => [k, `rgb(var(--c-${ns}-${k}) / <alpha-value>)`])
+        );
+        const primary = ramp('primary');
+        const neutral = ramp('neutral');
+        const success = ramp('success');
+        const warning = ramp('warning');
+        const danger  = ramp('danger');
+        const accent  = ramp('accent');
+        const info    = ramp('info');
+        const heat    = ramp('heat');
+        return {
+          white: 'rgb(var(--c-white) / <alpha-value>)',
+          black: 'rgb(var(--c-black) / <alpha-value>)',
+          primary, neutral, success, warning, danger, accent, info, heat,
+
+          // legacy hue aliases → roles
+          // indigo IS the brand hue now; sky/blue/cyan read as the distinct
+          // "info" role (see index.css) since primary moved off blue.
+          indigo: primary, brand: primary,
+          sky: info, blue: info, cyan: info,
+          slate: neutral, gray: neutral, zinc: neutral,
+          emerald: success, green: success, teal: success,
+          amber: warning, yellow: warning, orange: warning,
+          rose: danger, red: danger, pink: danger,
+          violet: accent, purple: accent,
+
+          surface: {
+            DEFAULT: 'rgb(var(--c-white) / <alpha-value>)',
+            muted:   'rgb(var(--c-neutral-50) / <alpha-value>)',
+            subtle:  'rgb(var(--c-neutral-100) / <alpha-value>)',
+          },
+          ink: {
+            DEFAULT:   'rgb(var(--c-neutral-900) / <alpha-value>)',
+            secondary: 'rgb(var(--c-neutral-600) / <alpha-value>)',
+            muted:     'rgb(var(--c-neutral-400) / <alpha-value>)',
+          },
+          state: {
+            success: 'rgb(var(--c-success-600) / <alpha-value>)',
+            error:   'rgb(var(--c-danger-600) / <alpha-value>)',
+            warning: 'rgb(var(--c-warning-600) / <alpha-value>)',
+            info:    'rgb(var(--c-info-600) / <alpha-value>)',
+          },
+        };
+      })(),
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
-        headline: ['Manrope', 'Inter', 'system-ui', 'sans-serif'],
+        headline: ['"Plus Jakarta Sans"', 'Inter', 'system-ui', 'sans-serif'],
+        // App UI face for the modernized screens. Opt-in via `font-app`;
+        // `body` stays Inter so not-yet-migrated pages and every print
+        // sheet keep their current typography. (Was IBM Plex Sans — folded
+        // onto Inter so the app carries only two faces: Jakarta for
+        // headings, Inter for everything else, per the Molten Steel system.)
+        app: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        'app-mono': ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       boxShadow: {
         card: '0 1px 2px rgb(15 23 42 / 0.04), 0 4px 16px -4px rgb(15 23 42 / 0.06)',
         'card-hover': '0 4px 6px rgb(15 23 42 / 0.04), 0 12px 28px -8px rgb(15 23 42 / 0.1)',
-        'nav-active': '0 0 0 1px rgb(99 102 241 / 0.35), 0 4px 14px -4px rgb(79 70 229 / 0.45)',
+        'nav-active': '0 0 0 1px rgb(37 99 235 / 0.35), 0 4px 14px -4px rgb(29 78 216 / 0.45)',
         header: '0 1px 0 rgb(15 23 42 / 0.06)',
         drawer: '-4px 0 32px -4px rgb(15 23 42 / 0.2)',
         soft: '0 2px 8px -2px rgb(15 23 42 / 0.06), 0 0 0 1px rgb(15 23 42 / 0.04)',

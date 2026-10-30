@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Plus, Download } from 'lucide-react';
 import api from '../../utils/api';
 import { exportToExcel } from '../../utils/export';
 import toast from 'react-hot-toast';
+import { Button } from '../../components/ui/button';
 
 // Subcomponents
 import RegisterFilters from './components/RegisterFilters';
@@ -33,6 +35,14 @@ export interface RegisterRow {
   velocity: number;
   delPerfPct: number;
   deliveryPct: number;
+  itemDescription?: string;
+  itemCount?: number;
+  itemsWithJobCard?: number;
+  itemsPending?: number;
+  jobCardStatus?: 'DONE' | 'PARTIAL' | 'PENDING';
+  jobCardNos?: string[];
+  /** true when a linked job card has an unresolved Rework (Reject is terminal, never flagged here) */
+  reworkPending?: boolean;
 }
 
 export default function InwardOutwardRegister() {
@@ -42,9 +52,26 @@ export default function InwardOutwardRegister() {
   const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
   const [page, setPage] = useState(1);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [creatingJcId, setCreatingJcId] = useState<number | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<any>(null);
   const PAGE_SIZE = 10;
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
+  const createJobCard = async (challanId: number, challanNo: string) => {
+    setCreatingJcId(challanId);
+    try {
+      const r = await api.post('/jobwork/jobcard-from-challan', { challanId });
+      const jc = r.data?.data?.jobCard || r.data?.data;
+      toast.success(`Job card ${jc?.jobCardNo || ''} created from ${challanNo}.`);
+      queryClient.invalidateQueries({ queryKey: ['jobwork-register'] });
+      if (jc?.id) navigate(`/jobcards/${jc.id}/edit`);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Could not create job card.');
+    } finally {
+      setCreatingJcId(null);
+    }
+  };
 
   const handleDelete = (challanId: number) => {
     setConfirmDialog({
@@ -111,6 +138,19 @@ export default function InwardOutwardRegister() {
     });
   }, [rows, search, fromDate, toDate]);
 
+  const stats = useMemo(() => {
+    let pendingJc = 0, partialJc = 0, doneJc = 0, weight = 0, reworkPending = 0;
+    for (const r of filtered) {
+      const st = r.jobCardStatus || (r.jobcardNo && r.jobcardNo !== '-' ? 'DONE' : 'PENDING');
+      if (st === 'DONE') doneJc += 1;
+      else if (st === 'PARTIAL') partialJc += 1;
+      else pendingJc += 1;
+      if (r.reworkPending) reworkPending += 1;
+      weight += Number(r.weight) || 0;
+    }
+    return { total: filtered.length, pendingJc, partialJc, doneJc, weight, reworkPending };
+  }, [filtered]);
+
   useEffect(() => {
     setPage(1);
   }, [search, fromDate, toDate, viewMode]);
@@ -147,27 +187,55 @@ export default function InwardOutwardRegister() {
   };
 
   return (
-    <div className="space-y-5 animate-slide-up">
-      <div className="flex items-center justify-between">
+    <div className="page-stack w-full space-y-5 animate-slide-up">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-xl font-extrabold text-slate-800 font-headline">Inward + Job Card Register</h2>
-          <p className="text-xs text-slate-400 mt-0.5 max-w-3xl leading-relaxed">
-            Company → Challan → Material in → Job Card → Invoice → Dispatch → Balance & performance
+          <h1 className="page-title">Inward + Job Card Register</h1>
+          <p className="page-subtitle max-w-3xl">
+            Company → Challan → Job Card
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link to="/jobwork/inward-entry" className="btn-primary whitespace-nowrap">
-            <span className="material-symbols-outlined text-[18px] shrink-0">input</span>
-            New Inward
-          </Link>
-          <button type="button" onClick={exportRows} className="btn-outline whitespace-nowrap">
-            <span className="material-symbols-outlined text-[18px] shrink-0">file_download</span>
-            Export Excel
-          </button>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <Button type="button" variant="outline" onClick={exportRows}>
+            <Download /> Export Excel
+          </Button>
+          <Button asChild>
+            <Link to="/jobwork/inward-entry">
+              <Plus /> New Inward
+            </Link>
+          </Button>
         </div>
       </div>
 
-      <RegisterFilters 
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="card p-3 border-l-4 border-sky-400">
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">Total Inwards</p>
+          <p className="text-xl sm:text-2xl font-extrabold text-sky-600 mt-0.5 tabular-nums">{stats.total}</p>
+          <p className="text-[10px] text-slate-400 tabular-nums truncate">{stats.weight.toLocaleString('en-IN')} kg received</p>
+        </div>
+        <div className="card p-3 border-l-4 border-amber-400">
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">Awaiting Job Card</p>
+          <p className="text-xl sm:text-2xl font-extrabold text-amber-600 mt-0.5 tabular-nums">{stats.pendingJc}</p>
+          <p className="text-[10px] text-slate-400">no job card yet</p>
+        </div>
+        <div className="card p-3 border-l-4 border-violet-400">
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">Partially Carded</p>
+          <p className="text-xl sm:text-2xl font-extrabold text-violet-600 mt-0.5 tabular-nums">{stats.partialJc}</p>
+          <p className="text-[10px] text-slate-400">some items pending</p>
+        </div>
+        <div className="card p-3 border-l-4 border-emerald-400">
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">Job Card Done</p>
+          <p className="text-xl sm:text-2xl font-extrabold text-emerald-600 mt-0.5 tabular-nums">{stats.doneJc}</p>
+          <p className="text-[10px] text-slate-400">all items carded</p>
+        </div>
+        <div className="card p-3 border-l-4 border-orange-400">
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">Rework Pending</p>
+          <p className="text-xl sm:text-2xl font-extrabold text-orange-600 mt-0.5 tabular-nums">{stats.reworkPending}</p>
+          <p className="text-[10px] text-slate-400">job card awaiting redo</p>
+        </div>
+      </div>
+
+      <RegisterFilters
         search={search} setSearch={setSearch}
         fromDate={fromDate} setFromDate={setFromDate}
         toDate={toDate} setToDate={setToDate}
@@ -176,9 +244,21 @@ export default function InwardOutwardRegister() {
 
       <div className="card overflow-hidden">
         {viewMode === 'table' ? (
-          <RegisterTableView loading={loading} pagedRows={pagedRows} onDelete={handleDelete} deletingId={deletingId} />
+          <RegisterTableView
+            loading={loading}
+            pagedRows={pagedRows}
+            onDelete={handleDelete}
+            deletingId={deletingId}
+            onCreateJobCard={createJobCard}
+            creatingJcId={creatingJcId}
+          />
         ) : (
-          <RegisterCardView loading={loading} pagedRows={pagedRows} />
+          <RegisterCardView
+            loading={loading}
+            pagedRows={pagedRows}
+            onCreateJobCard={createJobCard}
+            creatingJcId={creatingJcId}
+          />
         )}
       </div>
 

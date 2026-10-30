@@ -3,8 +3,11 @@ const { transaction } = require('../utils/transaction');
 const { toInt, toNum } = require('../utils/normalize');
 const { formatErrorResponse, getStatusCode, formatListResponse, parsePagination } = require('../utils/validation');
 const { parseJsonIfString } = require('../utils/json');
+const { parseYMD, isHHMM, clip, finiteOrNull } = require('../utils/inputs');
 
 function toDateOnly(input) {
+  const literal = parseYMD(typeof input === 'string' ? input : null);
+  if (literal) return literal; // "2026-09-07" means that calendar day, whatever the server timezone
   const x = input instanceof Date ? input : new Date(input);
   if (Number.isNaN(x.getTime())) return new Date();
   return new Date(Date.UTC(x.getFullYear(), x.getMonth(), x.getDate()));
@@ -70,10 +73,59 @@ async function resolveRunsheetLine(line) {
   throw new Error('Each line must include jobCardId or itemId.');
 }
 
+// HT Cycle No = <furnace name>/<YY>/<MM>/<serial> — serial resets every
+// month, per furnace (e.g. VPT-01/26/09/01, VPT-01/26/09/02, ...).
+// Furnace NAME, not its short internal `code` (machines.code is just an
+// arbitrary short id like "1" — the readable furnace label is `name`).
+async function computeNextCycleNo(furnaceId, runDate) {
+  const furnace = await prisma.machine.findUnique({ where: { id: toInt(furnaceId) } });
+  if (!furnace) return null;
+  const d = toDateOnly(runDate);
+  const yy = String(d.getUTCFullYear()).slice(-2);
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const prefix = `${furnace.name}/${yy}/${mm}/`;
+  // Order by id (insertion order), not the runsheetNumber string itself —
+  // once a furnace passes 99 cycles in a month the serial grows to 3
+  // digits and "100" would sort *before* "99" lexicographically.
+  const last = await prisma.vHTRunsheet.findFirst({
+    where: { runsheetNumber: { startsWith: prefix } },
+    orderBy: { id: 'desc' },
+    select: { runsheetNumber: true },
+  });
+  const lastNum = last?.runsheetNumber ? toInt(last.runsheetNumber.split('/').pop(), 0) : 0;
+  return {
+    furnace,
+    lastCycleNo: last?.runsheetNumber || null,
+    runsheetNumber: `${prefix}${String(lastNum + 1).padStart(2, '0')}`,
+  };
+}
+
+// GET /manufacturing/next-cycle-no?furnaceId=&date= — what the next cycle no
+// for this furnace/month will be (indicative: it is fixed when the sheet is saved).
+exports.getNextCycleNo = async (req, res) => {
+  try {
+    const furnaceId = toInt(req.query.furnaceId);
+    if (!furnaceId) return res.status(400).json({ success: false, message: 'furnaceId is required.' });
+    if (req.query.date && !parseYMD(req.query.date)) {
+      return res.status(400).json({ success: false, message: 'date must be a valid YYYY-MM-DD.' });
+    }
+    const c = await computeNextCycleNo(furnaceId, req.query.date || new Date());
+    if (!c) return res.status(404).json({ success: false, message: 'Furnace not found.' });
+    res.json({ success: true, data: { nextCycleNo: c.runsheetNumber, lastCycleNo: c.lastCycleNo } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
 function buildRunsheetHeaderPayload(body, opts = {}) {
   const payload = {
     batchId: body.batchId != null ? toInt(body.batchId) : null,
     furnaceId: toInt(body.furnaceId),
+    // Auto-generated at creation (same <furnace code>/<YY>/<MM>/<serial>
+    // scheme as the HT Cycle No) — never taken from the form; on update it
+    // simply stays whatever it already was (opts.furnaceCycleNo unset).
+    furnaceCycleNo: body.furnaceCycleNo || null,
     runDate: toDateOnly(body.runDate),
     cycleStartTime: body.cycleStartTime || null,
     cycleEndTime: body.cycleEndTime || null,
@@ -107,6 +159,7 @@ function buildRunsheetHeaderPayload(body, opts = {}) {
     remarks: body.remarks || null,
   };
   if (opts.runsheetNumber) payload.runsheetNumber = opts.runsheetNumber;
+  if (opts.furnaceCycleNo) payload.furnaceCycleNo = opts.furnaceCycleNo;
   if (opts.createdById) payload.createdById = opts.createdById;
   return payload;
 }
@@ -203,30 +256,40 @@ exports.createRunsheet = async (req, res) => {
       lines.push(await resolveRunsheetLine(row));
     }
 
-    const lastRS = await prisma.vHTRunsheet.findFirst({
-      orderBy: { createdAt: 'desc' },
-      select: { runsheetNumber: true },
-    });
+    // The cycle no is derived from what already exists, so two people saving for
+    // the same furnace at once can compute the same number; runsheet_number is
+    // UNIQUE, so the loser gets P2002 — just take the next number and retry.
+    let runsheet = null;
+    for (let attempt = 0; attempt < 20 && !runsheet; attempt += 1) {
+      const cycle = await computeNextCycleNo(body.furnaceId, body.runDate);
+      if (!cycle) return res.status(400).json({ success: false, message: 'Furnace not found.' });
+      const { runsheetNumber } = cycle;
 
-    const lastNum = lastRS?.runsheetNumber ? toInt(lastRS.runsheetNumber.split('/').pop(), 0) : 0;
-    const runsheetNumber = `VHT/${new Date().getFullYear()}/${String(lastNum + 1).padStart(5, '0')}`;
+      const header = buildRunsheetHeaderPayload(body, {
+        runsheetNumber,
+        // Same value as the HT Cycle No — auto, never typed by the user.
+        furnaceCycleNo: runsheetNumber,
+        createdById: req.user.id,
+      });
 
-    const header = buildRunsheetHeaderPayload(body, {
-      runsheetNumber,
-      createdById: req.user.id,
-    });
-
-    const runsheet = await prisma.vHTRunsheet.create({
-      data: {
-        ...header,
-        items: { create: lines },
-      },
-      include: {
-        batch: true,
-        furnace: true,
-        items: { include: { item: true, jobCard: { include: { customer: true, part: true } } } },
-      },
-    });
+      try {
+        runsheet = await prisma.vHTRunsheet.create({
+          data: {
+            ...header,
+            items: { create: lines },
+          },
+          include: {
+            batch: true,
+            furnace: true,
+            items: { include: { item: true, jobCard: { include: { customer: true, part: true } } } },
+          },
+        });
+      } catch (e) {
+        const clash = e.code === 'P2002' && String(e.meta?.target || '').includes('runsheet_number');
+        if (!clash || attempt === 19) throw e;
+        await new Promise((r) => setTimeout(r, Math.floor(Math.random() * 40)));
+      }
+    }
 
     res.status(201).json({ success: true, data: runsheet, message: 'VHT Run Sheet created.' });
   } catch (err) {
@@ -248,7 +311,10 @@ exports.listRunsheets = async (req, res) => {
     if (search) {
       const searchText = String(search || '').trim();
       if (searchText) {
-        where.runsheetNumber = { contains: searchText };
+        where.OR = [
+          { runsheetNumber: { contains: searchText } },
+          { furnaceCycleNo: { contains: searchText } },
+        ];
       }
     }
     if (from || to) {
@@ -291,6 +357,8 @@ exports.getRunsheet = async (req, res) => {
         furnace: true,
         createdBy: { select: { id: true, name: true, email: true } },
         items: { include: { item: true, jobCard: { include: { customer: true, part: true } } } },
+        temperingLinks: { include: { slot: { include: { machine: true } } } },
+        energyLogEntries: true,
       },
     });
     if (!rs) return res.status(404).json({ success: false, message: 'Run sheet not found.' });
@@ -539,7 +607,7 @@ exports.upsertPlantLossMonth = async (req, res) => {
           data: parsedEntries.map((e) => ({
             monthId: monthRow.id,
             machineId: e.machineId ? toInt(e.machineId) : null,
-            furnaceName: e.furnaceName || null,
+            furnaceName: clip(e.furnaceName, 100),
             availableHours: e.availableHours != null ? toNum(e.availableHours, 624) : 624,
             usedHours: e.usedHours != null ? toNum(e.usedHours, 0) : 0,
             loadingUnloadingMin: e.loadingUnloadingMin != null ? toNum(e.loadingUnloadingMin, null) : null,
@@ -726,6 +794,14 @@ exports.derivePlantLossFromDaily = async (req, res) => {
       return res.status(400).json({ success: false, message: 'year and month (1-12) are required.' });
     }
 
+    // Available time per furnace = working days x 24 h (paper sheet: 25 days -> 600,
+    // 26 days -> 624). Default stays 26 so existing behaviour is unchanged.
+    const workingDays = req.body.workingDays == null || req.body.workingDays === '' ? 26 : toInt(req.body.workingDays);
+    if (!workingDays || workingDays < 1 || workingDays > 31) {
+      return res.status(400).json({ success: false, message: 'workingDays must be between 1 and 31.' });
+    }
+    const availableHours = workingDays * 24;
+
     const start = new Date(Date.UTC(year, month - 1, 1));
     const end = new Date(Date.UTC(year, month - 1, daysInMonth(year, month)));
 
@@ -770,7 +846,7 @@ exports.derivePlantLossFromDaily = async (req, res) => {
         toHrs(x.noPowerMin) +
         toHrs(x.noMaterialMin);
 
-      const available = 624; // default monthly available hours (as per sheet)
+      const available = availableHours;
       const used = Math.max(0, available - lossHrs);
 
       return {
@@ -830,7 +906,8 @@ exports.getFurnaceUtilizationDay = async (req, res) => {
     if (!machineId || !date) {
       return res.status(400).json({ success: false, message: 'machineId and date (YYYY-MM-DD) are required.' });
     }
-    const d = new Date(date);
+    const d = parseYMD(date);
+    if (!d) return res.status(400).json({ success: false, message: 'date must be a valid YYYY-MM-DD.' });
     const row = await prisma.furnaceUtilizationDay.findUnique({
       where: { machineId_utilDate: { machineId, utilDate: d } },
       include: { machine: true },
@@ -849,7 +926,8 @@ exports.upsertFurnaceUtilizationDay = async (req, res) => {
     if (!mid || !date) {
       return res.status(400).json({ success: false, message: 'machineId and date are required.' });
     }
-    const d = new Date(date);
+    const d = parseYMD(date);
+    if (!d) return res.status(400).json({ success: false, message: 'date must be a valid YYYY-MM-DD.' });
     let s;
     try {
       s = parseJsonIfString(shifts, { fieldName: 'shifts', defaultValue: {} }) || {};
@@ -881,6 +959,310 @@ exports.upsertFurnaceUtilizationDay = async (req, res) => {
     });
 
     res.json({ success: true, data: saved, message: 'Furnace utilisation saved.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ── Clearing a register sheet ──────────────────────────────────
+// These three registers are saved as one whole sheet per day (or per month),
+// so there is no row to delete — only the sheet itself. Without this a sheet
+// filled in against the wrong furnace or date could only be zeroed out, which
+// leaves a real-looking record of a day that never happened.
+
+exports.deleteFurnaceUtilizationDay = async (req, res) => {
+  try {
+    const machineId = toInt(req.query.machineId);
+    const d = parseYMD(req.query.date);
+    if (!machineId || !d) return res.status(400).json({ success: false, message: 'machineId and a valid date are required.' });
+
+    const existing = await prisma.furnaceUtilizationDay.findUnique({
+      where: { machineId_utilDate: { machineId, utilDate: d } },
+      select: { id: true },
+    });
+    if (!existing) return res.status(404).json({ success: false, message: 'Nothing recorded for that furnace on that date.' });
+
+    await prisma.furnaceUtilizationDay.delete({ where: { id: existing.id } });
+    res.json({ success: true, message: 'Utilisation sheet cleared.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+exports.deleteDailyIdleSheet = async (req, res) => {
+  try {
+    const machineId = toInt(req.query.machineId);
+    const year = toInt(req.query.year);
+    const month = toInt(req.query.month);
+    if (!machineId || !year || !(month >= 1 && month <= 12)) {
+      return res.status(400).json({ success: false, message: 'machineId, year and month (1-12) are required.' });
+    }
+
+    // One row per day, so clearing the month means the days that fall inside it.
+    const from = new Date(Date.UTC(year, month - 1, 1));
+    const to = new Date(Date.UTC(year, month, 1));
+    const { count } = await prisma.dailyIdleLog.deleteMany({
+      where: { machineId, logDate: { gte: from, lt: to } },
+    });
+    if (!count) return res.status(404).json({ success: false, message: 'Nothing recorded for that furnace in that month.' });
+
+    res.json({ success: true, message: `Idle time cleared — ${count} day(s) removed.` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+exports.deletePlantLossMonth = async (req, res) => {
+  try {
+    const year = toInt(req.query.year);
+    const month = toInt(req.query.month);
+    if (!year || !(month >= 1 && month <= 12)) {
+      return res.status(400).json({ success: false, message: 'year and month (1-12) are required.' });
+    }
+
+    const existing = await prisma.plantLossMonth.findUnique({
+      where: { year_month: { year, month } },
+      select: { id: true },
+    });
+    if (!existing) return res.status(404).json({ success: false, message: 'Nothing recorded for that month.' });
+
+    await prisma.plantLossMonth.delete({ where: { id: existing.id } }); // entries cascade
+    res.json({ success: true, message: 'Plant losses cleared for that month.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ── Daily Production Planning (QF/PD/03 page 1) ────────────────
+// The "plan" is simply the day's real VHT Run Sheets, furnace-wise, with
+// whatever tempering slots and energy-meter entries already point back to
+// them — there is no separate planning record for the hardening stage.
+exports.getDailyPlanning = async (req, res) => {
+  try {
+    const date = req.query.date;
+    const d = parseYMD(date);
+    if (!d) return res.status(400).json({ success: false, message: 'date must be a valid YYYY-MM-DD.' });
+
+    const runsheets = await prisma.vHTRunsheet.findMany({
+      where: { runDate: d },
+      include: {
+        furnace: { select: { id: true, name: true, code: true } },
+        items: { include: { item: true, jobCard: { include: { customer: true, part: true } } } },
+        temperingLinks: { include: { slot: { include: { machine: true } } } },
+        energyLogEntries: true,
+      },
+      orderBy: [{ furnaceId: 'asc' }, { id: 'asc' }],
+    });
+
+    res.json({ success: true, data: { date, runsheets } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ── Tempering Furnace Planning (QF/PD/03 page 2) ────────────────
+// Reuses the existing FurnacePlanDay/FurnacePlanSlot tables with
+// stage = 'TEMPERING' — a slot can batch more than one hardening run sheet
+// via the FurnacePlanSlotRunsheet join table.
+exports.listTemperingSlots = async (req, res) => {
+  try {
+    const date = req.query.date;
+    const d = parseYMD(date);
+    if (!d) return res.status(400).json({ success: false, message: 'date must be a valid YYYY-MM-DD.' });
+
+    const planDay = await prisma.furnacePlanDay.findUnique({ where: { planDate: d } });
+    const slots = planDay
+      ? await prisma.furnacePlanSlot.findMany({
+          where: { planDayId: planDay.id, stage: 'TEMPERING' },
+          include: {
+            machine: { select: { id: true, name: true, code: true } },
+            runsheetLinks: { include: { runsheet: { select: { id: true, runsheetNumber: true, furnaceCycleNo: true, furnaceId: true, furnace: { select: { name: true, code: true } } } } } },
+          },
+          orderBy: [{ machineId: 'asc' }, { startTime: 'asc' }],
+        })
+      : [];
+
+    res.json({ success: true, data: { date, planDayId: planDay?.id || null, slots } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+exports.upsertTemperingSlot = async (req, res) => {
+  try {
+    const { id, date, machineId, startTime, endTime, endNextDay, title, batchLabel, remarks, runsheetIds } = req.body;
+    const mid = toInt(machineId);
+    if (!mid || !date || !startTime || !endTime) {
+      return res.status(400).json({ success: false, message: 'date, machineId, startTime and endTime are required.' });
+    }
+    const d = parseYMD(date);
+    if (!d) return res.status(400).json({ success: false, message: 'date must be a valid YYYY-MM-DD.' });
+    if (!isHHMM(startTime) || !isHHMM(endTime)) {
+      return res.status(400).json({ success: false, message: 'startTime and endTime must be HH:MM (24h).' });
+    }
+    const links = Array.isArray(runsheetIds) ? runsheetIds.map((x) => toInt(x)).filter(Boolean) : [];
+
+    const saved = await prisma.$transaction(async (tx) => {
+      const planDay = await tx.furnacePlanDay.upsert({
+        where: { planDate: d },
+        update: {},
+        create: { planDate: d, createdById: req.user.id },
+      });
+
+      // Anchor start/end as literal UTC clock times (never the server's or
+      // browser's local zone) so a slot typed as "14:00" always reads back
+      // as "14:00" regardless of where the request comes from. A slot that
+      // crosses midnight (end clock-time <= start clock-time) rolls its end
+      // onto the next calendar day automatically.
+      const crossesMidnight = endTime <= startTime;
+      const startDt = new Date(`${date}T${startTime}:00Z`);
+      const endDt = new Date(`${date}T${endTime}:00Z`);
+      if (crossesMidnight) endDt.setUTCDate(endDt.getUTCDate() + 1);
+
+      const payload = {
+        planDayId: planDay.id,
+        machineId: mid,
+        stage: 'TEMPERING',
+        startTime: startDt,
+        endTime: endDt,
+        endNextDay: crossesMidnight,
+        title: clip(title, 200),
+        batchLabel: clip(batchLabel, 200),
+        remarks: clip(remarks, 2000),
+      };
+
+      const slot = id
+        ? await tx.furnacePlanSlot.update({ where: { id: toInt(id) }, data: payload })
+        : await tx.furnacePlanSlot.create({ data: payload });
+
+      await tx.furnacePlanSlotRunsheet.deleteMany({ where: { slotId: slot.id } });
+      if (links.length) {
+        await tx.furnacePlanSlotRunsheet.createMany({
+          data: links.map((runsheetId) => ({ slotId: slot.id, runsheetId })),
+          skipDuplicates: true,
+        });
+      }
+
+      return tx.furnacePlanSlot.findUnique({
+        where: { id: slot.id },
+        include: {
+          machine: { select: { id: true, name: true, code: true } },
+          runsheetLinks: { include: { runsheet: { select: { id: true, runsheetNumber: true, furnaceCycleNo: true } } } },
+        },
+      });
+    });
+
+    res.json({ success: true, data: saved, message: 'Tempering slot saved.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+exports.deleteTemperingSlot = async (req, res) => {
+  try {
+    const id = toInt(req.params.id);
+    if (!id) return res.status(400).json({ success: false, message: 'Invalid ID.' });
+    await prisma.furnacePlanSlot.delete({ where: { id } });
+    res.json({ success: true, message: 'Tempering slot deleted.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ── Energy Consumption Register (monthly, per furnace cycle) ───
+exports.listEnergyLog = async (req, res) => {
+  try {
+    const year = toInt(req.query.year);
+    const month = toInt(req.query.month);
+    if (!year || !month || month < 1 || month > 12) {
+      return res.status(400).json({ success: false, message: 'year and month (1-12) are required.' });
+    }
+    const where = { logYear: year, logMonth: month };
+    if (req.query.machineId) where.machineId = toInt(req.query.machineId);
+
+    const rows = await prisma.energyLogEntry.findMany({
+      where,
+      include: {
+        machine: { select: { id: true, name: true, code: true } },
+        runsheet: { select: { id: true, runsheetNumber: true, furnaceCycleNo: true } },
+      },
+      orderBy: [{ machineId: 'asc' }, { srNo: 'asc' }],
+    });
+
+    const totalConsumption = rows.reduce((s, r) => s + toNum(r.consumptionKw, 0), 0);
+    res.json({ success: true, data: { year, month, rows, totalConsumption } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+exports.upsertEnergyLogEntry = async (req, res) => {
+  try {
+    const { id, machineId, furnaceName, logYear, logMonth, srNo, furnaceCycleNo, runsheetId, cycleWeightKg, startMeter, endMeter, consumptionKw } = req.body;
+    const y = toInt(logYear);
+    const m = toInt(logMonth);
+    if (!y || !m || m < 1 || m > 12 || !clip(furnaceCycleNo, 50)) {
+      return res.status(400).json({ success: false, message: 'logYear, logMonth and furnaceCycleNo are required.' });
+    }
+
+    const sMeter = finiteOrNull(startMeter);
+    const eMeter = finiteOrNull(endMeter);
+    const weight = finiteOrNull(cycleWeightKg);
+    const kwIn = finiteOrNull(consumptionKw);
+    // Column widths: meters DECIMAL(14,2), weight/consumption DECIMAL(10,2)
+    if ([sMeter, eMeter].some((v) => v != null && (v < 0 || v >= 1e12)) ||
+        [weight, kwIn].some((v) => v != null && (v < 0 || v >= 1e8))) {
+      return res.status(400).json({ success: false, message: 'Meter / weight / consumption value is out of range.' });
+    }
+    // Auto-derive consumption from the meter delta when not given explicitly,
+    // exactly like the paper register (end - start).
+    const consumption =
+      kwIn != null
+        ? kwIn
+        : sMeter != null && eMeter != null
+          ? Math.max(0, eMeter - sMeter)
+          : null;
+
+    const payload = {
+      machineId: machineId ? toInt(machineId) : null,
+      furnaceName: clip(furnaceName, 100),
+      logYear: y,
+      logMonth: m,
+      srNo: srNo != null ? toInt(srNo, 1) : 1,
+      furnaceCycleNo: clip(furnaceCycleNo, 50),
+      runsheetId: runsheetId ? toInt(runsheetId) : null,
+      cycleWeightKg: weight,
+      startMeter: sMeter,
+      endMeter: eMeter,
+      consumptionKw: consumption,
+    };
+
+    const saved = id
+      ? await prisma.energyLogEntry.update({ where: { id: toInt(id) }, data: payload })
+      : await prisma.energyLogEntry.create({ data: { ...payload, createdById: req.user.id } });
+
+    res.json({ success: true, data: saved, message: 'Energy log entry saved.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+exports.deleteEnergyLogEntry = async (req, res) => {
+  try {
+    const id = toInt(req.params.id);
+    if (!id) return res.status(400).json({ success: false, message: 'Invalid ID.' });
+    await prisma.energyLogEntry.delete({ where: { id } });
+    res.json({ success: true, message: 'Energy log entry deleted.' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error.' });

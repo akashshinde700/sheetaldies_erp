@@ -1,16 +1,25 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, useId } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { Plus, Trash2, Loader2, Save, Package, Layers } from 'lucide-react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { useParties, useProcesses, useItems } from '../../hooks/useMasterData';
 import { toNum, toInt } from '../../utils/normalize';
 import SearchSelect from '../../components/SearchSelect';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { FormField } from '@/components/ui/form-field';
+import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
 
-// Shared grid template for the item cards — header, each card's field row,
-// and the footer summary all use the same columns so numbers stay aligned
-// under their labels regardless of how many item cards are rendered.
-const ITEM_FIELD_COLS = 'grid-cols-[minmax(150px,1.4fr)_minmax(160px,1.6fr)_minmax(110px,1.1fr)_80px_70px_90px_70px_70px]';
+// AutocompleteInput renders a raw <input>, so it takes the same visual classes
+// as the shared <Input> component to stay aligned inside FormField grids.
+const INPUT_CLS = 'flex w-full min-h-[44px] sm:min-h-0 sm:h-9 rounded-lg border border-slate-200/90 bg-white px-3 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 hover:border-slate-300/90 focus:outline-none focus:ring-2 focus:ring-sky-400/30 focus:border-sky-400 transition-all duration-200 ease-out';
+
+const GroupTitle = ({ children }) => (
+  <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">{children}</p>
+);
 
 function highlightMatch(text, query) {
   if (!query) return text;
@@ -30,6 +39,9 @@ function AutocompleteInput({ value, onChange, suggestions, placeholder, classNam
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [menuStyle, setMenuStyle] = useState({});
   const inputRef = useRef(null);
+  const rid = useId();
+  const listId = `ac-list-${rid}`;
+  const optId = (i) => `ac-opt-${rid}-${i}`;
   const filtered = value
     ? suggestions.filter(s => s.toLowerCase().includes(value.toLowerCase()))
     : suggestions;
@@ -97,17 +109,29 @@ function AutocompleteInput({ value, onChange, suggestions, placeholder, classNam
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         autoComplete="off"
+        role="combobox"
+        aria-expanded={open && visible.length > 0}
+        aria-autocomplete="list"
+        aria-controls={listId}
+        aria-label={placeholder}
+        aria-activedescendant={open && visible[highlightedIndex] ? optId(highlightedIndex) : undefined}
         className={className}
       />
       {open && visible.length > 0 && (
-        <div
+        <ul
+          id={listId}
+          role="listbox"
+          aria-label={placeholder}
           style={menuStyle}
-          className="bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden max-h-40 overflow-y-auto w-max"
+          className="m-0 list-none bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden max-h-40 overflow-y-auto w-max p-0"
         >
           {visible.map((s, index) => (
+            <li key={s} role="none">
             <button
-              key={s}
               type="button"
+              role="option"
+              id={optId(index)}
+              aria-selected={index === highlightedIndex}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleSelect(s)}
               onMouseEnter={() => setHighlightedIndex(index)}
@@ -115,15 +139,15 @@ function AutocompleteInput({ value, onChange, suggestions, placeholder, classNam
             >
               {highlightMatch(s, value)}
             </button>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
   );
 }
 
 export default function InwardEntryForm() {
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { data: parties = [] } = useParties();
   const { data: processesRaw = [] } = useProcesses();
@@ -213,15 +237,6 @@ export default function InwardEntryForm() {
       return sum + (direct > 0 ? direct : sumQty);
     }, 0);
   }, [materialSummary, materialQtys, directGrandTotalQty]);
-  const [partyModal, setPartyModal] = useState({
-    open: false,
-    name: '',
-    address: '',
-    email: '',
-    partyType: 'CUSTOMER',
-    saving: false,
-    rates: {}, // { [processTypeId]: pricePerKg }
-  });
   const [form, setForm] = useState({
     fromPartyId: '',
     challanNo: '',
@@ -461,247 +476,188 @@ export default function InwardEntryForm() {
     }
   };
 
-  const openPartyModal = () => {
-    setPartyModal({
-      open: true,
-      name: '',
-      address: '',
-      email: '',
-      partyType: 'CUSTOMER',
-      saving: false,
-      rates: {},
-    });
-  };
-
-  const closePartyModal = () => {
-    setPartyModal(p => ({ ...p, open: false, saving: false }));
-  };
-
-  const setPartyRate = (ptId, value) => {
-    setPartyModal(p => ({ ...p, rates: { ...p.rates, [ptId]: value } }));
-  };
-
-  const createPartyQuick = async () => {
-    if (!partyModal.name.trim() || !partyModal.address.trim()) {
-      toast.error('Party Name and Address are required');
-      return;
-    }
-    setPartyModal(p => ({ ...p, saving: true }));
-    try {
-      const r = await api.post('/parties/quick', {
-        name: partyModal.name.trim(),
-        address: partyModal.address.trim(),
-        email: partyModal.email.trim() || null,
-        partyType: partyModal.partyType,
-        rates: Object.entries(partyModal.rates).map(([ptId, pricePerKg]) => ({
-          processTypeId: Number(ptId),
-          pricePerKg: pricePerKg !== '' ? Number(pricePerKg) : null,
-        })),
-      });
-      const created = r.data.data;
-      toast.success(`Party "${created.name}" created!`);
-      closePartyModal();
-      // Invalidate query cache so party list refreshes without page reload
-      await queryClient.invalidateQueries({ queryKey: ['parties'] });
-      // Auto-select the newly created party
-      if (created?.id) handleFormChange('fromPartyId', created.id);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to create party');
-      setPartyModal(p => ({ ...p, saving: false }));
-    }
-  };
+  // (Quick-create-party sheet removed — the "+ New" button now opens the
+  // full Party form at /admin/parties/new in a new tab, so parties get the
+  // complete master-data form instead of this cut-down one.)
 
   const totalQty    = items.reduce((sum, it) => sum + toNum(it.qty, 0), 0);
   const totalWeight = items.reduce((sum, it) => sum + toNum(it.weight, 0), 0);
   const totalAmount = items.reduce((sum, it) => sum + toNum(it.amount, 0), 0);
 
   return (
-    <div className="page-stack w-full animate-slide-up">
-      {/* Header */}
-      <div className="page-header">
-        <div className="flex items-start gap-3 min-w-0">
-          <Link to="/jobwork/register"
-            className="w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-colors shadow-sm">
-            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-          </Link>
-          <div className="space-y-2 min-w-0">
-            <h1 className="page-title">Inward Entry</h1>
-            <p className="page-subtitle max-w-2xl">Record customer material received, manage challan details, and add items in a modern, consistent form layout.</p>
-          </div>
-        </div>
-      </div>
+    <div className="font-app flex flex-col h-full min-h-0">
+      <PageHeader
+        title="Inward Entry"
+        backTo="/jobwork/register"
+        breadcrumbs={[{ label: 'Inwards', to: '/jobwork/register' }, { label: 'New' }]}
+      />
 
-      <form onSubmit={handleSubmit} className="space-y-5" id="inward-form">
-        {/* Challan Details */}
-        <div className="card p-5 space-y-4">
-          <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-            <div className="w-7 h-7 rounded-lg bg-sky-50 flex items-center justify-center">
-              <span className="material-symbols-outlined text-sky-500 text-[15px]">description</span>
-            </div>
-            <p className="section-title">Challan Details</p>
-          </div>
+      <form onSubmit={(e) => { e.preventDefault(); handleSubmit(e); }} className="flex-1 min-h-0 flex flex-col" id="inward-form">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-3 pr-0.5 space-y-5">
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-            <div className="md:col-span-2">
-              <label className="form-label">Company Name <span className="text-rose-500">*</span></label>
-              <div className="flex gap-2">
-                <SearchSelect
-                  value={String(form.fromPartyId || '')}
-                  onChange={v => handleFormChange('fromPartyId', v)}
-                  options={parties.filter(p => p.partyType === 'CUSTOMER').map(p => ({ value: p.id, label: p.name }))}
-                  placeholder="— Select Customer —"
-                  required
-                  className="flex-1 font-semibold"
+        {/* ── Challan Details ── */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Challan Details</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap items-start gap-x-3 gap-y-3">
+              <FormField label="Company Name" required className="w-full sm:flex-1 sm:basis-[280px]">
+                <div className="flex gap-2">
+                  <SearchSelect
+                    value={String(form.fromPartyId || '')}
+                    onChange={v => handleFormChange('fromPartyId', v)}
+                    options={parties.filter(p => p.partyType === 'CUSTOMER').map(p => ({ value: p.id, label: p.name }))}
+                    placeholder="— Select Customer —"
+                    required
+                    className="flex-1 font-semibold"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => window.open('/admin/parties/new', '_blank', 'noopener,noreferrer')}
+                    className="shrink-0"
+                  >
+                    <Plus /> New
+                  </Button>
+                </div>
+              </FormField>
+
+              <FormField label="Challan No" htmlFor="in-challan-no" className="w-full sm:w-[170px]">
+                <Input
+                  id="in-challan-no"
+                  value={form.challanNo}
+                  onChange={(e) => handleFormChange('challanNo', e.target.value)}
+                  placeholder="Auto if blank"
                 />
-                <button
-                  type="button"
-                  onClick={openPartyModal}
-                  className="btn-outline whitespace-nowrap"
-                >
-                  <span className="material-symbols-outlined text-[18px] shrink-0">add</span>
-                  New
-                </button>
+              </FormField>
+
+              <FormField label="Challan Date" htmlFor="in-challan-date" className="w-full sm:w-[140px]">
+                <Input
+                  id="in-challan-date"
+                  type="date"
+                  value={form.challanDate}
+                  onChange={(e) => handleFormChange('challanDate', e.target.value)}
+                />
+              </FormField>
+
+              <FormField label="Material In Date" htmlFor="in-material-date" className="w-full sm:w-[150px]">
+                <Input
+                  id="in-material-date"
+                  type="date"
+                  value={form.materialInDate}
+                  onChange={(e) => handleFormChange('materialInDate', e.target.value)}
+                />
+              </FormField>
+
+              <FormField label="PO No" htmlFor="in-po-no" className="w-full sm:w-[120px]">
+                <Input
+                  id="in-po-no"
+                  value={form.poNo}
+                  onChange={(e) => handleFormChange('poNo', e.target.value)}
+                  placeholder="Optional"
+                />
+              </FormField>
+
+              <FormField label="PO Date" htmlFor="in-po-date" className="w-full sm:w-[130px]">
+                <Input
+                  id="in-po-date"
+                  type="date"
+                  value={form.poDate}
+                  onChange={(e) => handleFormChange('poDate', e.target.value)}
+                />
+              </FormField>
+
+              <FormField label="Vehicle No" htmlFor="in-vehicle-no" className="w-full sm:w-[150px]">
+                <Input
+                  id="in-vehicle-no"
+                  value={form.vehicleNo}
+                  onChange={(e) => handleFormChange('vehicleNo', e.target.value)}
+                  placeholder="e.g. MH14HU9157"
+                />
+              </FormField>
+
+              <FormField label="Delivery Person" htmlFor="in-delivery-person" className="w-full sm:w-[170px]">
+                <Input
+                  id="in-delivery-person"
+                  value={form.deliveryPerson}
+                  onChange={(e) => handleFormChange('deliveryPerson', e.target.value)}
+                  placeholder="Optional"
+                />
+              </FormField>
+
+              <FormField label="Issued By" className="w-full sm:w-[180px]">
+                <AutocompleteInput
+                  value={form.issuedBy}
+                  onChange={v => handleFormChange('issuedBy', v)}
+                  suggestions={issuedBySuggestions}
+                  placeholder="Person who issued material"
+                  className={INPUT_CLS}
+                />
+              </FormField>
+
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Items Received ── */}
+        <Card>
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <CardTitle>Items Received</CardTitle>
+                {items.length > 0 && (
+                  <Badge variant="warning" className="px-2 py-0.5 text-[10px] tabular-nums">
+                    {items.length} item{items.length !== 1 ? 's' : ''}
+                  </Badge>
+                )}
               </div>
             </div>
-
-            <div>
-              <label className="form-label">
-                Challan No
-                <span className="ml-1 text-[9px] font-bold text-slate-400 uppercase tracking-wide">(Tax Doc)</span>
-              </label>
-              <input type="text" value={form.challanNo}
-                onChange={(e) => handleFormChange('challanNo', e.target.value)}
-                placeholder="Auto-generate if blank" className="form-input" />
-            </div>
-
-            <div>
-              <label className="form-label">Challan Date</label>
-              <input type="date" value={form.challanDate}
-                onChange={(e) => handleFormChange('challanDate', e.target.value)} className="form-input" />
-            </div>
-
-            <div>
-              <label className="form-label">Material In Date</label>
-              <input type="date" value={form.materialInDate}
-                onChange={(e) => handleFormChange('materialInDate', e.target.value)} className="form-input" />
-            </div>
-
-            <div>
-              <label className="form-label">PO No</label>
-              <input type="text" value={form.poNo}
-                onChange={(e) => handleFormChange('poNo', e.target.value)}
-                placeholder="Optional" className="form-input" />
-            </div>
-
-            <div>
-              <label className="form-label">PO Date</label>
-              <input type="date" value={form.poDate}
-                onChange={(e) => handleFormChange('poDate', e.target.value)} className="form-input" />
-            </div>
-
-            <div>
-              <label className="form-label">Vehicle No</label>
-              <input type="text" value={form.vehicleNo}
-                onChange={(e) => handleFormChange('vehicleNo', e.target.value)}
-                placeholder="e.g. MH14HU9157" className="form-input" />
-            </div>
-
-            <div>
-              <label className="form-label">Delivery Person</label>
-              <input type="text" value={form.deliveryPerson}
-                onChange={(e) => handleFormChange('deliveryPerson', e.target.value)}
-                placeholder="Optional" className="form-input" />
-            </div>
-
-            <div>
-              <label className="form-label">Issued By</label>
-              <AutocompleteInput
-                value={form.issuedBy}
-                onChange={v => handleFormChange('issuedBy', v)}
-                suggestions={issuedBySuggestions}
-                placeholder="Person who issued material"
-                className="form-input"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="form-label">Processing Notes</label>
-            <textarea
-              value={form.processingNotes}
-              onChange={(e) => handleFormChange('processingNotes', e.target.value)}
-              placeholder="Any special instructions..."
-              rows={2}
-              className="form-input"
-            />
-          </div>
-        </div>
-
-        {/* Items Section */}
-        <div className="card p-5 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center">
-                <span className="material-symbols-outlined text-amber-600 text-[15px]">inventory_2</span>
+            <Button type="button" variant="secondary" size="sm" onClick={handleAddItem}>
+              <Plus /> Add Item
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {items.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-8">
+                <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+                  <Package className="h-5 w-5 text-amber-300" />
+                </div>
+                <p className="text-sm text-slate-500">No items added yet.</p>
+                <Button type="button" variant="outline" size="sm" onClick={handleAddItem}>
+                  <Plus /> Add first item
+                </Button>
               </div>
-              <p className="section-title">Items Received</p>
-              {items.length > 0 && (
-                <span className="text-[11px] bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-bold">
-                  {items.length} items
-                </span>
-              )}
-            </div>
-            <button type="button" onClick={handleAddItem} className="btn-sm btn-primary">
-              <span className="material-symbols-outlined text-sm">add</span>
-              Add Item
-            </button>
-          </div>
-
-          {items.length === 0 ? (
-            <div className="text-center py-10 text-slate-400">
-              <span className="material-symbols-outlined text-5xl opacity-20 block mb-2">box</span>
-              <p className="font-semibold">No items added yet</p>
-              <p className="text-xs mt-1">Click "Add Item" to start</p>
-            </div>
-          ) : (
-            <>
-
-              <div className="overflow-x-auto rounded-lg border border-slate-200">
-                <div className="min-w-[900px]">
-                  <div className={`grid ${ITEM_FIELD_COLS} gap-2 px-3 py-2.5 bg-slate-100 text-slate-700 border-b border-slate-300 text-[11px] font-bold uppercase tracking-wide`}>
-                    <span>Process</span>
-                    <span>Part Name</span>
-                    <span>Material</span>
-                    <span>HRC</span>
-                    <span className="text-right">Qty</span>
-                    <span className="text-right">Wt (kg)</span>
-                    <span className="text-right">Pc</span>
-                    <span className="text-right">Lot</span>
-                  </div>
-
-                  <div className="space-y-4 p-3 bg-slate-50/60">
-                    {items.map((item, idx) => (
-                      <div
-                        key={item.id}
-                        className={`rounded-xl border border-slate-200 border-l-4 border-l-sky-500 shadow-sm overflow-hidden ${idx % 2 === 1 ? 'bg-slate-50/70' : 'bg-white'}`}
+            ) : (
+              <>
+                {items.map((item, idx) => (
+                  <div key={item.id} className="rounded-xl border border-slate-200/90 bg-white overflow-hidden">
+                    {/* Row header */}
+                    <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-slate-50/80 border-b border-slate-100">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-sky-100 text-xs font-bold text-sky-700 tabular-nums">
+                          {idx + 1}
+                        </span>
+                        <span className="text-xs font-semibold text-slate-600 truncate">
+                          {item.partName || 'New item'}
+                        </span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => handleRemoveItem(item.id)}
+                        className="text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                        aria-label={`Remove item ${idx + 1}`}
                       >
-                        {/* Card header — item number, part name, remove */}
-                        <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-100">
-                          <span className="text-xs font-bold text-slate-600">
-                            Item #{idx + 1}
-                            {item.partName && <span className="text-sky-600 font-semibold"> — {item.partName}</span>}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveItem(item.id)}
-                            className="flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-rose-500 hover:bg-rose-50 px-2 py-1 rounded transition-colors"
-                          >
-                            <span className="material-symbols-outlined text-[14px]">close</span> Remove
-                          </button>
-                        </div>
+                        <Trash2 />
+                      </Button>
+                    </div>
 
-                        {/* Primary fields */}
-                        <div className={`grid ${ITEM_FIELD_COLS} gap-2 px-3 py-2.5`}>
+                    {/* Primary fields — Process / Part / Material / HRC / Qty / Pc / Lot / Wt in one line */}
+                    <div className="p-4 space-y-3">
+                      <div className="flex flex-wrap items-start gap-x-3 gap-y-3">
+                        <FormField label="Process" className="w-full sm:w-[210px]">
                           <SearchSelect
                             value={String(item.processTypeId || '')}
                             onChange={v => handleProcessChange(item.id, v)}
@@ -711,351 +667,235 @@ export default function InwardEntryForm() {
                             dense
                             className="w-full"
                           />
+                        </FormField>
+                        <FormField label="Part Name" className="w-full sm:flex-1 sm:basis-[140px]">
                           <AutocompleteInput
                             value={item.partName || ''}
                             onChange={(v) => handleItemChange(item.id, 'partName', v)}
                             suggestions={partNameSuggestions}
                             placeholder="Part name…"
-                            className="w-full form-input text-xs py-1.5 font-semibold"
+                            className={`${INPUT_CLS} font-semibold`}
                           />
+                        </FormField>
+                        <FormField label="Material" className="w-full sm:w-[110px]">
                           <AutocompleteInput
                             value={item.material || ''}
                             onChange={(v) => handleItemChange(item.id, 'material', v)}
                             suggestions={materialSuggestions}
                             placeholder="D2, H13…"
-                            className="w-full form-input text-xs py-1.5 font-semibold"
+                            className={`${INPUT_CLS} font-semibold`}
                           />
+                        </FormField>
+                        <FormField label="HRC" className="w-full sm:w-[90px]">
                           <AutocompleteInput
                             value={item.hrc || ''}
                             onChange={(v) => handleItemChange(item.id, 'hrc', v)}
                             suggestions={hrcSuggestions}
                             placeholder="54-56"
-                            className="w-full form-input text-xs py-1.5"
+                            className={INPUT_CLS}
                           />
-                          <input
+                        </FormField>
+                        <FormField label="Qty" className="w-full sm:w-[80px]">
+                          <Input
                             type="number"
+                            inputMode="numeric"
                             value={item.qty}
                             onChange={(e) => handleItemChange(item.id, 'qty', e.target.value.replace(/[^0-9]/g, ''))}
                             placeholder="0"
-                            className="w-full form-input text-xs py-1.5 text-right"
+                            className="text-right tabular-nums"
                             min="0" step="1"
                           />
-                          <input
+                        </FormField>
+                        <FormField label="Pc" className="w-full sm:w-[70px]">
+                          <Input type="number" inputMode="numeric" value={item.pcQty}
+                            onChange={(e) => handleItemChange(item.id, 'pcQty', e.target.value.replace(/[^0-9]/g, ''))}
+                            placeholder="0" className="text-right tabular-nums" min="0" step="1" />
+                        </FormField>
+                        <FormField label="Lot" className="w-full sm:w-[70px]">
+                          <Input type="number" inputMode="numeric" value={item.lotQty}
+                            onChange={(e) => handleItemChange(item.id, 'lotQty', e.target.value.replace(/[^0-9]/g, ''))}
+                            placeholder="0" className="text-right tabular-nums" min="0" step="1" />
+                        </FormField>
+                        <FormField label="Wt (kg)" className="w-full sm:w-[90px]">
+                          <Input
                             type="number"
+                            inputMode="decimal"
                             value={item.weight}
                             onChange={(e) => handleItemChange(item.id, 'weight', e.target.value)}
                             placeholder="0.00"
-                            className="w-full form-input text-xs py-1.5 text-right"
+                            className="text-right tabular-nums"
                             min="0" step="0.01"
                           />
-                          <input
-                            type="number"
-                            value={item.pcQty}
-                            onChange={(e) => handleItemChange(item.id, 'pcQty', e.target.value.replace(/[^0-9]/g, ''))}
-                            placeholder="0"
-                            className="w-full form-input text-xs py-1.5 text-right"
-                            min="0" step="1"
-                          />
-                          <input
-                            type="number"
-                            value={item.lotQty}
-                            onChange={(e) => handleItemChange(item.id, 'lotQty', e.target.value.replace(/[^0-9]/g, ''))}
-                            placeholder="0"
-                            className="w-full form-input text-xs py-1.5 text-right"
-                            min="0" step="1"
-                          />
-                        </div>
-
-                        {/* Secondary fields — always visible */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-3 pb-3">
-                          <div>
-                            <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Drawing No</label>
-                            <input type="text" value={item.drawingNo}
-                              onChange={(e) => handleItemChange(item.id, 'drawingNo', e.target.value)}
-                              placeholder="Optional" className="form-input text-xs py-1.5" />
-                          </div>
-                          <div>
-                            <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">WO / Ref No</label>
-                            <input type="text" value={item.woNo || ''}
-                              onChange={(e) => handleItemChange(item.id, 'woNo', e.target.value)}
-                              placeholder="Optional" className="form-input text-xs py-1.5" />
-                          </div>
-                          <div>
-                            <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">HSN Code</label>
-                            <input type="text" value={item.hsnCode || ''}
-                              onChange={(e) => handleItemChange(item.id, 'hsnCode', e.target.value)}
-                              placeholder="Optional" className="form-input text-xs py-1.5" />
-                          </div>
-                          <div>
-                            <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">SAC No</label>
-                            <input type="text" value={item.sacNo || ''}
-                              onChange={(e) => handleItemChange(item.id, 'sacNo', e.target.value)}
-                              placeholder="Optional" className="form-input text-xs py-1.5" />
-                          </div>
-                        </div>
+                        </FormField>
                       </div>
-                    ))}
+
+                      {/* Secondary fields — hidden until needed */}
+                      <div className="flex flex-wrap items-start gap-x-3 gap-y-3">
+                        <FormField label="Drawing No" className="w-full sm:w-[150px]">
+                          <Input value={item.drawingNo}
+                            onChange={(e) => handleItemChange(item.id, 'drawingNo', e.target.value)} placeholder="Optional" />
+                        </FormField>
+                        <FormField label="WO / Ref No" className="w-full sm:w-[150px]">
+                          <Input value={item.woNo || ''}
+                            onChange={(e) => handleItemChange(item.id, 'woNo', e.target.value)} placeholder="Optional" />
+                        </FormField>
+                        <FormField label="HSN Code" className="w-full sm:w-[110px]">
+                          <Input value={item.hsnCode || ''}
+                            onChange={(e) => handleItemChange(item.id, 'hsnCode', e.target.value)} placeholder="Optional" />
+                        </FormField>
+                        <FormField label="SAC No" className="w-full sm:w-[110px]">
+                          <Input value={item.sacNo || ''}
+                            onChange={(e) => handleItemChange(item.id, 'sacNo', e.target.value)} placeholder="Optional" />
+                        </FormField>
+                      </div>
+                    </div>
                   </div>
+                ))}
 
-                  {/* Footer summary */}
-                  <div className={`grid ${ITEM_FIELD_COLS} gap-2 px-3 py-2.5 bg-slate-100 border-t-2 border-slate-300`}>
-                    <span className="col-span-4 text-xs font-bold text-slate-500">
-                      {items.length} item{items.length !== 1 ? 's' : ''}
+                {/* Totals + Add Item — bottom */}
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-lg bg-slate-50 border border-slate-200 px-4 py-2.5">
+                  <span className="text-xs font-bold text-slate-500">
+                    {items.length} item{items.length !== 1 ? 's' : ''}
+                  </span>
+                  <div className="flex items-center gap-5">
+                    <span className="text-xs text-slate-500">
+                      Qty{' '}
+                      <span className="font-black text-sky-700 tabular-nums">
+                        {totalQty > 0 ? totalQty.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '—'}
+                      </span>
                     </span>
-                    <span className="text-right text-xs font-black text-sky-700 tabular-nums">
-                      {totalQty > 0 ? totalQty.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : ''}
+                    <span className="text-xs text-slate-500">
+                      Weight{' '}
+                      <span className="font-black text-amber-700 tabular-nums">
+                        {totalWeight > 0 ? totalWeight.toLocaleString('en-IN', { maximumFractionDigits: 2 }) + ' kg' : '—'}
+                      </span>
                     </span>
-                    <span className="text-right text-xs font-black text-amber-700 tabular-nums">
-                      {totalWeight > 0 ? totalWeight.toLocaleString('en-IN', { maximumFractionDigits: 2 }) + ' kg' : ''}
-                    </span>
-                    <span></span>
-                    <span></span>
+                    <Button type="button" variant="outline" size="sm" onClick={handleAddItem}>
+                      <Plus /> Add Item
+                    </Button>
                   </div>
                 </div>
-              </div>
 
-              {/* Add Item — bottom */}
-              <div className="flex justify-end pt-1">
-                <button type="button" onClick={handleAddItem} className="btn-sm btn-outline">
-                  <span className="material-symbols-outlined text-sm">add</span>
-                  Add Item
-                </button>
-              </div>
-
-              {/* Material Weight Summary */}
-              {materialSummary.length > 0 && (
-                <div className="mt-3 rounded-xl border border-slate-200 overflow-x-auto">
-                  <div className="bg-slate-50 px-4 py-2 border-b border-slate-200">
-                    <p className="text-xs font-bold text-slate-600 uppercase tracking-widest">Material Weight Summary</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Auto-calculated from item weight/qty — override only if you need a different total</p>
-                  </div>
-                  {/* Five numeric columns, two of them editable — scroll rather
-                      than squeeze them below a usable width. */}
-                  <table className="w-full text-xs min-w-[600px]">
-                    <thead>
-                      <tr className="bg-slate-100 text-left">
-                        <th className="px-4 py-2 font-bold text-[11px] uppercase tracking-wide text-slate-600">Material</th>
-                        <th className="px-4 py-2 font-bold text-[11px] uppercase tracking-wide text-slate-600 text-right">Item Qty (sum)</th>
-                        <th className="px-4 py-2 font-bold text-[11px] uppercase tracking-wide text-slate-600 text-right w-36">Total Qty (direct)</th>
-                        <th className="px-4 py-2 font-bold text-[11px] uppercase tracking-wide text-slate-600 text-right">Item Weight (sum)</th>
-                        <th className="px-4 py-2 font-bold text-[11px] uppercase tracking-wide text-slate-600 text-right w-40">Total Weight (kg)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {materialSummary.map(({ material, sumQty, sumWeight }) => (
-                        <tr key={material} className="hover:bg-slate-50">
-                          <td className="px-4 py-2 font-semibold text-slate-800">{material}</td>
-                          <td className="px-4 py-2 text-right text-slate-400 tabular-nums text-[11px]">
-                            {sumQty > 0 ? sumQty.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '—'}
-                          </td>
-                          <td className="px-4 py-2">
-                            <input
-                              type="number"
-                              value={materialQtys[material] ?? ''}
-                              onChange={e => setMaterialQtys(prev => ({ ...prev, [material]: e.target.value }))}
-                              placeholder="0"
-                              className="form-input text-xs py-1 text-right w-full"
-                              min="0" step="1"
-                            />
-                          </td>
-                          <td className="px-4 py-2 text-right text-slate-400 tabular-nums text-[11px]">
-                            {sumWeight > 0 ? sumWeight.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '—'}
-                          </td>
-                          <td className="px-4 py-2">
-                            <input
-                              type="number"
-                              value={materialWeights[material] ?? ''}
-                              onChange={e => setMaterialWeights(prev => ({ ...prev, [material]: e.target.value }))}
-                              placeholder={sumWeight > 0 ? sumWeight.toFixed(2) : '0.00'}
-                              className="form-input text-xs py-1 text-right w-full"
-                              min="0" step="0.01"
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="bg-sky-50 border-t-2 border-sky-300">
-                      <tr>
-                        <td colSpan={2} className="px-4 py-2 text-xs font-bold text-sky-700">
-                          <div className="flex flex-col gap-0.5">
-                            <span>Grand Total Override</span>
-                            <span className="font-normal text-sky-400 text-[9px] normal-case">
-                              Optional: fills blanks only when material summary is incomplete
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-2">
-                          <input
-                            type="number"
-                            value={directGrandTotalQty}
-                            onChange={e => setDirectGrandTotalQty(e.target.value)}
-                            placeholder={grandTotalQty > 0 ? String(grandTotalQty) : '0'}
-                            className="form-input text-xs py-1 text-right w-full font-black text-sky-700 border-sky-300"
-                            min="0" step="1"
-                          />
-                        </td>
-                        <td className="px-4 py-2 text-right text-sky-400 tabular-nums text-[11px] font-semibold">
-                          {materialSummary.reduce((s, m) => s + m.sumWeight, 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                        </td>
-                        <td className="px-4 py-2">
-                          <input
-                            type="number"
-                            value={directGrandTotalWeight}
-                            onChange={e => setDirectGrandTotalWeight(e.target.value)}
-                            placeholder={grandTotalWeight > 0 ? grandTotalWeight.toFixed(2) : '0.00'}
-                            className="form-input text-xs py-1 text-right w-full font-black text-amber-700 border-amber-300"
-                            min="0" step="0.01"
-                          />
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Actions */}
-        <div className="flex flex-col gap-3 pt-3 sm:flex-row sm:items-center">
-          <button
-            type="submit"
-            disabled={creatingFullFlow}
-            className="btn-primary flex-1"
-          >
-            {creatingFullFlow ? (
-              <>
-                <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
-                Creating…
-              </>
-            ) : (
-              <>
-                <span className="material-symbols-outlined text-sm">auto_awesome_motion</span>
-                Create Inward
-              </>
-            )}
-          </button>
-          <Link to="/jobwork/register" className="btn-ghost">
-            Cancel
-          </Link>
-        </div>
-      </form>
-
-      {/* Quick Create Party Modal */}
-      {partyModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between shrink-0">
-              <div>
-                <div className="text-xs font-black tracking-widest text-slate-400 uppercase">Quick Create Party</div>
-                <div className="text-lg font-extrabold text-slate-800 mt-1">New Customer with Process Rates</div>
-              </div>
-              <button type="button" onClick={closePartyModal} className="text-slate-400 hover:text-slate-700">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4 overflow-y-auto flex-1">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="form-label">Party Type</label>
-                  <select
-                    value={partyModal.partyType}
-                    onChange={(e) => setPartyModal(p => ({ ...p, partyType: e.target.value }))}
-                    className="form-input"
-                  >
-                    <option value="CUSTOMER">CUSTOMER</option>
-                    <option value="VENDOR">VENDOR</option>
-                    <option value="BOTH">BOTH</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="form-label">Email (optional)</label>
-                  <input
-                    type="email"
-                    value={partyModal.email}
-                    onChange={(e) => setPartyModal(p => ({ ...p, email: e.target.value }))}
-                    className="form-input"
-                    placeholder="email@company.com"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="form-label">Party Name *</label>
-                <input
-                  value={partyModal.name}
-                  onChange={(e) => setPartyModal(p => ({ ...p, name: e.target.value }))}
-                  className="form-input"
-                  placeholder="Company / Party name"
-                />
-              </div>
-
-              <div>
-                <label className="form-label">Address *</label>
-                <textarea
-                  value={partyModal.address}
-                  onChange={(e) => setPartyModal(p => ({ ...p, address: e.target.value }))}
-                  className="form-input"
-                  rows={3}
-                  placeholder="Full address"
-                />
-              </div>
-
-              {/* Process Rates */}
-              {processes.length > 0 && (
-                <div className="border-t border-slate-100 pt-4">
-                  <p className="section-title mb-3">Process Rates (₹/kg)</p>
-                  <div className="overflow-x-auto rounded-xl border border-slate-200">
-                    <table className="w-full text-xs min-w-[400px]">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200">
-                          <th className="text-left px-3 py-2 font-semibold text-slate-600">Process</th>
-                          <th className="text-left px-3 py-2 font-semibold text-slate-600">Rate/Kg (₹)</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {processes.filter(p => p.isActive !== false).map(pt => (
-                          <tr key={pt.id} className="hover:bg-slate-50/60">
-                            <td className="px-3 py-2 font-medium text-slate-700">
-                              {pt.name}
+                {/* Material Weight Summary */}
+                {materialSummary.length > 0 && (
+                  <div className="rounded-xl border border-slate-200 overflow-hidden">
+                    <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex items-center gap-2">
+                      <Layers className="h-3.5 w-3.5 text-slate-400" />
+                      <div>
+                        <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest">Material Weight Summary</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">Auto-calculated from item weight/qty — override only if you need a different total</p>
+                      </div>
+                    </div>
+                    {/* Five numeric columns, two of them editable — scroll rather
+                        than squeeze them below a usable width. */}
+                    <div className="table-responsive">
+                      <table className="w-full text-xs min-w-[600px]">
+                        <thead>
+                          <tr>
+                            <th className="th">Material</th>
+                            <th className="th text-right">Item Qty (sum)</th>
+                            <th className="th text-right w-36">Total Qty (direct)</th>
+                            <th className="th text-right">Item Weight (sum)</th>
+                            <th className="th text-right w-40">Total Weight (kg)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50/80">
+                          {materialSummary.map(({ material, sumQty, sumWeight }) => (
+                            <tr key={material} className="tr">
+                              <td className="td font-semibold text-slate-800">{material}</td>
+                              <td className="td text-right text-slate-400 tabular-nums text-[11px]">
+                                {sumQty > 0 ? sumQty.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '—'}
+                              </td>
+                              <td className="td">
+                                <input
+                                  type="number"
+                                  inputMode="numeric"
+                                  value={materialQtys[material] ?? ''}
+                                  onChange={e => setMaterialQtys(prev => ({ ...prev, [material]: e.target.value }))}
+                                  placeholder="0"
+                                  aria-label={`Total qty for ${material}`}
+                                  className="form-input text-xs py-1 text-right tabular-nums w-full"
+                                  min="0" step="1"
+                                />
+                              </td>
+                              <td className="td text-right text-slate-400 tabular-nums text-[11px]">
+                                {sumWeight > 0 ? sumWeight.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '—'}
+                              </td>
+                              <td className="td">
+                                <input
+                                  type="number"
+                                  inputMode="decimal"
+                                  value={materialWeights[material] ?? ''}
+                                  onChange={e => setMaterialWeights(prev => ({ ...prev, [material]: e.target.value }))}
+                                  placeholder={sumWeight > 0 ? sumWeight.toFixed(2) : '0.00'}
+                                  aria-label={`Total weight for ${material}`}
+                                  className="form-input text-xs py-1 text-right tabular-nums w-full"
+                                  min="0" step="0.01"
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot className="bg-sky-50 border-t-2 border-sky-200">
+                          <tr>
+                            <td colSpan={2} className="px-4 py-2 text-xs font-bold text-sky-700">
+                              <div className="flex flex-col gap-0.5">
+                                <span>Grand Total Override</span>
+                                <span className="font-normal text-sky-400 text-[9px] normal-case">
+                                  Optional: fills blanks only when material summary is incomplete
+                                </span>
+                              </div>
                             </td>
-                            <td className="px-3 py-1.5">
+                            <td className="px-4 py-2">
                               <input
-                                type="number" step="0.01" min="0"
-                                value={partyModal.rates[pt.id] ?? ''}
-                                onChange={(e) => setPartyRate(pt.id, e.target.value)}
-                                className="form-input py-1 text-xs w-24"
-                                placeholder={pt.pricePerKg ?? '—'}
+                                type="number"
+                                inputMode="numeric"
+                                value={directGrandTotalQty}
+                                onChange={e => setDirectGrandTotalQty(e.target.value)}
+                                placeholder={grandTotalQty > 0 ? String(grandTotalQty) : '0'}
+                                aria-label="Grand total qty override"
+                                className="form-input text-xs py-1 text-right tabular-nums w-full font-black text-sky-700 border-sky-300"
+                                min="0" step="1"
+                              />
+                            </td>
+                            <td className="px-4 py-2 text-right text-sky-400 tabular-nums text-[11px] font-semibold">
+                              {materialSummary.reduce((s, m) => s + m.sumWeight, 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                            </td>
+                            <td className="px-4 py-2">
+                              <input
+                                type="number"
+                                inputMode="decimal"
+                                value={directGrandTotalWeight}
+                                onChange={e => setDirectGrandTotalWeight(e.target.value)}
+                                placeholder={grandTotalWeight > 0 ? grandTotalWeight.toFixed(2) : '0.00'}
+                                aria-label="Grand total weight override"
+                                className="form-input text-xs py-1 text-right tabular-nums w-full font-black text-amber-700 border-amber-300"
+                                min="0" step="0.01"
                               />
                             </td>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </tfoot>
+                      </table>
+                    </div>
                   </div>
-                  <p className="text-[10px] text-slate-400 mt-1.5">Leave blank to use global process rate. Party rate takes priority during inward entry.</p>
-                </div>
-              )}
-            </div>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+        </div>
 
-            <div className="p-5 border-t border-slate-100 flex gap-3 justify-end shrink-0">
-              <button type="button" onClick={closePartyModal} className="btn-ghost">Cancel</button>
-              <button
-                type="button"
-                onClick={createPartyQuick}
-                disabled={partyModal.saving}
-                className="btn-primary"
-              >
-                {partyModal.saving
-                  ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Saving...</>
-                  : <><span className="material-symbols-outlined text-sm">save</span> Create Party</>
-                }
-              </button>
-            </div>
+        <div className="shrink-0 mt-2 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-card sm:px-5">
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <Button asChild variant="ghost"><Link to="/jobwork/register">Cancel</Link></Button>
+            <Button type="button" onClick={handleSubmit} disabled={creatingFullFlow}>
+              {creatingFullFlow
+                ? <><Loader2 className="animate-spin" /> Creating…</>
+                : <><Save /> Create Inward</>}
+            </Button>
           </div>
         </div>
-      )}
+      </form>
     </div>
   );
 }

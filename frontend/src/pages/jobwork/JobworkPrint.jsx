@@ -3,31 +3,15 @@ import { Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
 
 function SvtLogo({ size = 56 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 100 115" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <polygon points="50,2 95,27 95,77 50,102 5,77 5,27" fill="#1a1a1a" stroke="#000" strokeWidth="1.5"/>
-      <path d="M 38,28 C 22,28 20,38 30,43 L 40,48 C 54,53 54,65 38,66 C 28,66 24,62 24,62"
-        fill="none" stroke="white" strokeWidth="7" strokeLinecap="round"/>
-      <text x="60" y="70" textAnchor="middle" fill="white"
-        fontFamily="Arial Black, Arial, sans-serif" fontWeight="900" fontSize="28" letterSpacing="1">VT</text>
-      <text x="50" y="96" textAnchor="middle" fill="#aaa"
-        fontFamily="Arial, sans-serif" fontSize="6" letterSpacing="0.5">PUNE</text>
-    </svg>
-  );
+  // Same actual company logo used on the Job Card print (not the old inline
+  // black-hexagon placeholder SVG).
+  return <img src="/logo.png" alt="SVT" style={{ height: size, width: 'auto', display: 'block' }} />;
 }
 
 function TuvLogo({ size = 52 }) {
-  return (
-    <svg width={size * 1.4} height={size} viewBox="0 0 72 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="1" y="1" width="70" height="50" rx="4" fill="white" stroke="#1e3a8a" strokeWidth="2" />
-      <text x="36" y="20" textAnchor="middle" fill="#1e3a8a"
-        fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="14" letterSpacing="1">TÜV</text>
-      <text x="36" y="33" textAnchor="middle" fill="#1e3a8a"
-        fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="9" letterSpacing="1">AUSTRIA</text>
-      <text x="36" y="44" textAnchor="middle" fill="#64748b"
-        fontFamily="Arial,sans-serif" fontSize="7">CERTIFIED</text>
-    </svg>
-  );
+  // Same actual TÜV certification logo used on the Job Card print (not the
+  // old inline placeholder SVG).
+  return <img src="/tuv.png" alt="TÜV Austria" style={{ height: size, width: 'auto', display: 'block' }} />;
 }
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN') : '—');

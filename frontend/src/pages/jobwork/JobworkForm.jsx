@@ -10,12 +10,15 @@ import ChallanDetailsSection from './components/ChallanDetailsSection';
 import LineItemsSection from './components/LineItemsSection';
 import TaxTotalsSection from './components/TaxTotalsSection';
 
-const F = ({ label, children, className = '' }) => (
-  <div className={className}>
-    <label className="form-label">{label}</label>
-    {children}
-  </div>
-);
+// UI primitives
+import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { FormField } from '@/components/ui/form-field';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/ui/page-header';
+import { Stepper, useStepper } from '@/components/ui/stepper';
+import { Save, Upload, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function JobworkForm() {
   const navigate = useNavigate();
@@ -153,6 +156,13 @@ export default function JobworkForm() {
     });
   };
 
+  const JW_STEPS = [
+    { key: 'challan', label: 'Challan details' },
+    { key: 'items',   label: 'Line items' },
+  ];
+  const wiz = useStepper(JW_STEPS.length);
+  const LAST = JW_STEPS.length - 1;
+
   const subtotal   = lineItems.reduce((s, it) => s + toNum(it.amount, 0), 0);
   const total      = subtotal + toNum(form.handlingCharges, 0);
   const cgstAmt    = toNum((total * toNum(form.cgstRate, 0) / 100).toFixed(2), 0);
@@ -237,15 +247,18 @@ export default function JobworkForm() {
     e.preventDefault();
     if (!form.fromPartyId || !form.toPartyId) {
       toast.error('From and To party are required.');
+      wiz.goto(0);
       return;
     }
     if (manualChallanNo && !challanNoInput.trim()) {
       toast.error('Challan number is required when manual  ticked.');
+      wiz.goto(0);
       return;
     }
     const validItems = lineItems.filter(it => it.description?.trim() || toNum(it.quantity, 0) > 0);
     if (!validItems.length) {
       toast.error('At least one line item with quantity is required.');
+      wiz.goto(1);
       return;
     }
     setLoading(true);
@@ -306,38 +319,37 @@ export default function JobworkForm() {
   }
 
   return (
-    <div className="page-stack w-full animate-slide-up">
-      {/* Header */}
-      <div className="page-header">
-        <div className="flex items-start gap-3 min-w-0 flex-1">
-          <Link to="/jobwork"
-            className="w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-colors shadow-sm">
-            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-          </Link>
-          <div className="space-y-2 min-w-0">
-            <h1 className="page-title">{isEdit ? 'Edit Inward Challan' : 'New Inward Challan'}</h1>
-            <p className="page-subtitle max-w-2xl">Manage inward challans with a cleaner header and consistent page spacing.</p>
-            {isEdit ? (
-              <p className="text-xs text-slate-500">Editing: <span className="font-mono">{challanNoInput || `#${id}`}</span></p>
-            ) : (
-              <p className="text-xs text-slate-500">Rule 45(1) CGST Rules, 2017</p>
+    <div className="font-app flex flex-col h-full min-h-0">
+      <PageHeader
+        title={isEdit ? 'Edit Inward Challan' : 'New Inward Challan'}
+        backTo="/jobwork"
+        breadcrumbs={[{ label: 'Jobwork', to: '/jobwork' }, { label: isEdit ? (challanNoInput || `#${id}`) : 'New' }]}
+        meta={<span className="text-xs text-slate-500">Rule 45(1) CGST Rules, 2017</span>}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {!isEdit && (
+              <Button type="button" variant="outline" size="sm" onClick={fillFromImage}>
+                <Upload /> Load sample data
+              </Button>
             )}
+            <Badge variant="warning" className="text-[10px] border border-amber-200">Challan for Job Work</Badge>
           </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {!isEdit && (
-            <button type="button" onClick={fillFromImage} className="btn-outline">
-              <span className="material-symbols-outlined text-sm">file_upload</span> Load sample data
-            </button>
-          )}
-          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
-            Challan for Job Work
-          </span>
-        </div>
+        }
+      />
+
+      <div className="mt-2 shrink-0 rounded-xl border border-slate-200 bg-white p-2 shadow-card">
+        <Stepper steps={JW_STEPS} current={wiz.current} completed={wiz.completed} onStepClick={(i) => wiz.goto(i)} />
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <ChallanDetailsSection 
+      <form onSubmit={(e) => { e.preventDefault(); if (wiz.current === LAST) handleSubmit(e); }} className="flex-1 min-h-0 flex flex-col">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-3 pr-0.5 space-y-4">
+        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+          Step {wiz.current + 1} of {JW_STEPS.length} · {JW_STEPS[wiz.current].label}
+        </p>
+
+        {/* ── Step 1 · Challan details ── */}
+        <div hidden={wiz.current !== 0} className="space-y-4">
+        <ChallanDetailsSection
           isEdit={isEdit} 
           form={form} 
           setForm={setForm} 
@@ -351,12 +363,22 @@ export default function JobworkForm() {
         />
 
         {/* Processing Notes */}
-        <div className="card p-5">
-          <F label="Processing Notes / Instructions">
-            <textarea value={form.processingNotes} onChange={e => setForm(p => ({ ...p, processingNotes: e.target.value }))}
-              rows={2} className="form-input resize-none" placeholder="Material pre-heat temperature, hardness required, vacuum level..." />
-          </F>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Processing Notes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <FormField htmlFor="processingNotes" hint="e.g. pre-heat temperature, required hardness, vacuum level">
+              <Textarea
+                id="processingNotes"
+                value={form.processingNotes}
+                onChange={e => setForm(p => ({ ...p, processingNotes: e.target.value }))}
+                rows={2}
+                placeholder="Material pre-heat temperature, hardness required, vacuum level..."
+              />
+            </FormField>
+          </CardContent>
+        </Card>
 
         <datalist id="challan-desc-suggestions">
           <option value="Vacuum Hardening" />
@@ -369,7 +391,10 @@ export default function JobworkForm() {
           <option value="D2 Die" />
           <option value="M2 Tool" />
         </datalist>
+        </div>
 
+        {/* ── Step 2 · Line items ── */}
+        <div hidden={wiz.current !== 1} className="space-y-4">
         <LineItemsSection
           lineItems={lineItems}
           setLineItems={setLineItems}
@@ -391,16 +416,27 @@ export default function JobworkForm() {
             grandTotal={grandTotal}
           />
         )}
+        </div>
 
-        {/* Actions */}
-        <div className="flex gap-3 pt-1">
-          <button type="submit" disabled={loading} className="btn-primary">
-            {loading
-              ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> {isEdit ? 'Updating...' : 'Creating...'}</>
-              : <><span className="material-symbols-outlined text-sm">save</span> {isEdit ? 'Update Challan' : 'Create Challan'}</>
-            }
-          </button>
-          <Link to="/jobwork" className="btn-ghost">Cancel</Link>
+        </div>
+
+        {/* ── Wizard navigation ── */}
+        <div className="shrink-0 mt-2 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-card sm:px-5">
+          <span className="font-app-mono text-xs text-slate-400">Step {wiz.current + 1} of {JW_STEPS.length}</span>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <Button asChild variant="ghost"><Link to="/jobwork">Cancel</Link></Button>
+            <Button type="button" variant="ghost" disabled={wiz.isFirst} onClick={wiz.back}>
+              <ChevronLeft className="h-4 w-4" /> Back
+            </Button>
+            {wiz.current < LAST ? (
+              <Button type="button" onClick={wiz.next}>Next <ChevronRight className="h-4 w-4" /></Button>
+            ) : (
+              <Button type="button" onClick={handleSubmit} loading={loading} disabled={loading}>
+                {!loading && <Save />}
+                {loading ? (isEdit ? 'Updating...' : 'Creating...') : (isEdit ? 'Update Challan' : 'Create Challan')}
+              </Button>
+            )}
+          </div>
         </div>
       </form>
     </div>

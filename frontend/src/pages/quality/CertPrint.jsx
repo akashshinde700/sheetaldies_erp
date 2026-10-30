@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
 import { formatDate } from '../../utils/formatters';
@@ -81,6 +81,32 @@ export default function CertPrint() {
     return `${base}${p}`;
   };
 
+  // ── Auto-fit the certificate onto ONE A4 sheet ───────────────
+  // A long item list would push it onto a 2nd page. Measure the natural
+  // height at the print column width and, only if it is too tall, set a
+  // `--print-zoom` factor that the @media-print CSS applies via `zoom:`.
+  const pageRef = useRef(null);
+  useLayoutEffect(() => {
+    const FIT_PX = 1000;   // (297mm − 8mm margins) @96dpi, minus safety
+    const PRINT_W = 762;   // 210mm − 8mm margins
+    const run = () => {
+      const el = pageRef.current;
+      if (!el) return;
+      el.style.setProperty('--print-zoom', '1');
+      el.classList.add('cert-measuring');
+      const prevW = el.style.width;
+      el.style.width = PRINT_W + 'px';
+      const h = el.scrollHeight;
+      el.style.width = prevW;
+      el.classList.remove('cert-measuring');
+      const z = h > FIT_PX ? Math.max(0.45, FIT_PX / h) : 1;
+      el.style.setProperty('--print-zoom', String(Math.round(z * 1000) / 1000));
+    };
+    const t = setTimeout(run, 60);
+    window.addEventListener('beforeprint', run);
+    return () => { clearTimeout(t); window.removeEventListener('beforeprint', run); };
+  }, [cert]);
+
   const derived = useMemo(() => {
     if (!cert) return {};
     const tempPoints = asArray(cert.effectiveTempCycleData ?? cert.tempCycleData);
@@ -129,15 +155,13 @@ export default function CertPrint() {
   challanItems.forEach(ci => { chItemById[ci.id] = ci; });
   const insp = jc.inspection || {};
 
-  // Categorization/Process — the Job Card's Incoming Inspection is the
-  // source of truth (matches CertForm's edit-load sync); fall back to the
-  // certificate's own saved value only if this job card has no inspection
-  // record at all yet.
-  // The certificate carries its own categorisation, and editing it must show
-  // up here. This used to read the job card's inspection whenever one existed,
-  // so the certificate's own ticks were never printed and every certificate
-  // made from the same job card looked identical no matter what was set.
-  // The inspection is only a fallback for certificates that carry nothing.
+  // Categorization / Process / Visual / MPI — the Job Card's Incoming
+  // Inspection is the single source of truth. The certificate is made FROM the
+  // job card and the backend keeps the two in sync in both directions
+  // (syncCategorizationToJobCard), so the certificate print must show exactly
+  // what the job card's incoming inspection shows. The certificate's own saved
+  // columns are used only as a fallback for old certificates whose job card has
+  // no inspection record yet.
   const CAT_PROC_FIELDS = [
     'catNormal', 'catWelded', 'catCrackRisk', 'catDistortionRisk', 'catCriticalFinishing',
     'catDentDamage', 'catRusty', 'catCavity', 'catOthers',
@@ -145,9 +169,15 @@ export default function CertPrint() {
     'procBrazing', 'procPlasmaNitriding', 'procSubZero', 'procSoakClean',
     'visualBefore', 'visualAfter', 'mpiBefore', 'mpiAfter', 'mpiNil',
   ];
-  const certHasOwnFlags = CAT_PROC_FIELDS.some(f => cert[f]);
-  const cat  = (field) => !!(certHasOwnFlags ? cert[field] : (jc.inspection ? insp[field] : cert[field]));
+  const jcHasOwnFlags = !!jc.inspection && CAT_PROC_FIELDS.some(f => insp[f]);
+  const cat  = (field) => !!(jcHasOwnFlags ? insp[field] : cert[field]);
   const proc = cat;
+  // Visual / MPI follow the same source-of-truth rule; keep each field's
+  // existing default for the fallback (old cert with no job-card inspection).
+  const vis = (field, dflt = false) => {
+    if (jcHasOwnFlags) return !!insp[field];
+    return cert[field] != null ? !!cert[field] : dflt;
+  };
 
   // If cert has no saved items, fall back to job card challan items so the table isn't blank
   const certItemsSaved = cert.items || [];
@@ -161,20 +191,20 @@ export default function CertPrint() {
         remarks:     '',
       }));
   const totalQty   = items.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
-  // Weight shown on a certificate is the job card's weight. Prefer what the
-  // certificate saved, then the inward item it came from, and finally the job
-  // card's own total split across the items — certificates made before the
-  // weight was carried across have none of their own, and job cards where the
-  // weight was typed only into "Total Weight" leave the items blank.
-  const jcTotalWeight = Number(jc.totalWeight) || 0;
-  const itemWeight = (it, i, list = items) => {
+  // Per-item weight = the weight of the linked inward item, and nothing else.
+  // The job card's "Total Weight" is NEVER spread across the items, and a
+  // certificate item's own saved weight is trusted only for a standalone cert
+  // item that has no inward link (older certificates auto-filled that column
+  // with a divided value, so it can't be trusted when an inward item exists).
+  const itemWeight = (it, i) => {
     const ch = (it.sourceChallanItemId && chItemById[it.sourceChallanItemId]) || challanItems[i] || challanItems[0];
-    const own = num(it.totalWeight) || num(ch?.weight) || 0;
-    if (own) return own;
-    return jcTotalWeight && list.length ? jcTotalWeight / list.length : 0;
+    if (ch) return num(ch.weight) || 0;
+    return num(it.totalWeight) || 0;
   };
-  const totalWt    = items.reduce((s, it, i) => s + itemWeight(it, i), 0)
-                     || Number(jc.totalWeight) || 0;
+  // The TOTAL row shows the real total: the job card's Total Weight if set,
+  // else the sum of whatever per-item weights exist.
+  const totalWt    = Number(jc.totalWeight) || Number(cert.totalWeight)
+                     || items.reduce((s, it, i) => s + itemWeight(it, i), 0) || 0;
 
   const dt = cert.dispatchedThrough || '';
   const byOurVehicle     = jc.dispatchByOurVehicle  || dt.toLowerCase().includes('vehicle');
@@ -200,6 +230,10 @@ export default function CertPrint() {
     ? (_challanDateStr ? `${_dcBase}/${_challanDateStr}` : _dcBase)
     : '—';
   const cycleNo  = cert.heatNo || '';
+  // Both live on the job card — this certificate is always printed from its
+  // linked job card's own record, never a copy on the certificate itself.
+  const controlPlanNo   = jc.controlPlanNo || '—';
+  const specificationVal = jc.specification || '';
 
   // Material — prefer JC value (cert may have been created before material was filled)
   const material  = jc.dieMaterial || cert.dieMaterial || challanItems[0]?.material || '—';
@@ -218,11 +252,35 @@ export default function CertPrint() {
   return (
     <div className="bg-slate-100 py-4 print:bg-white print:py-0">
       <style>{`
-        @page { margin: 0mm; size: A4; }
+        @page { margin: 4mm; size: A4; }
+        /* screen-only: mirrors the print weight while JS measures the page for
+           the auto-fit calculation, so the measured height matches print. */
+        .cert-measuring, .cert-measuring * { font-weight: 700 !important; }
         @media print {
           .no-print { display: none !important; }
-          html, body { margin: 0 !important; padding: 2mm 4mm !important; }
-          .page { box-shadow: none !important; margin: 0 !important; }
+          /* balanced margin on all four sides via @page; body adds nothing so
+             the printable area is not eaten twice. .page then uses the full
+             printable width (its max-width cap must not leave side gaps). */
+          html, body { margin: 0 !important; padding: 0 !important; }
+          .page {
+            box-shadow: none !important;
+            margin: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            display: flex !important;
+            flex-direction: column;
+            min-height: 287mm;              /* A4 297 - 2*4mm - hair of safety */
+            /* auto-fit: JS lowers --print-zoom below 1 only when the sheet
+               would otherwise overflow onto a 2nd page (long item list). */
+            zoom: var(--print-zoom, 1);
+          }
+          .page > * { flex: 0 0 auto; }
+          /* The ITEMS table takes up the spare vertical space (its ruled rows
+             just get taller, like a paper form) so the frame reaches the bottom
+             of the sheet WITHOUT the job-image strip ballooning. Font, borders
+             and every section's own size stay untouched. */
+          .cert-fill { flex: 1 1 auto !important; }
+          .cert-fill > tbody { height: 100%; }
           body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
         .cert-border { border: 1px solid black; }
@@ -238,7 +296,7 @@ export default function CertPrint() {
       </div>
 
       {/* ── Certificate Page ── */}
-      <div className="page max-w-[900px] mx-auto bg-white shadow-lg text-[10px]" style={{ fontFamily: 'Arial, sans-serif', border: '2px solid #222' }}>
+      <div ref={pageRef} className="page max-w-[900px] mx-auto bg-white shadow-lg text-[10px]" style={{ fontFamily: 'Arial, sans-serif', border: '2px solid #222' }}>
 
         {/* ── HEADER ── */}
         <table className="w-full border-collapse" style={{ borderBottom: '2px solid black' }}>
@@ -357,7 +415,7 @@ export default function CertPrint() {
         </table>
 
         {/* ── ITEMS TABLE ── */}
-        <table className="w-full border-collapse" style={{ borderBottom: '1px solid black' }}>
+        <table className="w-full border-collapse cert-fill" style={{ borderBottom: '1px solid black' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid black' }}>
               <th className="p-1 text-left font-bold" style={{ width: '40px', borderRight: '1px solid black' }}>Item</th>
@@ -393,15 +451,23 @@ export default function CertPrint() {
                   </td>
                   <td className="p-0.5 text-center font-mono" style={{ borderRight: '1px solid black' }}>{it.quantity}</td>
                   <td className="p-0.5 text-center font-mono" style={{ borderRight: '1px solid black' }}>
-                    {/* Certificates saved before the weight was carried across
-                        have a blank totalWeight; the inward item it came from
-                        still knows it, so read that rather than printing "—". */}
+                    {/* Blank unless a weight was entered for THIS item — the
+                        job card total is never divided across the items. */}
                     {(() => {
                       const wt = itemWeight(it, i);
                       return wt ? Number(wt).toFixed(3) : '—';
                     })()}
                   </td>
-                  <td className="p-0.5 text-center">{it.remarks || ''}</td>
+                  {/* The certificate-level Remarks isn't per-item — it's one note
+                      for the whole items block, so it's a single cell spanning
+                      every item row + the Total row (rowSpan below), written
+                      once from the first row, rather than a separate copy sitting
+                      alone in the Total row with the item rows blank above it. */}
+                  {i === 0 && (
+                    <td className="p-1 text-center" rowSpan={items.length + 1} style={{ verticalAlign: 'top' }}>
+                      {cert.remarks || ''}
+                    </td>
+                  )}
                 </tr>
               );
             })}
@@ -412,7 +478,12 @@ export default function CertPrint() {
                 <td style={{ borderRight: '1px solid black' }}></td>
                 <td style={{ borderRight: '1px solid black' }}></td>
                 <td style={{ borderRight: '1px solid black' }}></td>
-                <td></td>
+                {items.length === 0 && (
+                  // No item rows at all — this filler row + the Total row below
+                  // it are the only two rows, so span both (mirrors the i===0
+                  // rowSpan above for the normal case).
+                  <td className="p-1 text-center" rowSpan={2} style={{ verticalAlign: 'top' }}>{cert.remarks || ''}</td>
+                )}
               </tr>
             ))}
             <tr style={{ borderTop: '1px solid black' }}>
@@ -421,7 +492,6 @@ export default function CertPrint() {
               <td className="p-1 text-center font-bold font-mono" style={{ borderRight: '1px solid black' }}>
                 {totalWt ? totalWt.toFixed(3) : '—'}
               </td>
-              <td></td>
             </tr>
           </tbody>
         </table>
@@ -465,12 +535,12 @@ export default function CertPrint() {
                 {/* Visual + MPI inspection */}
                 <td className="px-2 py-0.5 align-top" style={{ width: '28%', borderRight: '1px solid black', lineHeight: 1.35 }}>
                   <div className="font-bold text-[9px]" style={{ marginBottom: 2 }}>VISUAL INSPECTION</div>
-                  <div><CB checked={cert.visualBefore ?? false} /> BEFORE</div>
-                  <div><CB checked={cert.visualAfter !== false} /> AFTER</div>
+                  <div><CB checked={vis('visualBefore', false)} /> BEFORE</div>
+                  <div><CB checked={vis('visualAfter', true)} /> AFTER</div>
                   <div className="font-bold text-[9px]" style={{ marginTop: 4, marginBottom: 2 }}>MPI INSPECTION</div>
-                  <div><CB checked={cert.mpiBefore ?? false} /> BEFORE</div>
-                  <div><CB checked={cert.mpiAfter ?? false} /> AFTER</div>
-                  <div><CB checked={cert.mpiNil ?? (!cert.specInstrMpiReport)} /> NIL</div>
+                  <div><CB checked={vis('mpiBefore', false)} /> BEFORE</div>
+                  <div><CB checked={vis('mpiAfter', false)} /> AFTER</div>
+                  <div><CB checked={vis('mpiNil', !cert.specInstrMpiReport)} /> NIL</div>
                 </td>
 
                 {/* Hardness + Final Inspection By */}
@@ -495,14 +565,26 @@ export default function CertPrint() {
 
         {/* ── HEAT TREATMENT PROCESS GRAPH ── */}
         <div style={{ borderBottom: '1px solid black' }}>
-          <div className="flex items-center gap-4 px-2 py-0.5 font-bold" style={{ borderBottom: '1px solid black' }}>
-            <span>HEAT TREATMENT PROCESS</span>
-            <span className="font-normal">
-              CYCLE NO: <span className="font-mono">{cycleNo}</span>
-            </span>
-          </div>
+          <table className="w-full border-collapse" style={{ borderBottom: '1px solid black' }}>
+            <tbody>
+              <tr>
+                {/* Widths match the Categorization/Process/Visual Inspection/Hardness-box
+                    row below (22% / 22% / 28% / 28%) so every vertical line lines up. */}
+                <td className="px-2 py-0.5 font-bold" style={{ width: '22%', borderRight: '1px solid black' }}>HEAT TREATMENT PROCESS</td>
+                <td className="px-2 py-0.5" style={{ width: '22%', borderRight: '1px solid black' }}>
+                  CYCLE NO: <span className="font-mono font-bold">{cycleNo}</span>
+                </td>
+                <td className="px-2 py-0.5" style={{ width: '28%', borderRight: '1px solid black' }}>
+                  CONTROL PLAN NO: <span className="font-mono font-bold">{controlPlanNo}</span>
+                </td>
+                <td className="px-2 py-0.5" style={{ width: '28%' }}>
+                  SPECIFICATION: <span className="font-mono font-bold">{specificationVal}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
           <div className="px-2" style={{ paddingTop: 0, paddingBottom: 0, height: 170 }}>
-            <HeatCycleStepGraph segments={derived.tempSegments || []} stroke="#000" viewW={1400} labelFontSize={13} strokeWidth={3} showYAxisTicks />
+            <HeatCycleStepGraph segments={derived.tempSegments || []} stroke="#000" viewW={1400} labelFontSize={13} strokeWidth={3} />
           </div>
         </div>
 
@@ -570,19 +652,14 @@ export default function CertPrint() {
                   </tbody>
                 </table>
               </td>
-              <td className="p-1" style={{ width: '23%' }}>
-                <table className="w-full border-collapse text-[9px]" style={{ border: '1px solid black', height: '46px' }}>
-                  <thead>
-                    <tr>
-                      <th className="p-1 font-bold" style={{ border: '1px solid black' }}>APPROVED BY:</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td className="p-1 text-center" style={{ border: '1px solid black', verticalAlign: 'middle', height: 'calc(46px - 24px)' }}>{cert.approvedBy || ''}</td>
-                    </tr>
-                  </tbody>
-                </table>
+              <td className="p-1" style={{ width: '23%', height: '1px' }}>
+                {/* height:1px on the <td> + h-full below is the standard trick to make
+                    a block fill its table-cell's real (row-matched) height — percentage
+                    heights on nested <table>s don't reliably propagate the same way. */}
+                <div className="h-full flex flex-col text-[9px]" style={{ border: '1px solid black' }}>
+                  <div className="p-1 font-bold text-center" style={{ borderBottom: '1px solid black' }}>APPROVED BY:</div>
+                  <div className="p-1 text-center flex-1 flex items-center justify-center">{cert.approvedBy || ''}</div>
+                </div>
               </td>
             </tr>
           </tbody>

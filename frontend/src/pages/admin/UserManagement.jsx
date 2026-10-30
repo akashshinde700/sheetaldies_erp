@@ -1,9 +1,26 @@
 import { useEffect, useState } from 'react';
-import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import {
+  UserPlus, X, Pencil, Eye, KeyRound, UserX, UserCheck, Info,
+  ShieldCheck, UserCog, HardHat, Loader2,
+} from 'lucide-react';
+import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import { formatDate } from '../../utils/formatters';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { FormField } from '@/components/ui/form-field';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const ROLES = ['ADMIN', 'MANAGER', 'OPERATOR', 'VIEWER'];
 
@@ -15,10 +32,10 @@ const ROLE_COLOR = {
 };
 
 const ROLE_ICON = {
-  ADMIN:    { icon: 'admin_panel_settings', bg: 'bg-rose-50 text-rose-500',    top: 'border-t-rose-400'    },
-  MANAGER:  { icon: 'manage_accounts',      bg: 'bg-orange-50 text-orange-500', top: 'border-t-orange-400'  },
-  OPERATOR: { icon: 'engineering',          bg: 'bg-sky-50 text-sky-500', top: 'border-t-sky-400'  },
-  VIEWER:   { icon: 'visibility',           bg: 'bg-slate-100 text-slate-500',  top: 'border-t-slate-300'   },
+  ADMIN:    { Icon: ShieldCheck, bg: 'bg-rose-50 text-rose-500',     top: 'border-t-rose-400'   },
+  MANAGER:  { Icon: UserCog,     bg: 'bg-orange-50 text-orange-500', top: 'border-t-orange-400' },
+  OPERATOR: { Icon: HardHat,     bg: 'bg-sky-50 text-sky-500',       top: 'border-t-sky-400'    },
+  VIEWER:   { Icon: Eye,         bg: 'bg-slate-100 text-slate-500',  top: 'border-t-slate-300'  },
 };
 
 const ROLE_DESC = {
@@ -29,6 +46,17 @@ const ROLE_DESC = {
 };
 
 const EMPTY_NEW = { name: '', email: '', role: 'OPERATOR' };
+
+const SkeletonRow = () => (
+  <tr>
+    <td className="td"><div className="flex items-center gap-3"><Skeleton className="h-8 w-8 rounded-full" /><Skeleton className="h-3.5 w-28" /></div></td>
+    <td className="td"><Skeleton className="h-3.5 w-40" /></td>
+    <td className="td"><Skeleton className="h-5 w-20 rounded-full" /></td>
+    <td className="td"><Skeleton className="h-5 w-14 rounded-full" /></td>
+    <td className="td"><Skeleton className="h-3.5 w-24" /></td>
+    <td className="td"><Skeleton className="h-3.5 w-40" /></td>
+  </tr>
+);
 
 export default function UserManagement() {
   const { user: me } = useAuth();
@@ -112,86 +140,90 @@ export default function UserManagement() {
     <div className="page-stack w-full space-y-5 animate-slide-up">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-xl font-extrabold text-slate-800 font-headline">User Management</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Create users and assign roles — Admin only</p>
+          <h1 className="page-title">User Management</h1>
+          <p className="page-subtitle">Create users and assign roles — Admin only</p>
         </div>
-        <button type="button" onClick={() => setShowNew(p => !p)} className="btn-primary">
-          <span className="material-symbols-outlined text-sm">{showNew ? 'close' : 'person_add'}</span>
+        <Button type="button" variant={showNew ? 'outline' : 'primary'} onClick={() => setShowNew(p => !p)} className="shrink-0">
+          {showNew ? <X /> : <UserPlus />}
           {showNew ? 'Cancel' : 'Add User'}
-        </button>
+        </Button>
       </div>
 
       {/* Role Reference Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {ROLES.map(r => {
           const meta = ROLE_ICON[r];
+          const RoleIcon = meta.Icon;
           return (
-            <div key={r} className={`bg-white rounded-xl p-4 shadow-sm border-t-2 ${meta.top}`}>
+            <Card key={r} className={`p-4 border-t-2 ${meta.top}`}>
               <div className="flex items-center gap-2 mb-2">
                 <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${meta.bg}`}>
-                  <span className="material-symbols-outlined text-[14px]">{meta.icon}</span>
+                  <RoleIcon className="h-3.5 w-3.5" />
                 </div>
                 <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${ROLE_COLOR[r]}`}>{r}</span>
               </div>
               <p className="text-[11px] text-slate-500 leading-relaxed">{ROLE_DESC[r]}</p>
-            </div>
+            </Card>
           );
         })}
       </div>
 
       {/* New User Form */}
       {showNew && (
-        <div className="card border-2 border-sky-200 p-5">
-          <h3 className="text-sm font-extrabold text-slate-700 mb-4 flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-sky-50 flex items-center justify-center">
-              <span className="material-symbols-outlined text-sky-600 text-[14px]">person_add</span>
-            </div>
-            Create New User
-          </h3>
-          <form onSubmit={handleCreate} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            <div>
-              <label className="form-label">Full Name *</label>
-              <input value={newForm.name} onChange={e => setNewForm(p => ({...p, name: e.target.value}))}
-                required className="form-input" placeholder="Ravi Kumar" />
-            </div>
-            <div>
-              <label className="form-label">Email *</label>
-              <input type="email" value={newForm.email} onChange={e => setNewForm(p => ({...p, email: e.target.value}))}
-                required className="form-input" placeholder="ravi@sheetaldies.com" />
-            </div>
-            <div>
-              <label className="form-label">Role *</label>
-              <select value={newForm.role} onChange={e => setNewForm(p => ({...p, role: e.target.value}))} className="form-input">
-                {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
-            <div className="col-span-3">
-              <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-2.5 text-xs text-sky-700 flex items-center gap-2">
-                <span className="material-symbols-outlined text-sm">info</span>
-                A temporary password will be auto-generated and sent to the user's email. They can change it after first login.
+        <Card className="border-sky-200">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-sky-50 flex items-center justify-center">
+                <UserPlus className="h-3.5 w-3.5 text-sky-600" />
               </div>
-            </div>
-            <div className="col-span-3 flex gap-3">
-              <button type="submit" disabled={creating} className="btn-primary disabled:opacity-60">
-                {creating
-                  ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Creating...</>
-                  : <><span className="material-symbols-outlined text-sm">person_add</span> Create User</>
-                }
-              </button>
-              <button type="button" onClick={() => setShowNew(false)} className="btn-ghost">Cancel</button>
-            </div>
-          </form>
-        </div>
+              Create New User
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleCreate} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              <FormField label="Full Name" htmlFor="user-name" required>
+                <Input id="user-name" value={newForm.name} onChange={e => setNewForm(p => ({...p, name: e.target.value}))}
+                  required placeholder="Ravi Kumar" />
+              </FormField>
+              <FormField label="Email" htmlFor="user-email" required>
+                <Input id="user-email" type="email" value={newForm.email} onChange={e => setNewForm(p => ({...p, email: e.target.value}))}
+                  required placeholder="ravi@sheetaldies.com" />
+              </FormField>
+              <FormField label="Role" required>
+                <Select value={newForm.role} onValueChange={v => setNewForm(p => ({...p, role: v}))}>
+                  <SelectTrigger aria-label="Role">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ROLES.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <div className="col-span-1 sm:col-span-2 md:col-span-3">
+                <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-2.5 text-xs text-sky-700 flex items-center gap-2">
+                  <Info className="h-4 w-4 shrink-0" />
+                  A temporary password will be auto-generated and sent to the user's email. They can change it after first login.
+                </div>
+              </div>
+              <div className="col-span-1 sm:col-span-2 md:col-span-3 flex flex-wrap gap-2">
+                <Button type="submit" disabled={creating}>
+                  {creating ? <><Loader2 className="animate-spin" /> Creating...</> : <><UserPlus /> Create User</>}
+                </Button>
+                <Button type="button" variant="ghost" onClick={() => setShowNew(false)}>Cancel</Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
       )}
 
       {/* Users Table */}
       <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
+        <div className="table-responsive">
+          <table className="w-full text-left min-w-[720px]">
             <thead>
-              <tr className="bg-gradient-to-r from-slate-50 to-sky-50/30 border-b border-slate-100">
+              <tr>
                 {['User', 'Email', 'Role', 'Status', 'Last Login', 'Actions'].map(h => (
                   <th key={h} className="th whitespace-nowrap">{h}</th>
                 ))}
@@ -199,27 +231,21 @@ export default function UserManagement() {
             </thead>
             <tbody className="divide-y divide-slate-50/80">
               {loading ? (
-                Array.from({length: 3}).map((_, i) => (
-                  <tr key={i} className="animate-pulse">
-                    {[1,2,3,4,5,6].map(j => (
-                      <td key={j} className="px-5 py-4"><div className="h-3 bg-slate-100 rounded w-full" /></td>
-                    ))}
-                  </tr>
-                ))
+                Array.from({ length: 3 }).map((_, i) => <SkeletonRow key={i} />)
               ) : users.map(u => (
                 <tr key={u.id} className={`tr ${!u.isActive ? 'opacity-50' : ''}`}>
 
                   {/* Name */}
                   <td className="td">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-                        style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' }}>
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 bg-slate-800">
                         {u.name.charAt(0).toUpperCase()}
                       </div>
                       <div>
                         {editId === u.id ? (
-                          <input value={editName} onChange={e => setEditName(e.target.value)}
-                            className="border border-sky-300 rounded-lg px-2 py-1 text-sm w-36 focus:outline-none focus:ring-1 focus:ring-sky-300" />
+                          <Input value={editName} onChange={e => setEditName(e.target.value)}
+                            aria-label={`Edit name for ${u.name}`}
+                            className="h-8 min-h-0 text-sm w-36" />
                         ) : (
                           <p className="text-sm font-semibold text-slate-800">{u.name}</p>
                         )}
@@ -235,7 +261,8 @@ export default function UserManagement() {
                   <td className="td">
                     {editId === u.id && u.id !== me?.id ? (
                       <select value={editRole} onChange={e => setEditRole(e.target.value)}
-                        className="border border-sky-300 rounded-lg px-2 py-1.5 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-300">
+                        aria-label={`Change role for ${u.name}`}
+                        className="form-input h-8 min-h-0 py-1 text-xs font-bold w-32">
                         {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                       </select>
                     ) : (
@@ -247,50 +274,55 @@ export default function UserManagement() {
 
                   {/* Status */}
                   <td className="td">
-                    <span className={`badge ${u.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-50 text-rose-600'}`}>
+                    <Badge variant={u.isActive ? 'success' : 'error'} className="px-2 py-0.5 text-[10px]">
                       {u.isActive ? 'Active' : 'Inactive'}
-                    </span>
+                    </Badge>
                   </td>
 
                   {/* Last Login */}
-                  <td className="td text-xs text-slate-400">
+                  <td className="td text-xs text-slate-400 whitespace-nowrap">
                     {u.lastLogin ? formatDate(u.lastLogin, true) : 'Never'}
                   </td>
 
                   {/* Actions */}
                   <td className="td">
-                    <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-0.5 flex-wrap">
                       {editId === u.id ? (
                         <>
-                          <button type="button" onClick={() => saveEdit(u.id)} disabled={saving}
-                            className="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-bold hover:bg-emerald-700 disabled:opacity-60">
+                          <Button type="button" size="sm" onClick={() => saveEdit(u.id)} disabled={saving}
+                            className="bg-emerald-600 hover:bg-emerald-700 focus-visible:ring-emerald-400">
                             {saving ? 'Saving...' : 'Save'}
-                          </button>
-                          <button type="button" onClick={() => setEditId(null)}
-                            className="text-xs text-slate-500 hover:text-slate-700 font-semibold">
+                          </Button>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setEditId(null)}>
                             Cancel
-                          </button>
+                          </Button>
                         </>
                       ) : (
                         <>
-                          <button type="button" onClick={() => startEdit(u)}
-                            className="flex items-center gap-1 text-xs font-semibold text-sky-600 hover:text-sky-700 hover:underline">
-                            <span className="material-symbols-outlined text-sm">edit</span> Edit
-                          </button>
-                          <button type="button" onClick={() => setViewUser(u)}
-                            className="flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:underline">
-                            <span className="material-symbols-outlined text-sm">visibility</span> View
-                          </button>
-                          <button type="button" onClick={() => resetPassword(u)}
-                            className="flex items-center gap-1 text-xs font-semibold text-amber-600 hover:text-amber-700 hover:underline">
-                            <span className="material-symbols-outlined text-sm">lock_reset</span> Reset PW
-                          </button>
+                          <Button type="button" variant="ghost" size="icon-sm" onClick={() => startEdit(u)}
+                            title="Edit" aria-label={`Edit user ${u.name}`}
+                            className="text-slate-400 hover:text-sky-700 hover:bg-sky-50">
+                            <Pencil />
+                          </Button>
+                          <Button type="button" variant="ghost" size="icon-sm" onClick={() => setViewUser(u)}
+                            title="View" aria-label={`View user ${u.name}`}
+                            className="text-slate-400 hover:text-slate-700">
+                            <Eye />
+                          </Button>
+                          <Button type="button" variant="ghost" size="icon-sm" onClick={() => resetPassword(u)}
+                            title="Reset password" aria-label={`Reset password for ${u.name}`}
+                            className="text-slate-400 hover:text-amber-600 hover:bg-amber-50">
+                            <KeyRound />
+                          </Button>
                           {u.id !== me?.id && (
-                            <button type="button" onClick={() => toggleActive(u)}
-                              className={`flex items-center gap-1 text-xs font-semibold hover:underline ${u.isActive ? 'text-rose-400 hover:text-rose-600' : 'text-emerald-600 hover:text-emerald-700'}`}>
-                              <span className="material-symbols-outlined text-sm">{u.isActive ? 'person_off' : 'person'}</span>
-                              {u.isActive ? 'Deactivate' : 'Activate'}
-                            </button>
+                            <Button type="button" variant="ghost" size="icon-sm" onClick={() => toggleActive(u)}
+                              title={u.isActive ? 'Deactivate' : 'Activate'}
+                              aria-label={`${u.isActive ? 'Deactivate' : 'Activate'} user ${u.name}`}
+                              className={u.isActive
+                                ? 'text-slate-400 hover:text-rose-600 hover:bg-rose-50'
+                                : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'}>
+                              {u.isActive ? <UserX /> : <UserCheck />}
+                            </Button>
                           )}
                         </>
                       )}
@@ -303,24 +335,27 @@ export default function UserManagement() {
         </div>
       </div>
 
-      <p className="text-[11px] text-slate-400">
+      <p className="text-[11px] text-slate-400 tabular-nums">
         Total {users.length} users · {users.filter(u => u.isActive).length} active
       </p>
 
+      {/* View modal */}
       {viewUser && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/50 p-4" role="dialog" aria-modal="true">
-          <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl border border-slate-200">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/40 backdrop-blur-[2px] p-4 animate-backdrop-in" role="dialog" aria-modal="true">
+          <div className="w-full max-w-xl rounded-2xl bg-white shadow-card-elevated border border-slate-200 animate-scale-in">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-800">User details</h3>
-              <button type="button" onClick={() => setViewUser(null)} className="btn-ghost">Close</button>
+              <h3 className="text-base font-bold text-slate-900 leading-none tracking-tight">User details</h3>
+              <Button type="button" variant="ghost" size="icon-sm" onClick={() => setViewUser(null)} aria-label="Close" className="text-slate-400 hover:text-slate-700">
+                <X />
+              </Button>
             </div>
-            <div className="p-5 grid grid-cols-2 gap-3 text-sm">
-              <div><p className="text-slate-400 text-xs">Name</p><p className="font-semibold">{viewUser.name || '—'}</p></div>
-              <div><p className="text-slate-400 text-xs">Email</p><p className="font-semibold">{viewUser.email || '—'}</p></div>
-              <div><p className="text-slate-400 text-xs">Role</p><p className="font-semibold">{viewUser.role || '—'}</p></div>
-              <div><p className="text-slate-400 text-xs">Status</p><p className="font-semibold">{viewUser.isActive ? 'Active' : 'Inactive'}</p></div>
-              <div><p className="text-slate-400 text-xs">Last Login</p><p className="font-semibold">{formatDate(viewUser.lastLogin, true)}</p></div>
-              <div><p className="text-slate-400 text-xs">Created</p><p className="font-semibold">{formatDate(viewUser.createdAt, true)}</p></div>
+            <div className="p-5 grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Name</p><p className="font-semibold text-slate-800 mt-0.5">{viewUser.name || '—'}</p></div>
+              <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Email</p><p className="font-semibold text-slate-800 mt-0.5">{viewUser.email || '—'}</p></div>
+              <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Role</p><p className="font-semibold text-slate-800 mt-0.5">{viewUser.role || '—'}</p></div>
+              <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</p><p className="font-semibold text-slate-800 mt-0.5">{viewUser.isActive ? 'Active' : 'Inactive'}</p></div>
+              <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Last Login</p><p className="font-semibold text-slate-800 whitespace-nowrap mt-0.5">{formatDate(viewUser.lastLogin, true)}</p></div>
+              <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Created</p><p className="font-semibold text-slate-800 whitespace-nowrap mt-0.5">{formatDate(viewUser.createdAt, true)}</p></div>
             </div>
           </div>
         </div>

@@ -4,17 +4,26 @@ import api from '../../utils/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMachines, useParties } from '../../hooks/useMasterData';
 import toast from 'react-hot-toast';
+import { Printer, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { FormField } from '@/components/ui/form-field';
+import { PageHeader } from '@/components/ui/page-header';
+import { StatusPill } from '@/components/ui/status-pill';
+import { Stepper, useStepper } from '@/components/ui/stepper';
+import { FormErrorSummary, focusField } from '@/components/ui/field';
 
 // Subcomponents
 import CustomerSection from './components/CustomerSection';
 import JobCardHeaderInfoSection from './components/JobCardHeaderInfoSection';
 import IssueInstructionsSection from './components/IssueInstructionsSection';
-import ProductionSection from './components/ProductionSection';
 import StatusRemarksSection from './components/StatusRemarksSection';
 import PhotoSection from './components/PhotoSection';
 import LinkedDataSection from './components/LinkedDataSection';
 import InspectionEditSection from './components/InspectionEditSection';
 import SearchSelect from '../../components/SearchSelect';
+import { Input } from '@/components/ui/input';
 
 export default function JobCardForm() {
   const { id }   = useParams();
@@ -40,6 +49,20 @@ export default function JobCardForm() {
   const { data: machines = [] } = useMachines();
   const { data: customers = [] } = useParties();
   const [loading,    setLoading]   = useState(false);
+  const [formErrors, setFormErrors] = useState({});
+
+  // Minimal required-field validation. Runs on submit; shows inline messages
+  // next to the field plus a focusable summary. Does not touch the save path
+  // or the inspection / item flush that follows.
+  const validate = () => {
+    const errs = {};
+    const qty = Number(form.quantity);
+    if (!form.quantity || Number.isNaN(qty) || qty < 1) errs.quantity = 'Enter a quantity of 1 or more.';
+    if (!form.customerId && !form.customerNameSnapshot?.trim()) {
+      errs.customerId = 'Pick a party or type a customer name.';
+    }
+    return errs;
+  };
   const [cardData,   setCardData]  = useState(null);
   const [images,     setImages]    = useState({});
   const [savingSlot, setSavingSlot] = useState(null);
@@ -54,7 +77,10 @@ export default function JobCardForm() {
   const [searchParams] = useSearchParams();
   useEffect(() => {
     const ref = searchParams.get('ref');
-    if (ref) setChallanNoLookup(ref);
+    // Coming in from the Inwards register "Create Job Card" action — pull the
+    // challan straight away so Quantity / Total Weight / customer are filled.
+    if (ref) selectInward(ref);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -113,7 +139,7 @@ export default function JobCardForm() {
           if (cancelled) return;
           const d = jr.data.data;
           setCardData(d);
-          
+
           setForm({
             partId:       d.partId       || '',
             dieNo:        d.dieNo        || '',
@@ -174,11 +200,16 @@ export default function JobCardForm() {
   // items table (LinkedDataSection) saves totalWeight on its own via a
   // separate PUT; without this the parent form keeps a stale value and the
   // main "Update" button would overwrite the DB weight with null on submit.
+  // Until a weight is actually saved, default it to the inward's total
+  // weight so the field isn't left showing a bare 0.000.
   useEffect(() => {
-    if (cardData?.totalWeight != null) {
+    if (cardData?.totalWeight != null && Number(cardData.totalWeight) > 0) {
       setForm(prev => ({ ...prev, totalWeight: String(Number(cardData.totalWeight)) }));
+    } else if (cardData?.weightSummary?.inwardTotalWeight > 0) {
+      const inward = String(Number(cardData.weightSummary.inwardTotalWeight));
+      setForm(prev => (prev.totalWeight ? prev : { ...prev, totalWeight: inward }));
     }
-  }, [cardData?.totalWeight]);
+  }, [cardData?.totalWeight, cardData?.weightSummary?.inwardTotalWeight]);
 
   // Auto-populate address when customerId is set but address is empty (e.g. customers load after form fill)
   useEffect(() => {
@@ -205,7 +236,7 @@ export default function JobCardForm() {
         const r = await api.post('/jobwork/jobcard-from-challan', { challanNo });
         const jobCard = r.data.data.jobCard;
         toast.success(`Job card ${jobCard.jobCardNo} created from challan ${r.data.data.challan.challanNo}.`);
-        navigate(`/jobcards/${jobCard.id}`);
+        navigate(`/jobcards/${jobCard.id}/edit`);
       } catch (err) {
         toast.error(err.response?.data?.message || 'Could not create job card from challan.');
       } finally {
@@ -295,6 +326,18 @@ export default function JobCardForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const errs = validate();
+    setFormErrors(errs);
+    if (Object.keys(errs).length) {
+      const firstKey = Object.keys(errs)[0];
+      if (isEdit) {
+        const stepByKey = { customerId: 0, customerNameSnapshot: 0, quantity: 0 };
+        wiz.goto(stepByKey[firstKey] ?? 0);
+      }
+      setTimeout(() => focusField(firstKey), 0);
+      toast.error('Please fix the highlighted fields before saving.');
+      return;
+    }
     setLoading(true);
     let customerIdOut = form.customerId ? Number(form.customerId) : null;
     try {
@@ -359,12 +402,15 @@ export default function JobCardForm() {
       if (isEdit) {
         await api.put(`/jobcards/${id}`, fd);
         toast.success('Job card updated.');
-        const refreshed = await api.get(`/jobcards/${id}`);
-        setCardData(refreshed.data.data);
+        navigate(`/jobcards/${id}`);
       } else {
         const r = await api.post('/jobcards', fd);
         toast.success(`Job card ${r.data.data.jobCardNo} created!`);
-        navigate('/jobcards');
+        // Land on the edit page (not the list) so Inspection and Items — only
+        // available once the job card has a real id — are immediately usable,
+        // same as the other creation paths (Create Job Card from an inward,
+        // Fill Form + Create here).
+        navigate(`/jobcards/${r.data.data.id}/edit`);
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error saving job card.');
@@ -414,242 +460,304 @@ export default function JobCardForm() {
     setForm(p => ({ ...p, status: STATUS_TRANSITIONS[p.status] || p.status }));
   };
 
-  const STATUS_COLOR = {
-    CREATED: 'bg-slate-100 text-slate-600', IN_PROGRESS: 'bg-blue-100 text-blue-700',
-    SENT_FOR_JOBWORK: 'bg-amber-100 text-amber-700', INSPECTION: 'bg-violet-100 text-violet-700',
-    COMPLETED: 'bg-emerald-100 text-emerald-700', ON_HOLD: 'bg-rose-100 text-rose-700',
-  };
+  // Jis inward challan se ye job card bana — header me dikhane ke liye
+  const linkedChallan = cardData
+    ? (cardData.challanItemLinks?.[0]?.challan || cardData.challans?.[0] || null)
+    : null;
+
+  const linkedItemCount = cardData
+    ? (cardData.challanItemLinks?.length
+      || cardData.challans?.reduce((n, c) => n + (c.items?.length || 0), 0)
+      || 0)
+    : 0;
+
+  const JC_STEPS = [
+    { key: 'customer', label: 'Customer & job' },
+    { key: 'inspection', label: 'Inspection' },
+    { key: 'items', label: linkedItemCount ? `Items (${linkedItemCount})` : 'Items' },
+  ];
+  const wiz = useStepper(JC_STEPS.length);
+  const LAST = JC_STEPS.length - 1;
+
+  const stepCustomer = (
+    <>
+      <FormErrorSummary
+        errors={Object.fromEntries(Object.entries(formErrors).map(([k, v]) => [k, { message: v }]))}
+        labels={{ customerId: 'Party / customer', quantity: 'Quantity' }}
+      />
+      <Card>
+        <CardHeader><CardTitle>Job Card Details</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <CustomerSection
+            form={form}
+            setForm={setForm}
+            customers={customers}
+            applyCustomerFromParty={applyCustomerFromParty}
+            errors={formErrors}
+          />
+          <JobCardHeaderInfoSection form={form} setForm={setForm} cardData={cardData} />
+          <IssueInstructionsSection form={form} setForm={setForm} errors={formErrors} cardData={cardData} />
+          <StatusRemarksSection form={form} setForm={setForm} />
+        </CardContent>
+      </Card>
+      <PhotoSection handleImageChange={handleImageChange} existingImages={cardData} savingSlot={savingSlot} />
+    </>
+  );
+
+  const docControlSection = (
+    <Card>
+      <CardHeader><CardTitle>Document control</CardTitle></CardHeader>
+      <CardContent>
+        <p className="mb-2 text-xs text-slate-500">
+          These fields appear in the printed job-card header. Change only when the quality form revision changes.
+        </p>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2 lg:grid-cols-4">
+          <FormField label="Document No" htmlFor="jc-documentNo">
+            <Input id="jc-documentNo" value={form.documentNo}
+              onChange={e => setForm(p => ({ ...p, documentNo: e.target.value }))} className="font-app-mono" />
+          </FormField>
+          <FormField label="Revision No" htmlFor="jc-revisionNo">
+            <Input id="jc-revisionNo" value={form.revisionNo}
+              onChange={e => setForm(p => ({ ...p, revisionNo: e.target.value }))} className="font-app-mono" />
+          </FormField>
+          <FormField label="Revision Date" htmlFor="jc-revisionDate">
+            <Input id="jc-revisionDate" type="date" value={form.revisionDate}
+              onChange={e => setForm(p => ({ ...p, revisionDate: e.target.value }))} />
+          </FormField>
+          <FormField label="Page No" htmlFor="jc-pageNo">
+            <Input id="jc-pageNo" value={form.pageNo}
+              onChange={e => setForm(p => ({ ...p, pageNo: e.target.value }))} className="font-app-mono" />
+          </FormField>
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   return (
-    <div className="page-stack w-full animate-slide-up">
-      <div className="page-header">
-        <div className="flex items-start gap-3">
-          <Link to="/jobcards"
-            className="w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-colors shadow-sm">
-            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-          </Link>
-          <div className="space-y-2">
-            <h1 className="page-title">{isEdit ? 'Edit Job Card' : 'Create Job Card'}</h1>
-            <p className="page-subtitle max-w-2xl">Fill customer, material, and production details here. The form saves the complete job card and keeps linked inward items in sync.</p>
-            {isEdit && cardData && (
-              <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
-                <span className="font-medium">Job Card No.: <span className="font-semibold text-slate-700">{cardData.jobCardNo}</span></span>
-                <span className={`badge ${STATUS_COLOR[cardData.status] || 'bg-slate-100 text-slate-600'}`}>{cardData.status?.replace(/_/g, ' ')}</span>
-              </div>
-            )}
-          </div>
-        </div>
+    <div className="font-app flex flex-col h-full min-h-0">
+      <PageHeader
+        title={isEdit ? `Edit Job Card ${cardData?.jobCardNo ?? ''}`.trim() : 'Create Job Card'}
+        inlineMeta
+        backTo={isEdit && id ? `/jobcards/${id}` : '/jobcards'}
+        breadcrumbs={
+          isEdit
+            ? [
+                { label: 'Job Cards', to: '/jobcards' },
+                { label: cardData?.jobCardNo || 'Job card', to: id ? `/jobcards/${id}` : undefined },
+                { label: 'Edit' },
+              ]
+            : [{ label: 'Job Cards', to: '/jobcards' }, { label: 'New' }]
+        }
+        meta={
+          isEdit && cardData ? (
+            <>
+              <StatusPill status={cardData.status} />
+              {linkedChallan?.inwardNo && (
+                <span>
+                  Inward{' '}
+                  {linkedChallan.id ? (
+                    <Link to={`/jobwork/${linkedChallan.id}`} className="font-app-mono font-semibold text-sky-700 hover:underline">
+                      {linkedChallan.inwardNo}
+                    </Link>
+                  ) : (
+                    <span className="font-app-mono font-semibold text-slate-700">{linkedChallan.inwardNo}</span>
+                  )}
+                </span>
+              )}
+              {cardData.partName && <span className="text-slate-600">{cardData.partName}</span>}
+              {cardData.updatedAt && <span className="text-slate-400">Updated {cardData.updatedAt.split('T')[0]}</span>}
+            </>
+          ) : null
+        }
+        actions={
+          isEdit && cardData ? (
+            <Button asChild variant="outline">
+              <Link to={`/jobcards/${id}/print`}><Printer /> Print</Link>
+            </Button>
+          ) : null
+        }
+      />
 
-        {isEdit && cardData ? (
-          <div className="flex flex-wrap items-center gap-3 justify-end">
-            <Link to={`/jobcards/${id}/print`} className="btn-outline">
-              <span className="material-symbols-outlined text-sm">print</span>
-              Print
-            </Link>
-          </div>
-        ) : null}
-      </div>
-
-      {isEdit && cardData && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="card p-4">
-            <p className="section-title">Job Card</p>
-            <p className="mt-3 font-semibold text-slate-900">{cardData.jobCardNo}</p>
-            <p className="text-xs text-slate-500 mt-2">{cardData.partName || 'Job card details'}</p>
-          </div>
-          <div className="card p-4">
-            <p className="section-title">Status</p>
-            <p className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
-              <span className={`badge ${STATUS_COLOR[cardData.status] || 'bg-slate-100 text-slate-600'}`}>{cardData.status?.replace(/_/g, ' ')}</span>
-            </p>
-            <p className="text-xs text-slate-500 mt-2">Updated {cardData.updatedAt ? cardData.updatedAt.split('T')[0] : 'recently'}</p>
-          </div>
-          <div className="card p-4">
-            <p className="section-title">Customer</p>
-            <p className="mt-3 font-semibold text-slate-900">{cardData.customerNameSnapshot || form.customerNameSnapshot || 'Customer not set'}</p>
-            <p className="text-xs text-slate-500 mt-2 truncate max-w-full">{cardData.customerAddressSnapshot || form.customerAddressSnapshot || 'Address pending'}</p>
-          </div>
+      {isEdit && (
+        <div className="mt-2 shrink-0 rounded-xl border border-slate-200 bg-white p-2 shadow-card">
+          <Stepper steps={JC_STEPS} current={wiz.current} completed={wiz.completed} onStepClick={(i) => wiz.goto(i)} />
         </div>
       )}
 
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-3 pr-0.5 space-y-3">
+
+      {/* ── Create from inward (create mode) ── */}
       {!isEdit && (
-        <div className="card p-5 mb-5">
-          <div className="grid gap-4 sm:grid-cols-[1.5fr_1fr] items-end">
-            <div>
-              <label className="form-label">Inward No / Challan No</label>
-              <SearchSelect
-                value={challanNoLookup}
-                onChange={selectInward}
-                options={inwardOptions.map(c => ({
-                  value: c.inwardNo || c.challanNo,
-                  label: [c.inwardNo, c.challanNo, c.fromParty?.name].filter(Boolean).join('  ·  ')
-                    + (c.jobCardStatus === 'DONE' ? '   (job card ban chuka)' : ''),
-                }))}
-                placeholder="Type 0004, INW/26-27/0004 ya party ka naam"
-                useFixed
-              />
-            </div>
-            <div className="flex flex-col gap-2 sm:items-end">
+        <Card className="mb-3">
+          <CardHeader>
+            <CardTitle>Create from Inward</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-[1.5fr_auto] gap-x-4 gap-y-3 items-end">
+              <FormField label="Inward No / Challan No">
+                <SearchSelect
+                  value={challanNoLookup}
+                  onChange={selectInward}
+                  options={inwardOptions.map(c => ({
+                    value: c.inwardNo || c.challanNo,
+                    label: [c.inwardNo, c.challanNo, c.fromParty?.name].filter(Boolean).join('  ·  ')
+                      + (c.jobCardStatus === 'DONE' ? '   (job card ban chuka)' : ''),
+                  }))}
+                  placeholder="Type 0004, INW/26-27/0004 ya party ka naam"
+                  useFixed
+                />
+              </FormField>
               <div className="flex gap-2">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
                   onClick={fillFromChallan}
                   disabled={creatingFromChallan}
-                  className="btn-outline"
                 >
                   {creatingFromChallan ? 'Loading...' : 'Fill Form'}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   onClick={handleCreateFromChallan}
                   disabled={creatingFromChallan}
-                  className="btn-primary"
                 >
                   {creatingFromChallan ? 'Creating...' : 'Create Job Card'}
-                </button>
+                </Button>
               </div>
-              <p className="text-[11px] text-slate-400 text-right">
-                Poore inward ka job card banao, ya neeche se items chuno.
-              </p>
             </div>
+
+            {pickedChallan && (
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <div>
+                    <p className="text-xs font-bold text-slate-700">
+                      {pickedChallan.inwardNo || pickedChallan.challanNo}
+                      <span className="text-slate-400 font-normal"> · {pickedChallan.fromParty?.name || '—'}</span>
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      Jin items ka job card banana hai wo chuno — baaki baad me bana sakte ho.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    onClick={() => setPickedItemIds(prev => {
+                      const open = (pickedChallan.items || []).filter(it => !it.jobCardId).map(it => it.id);
+                      return prev.size === open.length ? new Set() : new Set(open);
+                    })}
+                    className="text-xs font-bold"
+                  >
+                    Select All / None
+                  </Button>
+                </div>
+
+                <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                  {(pickedChallan.items || []).map((it, i) => {
+                    const taken = !!it.jobCardId;
+                    return (
+                      <label key={it.id}
+                        className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-xs transition-colors ${
+                          taken ? 'border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed'
+                                : 'border-slate-200 hover:border-sky-300 hover:bg-sky-50/40 cursor-pointer'}`}>
+                        <input type="checkbox" disabled={taken}
+                          checked={pickedItemIds.has(it.id)}
+                          onChange={e => setPickedItemIds(prev => {
+                            const n = new Set(prev);
+                            e.target.checked ? n.add(it.id) : n.delete(it.id);
+                            return n;
+                          })}
+                          className="accent-sky-600 w-4 h-4" />
+                        <span className="text-slate-400 font-mono w-5 tabular-nums">{i + 1}</span>
+                        <span className="font-semibold text-slate-700 flex-1 truncate">
+                          {it.partName || it.description || 'Item'}
+                        </span>
+                        <span className="text-slate-500">{it.material || '—'}</span>
+                        <span className="text-slate-500 font-mono tabular-nums">{it.quantity} {it.uom || ''}</span>
+                        {taken && (
+                          <span className="text-[10px] font-bold text-emerald-600 uppercase">job card ban chuka</span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 mt-3">
+                  <p className="text-[11px] text-slate-500">
+                    <strong>{pickedItemIds.size}</strong> item chune
+                    {' '}({(pickedChallan.items || []).filter(it => it.jobCardId).length} pehle se job card me)
+                  </p>
+                  <Button
+                    type="button"
+                    onClick={createFromPickedItems}
+                    disabled={creatingFromChallan || !pickedItemIds.size}
+                  >
+                    <Plus />
+                    {creatingFromChallan ? 'Creating...' : `Create Job Card (${pickedItemIds.size})`}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {isEdit ? (
+        <>
+          <form id="job-card-form" onSubmit={handleSubmit} className="space-y-3">
+            <div hidden={wiz.current !== 0} className="space-y-3">{stepCustomer}</div>
+            <div hidden={wiz.current !== 2} className="space-y-3">{docControlSection}</div>
+          </form>
+
+          <div hidden={wiz.current !== 1} className="space-y-3">
+            {cardData && (
+              <InspectionEditSection ref={inspectionRef} id={id} inspection={cardData.inspection} hrcRange={form.hrcRange} />
+            )}
           </div>
 
-          {pickedChallan && (
-            <div className="mt-4 border-t border-slate-100 pt-4">
-              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                <div>
-                  <p className="text-xs font-bold text-slate-700">
-                    {pickedChallan.inwardNo || pickedChallan.challanNo}
-                    <span className="text-slate-400 font-normal"> · {pickedChallan.fromParty?.name || '—'}</span>
-                  </p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
-                    Jin items ka job card banana hai wo chuno — baaki baad me bana sakte ho.
-                  </p>
-                </div>
-                <button type="button"
-                  onClick={() => setPickedItemIds(prev => {
-                    const open = (pickedChallan.items || []).filter(it => !it.jobCardId).map(it => it.id);
-                    return prev.size === open.length ? new Set() : new Set(open);
-                  })}
-                  className="text-xs font-bold text-sky-600 hover:underline">
-                  Select All / None
-                </button>
-              </div>
+          <div hidden={wiz.current !== 2} className="space-y-3">
+            <LinkedDataSection
+              ref={linkedDataRef}
+              isEdit={isEdit}
+              cardData={cardData}
+              id={id}
+              onRefresh={loadCard}
+              onTotalWeightSaved={(w) => setForm(prev => ({ ...prev, totalWeight: String(w) }))}
+            />
+          </div>
 
-              <div className="space-y-1.5 max-h-64 overflow-y-auto">
-                {(pickedChallan.items || []).map((it, i) => {
-                  const taken = !!it.jobCardId;
-                  return (
-                    <label key={it.id}
-                      className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-xs ${
-                        taken ? 'border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed'
-                              : 'border-slate-200 hover:border-sky-300 cursor-pointer'}`}>
-                      <input type="checkbox" disabled={taken}
-                        checked={pickedItemIds.has(it.id)}
-                        onChange={e => setPickedItemIds(prev => {
-                          const n = new Set(prev);
-                          e.target.checked ? n.add(it.id) : n.delete(it.id);
-                          return n;
-                        })}
-                        className="accent-sky-600 w-4 h-4" />
-                      <span className="text-slate-400 font-mono w-5">{i + 1}</span>
-                      <span className="font-semibold text-slate-700 flex-1 truncate">
-                        {it.partName || it.description || 'Item'}
-                      </span>
-                      <span className="text-slate-500">{it.material || '—'}</span>
-                      <span className="text-slate-500 font-mono">{it.quantity} {it.uom || ''}</span>
-                      {taken && (
-                        <span className="text-[10px] font-bold text-emerald-600 uppercase">job card ban chuka</span>
-                      )}
-                    </label>
-                  );
-                })}
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-2 mt-3">
-                <p className="text-[11px] text-slate-500">
-                  <strong>{pickedItemIds.size}</strong> item chune
-                  {' '}({(pickedChallan.items || []).filter(it => it.jobCardId).length} pehle se job card me)
-                </p>
-                <button type="button" onClick={createFromPickedItems}
-                  disabled={creatingFromChallan || !pickedItemIds.size}
-                  className="btn-primary disabled:opacity-50">
-                  <span className="material-symbols-outlined text-sm">add</span>
-                  {creatingFromChallan ? 'Creating...' : `Create Job Card (${pickedItemIds.size})`}
-                </button>
-              </div>
+          {/* Sticky nav + save */}
+          <div className="sticky bottom-0 z-30 mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white/95 px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-card backdrop-blur sm:px-5">
+            <span className="font-app-mono text-xs text-slate-400">Step {wiz.current + 1} of {JC_STEPS.length}</span>
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <Button asChild variant="ghost"><Link to={`/jobcards/${id}`}>Cancel</Link></Button>
+              <Button asChild variant="outline"><Link to={`/jobcards/${id}/print`}><Printer /> Print</Link></Button>
+              <Button type="submit" form="job-card-form" loading={loading} disabled={loading}>
+                {loading ? 'Saving…' : 'Save job card'}
+              </Button>
+              <Button type="button" variant="ghost" disabled={wiz.isFirst} onClick={wiz.back}>
+                <ChevronLeft className="h-4 w-4" /> Back
+              </Button>
+              {wiz.current < LAST && (
+                <Button type="button" onClick={wiz.next}>Next <ChevronRight className="h-4 w-4" /></Button>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        </>
+      ) : (
+        <>
+          <form id="job-card-form" onSubmit={handleSubmit} className="space-y-3">
+            {stepCustomer}
+            {docControlSection}
+          </form>
+          <div className="sticky bottom-0 z-30 mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white/95 px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-card backdrop-blur sm:px-5">
+            <Button asChild variant="ghost"><Link to="/jobcards">Cancel</Link></Button>
+            <Button type="submit" form="job-card-form" loading={loading} disabled={loading} className="ml-auto">
+              {loading ? 'Creating…' : 'Create Job Card'}
+            </Button>
+          </div>
+        </>
       )}
-
-      <form id="job-card-form" onSubmit={handleSubmit} className="space-y-4">
-        <CustomerSection 
-          form={form} 
-          setForm={setForm} 
-          customers={customers} 
-          applyCustomerFromParty={applyCustomerFromParty} 
-        />
-
-        <JobCardHeaderInfoSection
-          form={form}
-          setForm={setForm}
-          cardData={cardData}
-        />
-
-        <IssueInstructionsSection form={form} setForm={setForm} />
-
-        <ProductionSection form={form} setForm={setForm} weightSummary={cardData?.weightSummary} />
-
-        <StatusRemarksSection form={form} setForm={setForm} />
-
-        <PhotoSection handleImageChange={handleImageChange} existingImages={cardData} savingSlot={savingSlot} />
-
-        {/* Actions */}
-        <div className="card p-4 flex flex-wrap items-center justify-between gap-3 border-slate-200 shadow-sm">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-slate-700">Ready to save?</p>
-          <p className="text-xs text-slate-500">Use the buttons below after reviewing the job details.</p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <button type="submit" disabled={loading} className="btn-primary">
-            {loading ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Saving...</> : <><span className="material-symbols-outlined text-sm">save</span> {isEdit ? 'Update' : 'Create Job Card'}</>}
-          </button>
-          {isEdit && (
-            <Link to={`/jobcards/${id}/print`} className="btn-outline">
-              <span className="material-symbols-outlined text-sm">print</span> Print
-            </Link>
-          )}
-          <Link to="/jobcards" className="btn-ghost">Cancel</Link>
-        </div>
-      </div>
-      </form>
-
-      {isEdit && cardData && (
-        <InspectionEditSection ref={inspectionRef} id={id} inspection={cardData.inspection} hrcRange={form.hrcRange} />
-      )}
-
-      <LinkedDataSection
-        ref={linkedDataRef}
-        isEdit={isEdit}
-        cardData={cardData}
-        id={id}
-        onRefresh={loadCard}
-        onTotalWeightSaved={(w) => setForm(prev => ({ ...prev, totalWeight: String(w) }))}
-      />
-
-      {/* Bottom actions — same Update/Print as the top bar, reachable without
-          scrolling back up after editing the Inspection/Linked Data sections below the form. */}
-      <div className="flex gap-3 pt-1 pb-4">
-        <button type="submit" form="job-card-form" disabled={loading} className="btn-primary">
-          {loading ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Saving...</> : <><span className="material-symbols-outlined text-sm">save</span> {isEdit ? 'Update' : 'Create Job Card'}</>}
-        </button>
-        {isEdit && (
-          <Link to={`/jobcards/${id}/print`} className="btn-outline">
-            <span className="material-symbols-outlined text-sm">print</span> Print
-          </Link>
-        )}
-        <Link to="/jobcards" className="btn-ghost">Cancel</Link>
       </div>
     </div>
   );

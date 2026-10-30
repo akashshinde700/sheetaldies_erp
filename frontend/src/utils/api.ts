@@ -44,6 +44,8 @@ api.interceptors.request.use(
     // prevents multer from parsing uploaded files on the server.
     if (config.data instanceof FormData) {
       delete (config.headers as Record<string, unknown>)['Content-Type'];
+      // Photos can be a few MB on a slow line — 15s isn't enough.
+      if (!config.timeout || config.timeout < 60000) config.timeout = 60000;
     }
 
     config.headers['X-Request-ID'] = `${Date.now()}-${Math.random()
@@ -136,14 +138,23 @@ api.interceptors.response.use(
     }
 
     // Handle other errors
-    const errorMessage = response?.data?.message || error.message || 'An error occurred';
+    let errorMessage = response?.data?.message || error.message || 'An error occurred';
     const errorCode = response?.data?.code || 'UNKNOWN_ERROR';
+    // 413 from nginx/proxy comes back as HTML, not our JSON — give a real hint.
+    if (response?.status === 413 && !response?.data?.message) {
+      errorMessage = 'File too large — the server rejected the upload. Try a smaller image (under ~5 MB).';
+    }
+    if ((error.code === 'ECONNABORTED' || /timeout/i.test(error.message || '')) && originalRequest?.data instanceof FormData) {
+      errorMessage = 'Upload timed out — check your connection and try again with a smaller image.';
+    }
 
-    // Log error (development only)
-    if (import.meta.env.DEV) {
-      console.error(`❌ ${error.response?.status || 'ERR'} ${error.config?.url}`);
-      console.error(`   Error: ${errorMessage}`);
-      console.error(`   Code: ${errorCode}`);
+    // A request the app itself aborted (StrictMode double-mount, or a component
+    // unmounting mid-fetch) is normal — it is not something to shout about.
+    const wasCanceled = error.code === 'ERR_CANCELED' || axios.isCancel?.(error) || /^canceled$/i.test(error.message || '');
+
+    // Log error (development only), as one line so it reads as one event.
+    if (import.meta.env.DEV && !wasCanceled) {
+      console.error(`❌ ${error.response?.status || 'ERR'} ${error.config?.url} — ${errorMessage} [${errorCode}]`);
     }
 
     // Transform error for consistency

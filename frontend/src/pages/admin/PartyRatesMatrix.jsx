@@ -1,9 +1,15 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import { ArrowLeft, ArrowRight, ExternalLink } from 'lucide-react';
+import api from '../../utils/api';
 import { toNum } from '../../utils/normalize';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { FormField } from '@/components/ui/form-field';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 
 function fmt(val) {
   if (val == null || val === '') return null;
@@ -82,50 +88,57 @@ export default function PartyRatesMatrix() {
   };
 
   return (
-    <div className="page-stack w-full animate-slide-up">
+    <div className="page-stack w-full space-y-5 animate-slide-up">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4 mb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-2xl font-extrabold text-slate-800">Party Process Rates</h2>
-          <p className="text-xs text-slate-400 mt-1">All parties × all processes — party-specific pricing matrix</p>
+          <h1 className="page-title">Party Process Rates</h1>
+          <p className="page-subtitle">All parties × all processes — party-specific pricing matrix</p>
         </div>
-        <Link to="/admin/parties" className="btn-outline shrink-0">
-          <span className="material-symbols-outlined text-sm">arrow_back</span>
-          Parties
-        </Link>
+        <Button variant="outline" asChild className="shrink-0">
+          <Link to="/admin/parties">
+            <ArrowLeft /> Parties
+          </Link>
+        </Button>
       </div>
 
       {/* Filters */}
-      <div className="card p-4 flex flex-wrap gap-3 items-center mb-4">
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search party…"
-          className="form-input w-56"
-        />
-        <div className="flex gap-1.5">
-          {['ALL', 'CUSTOMER', 'VENDOR', 'BOTH'].map(t => (
-            <button
-              key={t}
-              onClick={() => setTypeFilter(t)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                typeFilter === t
-                  ? 'bg-sky-600 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-        <span className="text-xs text-slate-400 ml-auto">
-          {filteredParties.length} parties · {processes.length} processes
-        </span>
-      </div>
+      <Card>
+        <CardContent className="p-3">
+          <div className="flex flex-wrap gap-3 items-center">
+            <Input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search party…"
+              aria-label="Search party"
+              className="h-9 min-h-0 text-xs w-56"
+            />
+            <div className="flex gap-1.5">
+              {['ALL', 'CUSTOMER', 'VENDOR', 'BOTH'].map(t => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTypeFilter(t)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
+                    typeFilter === t
+                      ? 'bg-sky-600 text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+            <span className="text-xs text-slate-400 ml-auto tabular-nums">
+              {filteredParties.length} parties · {processes.length} processes
+            </span>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Legend */}
-      <div className="flex items-center gap-4 mb-3 px-1 text-xs text-slate-500">
+      <div className="flex items-center gap-4 px-1 text-xs text-slate-500">
         <span className="flex items-center gap-1.5">
           <span className="w-3 h-3 rounded bg-sky-100 inline-block" />
           Party-specific rate set
@@ -137,10 +150,17 @@ export default function PartyRatesMatrix() {
       </div>
 
       {isLoading ? (
-        <div className="card p-10 text-center text-slate-400">Loading matrix…</div>
+        <div className="card p-4 space-y-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <Skeleton className="h-4 w-48" />
+              <Skeleton className="h-8 flex-1 rounded-lg" />
+            </div>
+          ))}
+        </div>
       ) : (
         <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="table-responsive">
             <table className="w-full text-xs" style={{ minWidth: `${200 + processes.length * 110}px` }}>
               <thead>
                 <tr className="bg-slate-800 text-white">
@@ -152,7 +172,7 @@ export default function PartyRatesMatrix() {
                       <div>{proc.name}</div>
                       <div className="text-slate-400 font-normal text-[9px] mt-0.5 font-mono">{proc.code}</div>
                       {proc.pricePerKg != null && (
-                        <div className="text-slate-400 font-normal text-[10px] mt-0.5">
+                        <div className="text-slate-400 font-normal text-[10px] mt-0.5 tabular-nums">
                           ₹{Number(proc.pricePerKg).toFixed(0)}/kg
                         </div>
                       )}
@@ -184,9 +204,10 @@ export default function PartyRatesMatrix() {
                         <Link
                           to={`/admin/parties/${party.id}`}
                           title="Open party detail"
+                          aria-label={`Open detail for ${party.name}`}
                           className="text-slate-300 hover:text-sky-500 transition-colors ml-auto"
                         >
-                          <span className="material-symbols-outlined text-sm">open_in_new</span>
+                          <ExternalLink className="h-3.5 w-3.5" />
                         </Link>
                       </div>
                     </td>
@@ -198,18 +219,20 @@ export default function PartyRatesMatrix() {
                       const hasRate = rate && (rate.pricePerKg != null || rate.pricePerPc != null || rate.lotPrice != null);
 
                       return (
-                        <td key={proc.id} className="px-2 py-2 text-center">
+                        <td key={proc.id} className="px-2 py-1.5 text-center">
                           <button
+                            type="button"
                             onClick={() => startEdit(party.id, proc, procIdx)}
-                            className={`w-full rounded-lg px-2 py-1.5 transition-colors group ${
+                            className={`w-full rounded-lg px-2 py-1.5 transition-colors group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
                               hasRate
                                 ? 'bg-sky-50 hover:bg-sky-100'
                                 : 'hover:bg-slate-100'
                             }`}
                             title={`Set ${proc.name} rate for ${party.name}`}
+                            aria-label={`Set ${proc.name} rate for ${party.name}`}
                           >
                             {hasRate ? (
-                              <div className="space-y-0.5">
+                              <div className="space-y-0.5 tabular-nums">
                                 {rate.pricePerKg != null && (
                                   <div className="font-bold text-sky-700">₹{Number(rate.pricePerKg).toFixed(0)}<span className="text-[9px] font-normal">/kg</span></div>
                                 )}
@@ -246,54 +269,54 @@ export default function PartyRatesMatrix() {
         const isLast = editing.procIndex === processes.length - 1;
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl border border-slate-200">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-[2px] p-4 animate-backdrop-in" role="dialog" aria-modal="true">
+            <div className="w-full max-w-sm rounded-2xl bg-white shadow-card-elevated border border-slate-200 animate-scale-in">
               <div className="p-5 border-b border-slate-100">
                 <div className="flex items-center justify-between">
-                  <div className="text-xs font-black text-slate-400 uppercase tracking-widest">Set Party Rate</div>
-                  <span className="text-[10px] text-slate-400">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Set Party Rate</div>
+                  <span className="text-[10px] text-slate-400 tabular-nums">
                     {editing.procIndex + 1} / {processes.length}
                   </span>
                 </div>
-                <div className="text-lg font-extrabold text-slate-800 mt-1">{editing.processName}</div>
+                <div className="text-lg font-bold text-slate-900 tracking-tight mt-1">{editing.processName}</div>
                 <div className="text-sm text-sky-600 font-semibold">{editing.partyName}</div>
                 {globalStr && (
                   <div className="mt-1.5 text-[10px] text-slate-400">
-                    Global rate: <span className="font-semibold text-slate-600">{globalStr}</span>
+                    Global rate: <span className="font-semibold text-slate-600 tabular-nums">{globalStr}</span>
                   </div>
                 )}
               </div>
               <div className="p-5 space-y-4">
-                <div>
-                  <label className="form-label">Rate / kg (₹)</label>
-                  <input
+                <FormField label="Rate / kg (₹)" htmlFor="rate-kg">
+                  <Input
+                    id="rate-kg"
                     type="number"
                     value={editing.pricePerKg}
                     onChange={e => setEditing(p => ({ ...p, pricePerKg: e.target.value }))}
-                    className="form-input"
+                    className="text-right tabular-nums"
                     placeholder={globalRate?.pricePerKg != null ? `${Number(globalRate.pricePerKg).toFixed(2)} (global)` : 'Leave blank for global'}
                     min="0" step="0.01"
                     autoFocus
                   />
-                </div>
-                <div>
-                  <label className="form-label">Rate / piece (₹)</label>
-                  <input
+                </FormField>
+                <FormField label="Rate / piece (₹)" htmlFor="rate-pc">
+                  <Input
+                    id="rate-pc"
                     type="number"
                     value={editing.pricePerPc}
                     onChange={e => setEditing(p => ({ ...p, pricePerPc: e.target.value }))}
-                    className="form-input"
+                    className="text-right tabular-nums"
                     placeholder={globalRate?.pricePerPc != null ? `${Number(globalRate.pricePerPc).toFixed(2)} (global)` : 'Optional'}
                     min="0" step="0.01"
                   />
-                </div>
-                <div>
-                  <label className="form-label">Lot Charge (₹)</label>
-                  <input
+                </FormField>
+                <FormField label="Lot Charge (₹)" htmlFor="rate-lot">
+                  <Input
+                    id="rate-lot"
                     type="number"
                     value={editing.lotPrice}
                     onChange={e => setEditing(p => ({ ...p, lotPrice: e.target.value }))}
-                    className="form-input"
+                    className="text-right tabular-nums"
                     placeholder={globalRate?.lotPrice != null ? `${Number(globalRate.lotPrice).toFixed(2)} (global)` : 'Optional'}
                     min="0" step="0.01"
                     onKeyDown={e => {
@@ -303,33 +326,36 @@ export default function PartyRatesMatrix() {
                       }
                     }}
                   />
-                </div>
+                </FormField>
                 <p className="text-xs text-slate-400">Leave all blank to remove this party's override — global rate will apply.</p>
               </div>
               <div className="p-4 border-t border-slate-100 flex gap-2">
-                <button
+                <Button
+                  type="button"
                   onClick={() => saveEdit(false)}
                   disabled={saving}
-                  className="btn-primary flex-1"
+                  className="flex-1"
                 >
                   {saving ? 'Saving…' : 'Save'}
-                </button>
+                </Button>
                 {!isLast && (
-                  <button
+                  <Button
+                    type="button"
+                    variant="outline"
                     onClick={() => saveEdit(true)}
                     disabled={saving}
-                    className="btn-outline text-xs flex items-center gap-1"
                     title="Save and edit next process (Tab)"
                   >
-                    Next <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                  </button>
+                    Next <ArrowRight />
+                  </Button>
                 )}
-                <button
+                <Button
+                  type="button"
+                  variant="ghost"
                   onClick={() => setEditing(null)}
-                  className="btn-ghost"
                 >
                   Cancel
-                </button>
+                </Button>
               </div>
             </div>
           </div>

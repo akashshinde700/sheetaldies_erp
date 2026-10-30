@@ -2,6 +2,11 @@ import { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import api from '../../../utils/api';
 import toast from 'react-hot-toast';
 import DistortionSection from './DistortionSection';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { FormField } from '@/components/ui/form-field';
+import { Input } from '@/components/ui/input';
 
 const EMPTY_INSP = {
   catNormal: false, catWelded: false, catCrackRisk: false, catDistortionRisk: false,
@@ -61,6 +66,10 @@ function fromInsp(i) {
   };
 }
 
+const GroupTitle = ({ children }) => (
+  <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">{children}</p>
+);
+
 const InspectionEditSection = forwardRef(function InspectionEditSection({ id, inspection, hrcRange }, ref) {
   const [state, setState] = useState(() => fromInsp(inspection));
 
@@ -106,9 +115,11 @@ const InspectionEditSection = forwardRef(function InspectionEditSection({ id, in
   const setField = (field, value) => setState(s => ({ ...s, [field]: value }));
 
   const CB = ({ field, label }) => (
-    <label className="flex items-center gap-2 mb-1.5 cursor-pointer text-sm">
-      <input type="checkbox" checked={!!state[field]} onChange={e => set({ [field]: e.target.checked })}
-        className="w-4 h-4 accent-indigo-600" />
+    <label className="flex items-center gap-2 py-0.5 cursor-pointer select-none text-sm">
+      <Checkbox
+        checked={!!state[field]}
+        onCheckedChange={checked => set({ [field]: checked === true })}
+      />
       <span className="text-slate-700">{label}</span>
     </label>
   );
@@ -116,89 +127,104 @@ const InspectionEditSection = forwardRef(function InspectionEditSection({ id, in
   return (
     <>
     <DistortionSection form={state} set={setField} onSave={save} saving={saving} />
-    <div className="card p-5 space-y-4">
-      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-        <p className="section-title">Incoming Inspection</p>
-        <button type="button" onClick={save} disabled={saving}
-          className="text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-lg disabled:opacity-50">
+    <Card>
+      <CardHeader className="flex-row items-center justify-between space-y-0">
+        <div className="space-y-1">
+          <CardTitle>Incoming Inspection</CardTitle>
+        </div>
+        <Button type="button" variant="secondary" size="sm" onClick={save} disabled={saving} loading={saving}>
           {saving ? 'Saving…' : 'Save Inspection'}
-        </button>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {/* Categorization */}
-        <div>
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Categorization</p>
-          <CB field="catNormal" label="Normal" />
-          <CB field="catWelded" label="Welded" />
-          <CB field="catCrackRisk" label="Crack / Crack Risk" />
-          <CB field="catDistortionRisk" label="Distortion Risk" />
-          <CB field="catCriticalFinishing" label="Critical Finishing" />
-          <CB field="catDentDamage" label="Dent / Damage" />
-          <CB field="catRusty" label="Rusty" />
-          <CB field="catOthers" label="Others" />
-        </div>
-
-        {/* Process */}
-        <div>
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Process</p>
-          <CB field="procStressRelieving" label="Stress Relieving" />
-          <CB field="procHardening" label="Hardening" />
-          <CB field="procTempering" label="Tempering" />
-          <CB field="procAnnealing" label="Annealing" />
-          <CB field="procBrazing" label="Brazing" />
-          <CB field="procPlasmaNitriding" label="Plasma Nitriding" />
-          <CB field="procSubZero" label="Sub Zero" />
-          <CB field="procSoakClean" label="Soak Clean" />
-        </div>
-
-        {/* Visual + MPI */}
-        <div className="space-y-3">
-          <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Visual Inspection</p>
-            <CB field="visualBefore" label="Before" />
-            <CB field="visualAfter" label="After" />
+        </Button>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-4">
+          {/* Categorization */}
+          <div className="space-y-2">
+            <GroupTitle>Categorization</GroupTitle>
+            <div className="space-y-1">
+              <CB field="catNormal" label="Normal" />
+              <CB field="catWelded" label="Welded" />
+              <CB field="catCrackRisk" label="Crack / Crack Risk" />
+              <CB field="catDistortionRisk" label="Distortion Risk" />
+              <CB field="catCriticalFinishing" label="Critical Finishing" />
+              <CB field="catDentDamage" label="Dent / Damage" />
+              <CB field="catRusty" label="Rusty" />
+              <CB field="catOthers" label="Others" />
+            </div>
           </div>
-          <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">MPI Inspection</p>
-            <CB field="mpiBefore" label="Before" />
-            <CB field="mpiAfter" label="After" />
-            <CB field="mpiNil" label="Nil" />
-          </div>
-        </div>
 
-        {/* Hardness fields */}
-        <div className="space-y-2">
-          <div className="grid grid-cols-2 gap-2">
-            {[['requiredHardnessMin','Req. Hardness Min'],['requiredHardnessMax','Req. Hardness Max']].map(([f, lbl]) => (
-              <div key={f}>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">{lbl}</label>
-                <input className="form-input text-xs py-1" value={state[f]} onChange={e => set({ [f]: e.target.value })} />
+          {/* Process */}
+          <div className="space-y-2">
+            <GroupTitle>Process</GroupTitle>
+            <div className="space-y-1">
+              <CB field="procStressRelieving" label="Stress Relieving" />
+              <CB field="procHardening" label="Hardening" />
+              <CB field="procTempering" label="Tempering" />
+              <CB field="procAnnealing" label="Annealing" />
+              <CB field="procBrazing" label="Brazing" />
+              <CB field="procPlasmaNitriding" label="Plasma Nitriding" />
+              <CB field="procSubZero" label="Sub Zero" />
+              <CB field="procSoakClean" label="Soak Clean" />
+            </div>
+          </div>
+
+          {/* Visual + MPI */}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <GroupTitle>Visual Inspection</GroupTitle>
+              <div className="space-y-1">
+                <CB field="visualBefore" label="Before" />
+                <CB field="visualAfter" label="After" />
               </div>
-            ))}
+            </div>
+            <div className="space-y-2">
+              <GroupTitle>MPI Inspection</GroupTitle>
+              <div className="space-y-1">
+                <CB field="mpiBefore" label="Before" />
+                <CB field="mpiAfter" label="After" />
+                <CB field="mpiNil" label="Nil" />
+              </div>
+            </div>
           </div>
-          <div>
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">Hardness Unit</label>
-            <input
-              list="insp-hardness-unit-list"
-              className="form-input text-xs py-1"
-              value={state.hardnessUnit}
-              onChange={e => set({ hardnessUnit: e.target.value })}
-              maxLength={8}
-              placeholder="HRC"
-            />
-            <datalist id="insp-hardness-unit-list">
-              {['HRC','HRB','HV','HB','BHN'].map(u => <option key={u} value={u} />)}
-            </datalist>
+
+          {/* Hardness fields */}
+          <div className="space-y-3">
+            <GroupTitle>Required Hardness</GroupTitle>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-3">
+              {[['requiredHardnessMin','Min'],['requiredHardnessMax','Max']].map(([f, lbl]) => (
+                <FormField key={f} label={lbl} htmlFor={`insp-${f}`}>
+                  <Input
+                    id={`insp-${f}`}
+                    value={state[f]}
+                    onChange={e => set({ [f]: e.target.value })}
+                    inputMode="decimal"
+                    className="text-right tabular-nums"
+                  />
+                </FormField>
+              ))}
+            </div>
+            <FormField label="Hardness Unit" htmlFor="insp-hardnessUnit">
+              <Input
+                id="insp-hardnessUnit"
+                list="insp-hardness-unit-list"
+                value={state.hardnessUnit}
+                onChange={e => set({ hardnessUnit: e.target.value })}
+                maxLength={8}
+                placeholder="HRC"
+              />
+              <datalist id="insp-hardness-unit-list">
+                {['HRC','HRB','HV','HB','BHN'].map(u => <option key={u} value={u} />)}
+              </datalist>
+            </FormField>
+            {/* Hardness After 1-4, Achieved Hardness, Packed Qty, Incoming
+                Inspection By and Quality Inspection By inputs were removed from
+                this edit form on request. Their values are still preserved in
+                `state` (loaded via fromInsp) and re-saved untouched, so existing
+                data and all print outputs remain unchanged. */}
           </div>
-          {/* Hardness After 1-4, Achieved Hardness, Packed Qty, Incoming
-              Inspection By and Quality Inspection By inputs were removed from
-              this edit form on request. Their values are still preserved in
-              `state` (loaded via fromInsp) and re-saved untouched, so existing
-              data and all print outputs remain unchanged. */}
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
     </>
   );
 });

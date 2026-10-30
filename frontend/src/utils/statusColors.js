@@ -14,7 +14,7 @@ export const STATUS_COLORS = {
   // Job Card statuses
   CREATED:          'bg-slate-100 text-slate-600',
   IN_PROGRESS:      'bg-blue-100 text-blue-700',
-  SENT_FOR_JOBWORK: 'bg-amber-100 text-amber-700',
+  SENT_FOR_JOBWORK: 'bg-blue-100 text-blue-700',
   INSPECTION:       'bg-violet-100 text-violet-700',
   ON_HOLD:          'bg-orange-100 text-orange-700',
 

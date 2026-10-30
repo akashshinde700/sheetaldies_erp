@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import api from '../../utils/api';
 import { formatDate } from '../../utils/formatters';
@@ -205,6 +205,38 @@ export default function JobCardPrint() {
 
   useEffect(() => { fetchData(); }, [id]);
 
+  // ── Auto-fit each printed page onto ONE A4 sheet ──────────────
+  // A long item list (or extra heat-treatment rows) would otherwise push the
+  // card onto a 2nd sheet. We measure the natural height at the print column
+  // width and, only if it is too tall, set a `--print-zoom` factor that the
+  // @media-print CSS applies via `zoom:` — nothing shrinks until it has to.
+  const page1Ref = useRef(null);
+  const page2Ref = useRef(null);
+  useLayoutEffect(() => {
+    const PRINT_W = 1092;         // 297mm − 8mm margins
+    // fitPx = A4-landscape printable height (763px) minus safety; k corrects the
+    // small screen↔print layout drift measured empirically for each page.
+    const fit = (el, measureCls, k, fitPx) => {
+      if (!el) return;
+      el.style.setProperty('--print-zoom', '1');
+      el.classList.add('jc-measuring', measureCls);
+      const prevW = el.style.width;
+      el.style.width = PRINT_W + 'px';
+      const measured = el.scrollHeight * k;
+      el.style.width = prevW;
+      el.classList.remove('jc-measuring', measureCls);
+      const z = measured > fitPx ? Math.max(0.5, fitPx / measured) : 1;
+      el.style.setProperty('--print-zoom', String(Math.round(z * 1000) / 1000));
+    };
+    const run = () => {
+      fit(page1Ref.current, 'jc-m1', 1.00, 745);
+      fit(page2Ref.current, 'jc-m2', 0.93, 756);
+    };
+    const t = setTimeout(run, 60);
+    window.addEventListener('beforeprint', run);
+    return () => { clearTimeout(t); window.removeEventListener('beforeprint', run); };
+  }, [jc, heatProcessRows, itemLabels]);
+
   if (loading) return <div className="p-10 text-slate-400">Loading…</div>;
   if (error || !jc) return (
     <div className="p-10 space-y-2 text-center">
@@ -249,7 +281,11 @@ export default function JobCardPrint() {
     : jc.part ? [{ partName: jc.part.description, qty: jc.quantity, weight: jc.totalWeight }] : [];
 
   const totalQty = items.reduce((s, it) => s + (Number(it.qty ?? it.quantity) || 0), 0);
-  const totalWt  = items.reduce((s, it) => s + (Number(it.weight ?? it.totalWeight) || 0), 0);
+  // Per-item weight shows ONLY a weight entered for that specific item — the job
+  // card's Total Weight is never divided across the items.
+  const itemWt   = (it) => Number(it.weight) > 0 ? Number(it.weight)
+                    : Number(it.totalWeight) > 0 ? Number(it.totalWeight) : 0;
+  const totalWt  = items.reduce((s, it) => s + itemWt(it), 0);
 
   const htSpec = jc.hrcRange?.replace(/\d.*/, '').trim() || jc.operationMode || 'HARDEN AND TEMPER';
   const hrc    = jc.hrcRange || '—';
@@ -279,9 +315,16 @@ export default function JobCardPrint() {
   return (
     <div className="bg-slate-100 py-4 print:bg-white print:py-0" style={{ fontFamily: 'Arial, sans-serif' }}>
       <style>{`
-        @page { margin: 0mm; size: A4 landscape; }
+        @page { margin: 4mm; size: A4 landscape; }
+        /* screen-only: mirror the print rules while JS measures each page for
+           the auto-fit calc, so the measured height matches what prints. */
+        .jc-measuring, .jc-measuring * { font-weight: 700 !important; }
+        #page2.jc-m2, #page2.jc-m2 td, #page2.jc-m2 th { font-size: 8px !important; }
+        #page2.jc-m2 td, #page2.jc-m2 th { padding: 1px 3px !important; line-height: 1.35 !important; }
+        #page2.jc-m2 tr { height: auto !important; }
+        #page2.jc-m2 .jc-p2-images > div { aspect-ratio: auto !important; height: 92px !important; }
         @media print {
-          html, body { width: 100% !important; margin: 0 !important; padding: 3mm 4mm !important; }
+          html, body { width: 100% !important; margin: 0 !important; padding: 0 !important; }
           .no-print { display: none !important; }
           .page {
             box-shadow: none !important;
@@ -299,8 +342,29 @@ export default function JobCardPrint() {
           body * { font-weight: bold !important; color: #000 !important; }
           #page1 { font-size: 10px !important; }
           #page1 td, #page1 th { font-size: 10px !important; }
-          #page2 { font-size: 9px !important; margin-top: 0 !important; }
-          #page2 td, #page2 th { padding: 2px 4px !important; font-size: 9px !important; }
+          /* Page 1 — grow the items / notes band so the frame reaches the
+             bottom of the landscape sheet instead of ending mid-page.
+             Font, borders and every section's own size are untouched. */
+          #page1 { display: flex !important; flex-direction: column; min-height: 201mm; }
+          #page1 > * { flex: 0 0 auto; }
+          /* grows to fill spare height, but never shrinks below its own content
+             (no min-height:0) so a long item list is auto-fit by zoom, not clipped */
+          #page1 .jc-p1-body { flex: 1 1 auto !important; }
+          /* auto-fit: JS lowers --print-zoom below 1 only when a page would
+             otherwise overflow onto a 2nd sheet (long item list etc.) */
+          #page1, #page2 { zoom: var(--print-zoom, 1); }
+          /* Page 2 — must stay on ONE landscape A4 sheet.
+             The old print spilled onto a 2nd sheet because Chrome mis-sizes
+             the image grid's CSS aspect-ratio and then refuses to split the
+             flex row, so we pin the images to a fixed height and stop every
+             block from fragmenting. */
+          #page2 { font-size: 8px !important; margin-top: 0 !important; }
+          #page2 td, #page2 th { padding: 1px 3px !important; font-size: 8px !important; line-height: 1.35 !important; }
+          #page2 tr { height: auto !important; }
+          #page2 table, #page2 .jc-p2-row { break-inside: avoid; page-break-inside: avoid; }
+          #page2 div[style*="min-height"] { min-height: 70px !important; }
+          #page2 .jc-p2-images { gap: 4px !important; padding: 3px 6px !important; }
+          #page2 .jc-p2-images > div { aspect-ratio: auto !important; height: 92px !important; }
           #page2 div[style] { font-size: inherit; }
           #page2 img { width: 100% !important; height: 100% !important; object-fit: cover !important; }
           table { width: 100% !important; table-layout: auto; }
@@ -333,7 +397,7 @@ export default function JobCardPrint() {
       {/* ══════════════════════════════════════════
           PAGE 1 — JOB CARD
       ══════════════════════════════════════════ */}
-      <div id="page1" className="page max-w-[1150px] mx-auto bg-white shadow-lg" style={{ border: B2, fontSize: 10 }}>
+      <div ref={page1Ref} id="page1" className="page max-w-[1150px] mx-auto bg-white shadow-lg" style={{ border: B2, fontSize: 10 }}>
 
         {/* ── HEADER ── */}
         <table style={{ width: '100%', borderCollapse: 'collapse', borderBottom: B2 }}>
@@ -484,7 +548,7 @@ export default function JobCardPrint() {
         </table>
 
         {/* ── ITEMS TABLE + RIGHT PANEL ── */}
-        <div style={{ display: 'flex', borderBottom: B }}>
+        <div className="jc-p1-body" style={{ display: 'flex', borderBottom: B }}>
           {/* Items table */}
           <div style={{ flex: 1, borderRight: B, overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -537,14 +601,14 @@ export default function JobCardPrint() {
                     </td>
                     <td style={cellStyle({ textAlign: 'center', fontFamily: 'monospace', fontSize: 10 })}>{it.qty ?? it.quantity ?? '—'}</td>
                     <td style={cellStyle({ textAlign: 'center', fontFamily: 'monospace', fontSize: 10 })}>
-                      {it.weight != null ? Number(it.weight).toFixed(3) : (it.totalWeight != null ? Number(it.totalWeight).toFixed(3) : '—')}
+                      {itemWt(it) > 0 ? itemWt(it).toFixed(3) : '—'}
                     </td>
                   </tr>
                 ))}
                 <tr style={{ borderTop: B2, background: '#f8f8f8' }}>
                   <td colSpan={2} style={{ border: B, padding: '3px 6px', fontWeight: 700, textAlign: 'right', fontSize: 9 }}>TOTAL</td>
                   <td style={{ border: B, padding: '3px 6px', fontWeight: 700, textAlign: 'center', fontFamily: 'monospace' }}>{totalQty || '—'}</td>
-                  <td style={{ border: B, padding: '3px 6px', fontWeight: 700, textAlign: 'center', fontFamily: 'monospace' }}>{jc.totalWeight ? Number(jc.totalWeight).toFixed(3) : (totalWt ? totalWt.toFixed(3) : '—')}</td>
+                  <td style={{ border: B, padding: '3px 6px', fontWeight: 700, textAlign: 'center', fontFamily: 'monospace' }}>{Number(jc.totalWeight) > 0 ? Number(jc.totalWeight).toFixed(3) : (totalWt > 0 ? totalWt.toFixed(3) : '—')}</td>
                 </tr>
               </tbody>
             </table>
@@ -601,7 +665,7 @@ export default function JobCardPrint() {
       {/* ══════════════════════════════════════════
           PAGE 2 — INCOMING INSPECTION
       ══════════════════════════════════════════ */}
-      <div id="page2" className="page max-w-[1150px] mx-auto bg-white shadow-lg mt-4 print:mt-0" style={{ border: B2, fontSize: 10 }}>
+      <div ref={page2Ref} id="page2" className="page max-w-[1150px] mx-auto bg-white shadow-lg mt-4 print:mt-0" style={{ border: B2, fontSize: 10 }}>
 
         {/* ── CATEGORIZATION | PROCESS | INSPECTION ── */}
         <table style={{ width: '100%', borderCollapse: 'collapse', borderBottom: B }}>
@@ -789,11 +853,11 @@ export default function JobCardPrint() {
         </table>
 
         {/* ── JOB IMAGES + SIGNATURES (side by side) ── */}
-        <div style={{ display: 'flex', borderBottom: B }}>
+        <div className="jc-p2-row" style={{ display: 'flex', borderBottom: B }}>
           {/* Images — larger, take most of the width */}
           <div style={{ flex: 1, borderRight: B }}>
             <SectionBar>JOB IMAGES</SectionBar>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, padding: '6px 10px' }}>
+            <div className="jc-p2-images" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, padding: '6px 10px' }}>
               {[0, 1, 2, 3, 4].map(n => (
                 <div key={n} style={{ border: B, aspectRatio: '13 / 10', minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafafa', overflow: 'hidden' }}>
                   {imageUrls[n]
@@ -808,11 +872,9 @@ export default function JobCardPrint() {
             <div style={{ borderBottom: B, padding: '6px 10px', flex: 1 }}>
               <div style={labelStyle()}>Packed Quantity</div>
               <div style={{ fontFamily: 'monospace', fontSize: 10, marginTop: 4, fontWeight: 600 }}>{inspState.packedQty || ''}</div>
-              <div style={sigLine}>Packed By</div>
             </div>
             <div style={{ padding: '6px 10px', flex: 1 }}>
-              <div style={labelStyle()}>Quality Approved By</div>
-              <div style={sigLine}>Signature</div>
+              <div style={labelStyle()}>Packed By</div>
             </div>
           </div>
         </div>

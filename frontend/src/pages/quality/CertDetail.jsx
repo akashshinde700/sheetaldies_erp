@@ -1,12 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import {
+  ArrowLeft, Printer, ReceiptText, FileText, AlertCircle, LineChart, Images,
+} from 'lucide-react';
 import api from '../../utils/api';
 import { formatDate } from '../../utils/formatters';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 
-const STATUS_COLOR = {
-  DRAFT:    'bg-slate-100 text-slate-600',
-  ISSUED:   'bg-sky-100 text-sky-700',
-  APPROVED: 'bg-emerald-100 text-emerald-700',
+const STATUS_VARIANT = {
+  DRAFT:    'neutral',
+  ISSUED:   'info',
+  APPROVED: 'success',
 };
 
 const RESULT_COLOR = {
@@ -16,6 +23,13 @@ const RESULT_COLOR = {
   PASS:     'text-emerald-700 font-bold',
   FAIL:     'text-rose-600 font-bold',
 };
+
+const Def = ({ label, children }) => (
+  <div className="min-w-0">
+    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">{label}</p>
+    <div className="text-sm font-semibold text-slate-800 break-words">{children}</div>
+  </div>
+);
 
 export default function CertDetail() {
   const { id }    = useParams();
@@ -31,17 +45,28 @@ export default function CertDetail() {
   }, [id]);
 
   if (loading) return (
-    <div className="page-stack w-full space-y-4 animate-pulse">
-      <div className="h-8 bg-slate-200 rounded w-64" />
-      <div className="h-40 bg-slate-100 rounded-xl" />
-      <div className="h-32 bg-slate-100 rounded-xl" />
+    <div className="page-stack w-full space-y-4">
+      <div className="flex items-center gap-3">
+        <Skeleton className="h-9 w-9 rounded-lg" />
+        <div className="space-y-2">
+          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-3.5 w-32" />
+        </div>
+      </div>
+      <Skeleton className="h-40 rounded-xl" />
+      <Skeleton className="h-32 rounded-xl" />
+      <Skeleton className="h-48 rounded-xl" />
     </div>
   );
   if (error || !cert) return (
     <div className="flex flex-col items-center justify-center h-64 gap-3">
-      <span className="material-symbols-outlined text-4xl text-slate-300">error</span>
+      <AlertCircle className="h-9 w-9 text-slate-300" />
       <p className="text-slate-400 text-sm">{error || 'Certificate not found.'}</p>
-      <Link to="/quality/certificates" className="text-sky-600 text-sm hover:underline">← Back to Certificates</Link>
+      <Button variant="outline" size="sm" asChild>
+        <Link to="/quality/certificates">
+          <ArrowLeft /> Back to Certificates
+        </Link>
+      </Button>
     </div>
   );
 
@@ -56,91 +81,102 @@ export default function CertDetail() {
     <div className="page-stack w-full space-y-4 animate-slide-up">
 
       {/* Header */}
-      <div className="page-header">
-        <div className="flex items-start gap-3 min-w-0 flex-1">
-          <Link to="/quality/certificates"
-            className="w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-colors shadow-sm">
-            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-          </Link>
-          <div className="space-y-2 min-w-0">
-            <h1 className="page-title font-mono">{cert.certNo}</h1>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3 min-w-0">
+          <Button variant="ghost" size="icon-sm" asChild
+            className="text-slate-400 hover:text-sky-700 border border-slate-200 bg-white shrink-0 mt-0.5">
+            <Link to="/quality/certificates" title="Back to certificates" aria-label="Back to certificates">
+              <ArrowLeft />
+            </Link>
+          </Button>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="page-title font-mono">{cert.certNo}</h1>
+              <Badge variant={STATUS_VARIANT[cert.status] || 'neutral'} className="px-2 py-0.5 text-[10px]">
+                {cert.status}
+              </Badge>
+            </div>
             <p className="page-subtitle">Test Certificate • {formatDate(cert.issueDate)}</p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link to={`/quality/certificates/${id}/print`} className="btn-outline">
-            <span className="material-symbols-outlined text-sm">print</span> Print / PDF
-          </Link>
-          <Link
-            to={cert.jobCardId
-              ? `/invoices/new?jobCardId=${cert.jobCardId}`
-              : `/invoices/new?customerId=${cert.customerId}`}
-            className="btn-outline border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-          >
-            <span className="material-symbols-outlined text-sm">receipt_long</span> Create Invoice
-          </Link>
-          {cert.jobCardId && (
-            <Link
-              to={`/jobcards/${cert.jobCardId}`}
-              className="btn-outline border-sky-200 text-sky-700 hover:bg-sky-50"
-            >
-              <span className="material-symbols-outlined text-sm">description</span> Job Card
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <Button variant="outline" asChild>
+            <Link to={`/quality/certificates/${id}/print`}>
+              <Printer /> Print / PDF
             </Link>
+          </Button>
+          <Button variant="outline" asChild
+            className="border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-400">
+            <Link
+              to={cert.jobCardId
+                ? `/invoices/new?jobCardId=${cert.jobCardId}`
+                : `/invoices/new?customerId=${cert.customerId}`}
+            >
+              <ReceiptText /> Create Invoice
+            </Link>
+          </Button>
+          {cert.jobCardId && (
+            <Button variant="outline" asChild
+              className="border-sky-200 text-sky-700 hover:bg-sky-50 hover:border-sky-300">
+              <Link to={`/jobcards/${cert.jobCardId}`}>
+                <FileText /> Job Card
+              </Link>
+            </Button>
           )}
-          <span className={`badge ${STATUS_COLOR[cert.status] || STATUS_COLOR.DRAFT}`}>{cert.status}</span>
         </div>
       </div>
 
       {/* Customer + Issued By */}
-      <div className="card p-5 grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Customer</p>
-          <p className="font-bold text-slate-800">{cert.customer?.name || '—'}</p>
-          <p className="text-xs text-slate-500 mt-0.5">{cert.customer?.address}</p>
-          {cert.customer?.gstin && <p className="text-xs font-mono text-slate-400 mt-0.5">GSTIN: {cert.customer.gstin}</p>}
-        </div>
-        <div>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Issued By</p>
-          <p className="font-bold text-slate-800">{cert.issuedByParty?.name || '—'}</p>
-          {cert.issuedByParty?.gstin && <p className="text-xs font-mono text-slate-400 mt-0.5">GSTIN: {cert.issuedByParty.gstin}</p>}
-        </div>
-        <div className="col-span-2 border-t border-slate-100 pt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-          {cert.jobCard?.jobCardNo && (
-            <div>
-              <span className="text-xs text-slate-400 block mb-0.5">Job Card</span>
-              <Link to={`/jobcards/${cert.jobCardId}`} className="font-semibold text-sky-600 hover:underline">{cert.jobCard.jobCardNo}</Link>
-            </div>
-          )}
-          {cert.yourPoNo   && <div><span className="text-xs text-slate-400 block mb-0.5">Your PO No</span><span className="font-semibold">{cert.yourPoNo}</span></div>}
-          {cert.yourRefNo  && <div><span className="text-xs text-slate-400 block mb-0.5">Your Ref No</span><span className="font-semibold">{cert.yourRefNo}</span></div>}
-          {cert.dieMaterial && <div><span className="text-xs text-slate-400 block mb-0.5">Die Material</span><span className="font-semibold">{cert.dieMaterial}</span></div>}
-          {cert.operatorMode && <div><span className="text-xs text-slate-400 block mb-0.5">Operator Mode</span><span className="font-semibold">{cert.operatorMode}</span></div>}
-          {cert.packedQty          && <div><span className="text-xs text-slate-400 block mb-0.5">Packed Qty</span><span className="font-semibold">{cert.packedQty}</span></div>}
-          {cert.packedBy           && <div><span className="text-xs text-slate-400 block mb-0.5">Packed By</span><span className="font-semibold">{cert.packedBy}</span></div>}
-          {cert.approvedBy         && <div><span className="text-xs text-slate-400 block mb-0.5">Approved By</span><span className="font-semibold">{cert.approvedBy}</span></div>}
-          {cert.issuedTo           && <div><span className="text-xs text-slate-400 block mb-0.5">Issued To</span><span className="font-semibold">{cert.issuedTo}</span></div>}
-          {cert.heatNo             && <div><span className="text-xs text-slate-400 block mb-0.5">Cycle No</span><span className="font-semibold font-mono">{cert.heatNo}</span></div>}
-          {(() => {
-            const jc = cert.jobCard || {};
-            const byVehicle   = jc.dispatchByOurVehicle  || (cert.dispatchedThrough || '').includes('Our Vehicle');
-            const byCourier   = jc.dispatchByCourier      || (cert.dispatchedThrough || '').includes('Courier');
-            const collected   = jc.collectedByCustomer    || (cert.dispatchedThrough || '').includes('Collected');
-            if (!byVehicle && !byCourier && !collected && !cert.dispatchedThrough) return null;
-            return (
-              <div className="col-span-2 sm:col-span-3">
-                <span className="text-xs text-slate-400 block mb-1">Dispatch Mode</span>
-                <div className="flex flex-wrap gap-4 text-sm font-semibold">
-                  {byVehicle && <span>☑ By Our Vehicle</span>}
-                  {byCourier && <span>☑ By Courier</span>}
-                  {collected && <span>☑ Collected by Customer</span>}
+      <Card>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Customer</p>
+            <p className="text-sm font-bold text-slate-800">{cert.customer?.name || '—'}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{cert.customer?.address}</p>
+            {cert.customer?.gstin && <p className="text-xs font-mono text-slate-400 mt-0.5">GSTIN: {cert.customer.gstin}</p>}
+          </div>
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Issued By</p>
+            <p className="text-sm font-bold text-slate-800">{cert.issuedByParty?.name || '—'}</p>
+            {cert.issuedByParty?.gstin && <p className="text-xs font-mono text-slate-400 mt-0.5">GSTIN: {cert.issuedByParty.gstin}</p>}
+          </div>
+          <div className="col-span-1 md:col-span-2 border-t border-slate-100 pt-3 grid grid-cols-2 md:grid-cols-3 gap-4">
+            {cert.jobCard?.jobCardNo && (
+              <Def label="Job Card">
+                <Link to={`/jobcards/${cert.jobCardId}`} className="text-sky-700 hover:text-sky-900 hover:underline">{cert.jobCard.jobCardNo}</Link>
+              </Def>
+            )}
+            {cert.yourPoNo    && <Def label="Your PO No">{cert.yourPoNo}</Def>}
+            {cert.yourRefNo   && <Def label="Your Ref No">{cert.yourRefNo}</Def>}
+            {cert.dieMaterial && <Def label="Die Material">{cert.dieMaterial}</Def>}
+            {cert.operatorMode && <Def label="Operator Mode">{cert.operatorMode}</Def>}
+            {cert.packedQty   && <Def label="Packed Qty">{cert.packedQty}</Def>}
+            {cert.packedBy    && <Def label="Packed By">{cert.packedBy}</Def>}
+            {cert.approvedBy  && <Def label="Approved By">{cert.approvedBy}</Def>}
+            {cert.issuedTo    && <Def label="Issued To">{cert.issuedTo}</Def>}
+            {cert.heatNo      && <Def label="Cycle No"><span className="font-mono">{cert.heatNo}</span></Def>}
+            {(() => {
+              const jc = cert.jobCard || {};
+              const byVehicle   = jc.dispatchByOurVehicle  || (cert.dispatchedThrough || '').includes('Our Vehicle');
+              const byCourier   = jc.dispatchByCourier      || (cert.dispatchedThrough || '').includes('Courier');
+              const collected   = jc.collectedByCustomer    || (cert.dispatchedThrough || '').includes('Collected');
+              if (!byVehicle && !byCourier && !collected && !cert.dispatchedThrough) return null;
+              return (
+                <div className="col-span-2 md:col-span-3">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Dispatch Mode</p>
+                  <div className="flex flex-wrap gap-4 text-sm font-semibold text-slate-800">
+                    {byVehicle && <span>☑ By Our Vehicle</span>}
+                    {byCourier && <span>☑ By Courier</span>}
+                    {collected && <span>☑ Collected by Customer</span>}
+                  </div>
                 </div>
-              </div>
-            );
-          })()}
-          {cert.dispatchChallanNo  && <div><span className="text-xs text-slate-400 block mb-0.5">Dispatch Challan No</span><span className="font-semibold font-mono">{cert.dispatchChallanNo}</span></div>}
-          {cert.dispatchChallanDate && <div><span className="text-xs text-slate-400 block mb-0.5">Dispatch Challan Date</span><span className="font-semibold">{formatDate(cert.dispatchChallanDate)}</span></div>}
-        </div>
-      </div>
+              );
+            })()}
+            {cert.dispatchChallanNo   && <Def label="Dispatch Challan No"><span className="font-mono">{cert.dispatchChallanNo}</span></Def>}
+            {cert.dispatchChallanDate && <Def label="Dispatch Challan Date">{formatDate(cert.dispatchChallanDate)}</Def>}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Categorization & Process */}
       {(() => {
@@ -165,114 +201,124 @@ export default function CertDetail() {
         ].filter(([k]) => cert[k]);
         if (!cats.length && !procs.length) return null;
         return (
-          <div className="card p-5 grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {cats.length > 0 && (
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Categorization</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {cats.map(([, label]) => (
-                    <span key={label} className="text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 rounded-full px-2.5 py-0.5">{label}</span>
-                  ))}
+          <Card>
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {cats.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Categorization</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {cats.map(([, label]) => (
+                      <Badge key={label} className="bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-0.5 text-[11px] font-semibold">{label}</Badge>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
-            {procs.length > 0 && (
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Process</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {procs.map(([, label]) => (
-                    <span key={label} className="text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200 rounded-full px-2.5 py-0.5">{label}</span>
-                  ))}
+              )}
+              {procs.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Process</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {procs.map(([, label]) => (
+                      <Badge key={label} className="bg-sky-50 text-sky-700 border border-sky-200 px-2.5 py-0.5 text-[11px] font-semibold">{label}</Badge>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </CardContent>
+          </Card>
         );
       })()}
 
       {/* Special Instructions / Delivery / Requirements / Precautions */}
       {(cert.specInstrCertificate || cert.specInstrMpiReport || cert.specInstrProcessGraph ||
         cert.deliveryDate || cert.specialRequirements || cert.precautions) && (
-        <div className="card p-5 space-y-4">
-          {(cert.specInstrCertificate || cert.specInstrMpiReport || cert.specInstrProcessGraph) && (
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Special Instructions</p>
-              <div className="flex flex-wrap gap-2">
-                {cert.specInstrCertificate  && <span className="text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2.5 py-0.5">☑ Certificate</span>}
-                {cert.specInstrMpiReport    && <span className="text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2.5 py-0.5">☑ MPI Report</span>}
-                {cert.specInstrProcessGraph && <span className="text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2.5 py-0.5">☑ Process Graph</span>}
+        <Card>
+          <CardContent className="space-y-4">
+            {(cert.specInstrCertificate || cert.specInstrMpiReport || cert.specInstrProcessGraph) && (
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Special Instructions</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {cert.specInstrCertificate  && <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-semibold">☑ Certificate</Badge>}
+                  {cert.specInstrMpiReport    && <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-semibold">☑ MPI Report</Badge>}
+                  {cert.specInstrProcessGraph && <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-semibold">☑ Process Graph</Badge>}
+                </div>
               </div>
-            </div>
-          )}
-          {cert.deliveryDate && (
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Delivery Date</p>
-              <p className="text-sm font-semibold text-slate-800">{formatDate(cert.deliveryDate)}</p>
-            </div>
-          )}
-          {cert.specialRequirements && (
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Special Requirements</p>
-              <p className="text-sm text-slate-700 whitespace-pre-wrap">{cert.specialRequirements}</p>
-            </div>
-          )}
-          {cert.precautions && (
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Precautions</p>
-              <p className="text-sm text-slate-700 whitespace-pre-wrap">{cert.precautions}</p>
-            </div>
-          )}
-        </div>
+            )}
+            {cert.deliveryDate && (
+              <Def label="Delivery Date">{formatDate(cert.deliveryDate)}</Def>
+            )}
+            {cert.specialRequirements && (
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Special Requirements</p>
+                <p className="text-sm text-slate-700 whitespace-pre-wrap">{cert.specialRequirements}</p>
+              </div>
+            )}
+            {cert.precautions && (
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Precautions</p>
+                <p className="text-sm text-slate-700 whitespace-pre-wrap">{cert.precautions}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {/* Hardness */}
       {(cert.hardnessMin || cert.hardnessMax) && (
-        <div className="card p-5">
-          <p className="section-title border-b border-slate-100 pb-2 mb-4">Hardness Requirement</p>
-          <div className="flex items-center gap-6">
-            <div className="text-center bg-sky-50 rounded-xl px-6 py-3">
-              <p className="text-[10px] text-sky-400 uppercase font-bold">Min</p>
-              <p className="text-2xl font-extrabold text-sky-800">{cert.hardnessMin ?? '—'}</p>
-              <p className="text-xs text-sky-500">{cert.hardnessUnit}</p>
+        <Card>
+          <CardHeader>
+            <CardTitle>Hardness Requirement</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-6">
+              <div className="text-center bg-sky-50 rounded-xl px-6 py-3">
+                <p className="text-[10px] text-sky-400 uppercase font-bold tracking-wider">Min</p>
+                <p className="text-2xl font-extrabold text-sky-800 tabular-nums">{cert.hardnessMin ?? '—'}</p>
+                <p className="text-xs text-sky-500">{cert.hardnessUnit}</p>
+              </div>
+              <span className="text-slate-300 text-2xl">—</span>
+              <div className="text-center bg-sky-50 rounded-xl px-6 py-3">
+                <p className="text-[10px] text-sky-400 uppercase font-bold tracking-wider">Max</p>
+                <p className="text-2xl font-extrabold text-sky-800 tabular-nums">{cert.hardnessMax ?? '—'}</p>
+                <p className="text-xs text-sky-500">{cert.hardnessUnit}</p>
+              </div>
             </div>
-            <span className="text-slate-300 text-2xl">—</span>
-            <div className="text-center bg-sky-50 rounded-xl px-6 py-3">
-              <p className="text-[10px] text-sky-400 uppercase font-bold">Max</p>
-              <p className="text-2xl font-extrabold text-sky-800">{cert.hardnessMax ?? '—'}</p>
-              <p className="text-xs text-sky-500">{cert.hardnessUnit}</p>
-            </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Items */}
       {cert.items?.length > 0 && (
-        <div className="card p-5">
-          <p className="section-title border-b border-slate-100 pb-2 mb-4">Items / Parts</p>
-          <div className="overflow-x-auto">
-          <table className="w-full text-xs min-w-[460px]">
-            <thead>
-              <tr className="bg-gradient-to-r from-slate-50 to-sky-50/30 border-b border-slate-100">
-                {['#', 'Description', 'Qty', 'Wt/Pc (kg)', 'Total Wt (kg)', 'Remarks'].map(h => (
-                  <th key={h} className="px-3 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50/80">
-              {cert.items.map((it, i) => (
-                <tr key={it.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-3 py-2.5 text-slate-400 font-mono">{i+1}</td>
-                  <td className="px-3 py-2.5 font-medium text-slate-800">{it.description}</td>
-                  <td className="px-3 py-2.5 text-slate-700">{it.quantity}</td>
-                  <td className="px-3 py-2.5 text-slate-600">{it.weightPerPc ?? '—'}</td>
-                  <td className="px-3 py-2.5 font-semibold text-slate-700">{it.totalWeight ?? '—'}</td>
-                  <td className="px-3 py-2.5 text-slate-500">{it.remarks || '—'}</td>
+        <Card className="overflow-hidden">
+          <CardHeader>
+            <CardTitle>Items / Parts</CardTitle>
+          </CardHeader>
+          <div className="table-responsive">
+            <table className="w-full text-left min-w-[460px]">
+              <thead>
+                <tr>
+                  <th className="th">#</th>
+                  <th className="th">Description</th>
+                  <th className="th text-right">Qty</th>
+                  <th className="th text-right">Wt/Pc (kg)</th>
+                  <th className="th text-right">Total Wt (kg)</th>
+                  <th className="th">Remarks</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-50/80">
+                {cert.items.map((it, i) => (
+                  <tr key={it.id} className="tr">
+                    <td className="td text-slate-400 font-mono">{i+1}</td>
+                    <td className="td font-medium text-slate-800">{it.description}</td>
+                    <td className="td text-slate-700 text-right tabular-nums">{it.quantity}</td>
+                    <td className="td text-slate-600 text-right tabular-nums">{it.weightPerPc ?? '—'}</td>
+                    <td className="td font-semibold text-slate-700 text-right tabular-nums">{it.totalWeight ?? '—'}</td>
+                    <td className="td text-slate-500">{it.remarks || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Distortion Before/After */}
@@ -287,70 +333,74 @@ export default function CertDetail() {
         const len = Math.max(before.length, after.length);
         if (!len) return null;
         return (
-          <div className="card p-5">
-            <p className="section-title border-b border-slate-100 pb-2 mb-4">Distortion Measurement</p>
-            <div className="overflow-x-auto">
-            <table className="w-full text-xs min-w-[380px]">
-              <thead>
-                <tr className="bg-gradient-to-r from-slate-50 to-sky-50/30 border-b border-slate-100">
-                  <th className="px-3 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">Point</th>
-                  <th className="px-3 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">Before HT (mm)</th>
-                  <th className="px-3 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">After HT (mm)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50/80">
-                {Array.from({ length: len }, (_, i) => (
-                  <tr key={i} className="hover:bg-slate-50/50">
-                    <td className="px-3 py-2 text-slate-400 font-mono">{i + 1}</td>
-                    <td className="px-3 py-2 text-slate-700">{before[i] ?? '—'}</td>
-                    <td className="px-3 py-2 text-slate-700">{after[i]  ?? '—'}</td>
+          <Card className="overflow-hidden">
+            <CardHeader>
+              <CardTitle>Distortion Measurement</CardTitle>
+            </CardHeader>
+            <div className="table-responsive">
+              <table className="w-full text-left min-w-[380px]">
+                <thead>
+                  <tr>
+                    <th className="th">Point</th>
+                    <th className="th text-right">Before HT (mm)</th>
+                    <th className="th text-right">After HT (mm)</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-50/80">
+                  {Array.from({ length: len }, (_, i) => (
+                    <tr key={i} className="tr">
+                      <td className="td text-slate-400 font-mono">{i + 1}</td>
+                      <td className="td text-slate-700 text-right tabular-nums">{before[i] ?? '—'}</td>
+                      <td className="td text-slate-700 text-right tabular-nums">{after[i]  ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </div>
+          </Card>
         );
       })()}
 
       {/* Inspection Results */}
       {cert.inspectionResults?.length > 0 && (
-        <div className="card p-5">
-          <p className="section-title border-b border-slate-100 pb-2 mb-4">Inspection Results</p>
-          <div className="overflow-x-auto">
-          <table className="w-full text-xs min-w-[520px]">
-            <thead>
-              <tr className="bg-gradient-to-r from-slate-50 to-sky-50/30 border-b border-slate-100">
-                {['Type', 'Parameter', 'Required', 'Achieved', 'Result', 'Final Inspection'].map(h => (
-                  <th key={h} className="px-3 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50/80">
-              {cert.inspectionResults.map((ir, i) => (
-                <tr key={ir.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-3 py-2.5 font-medium text-slate-700">{ir.inspectionType}</td>
-                  <td className="px-3 py-2.5 text-slate-600">{ir.parameter || '—'}</td>
-                  <td className="px-3 py-2.5 text-slate-600">{ir.requiredValue || '—'}</td>
-                  <td className="px-3 py-2.5 font-semibold text-slate-800">{ir.achievedValue || '—'}</td>
-                  <td className={`px-3 py-2.5 ${RESULT_COLOR[ir.result] || 'text-slate-600'}`}>{ir.result}</td>
-                  <td className="px-3 py-2.5 text-slate-500">{ir.finalInspection || '—'}</td>
+        <Card className="overflow-hidden">
+          <CardHeader>
+            <CardTitle>Inspection Results</CardTitle>
+          </CardHeader>
+          <div className="table-responsive">
+            <table className="w-full text-left min-w-[520px]">
+              <thead>
+                <tr>
+                  {['Type', 'Parameter', 'Required', 'Achieved', 'Result', 'Final Inspection'].map(h => (
+                    <th key={h} className="th">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-50/80">
+                {cert.inspectionResults.map((ir) => (
+                  <tr key={ir.id} className="tr">
+                    <td className="td font-medium text-slate-700">{ir.inspectionType}</td>
+                    <td className="td text-slate-600">{ir.parameter || '—'}</td>
+                    <td className="td text-slate-600">{ir.requiredValue || '—'}</td>
+                    <td className="td font-semibold text-slate-800">{ir.achievedValue || '—'}</td>
+                    <td className={`td ${RESULT_COLOR[ir.result] || 'text-slate-600'}`}>{ir.result}</td>
+                    <td className="td text-slate-500">{ir.finalInspection || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Temperature Cycle Data */}
       {tempData.length > 0 && (
-        <div className="card p-5">
-          <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-2 mb-4">
-            <div className="w-6 h-6 rounded-lg bg-orange-50 flex items-center justify-center">
-              <span className="material-symbols-outlined text-orange-500 text-[14px]">show_chart</span>
+        <Card className="overflow-hidden">
+          <CardHeader className="flex-row flex-wrap items-center gap-2 space-y-0">
+            <div className="w-6 h-6 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
+              <LineChart className="h-3.5 w-3.5 text-orange-500" />
             </div>
-            <p className="section-title">Temperature Cycle Data</p>
+            <CardTitle>Temperature Cycle Data</CardTitle>
             {cert.graphSource === 'vht_runsheet' && cert.graphFromRunsheet?.runsheetNumber && (
               <span className="text-[10px] font-medium text-amber-800 bg-amber-50 border border-amber-100 rounded-full px-2 py-0.5">
                 From VHT Run Sheet {cert.graphFromRunsheet.runsheetNumber}
@@ -367,13 +417,13 @@ export default function CertDetail() {
                 ) : null}
               </span>
             )}
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+          </CardHeader>
+          <div className="table-responsive">
+            <table className="w-full text-left">
               <thead>
-                <tr className="bg-gradient-to-r from-slate-50 to-orange-50/30 border-b border-slate-100">
+                <tr>
                   {tempData[0] && Object.keys(tempData[0]).map(k => (
-                    <th key={k} className="px-3 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left capitalize">
+                    <th key={k} className="th capitalize">
                       {k.replace(/_/g, ' ')}
                     </th>
                   ))}
@@ -381,36 +431,38 @@ export default function CertDetail() {
               </thead>
               <tbody className="divide-y divide-slate-50/80">
                 {tempData.map((row, i) => (
-                  <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                  <tr key={i} className="tr">
                     {Object.values(row).map((v, j) => (
-                      <td key={j} className="px-3 py-2.5 text-slate-700">{v ?? '—'}</td>
+                      <td key={j} className="td text-slate-700 tabular-nums">{v ?? '—'}</td>
                     ))}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Images */}
       {images.length > 0 && (
-        <div className="card p-5">
-          <div className="flex items-center gap-2 border-b border-slate-100 pb-2 mb-4">
-            <div className="w-6 h-6 rounded-lg bg-violet-50 flex items-center justify-center">
-              <span className="material-symbols-outlined text-violet-500 text-[14px]">photo_library</span>
+        <Card>
+          <CardHeader className="flex-row items-center gap-2 space-y-0">
+            <div className="w-6 h-6 rounded-lg bg-violet-50 flex items-center justify-center shrink-0">
+              <Images className="h-3.5 w-3.5 text-violet-500" />
             </div>
-            <p className="section-title">Inspection Images</p>
-          </div>
-          <div className="flex gap-3 flex-wrap">
-            {images.map((img, i) => (
-              <a key={i} href={img} target="_blank" rel="noreferrer"
-                className="w-24 h-24 rounded-xl overflow-hidden border border-slate-200 hover:shadow-md hover:border-sky-200 transition-all">
-                <img src={img} alt={`Image ${i+1}`} className="w-full h-full object-cover" />
-              </a>
-            ))}
-          </div>
-        </div>
+            <CardTitle>Inspection Images</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-3 flex-wrap">
+              {images.map((img, i) => (
+                <a key={i} href={img} target="_blank" rel="noreferrer"
+                  className="w-24 h-24 rounded-xl overflow-hidden border border-slate-200 hover:shadow-md hover:border-sky-200 transition-all">
+                  <img src={img} alt={`Image ${i+1}`} className="w-full h-full object-cover" />
+                </a>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <p className="text-[11px] text-slate-400 text-right pb-2">

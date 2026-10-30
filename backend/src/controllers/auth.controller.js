@@ -61,9 +61,20 @@ const generateTokens = (user) => {
   return { accessToken, refreshToken };
 };
 
+// A Secure cookie is dropped outright by the browser over plain HTTP, and the
+// failure is silent: the login call succeeds, no cookie is stored, and the
+// very next request is unauthenticated.
+//
+// PLAIN_HTTP is the one switch for a deployment with no TLS yet — it also
+// drops upgrade-insecure-requests in app.js. Leave it unset anywhere served
+// over HTTPS and this follows NODE_ENV exactly as before.
+const cookieSecure = process.env.PLAIN_HTTP === 'true'
+  ? false
+  : process.env.NODE_ENV === 'production';
+
 const authCookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
+  secure: cookieSecure,
   sameSite: 'lax',
 };
 

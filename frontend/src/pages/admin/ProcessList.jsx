@@ -1,8 +1,19 @@
 import { useState, useEffect } from 'react';
-import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import { Plus, Pencil, Trash2, X, ToggleLeft, ToggleRight, FlaskConical } from 'lucide-react';
+import api from '../../utils/api';
 import ListSearchInput from '../../components/ListSearchInput';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
+import { Sheet, SheetContent, SheetHeader, SheetFooter, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { FormField } from '@/components/ui/form-field';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const PAGE_SIZE = 15;
 
@@ -11,6 +22,20 @@ const EMPTY_FORM = {
   pricePerKg: '', pricePerPc: '', lotPrice: '', gstRate: '18',
 };
 
+const FilterLabel = ({ children, htmlFor }) => (
+  <label htmlFor={htmlFor} className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+    {children}
+  </label>
+);
+
+const SkeletonRow = () => (
+  <tr>
+    <td className="td"><Skeleton className="h-3.5 w-10 mx-auto" /></td>
+    <td className="td"><Skeleton className="h-3.5 w-36" /></td>
+    <td className="td"><Skeleton className="h-5 w-14 rounded-full mx-auto" /></td>
+    <td className="td"><Skeleton className="h-3.5 w-24 ml-auto" /></td>
+  </tr>
+);
 
 export default function ProcessList() {
   const [processes, setProcesses]   = useState([]);
@@ -144,210 +169,231 @@ export default function ProcessList() {
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
-    <div className="page-stack w-full space-y-6 animate-slide-up">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="page-title">Process Types</h1>
-          <p className="page-subtitle">Heat treatment process master — rates used in inwards and invoicing</p>
-        </div>
-        <button type="button" onClick={openCreate} className="btn-primary shrink-0 inline-flex items-center gap-2">
-          <span className="material-symbols-outlined text-[20px]">add</span> Add Process
-        </button>
-      </div>
+    <div className="font-app page-fill w-full space-y-3 animate-slide-up">
+      <PageHeader
+        title="Process Types"
+        breadcrumbs={[{ label: 'Admin' }, { label: 'Processes' }]}
+        actions={<Button type="button" onClick={openCreate}><Plus /> Add Process</Button>}
+      />
 
-      {/* Form panel */}
-      {showForm && (
-        <div className="card p-5 sm:p-6">
-          <h2 className="text-lg font-bold text-slate-900 font-headline mb-5">
-            {editingId ? 'Edit process' : 'New process'}
-          </h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="form-label">Code <span className="text-rose-500">*</span></label>
-                <input
-                  className="form-input font-mono"
-                  placeholder="e.g. HRD"
-                  value={form.code}
-                  onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
-                  required
-                />
-              </div>
-              <div>
-                <label className="form-label">Name <span className="text-rose-500">*</span></label>
-                <input
-                  className="form-input"
-                  placeholder="e.g. Hardening"
-                  value={form.name}
-                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  required
-                />
-              </div>
-              <div>
-                <label className="form-label">HSN / SAC Code</label>
-                <input
-                  className="form-input"
-                  placeholder="e.g. 9988"
-                  value={form.hsnSacCode}
-                  onChange={(e) => setForm((f) => ({ ...f, hsnSacCode: e.target.value }))}
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="form-label">Tally Stock Item</label>
-                <input
-                  className={`form-input ${form.tallyStockItem ? 'border-violet-300 bg-violet-50/40' : ''}`}
-                  placeholder={form.name || 'Tally me jo stock item hai'}
-                  value={form.tallyStockItem}
-                  onChange={(e) => setForm((f) => ({ ...f, tallyStockItem: e.target.value }))}
-                />
-                <p className="text-[10px] text-slate-400 mt-0.5">
-                  Khali chhodo to upar wala process naam hi Tally me jayega. Tally me is process ka
-                  stock item kisi aur naam se hai to wahi yahan likho — <strong>bilkul waisa hi</strong>.
-                  Tally import pe stock item khud nahi banata.
-                </p>
-                {form.tallyStockItem && form.tallyStockItem.trim() !== form.name.trim() && (
-                  <p className="text-[10px] text-violet-600 mt-0.5">
-                    Invoice pe: <strong>{form.name || '—'}</strong> · Tally me: <strong>{form.tallyStockItem.trim()}</strong>
+      {/* Add / Edit form — side sheet */}
+      <Sheet open={showForm} onOpenChange={(o) => { if (!o) closeForm(); }}>
+        <SheetContent side="right" className="font-app sm:max-w-lg">
+          <SheetHeader>
+            <SheetTitle>{editingId ? 'Edit process' : 'New process'}</SheetTitle>
+            <SheetDescription>Heat-treatment process master — rates used in inwards and invoicing.</SheetDescription>
+          </SheetHeader>
+          <form id="process-form" onSubmit={handleSubmit} className="mt-4 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField label="Code" htmlFor="proc-code" required>
+                  <Input
+                    id="proc-code"
+                    className="font-mono"
+                    placeholder="e.g. HRD"
+                    value={form.code}
+                    onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
+                    required
+                  />
+                </FormField>
+                <FormField label="Name" htmlFor="proc-name" required>
+                  <Input
+                    id="proc-name"
+                    placeholder="e.g. Hardening"
+                    value={form.name}
+                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    required
+                  />
+                </FormField>
+                <FormField label="HSN / SAC Code" htmlFor="proc-hsn">
+                  <Input
+                    id="proc-hsn"
+                    className="font-mono"
+                    placeholder="e.g. 9988"
+                    value={form.hsnSacCode}
+                    onChange={(e) => setForm((f) => ({ ...f, hsnSacCode: e.target.value }))}
+                  />
+                </FormField>
+                <div className="sm:col-span-2">
+                  <FormField label="Tally Stock Item" htmlFor="proc-tally">
+                    <Input
+                      id="proc-tally"
+                      className={form.tallyStockItem ? 'border-violet-300 bg-violet-50/40' : ''}
+                      placeholder={form.name || 'Stock item name as it is in Tally'}
+                      value={form.tallyStockItem}
+                      onChange={(e) => setForm((f) => ({ ...f, tallyStockItem: e.target.value }))}
+                    />
+                  </FormField>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Leave this blank and the process name above is what goes to Tally. If this
+                    process is a stock item under a different name in Tally, type that name here —
+                    <strong>exactly as it appears</strong>. A Tally import will not create the stock
+                    item for you.
                   </p>
-                )}
+                  {form.tallyStockItem && form.tallyStockItem.trim() !== form.name.trim() && (
+                    <p className="text-[10px] text-violet-600 mt-0.5">
+                      On the invoice: <strong>{form.name || '—'}</strong> · In Tally: <strong>{form.tallyStockItem.trim()}</strong>
+                    </p>
+                  )}
+                </div>
+                <FormField label="GST Rate (%)" htmlFor="proc-gst">
+                  <Input
+                    id="proc-gst"
+                    type="number"
+                    className="text-right tabular-nums"
+                    placeholder="18"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={form.gstRate}
+                    onChange={(e) => setForm((f) => ({ ...f, gstRate: e.target.value }))}
+                  />
+                </FormField>
               </div>
-              <div>
-                <label className="form-label">GST Rate (%)</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  placeholder="18"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  value={form.gstRate}
-                  onChange={(e) => setForm((f) => ({ ...f, gstRate: e.target.value }))}
+
+              <FormField label="Description" htmlFor="proc-desc">
+                <Textarea
+                  id="proc-desc"
+                  rows={2}
+                  placeholder="Optional notes about this process…"
+                  value={form.description}
+                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                  className="min-h-[64px]"
                 />
-              </div>
-            </div>
+              </FormField>
 
-            <div>
-              <label className="form-label">Description</label>
-              <textarea
-                className="form-input resize-none"
-                rows={2}
-                placeholder="Optional notes about this process…"
-                value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              />
-            </div>
-
-            <div className="flex flex-wrap gap-2 pt-1">
-              <button type="submit" disabled={saving} className="btn-primary">
-                {saving ? 'Saving…' : editingId ? 'Update' : 'Create'}
-              </button>
-              <button type="button" onClick={closeForm} className="btn-ghost">Cancel</button>
-            </div>
           </form>
-        </div>
-      )}
+          <SheetFooter>
+            <Button type="button" variant="ghost" onClick={closeForm}>Cancel</Button>
+            <Button type="submit" form="process-form" disabled={saving}>
+              {saving ? 'Saving…' : editingId ? 'Update' : 'Create'}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-        <ListSearchInput
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search code, name, HSN…"
-          className="flex-1"
-        />
-        <label className="inline-flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={showAll}
-            onChange={(e) => setShowAll(e.target.checked)}
-            className="accent-sky-600 h-4 w-4 rounded"
-          />
-          Show inactive
-        </label>
-      </div>
+      <Card>
+        <CardContent className="p-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:gap-3">
+            <div className="space-y-1 flex-1 min-w-[220px]">
+              <FilterLabel>Search</FilterLabel>
+              <ListSearchInput
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search code, name, HSN…"
+                className="w-full"
+              />
+            </div>
+            <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer select-none pb-2 sm:pb-2.5">
+              <Checkbox
+                checked={showAll}
+                onCheckedChange={(c) => setShowAll(c === true)}
+              />
+              Show inactive
+            </label>
+            {search && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setSearch('')}
+                className="text-slate-500 hover:text-rose-600"
+              >
+                <X /> Clear
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Table */}
       <div className="card overflow-hidden">
-        {loading ? (
-          <div className="text-center py-10 text-slate-500 text-sm">Loading…</div>
-        ) : paged.length === 0 ? (
-          <div className="text-center py-10 text-slate-500 text-sm">No processes found</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead>
-                <tr className="border-b border-slate-200/80">
-                  <th className="th text-center w-20">Code</th>
-                  <th className="th">Name</th>
-                  <th className="th text-center">Status</th>
-                  <th className="th text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {paged.map((p) => (
-                  <tr key={p.id} className={`tr ${!p.isActive ? 'opacity-50' : ''}`}>
-                    <td className="td text-center font-mono font-semibold text-slate-500">{p.code}</td>
-                    <td className="td font-medium">
-                      {p.name}
-                      {p.description && (
-                        <p className="text-xs text-slate-400 truncate max-w-[200px]">{p.description}</p>
-                      )}
-                    </td>
-                    <td className="td text-center">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${p.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                        {p.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="td">
-                      <div className="flex justify-center gap-1">
-                        <button
-                          type="button"
-                          title="Edit"
-                          aria-label={`Edit process ${p.name}`}
-                          onClick={() => openEdit(p)}
-                          className="p-2 rounded-lg text-sky-700 hover:bg-sky-50"
-                        >
-                          <span className="material-symbols-outlined text-[18px]">edit</span>
-                        </button>
-                        <button
-                          type="button"
-                          title={p.isActive ? 'Deactivate' : 'Activate'}
-                          aria-label={`${p.isActive ? 'Deactivate' : 'Activate'} process ${p.name}`}
-                          onClick={() => handleToggle(p)}
-                          className="p-2 rounded-lg text-amber-600 hover:bg-amber-50"
-                        >
-                          <span className="material-symbols-outlined text-[18px]">
-                            {p.isActive ? 'toggle_on' : 'toggle_off'}
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          title="Delete"
-                          aria-label={`Delete process ${p.name}`}
-                          onClick={() => handleDelete(p)}
-                          className="p-2 rounded-lg text-rose-600 hover:bg-rose-50"
-                        >
-                          <span className="material-symbols-outlined text-[18px]">delete</span>
-                        </button>
+        <div className="table-responsive">
+          <table className="w-full text-left min-w-[520px]">
+            <thead>
+              <tr>
+                <th className="th text-center w-20">Code</th>
+                <th className="th">Name</th>
+                <th className="th text-center">Status</th>
+                <th className="th text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50/80">
+              {loading ? (
+                Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
+              ) : paged.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-4 py-10 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center">
+                        <FlaskConical className="h-5 w-5 text-sky-300" />
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                      <p className="text-sm text-slate-500">
+                        {search ? 'No processes match your search.' : 'No processes yet.'}
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : paged.map((p) => (
+                <tr key={p.id} className={`tr ${!p.isActive ? 'opacity-50' : ''}`}>
+                  <td className="td text-center font-mono text-xs font-semibold text-slate-500">{p.code}</td>
+                  <td className="td font-medium text-slate-800">
+                    {p.name}
+                    {p.description && (
+                      <p className="text-xs text-slate-400 truncate max-w-[200px]">{p.description}</p>
+                    )}
+                  </td>
+                  <td className="td text-center">
+                    <Badge variant={p.isActive ? 'success' : 'neutral'} className="px-2 py-0.5 text-[10px]">
+                      {p.isActive ? 'Active' : 'Inactive'}
+                    </Badge>
+                  </td>
+                  <td className="td">
+                    <div className="flex items-center justify-end gap-0.5">
+                      <Button
+                        type="button" variant="ghost" size="icon-sm"
+                        title="Edit"
+                        aria-label={`Edit process ${p.name}`}
+                        onClick={() => openEdit(p)}
+                        className="text-slate-400 hover:text-sky-700 hover:bg-sky-50"
+                      >
+                        <Pencil />
+                      </Button>
+                      <Button
+                        type="button" variant="ghost" size="icon-sm"
+                        title={p.isActive ? 'Deactivate' : 'Activate'}
+                        aria-label={`${p.isActive ? 'Deactivate' : 'Activate'} process ${p.name}`}
+                        onClick={() => handleToggle(p)}
+                        className="text-slate-400 hover:text-amber-600 hover:bg-amber-50"
+                      >
+                        {p.isActive ? <ToggleRight /> : <ToggleLeft />}
+                      </Button>
+                      <Button
+                        type="button" variant="ghost" size="icon-sm"
+                        title="Delete"
+                        aria-label={`Delete process ${p.name}`}
+                        onClick={() => handleDelete(p)}
+                        className="text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                      >
+                        <Trash2 />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
         {!loading && filtered.length > PAGE_SIZE && (
           <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 tabular-nums">
               {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
             </p>
             <div className="flex items-center gap-2">
-              <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="btn-outline text-xs disabled:opacity-40">Prev</button>
-              <span className="text-xs font-semibold text-slate-600">{page} / {totalPages}</span>
-              <button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn-outline text-xs disabled:opacity-40">Next</button>
+              <Button type="button" variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>Prev</Button>
+              <span className="text-xs font-semibold text-slate-600 tabular-nums">{page} / {totalPages}</span>
+              <Button type="button" variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}>Next</Button>
             </div>
           </div>
         )}

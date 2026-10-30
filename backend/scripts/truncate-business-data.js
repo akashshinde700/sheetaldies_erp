@@ -51,7 +51,7 @@ async function main() {
   await prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 1');
 
   console.log('\nDone! Users, ProcessType, Machine data kept intact.');
-  console.log('Login: admin@sheetaldies.com / ***REDACTED-SEE-ENV***');
+  console.log('Log in with the ADMIN_EMAIL / ADMIN_PASSWORD from backend/.env');
 }
 
 main()

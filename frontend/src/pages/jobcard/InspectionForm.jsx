@@ -3,6 +3,11 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { useProcesses } from '../../hooks/useMasterData';
+import { ImagePlus, Save, X } from 'lucide-react';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/ui/page-header';
 
 // Subcomponents
 import CategorizationSection from './components/CategorizationSection';
@@ -38,14 +43,16 @@ function ImageUploadSlot({ index, value, onChange }) {
         {preview
           ? <img src={preview} alt={`Part ${index}`} className="w-full h-full object-cover rounded-xl" />
           : <>
-              <span className="material-symbols-outlined text-slate-300 text-3xl">add_photo_alternate</span>
+              <ImagePlus className="h-7 w-7 text-slate-300" aria-hidden="true" />
               <span className="text-[10px] text-slate-400 font-semibold mt-1">Photo {index}</span>
             </>
         }
       </button>
       {preview && (
-        <button type="button" onClick={handleRemove}
-          className="absolute -top-2 -right-2 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center shadow text-[11px] font-bold hover:bg-rose-600">✕</button>
+        <button type="button" onClick={handleRemove} aria-label={`Remove photo ${index}`}
+          className="absolute -top-2 -right-2 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center shadow hover:bg-rose-600">
+          <X className="h-3 w-3" strokeWidth={3} />
+        </button>
       )}
       <input ref={inputRef} type="file" accept="image/*" onChange={handleFile} className="hidden" />
     </div>
@@ -197,11 +204,11 @@ export default function InspectionForm() {
     }
   };
 
-  const STATUS_COLOR = {
-    PENDING:     'bg-slate-100 text-slate-600',
-    PASS:        'bg-emerald-100 text-emerald-700',
-    FAIL:        'bg-rose-100 text-rose-700',
-    CONDITIONAL: 'bg-amber-100 text-amber-700',
+  const STATUS_VARIANT = {
+    PENDING:     'neutral',
+    PASS:        'success',
+    FAIL:        'error',
+    CONDITIONAL: 'warning',
   };
 
   const inRange = form.achievedHardness && form.requiredHardnessMin && form.requiredHardnessMax &&
@@ -209,48 +216,50 @@ export default function InspectionForm() {
     Number(form.achievedHardness) <= Number(form.requiredHardnessMax);
 
   return (
-    <div className="page-stack w-full animate-slide-up">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <Link to={`/jobcards/${id}`}
-          className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-300 transition-colors shadow-sm">
-          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-        </Link>
-        <div className="flex-1">
-          <h2 className="text-xl font-extrabold text-slate-800 font-headline">Final Inspection</h2>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Job Card: <span className="font-bold text-slate-600">{jobCard?.jobCardNo}</span>
-            {jobCard?.part?.description && <> — {jobCard.part.description}</>}
-          </p>
-        </div>
-        <span className={`badge ${STATUS_COLOR[form.inspectionStatus]}`}>{form.inspectionStatus}</span>
-      </div>
+    <div className="font-app flex flex-col h-full min-h-0">
+      <PageHeader
+        title="Final Inspection"
+        backTo={`/jobcards/${id}`}
+        breadcrumbs={[
+          { label: 'Job Cards', to: '/jobcards' },
+          { label: jobCard?.jobCardNo || 'Job card', to: `/jobcards/${id}` },
+          { label: 'Inspection' },
+        ]}
+        meta={
+          <>
+            <Badge variant={STATUS_VARIANT[form.inspectionStatus] || 'neutral'}>{form.inspectionStatus}</Badge>
+            {jobCard?.part?.description && <span className="text-slate-600">{jobCard.part.description}</span>}
+          </>
+        }
+      />
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-3 pr-0.5 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <CategorizationSection form={form} set={set} />
           <ProcessHardnessSection form={form} set={set} processes={processes} inRange={inRange} />
           <div className="space-y-4">
             <InspectorDetailsSection form={form} set={set} />
-            <div className="card p-5 bg-gradient-to-br from-indigo-50/50 to-white border-indigo-100">
-               <p className="text-xs text-slate-500 leading-relaxed"> Ensure all distortion points are measured accurately. Achieved hardness must be within specified range for PASS status.</p>
-            </div>
+            <Card className="p-5 bg-gradient-to-br from-indigo-50/50 to-white border-indigo-100">
+              <p className="text-xs text-slate-500 leading-relaxed">Ensure all distortion points are measured accurately. Achieved hardness must be within specified range for PASS status.</p>
+            </Card>
           </div>
         </div>
 
         <DistortionSection form={form} set={set} />
         <ProcessLogSection heatRows={heatRows} setHeatRows={setHeatRows} processes={processes} emptyHeatRow={emptyHeatRow} />
         <InspectionPhotosSection images={images} handleImageChange={handleImageChange} ImageUploadSlot={ImageUploadSlot} />
+        </div>
 
         {/* Actions */}
-        <div className="flex gap-3 pb-4">
-          <button type="submit" disabled={loading} className="btn-primary">
-            {loading
-              ? <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span> Saving...</>
-              : <><span className="material-symbols-outlined text-sm">save</span> Save Inspection</>
-            }
-          </button>
-          <Link to={`/jobcards/${id}`} className="btn-ghost">Cancel</Link>
+        <div className="shrink-0 mt-2 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-card sm:px-5">
+          <Button type="submit" loading={loading} disabled={loading}>
+            {!loading && <Save />}
+            {loading ? 'Saving...' : 'Save Inspection'}
+          </Button>
+          <Button variant="ghost" asChild>
+            <Link to={`/jobcards/${id}`}>Cancel</Link>
+          </Button>
         </div>
       </form>
     </div>

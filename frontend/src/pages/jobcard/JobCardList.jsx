@@ -1,6 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import {
+  Plus, Download, Pencil, Printer, BadgeCheck, Trash2, Loader2, X,
+  FileText, Clock, AlertCircle,
+} from 'lucide-react';
 import api from '../../utils/api';
 import { exportToExcel } from '../../utils/export';
 import ListSearchInput from '../../components/ListSearchInput';
@@ -8,6 +12,10 @@ import PageNav from '../../components/PageNav';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { formatDate } from '../../utils/formatters';
 import { statusColor } from '../../utils/statusColors';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const PAGE_LIMIT = 10;
 const STATUS_OPTS = ['CREATED', 'IN_PROGRESS', 'SENT_FOR_JOBWORK', 'INSPECTION', 'COMPLETED', 'ON_HOLD'];
@@ -20,13 +28,20 @@ const STATUS_TRANSITIONS = {
   COMPLETED: [],
 };
 
+const FilterLabel = ({ children, htmlFor }) => (
+  <label htmlFor={htmlFor} className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+    {children}
+  </label>
+);
+
 const SkeletonRow = () => (
-  <tr className="animate-pulse">
-    {Array.from({ length: 6 }).map((_, i) => (
-      <td key={i} className="px-4 py-3.5">
-        <div className={`h-3 bg-slate-100 rounded ${i === 0 ? 'w-24' : i === 1 ? 'w-32' : 'w-16'}`} />
-      </td>
-    ))}
+  <tr>
+    <td className="td"><Skeleton className="h-3.5 w-24" /></td>
+    <td className="td hidden sm:table-cell"><Skeleton className="h-3.5 w-32" /></td>
+    <td className="td hidden sm:table-cell"><Skeleton className="h-3.5 w-20" /></td>
+    <td className="td hidden md:table-cell"><Skeleton className="h-3.5 w-10 ml-auto" /></td>
+    <td className="td"><Skeleton className="h-7 w-32 rounded-lg" /></td>
+    <td className="td"><Skeleton className="h-3.5 w-24 ml-auto" /></td>
   </tr>
 );
 
@@ -164,58 +179,78 @@ export default function JobCardList() {
     }
   };
 
+  const hasFilters = Boolean(search || status || fromDate || toDate);
+
   return (
-    <div className="space-y-5 animate-slide-up">
+    <div className="page-stack w-full space-y-5 animate-slide-up">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-xl font-extrabold text-slate-800 font-headline">Job Cards</h2>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <h1 className="page-title">Job Cards</h1>
+          <p className="page-subtitle">
             {total > 0
               ? `${total} total · ${cards.filter(c => c.status === 'IN_PROGRESS').length} in progress · ${cards.filter(c => isOverdue(c)).length > 0 ? `${cards.filter(c => isOverdue(c)).length} overdue` : 'none overdue'}`
               : 'Production tracking'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={exportJobCards} className="btn-outline">
-            <span className="material-symbols-outlined text-sm">file_download</span> Export Excel
-          </button>
-          <Link to="/jobcards/new" className="btn-primary">
-            <span className="material-symbols-outlined text-sm">add</span> New Job Card
-          </Link>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <Button type="button" variant="outline" onClick={exportJobCards}>
+            <Download /> Export Excel
+          </Button>
+          <Button asChild>
+            <Link to="/jobcards/new">
+              <Plus /> New Job Card
+            </Link>
+          </Button>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto_auto_auto] items-end">
-        <ListSearchInput value={search} onChange={e => setSearch(e.target.value)} placeholder="Search job card no, customer..." />
-        <div className="flex items-center gap-2">
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">From</label>
-          <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="form-input text-xs" />
-        </div>
-        <div className="flex items-center gap-2">
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">To</label>
-          <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="form-input text-xs" />
-        </div>
-        <div className="flex gap-2 items-center">
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</label>
-          <select value={status} onChange={e => setStatus(e.target.value)} className="form-input text-xs w-auto min-w-[160px]">
-            <option value="">All</option>
-            {STATUS_OPTS.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
-          </select>
-        </div>
-        {(search || status || fromDate || toDate) && (
-          <button onClick={() => { setSearch(''); setStatus(''); setFromDate(''); setToDate(''); }}
-            className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-500 transition-colors font-medium">
-            <span className="material-symbols-outlined text-sm">close</span> Clear
-          </button>
-        )}
-      </div>
+      <Card>
+        <CardContent className="p-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:gap-3">
+            <div className="space-y-1 flex-1 min-w-[220px]">
+              <FilterLabel>Search</FilterLabel>
+              <ListSearchInput
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search job card no, customer..."
+                className="w-full"
+              />
+            </div>
+            <div className="space-y-1">
+              <FilterLabel htmlFor="jc-from-date">From</FilterLabel>
+              <input id="jc-from-date" type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+                className="form-input text-xs sm:w-36" />
+            </div>
+            <div className="space-y-1">
+              <FilterLabel htmlFor="jc-to-date">To</FilterLabel>
+              <input id="jc-to-date" type="date" value={toDate} onChange={e => setToDate(e.target.value)}
+                className="form-input text-xs sm:w-36" />
+            </div>
+            <div className="space-y-1">
+              <FilterLabel htmlFor="jc-status-filter">Status</FilterLabel>
+              <select id="jc-status-filter" value={status} onChange={e => setStatus(e.target.value)}
+                className="form-input text-xs sm:w-44">
+                <option value="">All</option>
+                {STATUS_OPTS.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+              </select>
+            </div>
+            {hasFilters && (
+              <Button type="button" variant="ghost" size="sm"
+                onClick={() => { setSearch(''); setStatus(''); setFromDate(''); setToDate(''); }}
+                className="text-slate-500 hover:text-rose-600">
+                <X /> Clear
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {error && (
         <div className="flex items-center gap-3 bg-rose-50 border border-rose-200 text-rose-700 text-sm px-4 py-3 rounded-xl">
-          <span className="material-symbols-outlined text-lg">error</span>
+          <AlertCircle className="h-4 w-4 shrink-0" />
           {error}
           <button onClick={fetchCards} className="ml-auto text-xs font-bold hover:underline">Retry</button>
         </div>
@@ -223,16 +258,16 @@ export default function JobCardList() {
 
       {/* Table */}
       <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left min-w-[520px]">
+        <div className="table-responsive">
+          <table className="list-cards w-full text-left min-w-[560px]">
             <thead>
-              <tr className="bg-gradient-to-r from-slate-50 to-sky-50/30 border-b border-slate-100">
+              <tr>
                 <th className="th">Job Card No</th>
                 <th className="th hidden sm:table-cell">Customer</th>
                 <th className="th hidden sm:table-cell">Drawing No</th>
-                <th className="th hidden md:table-cell">Qty</th>
+                <th className="th hidden md:table-cell text-right">Qty</th>
                 <th className="th">Status</th>
-                <th className="th text-right">Action</th>
+                <th className="th text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50/80">
@@ -240,18 +275,22 @@ export default function JobCardList() {
                 Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
               ) : cards.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-16 text-center">
-                    <div className="w-14 h-14 rounded-2xl bg-sky-50 flex items-center justify-center mx-auto mb-3">
-                      <span className="material-symbols-outlined text-2xl text-sky-300">description</span>
+                  <td colSpan={6} className="px-4 py-10 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center">
+                        <FileText className="h-5 w-5 text-sky-300" />
+                      </div>
+                      <p className="text-sm text-slate-500">
+                        {hasFilters ? 'No job cards match your filters.' : 'No job cards yet.'}
+                      </p>
+                      {!hasFilters && (
+                        <Button variant="outline" size="sm" asChild>
+                          <Link to="/jobcards/new">
+                            <Plus /> Create first job card
+                          </Link>
+                        </Button>
+                      )}
                     </div>
-                    <p className="text-sm text-slate-400 mb-2">
-                      {search || status ? 'No job cards match your filters.' : 'No job cards yet.'}
-                    </p>
-                    {!search && !status && (
-                      <Link to="/jobcards/new" className="inline-flex items-center gap-1 text-xs text-sky-800 font-semibold hover:underline">
-                        <span className="material-symbols-outlined text-sm">add</span> Create first job card
-                      </Link>
-                    )}
                   </td>
                 </tr>
               ) : cards.map(card => (
@@ -265,24 +304,24 @@ export default function JobCardList() {
                         {card.jobCardNo}
                       </Link>
                       {isOverdue(card) && (
-                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-rose-100 text-rose-600 text-[10px] font-bold">
-                          <span className="material-symbols-outlined text-[11px]">schedule</span> Overdue
-                        </span>
+                        <Badge variant="error" className="px-1.5 py-0.5 text-[10px]">
+                          <Clock className="h-3 w-3" /> Overdue
+                        </Badge>
                       )}
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{formatDate(card.createdAt)}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5 whitespace-nowrap">{formatDate(card.createdAt)}</p>
                   </td>
 
                   {/* Customer */}
-                  <td className="td text-slate-700 text-xs font-medium hidden sm:table-cell">
+                  <td className="td text-slate-700 font-medium hidden sm:table-cell">
                     {card.customer?.name || card.customerNameSnapshot || '—'}
                   </td>
 
                   {/* Drawing No */}
-                  <td className="td text-slate-500 font-mono text-xs hidden sm:table-cell">{card.drawingNo || '—'}</td>
+                  <td className="td text-slate-500 font-mono hidden sm:table-cell">{card.drawingNo || '—'}</td>
 
                   {/* Qty */}
-                  <td className="td font-semibold text-slate-700 hidden md:table-cell">{card.quantity}</td>
+                  <td className="td font-semibold text-slate-700 hidden md:table-cell text-right tabular-nums">{card.quantity}</td>
 
                   {/* Status */}
                   <td className="td min-w-[10rem]">
@@ -301,25 +340,31 @@ export default function JobCardList() {
 
                   {/* Actions */}
                   <td className="td">
-                    <div className="flex items-center justify-end gap-1">
-                      <Link to={`/jobcards/${card.id}`} title="Edit" aria-label={`Edit job card ${card.jobCardNo}`}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-700 hover:bg-sky-50 transition-all">
-                        <span className="material-symbols-outlined text-[18px]">edit</span>
-                      </Link>
-                      <Link to={`/jobcards/${card.id}/print`} title="Print" aria-label={`Print job card ${card.jobCardNo}`}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-sky-700 hover:bg-slate-100 transition-all">
-                        <span className="material-symbols-outlined text-[18px]">print</span>
-                      </Link>
-                      <Link to={`/quality/certificates/new?jobCardId=${card.id}`} title="Send to Certificate" aria-label={`Create certificate for job card ${card.jobCardNo}`}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all">
-                        <span className="material-symbols-outlined text-[18px]">verified</span>
-                      </Link>
-                      <button type="button" onClick={() => handleDelete(card)} disabled={deletingId === card.id} title="Delete" aria-label={`Delete job card ${card.jobCardNo}`}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all disabled:opacity-50">
-                        <span className="material-symbols-outlined text-[18px]">
-                          {deletingId === card.id ? 'progress_activity' : 'delete'}
-                        </span>
-                      </button>
+                    <div className="flex items-center justify-end gap-0.5">
+                      <Button variant="ghost" size="icon-sm" asChild
+                        className="text-slate-400 hover:text-sky-700 hover:bg-sky-50">
+                        <Link to={`/jobcards/${card.id}/edit`} title="Edit" aria-label={`Edit job card ${card.jobCardNo}`}>
+                          <Pencil />
+                        </Link>
+                      </Button>
+                      <Button variant="ghost" size="icon-sm" asChild
+                        className="text-slate-400 hover:text-sky-700">
+                        <Link to={`/jobcards/${card.id}/print`} title="Print" aria-label={`Print job card ${card.jobCardNo}`}>
+                          <Printer />
+                        </Link>
+                      </Button>
+                      <Button variant="ghost" size="icon-sm" asChild
+                        className="text-slate-400 hover:text-emerald-600 hover:bg-emerald-50">
+                        <Link to={`/quality/certificates/new?jobCardId=${card.id}`} title="Send to Certificate" aria-label={`Create certificate for job card ${card.jobCardNo}`}>
+                          <BadgeCheck />
+                        </Link>
+                      </Button>
+                      <Button type="button" variant="ghost" size="icon-sm"
+                        onClick={() => handleDelete(card)} disabled={deletingId === card.id}
+                        title="Delete" aria-label={`Delete job card ${card.jobCardNo}`}
+                        className="text-slate-400 hover:text-rose-600 hover:bg-rose-50">
+                        {deletingId === card.id ? <Loader2 className="animate-spin" /> : <Trash2 />}
+                      </Button>
                     </div>
                   </td>
 

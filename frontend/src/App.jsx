@@ -17,13 +17,14 @@ import ErrorBoundary from './components/ErrorBoundary';
 // Lazy-load route components to enable code-splitting and smaller initial bundle
 const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
+const ChangePassword = lazy(() => import('./pages/ChangePassword'));
 
 const JobCardList = lazy(() => import('./pages/jobcard/JobCardList'));
+const JobCardDetail = lazy(() => import('./pages/jobcard/JobCardDetail'));
 const JobCardForm = lazy(() => import('./pages/jobcard/JobCardForm'));
 const JobCardPrint = lazy(() => import('./pages/jobcard/JobCardPrint'));
 const InspectionForm = lazy(() => import('./pages/jobcard/InspectionForm'));
 
-const JobworkList = lazy(() => import('./pages/jobwork/JobworkList'));
 const JobworkForm = lazy(() => import('./pages/jobwork/JobworkForm'));
 const InwardEntryForm = lazy(() => import('./pages/jobwork/InwardEntryForm'));
 const JobworkDetail = lazy(() => import('./pages/jobwork/JobworkDetail'));
@@ -34,6 +35,11 @@ const CertList = lazy(() => import('./pages/quality/CertList'));
 const CertForm = lazy(() => import('./pages/quality/CertForm'));
 const CertDetail = lazy(() => import('./pages/quality/CertDetail'));
 const CertPrint = lazy(() => import('./pages/quality/CertPrint'));
+const ReworkData = lazy(() => import('./pages/quality/ReworkData'));
+const ReworkDataPrint = lazy(() => import('./pages/quality/ReworkDataPrint'));
+const ReworkNcPrintPack = lazy(() => import('./pages/quality/ReworkNcPrintPack'));
+const NcRegister = lazy(() => import('./pages/quality/NcRegister'));
+const NcRegisterPrint = lazy(() => import('./pages/quality/NcRegisterPrint'));
 
 const InvoiceList = lazy(() => import('./pages/finance/InvoiceList'));
 const InvoiceForm = lazy(() => import('./pages/finance/InvoiceForm'));
@@ -44,12 +50,14 @@ const Analytics = lazy(() => import('./pages/analytics/Analytics'));
 const AdvancedAnalytics = lazy(() => import('./pages/analytics/AdvancedAnalytics'));
 
 const PartyList = lazy(() => import('./pages/admin/PartyList'));
+const PartyForm = lazy(() => import('./pages/admin/PartyForm'));
 const PartyDetail = lazy(() => import('./pages/admin/PartyDetail'));
 const PartyRatesMatrix = lazy(() => import('./pages/admin/PartyRatesMatrix'));
 const UserManagement = lazy(() => import('./pages/admin/UserManagement'));
 const ItemList = lazy(() => import('./pages/admin/ItemList'));
 const MachineList = lazy(() => import('./pages/admin/MachineList'));
 const ProcessList = lazy(() => import('./pages/admin/ProcessList'));
+const InvoiceSeriesList = lazy(() => import('./pages/admin/InvoiceSeriesList'));
 const HeatTreatSpecList = lazy(() => import('./pages/admin/HeatTreatSpecList'));
 const TempCycleGraphList = lazy(() => import('./pages/admin/TempCycleGraphList'));
 
@@ -58,10 +66,21 @@ const DispatchChallanForm = lazy(() => import('./pages/dispatch/DispatchChallanF
 const DispatchChallanPrint = lazy(() => import('./pages/dispatch/DispatchChallanPrint'));
 
 const InventoryView = lazy(() => import('./pages/purchase/InventoryView'));
+const StockList = lazy(() => import('./pages/inventory/StockList'));
 
 const VHTRunsheetList = lazy(() => import('./pages/manufacturing/VHTRunsheetList'));
 const VHTRunsheetForm = lazy(() => import('./pages/manufacturing/VHTRunsheetForm'));
 const VHTRunsheetPrint = lazy(() => import('./pages/manufacturing/VHTRunsheetPrint'));
+const FurnaceUtilization = lazy(() => import('./pages/manufacturing/FurnaceUtilization'));
+const FurnaceUtilizationPrint = lazy(() => import('./pages/manufacturing/FurnaceUtilizationPrint'));
+const DailyUtilizationPrintPack = lazy(() => import('./pages/manufacturing/DailyUtilizationPrintPack'));
+const DailyProductionPlanning = lazy(() => import('./pages/manufacturing/DailyProductionPlanning'));
+const TemperingPlan = lazy(() => import('./pages/manufacturing/TemperingPlan'));
+const EnergyLog = lazy(() => import('./pages/manufacturing/EnergyLog'));
+const MonthlyIdleTime = lazy(() => import('./pages/manufacturing/MonthlyIdleTime'));
+const MonthlyIdleTimePrint = lazy(() => import('./pages/manufacturing/MonthlyIdleTimePrint'));
+const PlantLosses = lazy(() => import('./pages/manufacturing/PlantLosses'));
+const PlantLossesPrint = lazy(() => import('./pages/manufacturing/PlantLossesPrint'));
 
 const CustomerQuoteList   = lazy(() => import('./pages/quotes/CustomerQuoteList'));
 const CustomerQuoteForm   = lazy(() => import('./pages/quotes/CustomerQuoteForm'));
@@ -73,7 +92,7 @@ const UIPolishDemo = lazy(() => import('./pages/UIPolishDemo'));
 const PendingDashboard = lazy(() => import('./pages/pending/PendingDashboard'));
 
 const PrivateRoute = ({ children, role }) => {
-  const { user, initializing, isAdmin, isManager } = useAuth();
+  const { user, initializing, isAdmin, isManager, isOperator } = useAuth();
   if (initializing) {
     return (
       <div className="flex min-h-dvh min-h-screen items-center justify-center bg-app-shell px-4 safe-pt safe-pb main-area-padding">
@@ -87,6 +106,7 @@ const PrivateRoute = ({ children, role }) => {
   if (!user) return <Navigate to="/login" replace />;
   if (role === 'ADMIN'   && !isAdmin)    return <Navigate to="/" replace />;
   if (role === 'MANAGER' && !isManager)  return <Navigate to="/" replace />;
+  if (role === 'OPERATOR' && !isOperator) return <Navigate to="/" replace />;
   return children;
 };
 
@@ -105,12 +125,17 @@ const AppRoutes = () => (
       {import.meta.env.DEV && <Route path="/ui-demo" element={<UIPolishDemo />} />}
       <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
         <Route index element={<Dashboard />} />
+      <Route path="change-password"        element={<ChangePassword />} />
       <Route path="jobcards"               element={<JobCardList />} />
       <Route path="jobcards/new"           element={<JobCardForm />} />
-      <Route path="jobcards/:id"           element={<JobCardForm />} />
+      <Route path="jobcards/:id"           element={<JobCardDetail />} />
+      <Route path="jobcards/:id/edit"      element={<JobCardForm />} />
       <Route path="jobcards/:id/print"      element={<JobCardPrint />} />
       <Route path="jobcards/:id/inspection" element={<InspectionForm />} />
-      <Route path="jobwork"                element={<JobworkList />} />
+      {/* The old "Jobwork + Job Cards" list did the same job as the register
+          but had no delete, so it sent people down a dead end. One page for
+          one job; old links and bookmarks land on the register. */}
+      <Route path="jobwork"                element={<Navigate to="/jobwork/register" replace />} />
       <Route path="jobwork/register"       element={<InwardOutwardRegister />} />
       <Route path="pending"               element={<PendingDashboard />} />
       <Route path="jobwork/inward-entry"   element={<InwardEntryForm />} />
@@ -118,6 +143,11 @@ const AppRoutes = () => (
       <Route path="jobwork/:id/edit"       element={<JobworkForm />} />
       <Route path="jobwork/:id"            element={<JobworkDetail />} />
       <Route path="jobwork/:id/print"       element={<JobworkPrint />} />
+      <Route path="quality/rework-data"        element={<PrivateRoute role="OPERATOR"><ReworkData /></PrivateRoute>} />
+      <Route path="quality/rework-data/print"  element={<PrivateRoute role="OPERATOR"><ReworkDataPrint /></PrivateRoute>} />
+      <Route path="quality/print-pack"         element={<PrivateRoute role="OPERATOR"><ReworkNcPrintPack /></PrivateRoute>} />
+      <Route path="quality/nc-register"        element={<PrivateRoute role="OPERATOR"><NcRegister /></PrivateRoute>} />
+      <Route path="quality/nc-register/print"  element={<PrivateRoute role="OPERATOR"><NcRegisterPrint /></PrivateRoute>} />
       <Route path="quality/certificates"       element={<CertList />} />
       <Route path="quality/certificates/new"       element={<CertForm />} />
       <Route path="quality/certificates/:id/edit" element={<CertForm />} />
@@ -125,14 +155,18 @@ const AppRoutes = () => (
       <Route path="quality/certificates/:id/print" element={<CertPrint />} />
       <Route path="invoices"               element={<InvoiceList />} />
       <Route path="invoices/new"           element={<InvoiceForm />} />
+      <Route path="invoices/:id/edit"      element={<InvoiceForm />} />
       <Route path="invoices/:id"           element={<InvoiceDetail />} />
       <Route path="invoices/:id/print"     element={<InvoicePrint />} />
       <Route path="analytics"             element={<Analytics />} />
       <Route path="analytics/advanced"    element={<AdvancedAnalytics />} />
+      <Route path="admin/parties/new"          element={<PrivateRoute role="MANAGER"><PartyForm /></PrivateRoute>} />
+      <Route path="admin/parties/:partyId/edit" element={<PrivateRoute role="MANAGER"><PartyForm /></PrivateRoute>} />
       <Route path="admin/parties/:partyId"   element={<PrivateRoute role="MANAGER"><PartyDetail /></PrivateRoute>} />
       <Route path="admin/parties"            element={<PrivateRoute role="MANAGER"><PartyList /></PrivateRoute>} />
       <Route path="admin/party-rates"        element={<PrivateRoute role="MANAGER"><PartyRatesMatrix /></PrivateRoute>} />
       <Route path="admin/processes"           element={<PrivateRoute role="MANAGER"><ProcessList /></PrivateRoute>} />
+      <Route path="admin/invoice-series"      element={<PrivateRoute role="MANAGER"><InvoiceSeriesList /></PrivateRoute>} />
       <Route path="admin/heat-treat-specs"    element={<PrivateRoute role="MANAGER"><HeatTreatSpecList /></PrivateRoute>} />
       <Route path="admin/temp-cycle-graphs"   element={<PrivateRoute role="MANAGER"><TempCycleGraphList /></PrivateRoute>} />
       <Route path="admin/items"               element={<PrivateRoute role="MANAGER"><ItemList /></PrivateRoute>} />
@@ -143,6 +177,7 @@ const AppRoutes = () => (
       <Route path="dispatch/new"              element={<DispatchChallanForm />} />
       <Route path="dispatch/:id/print"        element={<DispatchChallanPrint />} />
       <Route path="dispatch/:id"              element={<DispatchChallanForm />} />
+      <Route path="inventory"                 element={<PrivateRoute role="OPERATOR"><StockList /></PrivateRoute>} />
       <Route path="purchase/inventory"        element={<PrivateRoute role="MANAGER"><InventoryView /></PrivateRoute>} />
       <Route path="customer-quotes"           element={<PrivateRoute role="OPERATOR"><CustomerQuoteList /></PrivateRoute>} />
       <Route path="customer-quotes/new"       element={<PrivateRoute role="OPERATOR"><CustomerQuoteForm /></PrivateRoute>} />
@@ -153,6 +188,16 @@ const AppRoutes = () => (
       <Route path="manufacturing/runsheet/new" element={<PrivateRoute role="MANAGER"><VHTRunsheetForm /></PrivateRoute>} />
       <Route path="manufacturing/runsheet/:id/print" element={<PrivateRoute role="MANAGER"><VHTRunsheetPrint /></PrivateRoute>} />
       <Route path="manufacturing/runsheet/:id" element={<PrivateRoute role="MANAGER"><VHTRunsheetForm /></PrivateRoute>} />
+      <Route path="manufacturing/utilization" element={<PrivateRoute role="MANAGER"><FurnaceUtilization /></PrivateRoute>} />
+      <Route path="manufacturing/utilization/print" element={<PrivateRoute role="MANAGER"><FurnaceUtilizationPrint /></PrivateRoute>} />
+      <Route path="manufacturing/utilization/print-pack" element={<PrivateRoute role="MANAGER"><DailyUtilizationPrintPack /></PrivateRoute>} />
+      <Route path="manufacturing/planning" element={<PrivateRoute role="MANAGER"><DailyProductionPlanning /></PrivateRoute>} />
+      <Route path="manufacturing/tempering" element={<PrivateRoute role="MANAGER"><TemperingPlan /></PrivateRoute>} />
+      <Route path="manufacturing/energy" element={<PrivateRoute role="MANAGER"><EnergyLog /></PrivateRoute>} />
+      <Route path="manufacturing/idle-time" element={<PrivateRoute role="MANAGER"><MonthlyIdleTime /></PrivateRoute>} />
+      <Route path="manufacturing/idle-time/print" element={<PrivateRoute role="MANAGER"><MonthlyIdleTimePrint /></PrivateRoute>} />
+      <Route path="manufacturing/plant-losses" element={<PrivateRoute role="MANAGER"><PlantLosses /></PrivateRoute>} />
+      <Route path="manufacturing/plant-losses/print" element={<PrivateRoute role="MANAGER"><PlantLossesPrint /></PrivateRoute>} />
     </Route>
     <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

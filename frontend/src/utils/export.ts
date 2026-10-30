@@ -1,8 +1,10 @@
 import * as XLSX from 'xlsx';
+import toast from 'react-hot-toast';
 
-export function exportToExcel(rows: any[], filename: string = 'export'): void {
+export function exportToExcel(rows: any[], filename: string = 'export'): boolean {
   if (!rows || !rows.length) {
-    throw new Error('No data to export');
+    toast.error('Nothing to export — the list is empty.');
+    return false;
   }
 
   const worksheet = XLSX.utils.json_to_sheet(rows, { dateNF: 'yyyy-mm-dd' });
@@ -10,11 +12,13 @@ export function exportToExcel(rows: any[], filename: string = 'export'): void {
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
 
   XLSX.writeFile(workbook, `${filename}.xlsx`);
+  return true;
 }
 
-export function exportToCsv(rows: Record<string, any>[], filename: string = 'export'): void {
+export function exportToCsv(rows: Record<string, any>[], filename: string = 'export'): boolean {
   if (!rows || !rows.length) {
-    throw new Error('No data to export');
+    toast.error('Nothing to export — the list is empty.');
+    return false;
   }
 
   const header = Object.keys(rows[0]);
@@ -33,4 +37,5 @@ export function exportToCsv(rows: Record<string, any>[], filename: string = 'exp
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  return true;
 }

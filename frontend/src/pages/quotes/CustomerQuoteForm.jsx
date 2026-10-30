@@ -2,9 +2,24 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import { Plus, Trash2, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../../utils/api';
 import { useParties, useProcesses } from '../../hooks/useMasterData';
 import SearchSelect from '../../components/SearchSelect';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
+import { Stepper, useStepper } from '@/components/ui/stepper';
+import { FormField } from '@/components/ui/form-field';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const emptyItem = () => ({ _id: Math.random(), partName: '', processTypeId: '', material: '', unit: 'KGS', rate: '' });
 
@@ -72,6 +87,14 @@ export default function CustomerQuoteForm() {
   const [items, setItems] = useState([emptyItem()]);
   const [saving, setSaving] = useState(false);
 
+  const QUOTE_STEPS = [
+    { key: 'details', label: 'Quote details' },
+    { key: 'terms',   label: 'Terms & commercial' },
+    { key: 'items',   label: 'Line items' },
+  ];
+  const wiz = useStepper(QUOTE_STEPS.length);
+  const LAST = QUOTE_STEPS.length - 1;
+
   useEffect(() => {
     if (isEdit) {
       api.get(`/customer-quotes/${id}`).then(r => {
@@ -133,8 +156,8 @@ export default function CustomerQuoteForm() {
 
   const handleSubmit = async e => {
     e.preventDefault();
-    if (!form.customerId) return toast.error('Select a customer.');
-    if (!items.some(i => i.partName && +i.rate > 0)) return toast.error('Add at least one item with part name and rate.');
+    if (!form.customerId) { wiz.goto(0); return toast.error('Select a customer.'); }
+    if (!items.some(i => i.partName && +i.rate > 0)) { wiz.goto(2); return toast.error('Add at least one item with part name and rate.'); }
     setSaving(true);
     try {
       const payload = { ...form, items: items.filter(i => i.partName) };
@@ -156,171 +179,257 @@ export default function CustomerQuoteForm() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-5 animate-slide-up">
-      <div className="flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400">
-          <span className="material-symbols-outlined text-lg">arrow_back</span>
-        </button>
-        <div>
-          <h2 className="text-xl font-extrabold text-slate-800 font-headline">{isEdit ? 'Edit' : 'New'} Customer Quotation</h2>
-          <p className="text-xs text-slate-400">Price quote issued to customer for heat treatment services</p>
-        </div>
+    <div className="font-app flex flex-col h-full min-h-0">
+      <PageHeader
+        title={`${isEdit ? 'Edit' : 'New'} Customer Quotation`}
+        backTo="/customer-quotes"
+        breadcrumbs={[
+          { label: 'Customer Quotes', to: '/customer-quotes' },
+          { label: isEdit ? 'Edit' : 'New' },
+        ]}
+      />
+
+      <div className="mt-2 shrink-0 rounded-xl border border-slate-200 bg-white p-2 shadow-card">
+        <Stepper steps={QUOTE_STEPS} current={wiz.current} completed={wiz.completed} onStepClick={(i) => wiz.goto(i)} />
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Header */}
-        <div className="card p-5">
-          <p className="section-title mb-4">Quote Details</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="form-label">Customer *</label>
-              <div className="flex gap-2">
-                <SearchSelect
-                  value={String(form.customerId || '')}
-                  onChange={v => setF('customerId', v)}
-                  options={customers.map(c => ({ value: c.id, label: c.name }))}
-                  placeholder="— Select Customer —"
+      <form onSubmit={(e) => { e.preventDefault(); if (wiz.current === LAST) handleSubmit(e); }} className="flex-1 min-h-0 flex flex-col">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-3 pr-0.5 space-y-4">
+        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+          Step {wiz.current + 1} of {QUOTE_STEPS.length} · {QUOTE_STEPS[wiz.current].label}
+        </p>
+
+        {/* ── Step 1 · Quote details ── */}
+        <div hidden={wiz.current !== 0} className="space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Quote Details</CardTitle>
+            <CardDescription>Customer, dates and payment terms for this quotation.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+              <FormField label="Customer" required>
+                <div className="flex gap-2">
+                  <SearchSelect
+                    value={String(form.customerId || '')}
+                    onChange={v => setF('customerId', v)}
+                    options={customers.map(c => ({ value: c.id, label: c.name }))}
+                    placeholder="— Select Customer —"
+                    required
+                    className="flex-1"
+                  />
+                  <Button type="button" variant="outline" onClick={openNewCustomer} className="shrink-0">
+                    <Plus /> New
+                  </Button>
+                </div>
+              </FormField>
+              <FormField label="Quote Date" htmlFor="quoteDate" required>
+                <Input
+                  id="quoteDate"
+                  type="date"
+                  value={form.quoteDate}
+                  onChange={e => setF('quoteDate', e.target.value)}
                   required
-                  className="flex-1"
                 />
-                <button type="button" onClick={openNewCustomer} className="btn-outline whitespace-nowrap">
-                  <span className="material-symbols-outlined text-[18px] shrink-0">add</span> New
-                </button>
-              </div>
+              </FormField>
+              <FormField label="Kind Attn (Mr.)" htmlFor="kindAttn">
+                <Input
+                  id="kindAttn"
+                  type="text"
+                  value={form.kindAttn}
+                  onChange={e => setF('kindAttn', e.target.value)}
+                  placeholder="Contact person"
+                />
+              </FormField>
+              <FormField label="Valid Until" htmlFor="validUntil">
+                <Input
+                  id="validUntil"
+                  type="date"
+                  value={form.validUntil}
+                  onChange={e => setF('validUntil', e.target.value)}
+                />
+              </FormField>
+              <FormField label="Payment Terms" htmlFor="paymentTerms">
+                <Input
+                  id="paymentTerms"
+                  type="text"
+                  value={form.paymentTerms}
+                  onChange={e => setF('paymentTerms', e.target.value)}
+                  placeholder="e.g. Net 30 days"
+                />
+              </FormField>
             </div>
-            <div>
-              <label className="form-label">Quote Date *</label>
-              <input type="date" value={form.quoteDate} onChange={e => setF('quoteDate', e.target.value)} className="form-input" required />
-            </div>
-            <div>
-              <label className="form-label">Kind Attn (Mr.)</label>
-              <input type="text" value={form.kindAttn} onChange={e => setF('kindAttn', e.target.value)} className="form-input" placeholder="Contact person" />
-            </div>
-            <div>
-              <label className="form-label">Valid Until</label>
-              <input type="date" value={form.validUntil} onChange={e => setF('validUntil', e.target.value)} className="form-input" />
-            </div>
-            <div>
-              <label className="form-label">Payment Terms</label>
-              <input type="text" value={form.paymentTerms} onChange={e => setF('paymentTerms', e.target.value)} className="form-input" placeholder="e.g. Net 30 days" />
-            </div>
-          </div>
-          <div className="mt-4">
-            <label className="form-label">Notes / Special Instructions</label>
-            <textarea value={form.notes} onChange={e => setF('notes', e.target.value)} rows={2} className="form-input" placeholder="Optional notes..." />
-          </div>
+            <FormField label="Notes / Special Instructions" htmlFor="quoteNotes">
+              <Textarea
+                id="quoteNotes"
+                value={form.notes}
+                onChange={e => setF('notes', e.target.value)}
+                rows={2}
+                placeholder="Optional notes..."
+              />
+            </FormField>
+          </CardContent>
+        </Card>
         </div>
 
-        {/* Terms & Commercial Details (printed on the quote) */}
-        <div className="card p-5">
-          <p className="section-title mb-4">Terms & Commercial Details</p>
-          <p className="text-[11px] text-slate-400 mb-3">These rows print on the quotation exactly as entered here.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="form-label">Transport</label>
-              <input type="text" value={form.termsTransport} onChange={e => setF('termsTransport', e.target.value)} className="form-input" />
+        {/* ── Step 2 · Terms & commercial ── */}
+        <div hidden={wiz.current !== 1} className="space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Terms &amp; Commercial Details</CardTitle>
+            <CardDescription>These rows print on the quotation exactly as entered here.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+              <FormField label="Transport" htmlFor="termsTransport">
+                <Input id="termsTransport" type="text" value={form.termsTransport} onChange={e => setF('termsTransport', e.target.value)} />
+              </FormField>
+              <FormField label="Payment" htmlFor="termsPayment">
+                <Input id="termsPayment" type="text" value={form.termsPayment} onChange={e => setF('termsPayment', e.target.value)} />
+              </FormField>
+              <FormField label="Delivery" htmlFor="termsDelivery">
+                <Input id="termsDelivery" type="text" value={form.termsDelivery} onChange={e => setF('termsDelivery', e.target.value)} />
+              </FormField>
+              <FormField label="Tax" htmlFor="termsTax">
+                <Input id="termsTax" type="text" value={form.termsTax} onChange={e => setF('termsTax', e.target.value)} />
+              </FormField>
+              <FormField label="PAN Card No" htmlFor="commercialPan">
+                <Input id="commercialPan" type="text" value={form.commercialPan} onChange={e => setF('commercialPan', e.target.value)} className="font-mono" />
+              </FormField>
+              <FormField label="GST No" htmlFor="commercialGst">
+                <Input id="commercialGst" type="text" value={form.commercialGst} onChange={e => setF('commercialGst', e.target.value)} className="font-mono" />
+              </FormField>
+              <FormField label="Services Code" htmlFor="commercialServicesCode">
+                <Input id="commercialServicesCode" type="text" value={form.commercialServicesCode} onChange={e => setF('commercialServicesCode', e.target.value)} />
+              </FormField>
+              <FormField label="ISO Certificate" htmlFor="commercialIso">
+                <Input id="commercialIso" type="text" value={form.commercialIso} onChange={e => setF('commercialIso', e.target.value)} />
+              </FormField>
             </div>
-            <div>
-              <label className="form-label">Payment</label>
-              <input type="text" value={form.termsPayment} onChange={e => setF('termsPayment', e.target.value)} className="form-input" />
-            </div>
-            <div>
-              <label className="form-label">Delivery</label>
-              <input type="text" value={form.termsDelivery} onChange={e => setF('termsDelivery', e.target.value)} className="form-input" />
-            </div>
-            <div>
-              <label className="form-label">Tax</label>
-              <input type="text" value={form.termsTax} onChange={e => setF('termsTax', e.target.value)} className="form-input" />
-            </div>
-            <div>
-              <label className="form-label">PAN Card No</label>
-              <input type="text" value={form.commercialPan} onChange={e => setF('commercialPan', e.target.value)} className="form-input font-mono" />
-            </div>
-            <div>
-              <label className="form-label">GST No</label>
-              <input type="text" value={form.commercialGst} onChange={e => setF('commercialGst', e.target.value)} className="form-input font-mono" />
-            </div>
-            <div>
-              <label className="form-label">Services Code</label>
-              <input type="text" value={form.commercialServicesCode} onChange={e => setF('commercialServicesCode', e.target.value)} className="form-input" />
-            </div>
-            <div>
-              <label className="form-label">ISO Certificate</label>
-              <input type="text" value={form.commercialIso} onChange={e => setF('commercialIso', e.target.value)} className="form-input" />
-            </div>
-          </div>
+          </CardContent>
+        </Card>
         </div>
 
-        {/* Items */}
-        <div className="card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <p className="section-title">Line Items</p>
-            <button type="button" onClick={() => setItems(p => [...p, emptyItem()])}
-              className="flex items-center gap-1 text-xs font-bold text-sky-600 bg-sky-50 hover:bg-sky-100 px-3 py-1.5 rounded-lg">
-              <span className="material-symbols-outlined text-sm">add</span> Add Item
-            </button>
-          </div>
-          <p className="text-[11px] text-slate-400 mb-3">Choose Rate/Kg, Rate/Pc, or Lot Charge per line (QF-MKT-03 format).</p>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  {['Description / Part Name *','Process','Material','Rate Type','Rate (₹)',''].map(h => (
-                    <th key={h} className="px-2 py-2 text-[10px] font-bold text-slate-500 uppercase text-left whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {items.map((item, idx) => (
-                  <tr key={item._id} className="hover:bg-slate-50/50">
-                    <td className="px-1 py-1.5">
-                      <input type="text" value={item.partName} onChange={e => updateItem(idx, 'partName', e.target.value)}
-                        className="form-input text-xs w-48" placeholder="Description / part name" />
-                    </td>
-                    <td className="px-1 py-1.5">
-                      <SearchSelect
-                        value={String(item.processTypeId || '')}
-                        onChange={v => updateItem(idx, 'processTypeId', v)}
-                        options={processes.map(p => ({ value: p.id, label: p.name }))}
-                        placeholder="—"
-                        useFixed
-                        className="w-36"
-                      />
-                    </td>
-                    <td className="px-1 py-1.5">
-                      <input type="text" value={item.material} onChange={e => updateItem(idx, 'material', e.target.value)}
-                        className="form-input text-xs w-28" placeholder="e.g. D2" />
-                    </td>
-                    <td className="px-1 py-1.5">
-                      <select value={item.unit} onChange={e => updateItem(idx, 'unit', e.target.value)}
-                        className="form-input text-xs w-32">
-                        {UNIT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                      </select>
-                    </td>
-                    <td className="px-1 py-1.5">
-                      <input type="number" step="0.01" value={item.rate} onChange={e => updateItem(idx, 'rate', e.target.value)}
-                        className="form-input text-xs w-24 text-right font-mono" placeholder="0.00" />
-                    </td>
-                    <td className="px-1 py-1.5">
-                      {items.length > 1 && (
-                        <button type="button" onClick={() => setItems(p => p.filter((_, j) => j !== idx))}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50">
-                          <span className="material-symbols-outlined text-sm">delete</span>
-                        </button>
-                      )}
-                    </td>
+        {/* ── Step 3 · Line items ── */}
+        <div hidden={wiz.current !== 2} className="space-y-4">
+        <Card>
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <div className="space-y-1">
+              <CardTitle>Line Items</CardTitle>
+              <CardDescription>Choose Rate/Kg, Rate/Pc, or Lot Charge per line (QF-MKT-03 format).</CardDescription>
+            </div>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setItems(p => [...p, emptyItem()])}>
+              <Plus /> Add Item
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {/* Five editable columns don't fit a phone; let the table scroll
+                inside the card instead of squeezing the inputs to nothing. */}
+            <div className="overflow-x-auto -mx-1 px-1">
+              <table className="w-full text-xs min-w-[640px]">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100">
+                    {['#', 'Description / Part Name *', 'Process', 'Material', 'Rate Type', 'Rate (₹)', ''].map(h => (
+                      <th key={h} className="px-2 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-left whitespace-nowrap">{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {items.map((item, idx) => (
+                    <tr key={item._id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-2 py-1.5 text-slate-400 font-mono tabular-nums">{idx + 1}</td>
+                      <td className="px-1 py-1.5">
+                        <Input
+                          type="text"
+                          value={item.partName}
+                          onChange={e => updateItem(idx, 'partName', e.target.value)}
+                          className="h-8 min-h-0 text-xs w-48"
+                          placeholder="Description / part name"
+                        />
+                      </td>
+                      <td className="px-1 py-1.5">
+                        <SearchSelect
+                          value={String(item.processTypeId || '')}
+                          onChange={v => updateItem(idx, 'processTypeId', v)}
+                          options={processes.map(p => ({ value: p.id, label: p.name }))}
+                          placeholder="—"
+                          useFixed
+                          className="w-36"
+                        />
+                      </td>
+                      <td className="px-1 py-1.5">
+                        <Input
+                          type="text"
+                          value={item.material}
+                          onChange={e => updateItem(idx, 'material', e.target.value)}
+                          className="h-8 min-h-0 text-xs w-28"
+                          placeholder="e.g. D2"
+                        />
+                      </td>
+                      <td className="px-1 py-1.5">
+                        <Select value={item.unit} onValueChange={v => updateItem(idx, 'unit', v)}>
+                          <SelectTrigger className="h-8 min-h-0 text-xs w-32">
+                            <SelectValue placeholder="Rate type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {UNIT_OPTIONS.map(o => (
+                              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      <td className="px-1 py-1.5">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          inputMode="decimal"
+                          value={item.rate}
+                          onChange={e => updateItem(idx, 'rate', e.target.value)}
+                          className="h-8 min-h-0 text-xs w-24 text-right tabular-nums font-mono"
+                          placeholder="0.00"
+                        />
+                      </td>
+                      <td className="px-1 py-1.5">
+                        {items.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => setItems(p => p.filter((_, j) => j !== idx))}
+                            className="text-rose-400 hover:text-rose-600 hover:bg-rose-50"
+                            aria-label={`Remove item ${idx + 1}`}
+                          >
+                            <Trash2 />
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
         </div>
 
-        <div className="flex items-center justify-end gap-3">
-          <button type="button" onClick={() => navigate(-1)} className="btn-outline">Cancel</button>
-          <button type="submit" disabled={saving} className="btn-primary disabled:opacity-50">
-            {saving ? 'Saving...' : isEdit ? 'Update Quote' : 'Create Quote'}
-          </button>
+        </div>
+
+        {/* ── Wizard navigation ── */}
+        <div className="shrink-0 mt-2 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-card sm:px-5">
+          <span className="font-app-mono text-xs text-slate-400">Step {wiz.current + 1} of {QUOTE_STEPS.length}</span>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <Button type="button" variant="ghost" onClick={() => navigate(-1)}>Cancel</Button>
+            <Button type="button" variant="ghost" disabled={wiz.isFirst} onClick={wiz.back}>
+              <ChevronLeft className="h-4 w-4" /> Back
+            </Button>
+            {wiz.current < LAST ? (
+              <Button type="button" onClick={wiz.next}>Next <ChevronRight className="h-4 w-4" /></Button>
+            ) : (
+              <Button type="button" onClick={handleSubmit} loading={saving} disabled={saving}>
+                {saving ? 'Saving...' : isEdit ? 'Update Quote' : 'Create Quote'}
+              </Button>
+            )}
+          </div>
         </div>
       </form>
 
@@ -329,49 +438,74 @@ export default function CustomerQuoteForm() {
           <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between shrink-0">
               <div>
-                <div className="text-xs font-black tracking-widest text-slate-400 uppercase">Quick Create</div>
+                <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Quick Create</div>
                 <div className="text-lg font-extrabold text-slate-800 mt-1">New Customer</div>
               </div>
-              <button type="button" onClick={closeNewCustomer} className="text-slate-400 hover:text-slate-700">
-                <span className="material-symbols-outlined">close</span>
-              </button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={closeNewCustomer}
+                className="text-slate-400 hover:text-slate-700"
+                aria-label="Close"
+              >
+                <X />
+              </Button>
             </div>
 
             <div className="p-5 space-y-4 overflow-y-auto flex-1">
-              <div>
-                <label className="form-label">Customer Name *</label>
-                <input value={newCustomer.name} onChange={e => setNewCustomer(p => ({ ...p, name: e.target.value }))}
-                  className="form-input" placeholder="Company / customer name" />
+              <FormField label="Customer Name" htmlFor="qcName" required>
+                <Input
+                  id="qcName"
+                  value={newCustomer.name}
+                  onChange={e => setNewCustomer(p => ({ ...p, name: e.target.value }))}
+                  placeholder="Company / customer name"
+                />
+              </FormField>
+              <FormField label="Address" htmlFor="qcAddress" required>
+                <Textarea
+                  id="qcAddress"
+                  value={newCustomer.address}
+                  onChange={e => setNewCustomer(p => ({ ...p, address: e.target.value }))}
+                  rows={3}
+                  placeholder="Full address"
+                />
+              </FormField>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+                <FormField label="GSTIN" htmlFor="qcGstin" hint="Optional">
+                  <Input
+                    id="qcGstin"
+                    value={newCustomer.gstin}
+                    onChange={e => setNewCustomer(p => ({ ...p, gstin: e.target.value }))}
+                    className="font-mono"
+                    placeholder="27ABCDE1234F1Z5"
+                  />
+                </FormField>
+                <FormField label="Phone" htmlFor="qcPhone" hint="Optional">
+                  <Input
+                    id="qcPhone"
+                    value={newCustomer.phone}
+                    onChange={e => setNewCustomer(p => ({ ...p, phone: e.target.value }))}
+                    placeholder="+91 98765 43210"
+                  />
+                </FormField>
               </div>
-              <div>
-                <label className="form-label">Address *</label>
-                <textarea value={newCustomer.address} onChange={e => setNewCustomer(p => ({ ...p, address: e.target.value }))}
-                  className="form-input" rows={3} placeholder="Full address" />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="form-label">GSTIN (optional)</label>
-                  <input value={newCustomer.gstin} onChange={e => setNewCustomer(p => ({ ...p, gstin: e.target.value }))}
-                    className="form-input font-mono" placeholder="27ABCDE1234F1Z5" />
-                </div>
-                <div>
-                  <label className="form-label">Phone (optional)</label>
-                  <input value={newCustomer.phone} onChange={e => setNewCustomer(p => ({ ...p, phone: e.target.value }))}
-                    className="form-input" placeholder="+91 98765 43210" />
-                </div>
-              </div>
-              <div>
-                <label className="form-label">Email (optional)</label>
-                <input type="email" value={newCustomer.email} onChange={e => setNewCustomer(p => ({ ...p, email: e.target.value }))}
-                  className="form-input" placeholder="email@company.com" />
-              </div>
+              <FormField label="Email" htmlFor="qcEmail" hint="Optional">
+                <Input
+                  id="qcEmail"
+                  type="email"
+                  value={newCustomer.email}
+                  onChange={e => setNewCustomer(p => ({ ...p, email: e.target.value }))}
+                  placeholder="email@company.com"
+                />
+              </FormField>
             </div>
 
-            <div className="p-5 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0">
-              <button type="button" onClick={closeNewCustomer} className="btn-outline">Cancel</button>
-              <button type="button" onClick={createCustomerQuick} disabled={newCustomer.saving} className="btn-primary disabled:opacity-50">
+            <div className="p-5 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
+              <Button type="button" variant="outline" onClick={closeNewCustomer}>Cancel</Button>
+              <Button type="button" onClick={createCustomerQuick} loading={newCustomer.saving} disabled={newCustomer.saving}>
                 {newCustomer.saving ? 'Creating...' : 'Create & Select'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

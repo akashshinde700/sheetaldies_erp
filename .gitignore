@@ -67,6 +67,8 @@ DEPLOY-NOW.sh
 # Local DB dumps
 sheetal_dump.sql
 *.sql
+# …but Prisma migrations must be committed
+!backend/prisma/migrations/**/*.sql
 
 # Excel exports generated locally
 *.xlsx
@@ -88,3 +90,25 @@ server-setup.sh
 nul_
 **/nul_
 __pycache__/
+
+# Built frontend, staged here for local prod-parity testing and written by
+# deploy.py on the server. Never a source file.
+backend/public/
+
+# On-premise deploy script — holds the plant server credentials.
+deploy-onprem.py
+onprem-restore/
+
+# Final snapshot of the cloud install taken before shutting it down.
+cloud-final-backup/
+
+# SSH deploy key for the on-premise server.
+onprem-ssh/
+
+# Compiled Python. A .pyc of a deploy script was committed once and carries
+# whatever string constants that script held.
+*.pyc
+*.pyo
+
+# Per-developer Claude Code settings (the shared ones are committed).
+.claude/settings.local.json

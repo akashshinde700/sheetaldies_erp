@@ -28,7 +28,31 @@ const app = express();
 app.set('trust proxy', 1);
 
 // ── Middleware ────────────────────────────────────────────────
-app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+// An on-premise install is reached over http://<lan-ip> until its domain and
+// certificate exist. Two of helmet's and the auth layer's production defaults
+// assume TLS and fail silently without it, so PLAIN_HTTP=true turns both off
+// together — one switch, because setting one and missing the other leaves a
+// site that looks fine and does not work.
+//
+// Here it is `upgrade-insecure-requests`, which tells the browser to re-fetch
+// every asset over https. With nothing listening on 443 that is a refused
+// connection for every script and stylesheet: the HTML arrives and the page
+// stays blank. (The other is the Secure cookie flag — see auth.controller.js.)
+const plainHttp = process.env.PLAIN_HTTP === 'true';
+// Set to null, not deleted: helmet merges whatever is passed over its own
+// defaults, so a deleted key simply comes back. null is how it is dropped.
+const cspDirectives = { ...helmet.contentSecurityPolicy.getDefaultDirectives() };
+if (plainHttp) cspDirectives['upgrade-insecure-requests'] = null;
+
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: { directives: cspDirectives },
+  // A browser only honours COOP on a secure origin and logs a console error
+  // explaining it ignored the header. Sending it over plain HTTP buys no
+  // protection and fills the console with noise that hides real errors, so
+  // it is left off until there is TLS to make it mean something.
+  crossOriginOpenerPolicy: plainHttp ? false : undefined,
+}));
 
 // ── CORS (parametrized from env) ─────────────────────────────
 if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL) {
@@ -163,6 +187,7 @@ app.use('/api/quality',   strictLimiter, require('./routes/quality.routes'));
 app.use('/api/invoices',  strictLimiter, require('./routes/invoice.routes'));
 app.use('/api/dispatch-challans', strictLimiter, require('./routes/dispatch.routes'));
 app.use('/api/purchase',   strictLimiter, require('./routes/purchase.routes'));
+app.use('/api/stock',      strictLimiter, require('./routes/stock.routes'));
 app.use('/api/manufacturing', strictLimiter, require('./routes/manufacturing.routes'));
 app.use('/api/furnace-planning', strictLimiter, require('./routes/furnacePlanning.routes'));
 app.use('/api/analytics',  require('./routes/analytics.routes'));
@@ -190,8 +215,12 @@ app.get('/api/health', async (req, res) => {
 });
 
 // ── Swagger API Documentation ─────────────────────────────────
-app.use('/api-docs', swaggerUi.serve);
-app.get('/api-docs', swaggerUi.setup(swaggerSpecs, {
+// The API map is admin-only: it lists every endpoint and field, so it must not
+// be readable by anyone who merely knows the URL.
+const docsAuth = require('./middleware/auth');
+const { requireRole: docsRequireRole } = require('./middleware/role');
+app.use('/api-docs', docsAuth, docsRequireRole('ADMIN'), swaggerUi.serve);
+app.get('/api-docs', docsAuth, docsRequireRole('ADMIN'), swaggerUi.setup(swaggerSpecs, {
   customCss: '.swagger-ui .topbar { display: none }',
   customSiteTitle: 'Sheetal Dies ERP - API Documentation',
   swaggerOptions: {
@@ -227,5 +256,11 @@ module.exports = app;
 // Only start the server if this file is run directly (not imported for testing)
 if (require.main === module) {
   const PORT = process.env.PORT || 5000;
-  app.listen(PORT, () => console.log(`Sheetal Dies ERP Backend running on port ${PORT}`));
+  // Bind to localhost when something else is the front door. Listening on
+  // 0.0.0.0 leaves the app reachable on :PORT directly, straight past nginx
+  // and whatever it is there to enforce — TLS, limits, headers. Unset, the
+  // behaviour is unchanged, so a box without a proxy still works.
+  const HOST = process.env.BIND_HOST || undefined;
+  app.listen(PORT, HOST, () => console.log(
+    `Sheetal Dies ERP Backend running on ${HOST || '0.0.0.0'}:${PORT}`));
 }

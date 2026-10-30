@@ -3,6 +3,7 @@ const path = require('path');
 const { findRunsheetGraphForJobCard } = require('../utils/runsheetGraph');
 const { toInt, toNum } = require('../utils/normalize');
 const { parseJsonIfString } = require('../utils/json');
+const { parseYMD, clip, finiteOrNull } = require('../utils/inputs');
 const { parsePagination, formatListResponse, formatErrorResponse, getStatusCode } = require('../utils/validation');
 const { canEditInspection, canViewInspection, hasRole } = require('../middleware/role');
 const { log } = require('../utils/logger');
@@ -101,6 +102,13 @@ async function attachEffectiveTempCycle(cert) {
   };
 }
 
+// Certificate save arrives as multipart/FormData, so every field lands in
+// req.body as a string — including unchecked boxes, sent as the string
+// "false". `!!"false"` is true (any non-empty string is truthy), so a plain
+// `!!` here would flip every unchecked box on. Match the boolean parsing
+// used for the certificate's own fields elsewhere in this file.
+const toBool = (v) => v === 'true' || v === true;
+
 // Certificate categorization/process/visual/MPI fields are duplicated onto the
 // linked job card's IncomingInspection so the two stay in sync in both
 // directions: editing either one keeps the other current. Only fields that
@@ -110,15 +118,15 @@ async function attachEffectiveTempCycle(cert) {
 async function syncCategorizationToJobCard(tx, jobCardId, f) {
   if (!jobCardId) return;
   const shared = {
-    catNormal: !!f.catNormal, catWelded: !!f.catWelded, catRusty: !!f.catRusty,
-    catCrackRisk: !!f.catCrackRisk, catDistortionRisk: !!f.catDistortionRisk,
-    catCriticalFinishing: !!f.catCriticalFinishing, catDentDamage: !!f.catDentDamage,
-    catCavity: !!f.catCavity, catOthers: !!f.catOthers,
-    procStressRelieving: !!f.procStressRelieving, procHardening: !!f.procHardening,
-    procTempering: !!f.procTempering, procAnnealing: !!f.procAnnealing, procBrazing: !!f.procBrazing,
-    procPlasmaNitriding: !!f.procPlasmaNitriding, procSubZero: !!f.procSubZero, procSoakClean: !!f.procSoakClean,
-    visualBefore: !!f.visualBefore, visualAfter: !!f.visualAfter,
-    mpiBefore: !!f.mpiBefore, mpiAfter: !!f.mpiAfter, mpiNil: !!f.mpiNil,
+    catNormal: toBool(f.catNormal), catWelded: toBool(f.catWelded), catRusty: toBool(f.catRusty),
+    catCrackRisk: toBool(f.catCrackRisk), catDistortionRisk: toBool(f.catDistortionRisk),
+    catCriticalFinishing: toBool(f.catCriticalFinishing), catDentDamage: toBool(f.catDentDamage),
+    catCavity: toBool(f.catCavity), catOthers: toBool(f.catOthers),
+    procStressRelieving: toBool(f.procStressRelieving), procHardening: toBool(f.procHardening),
+    procTempering: toBool(f.procTempering), procAnnealing: toBool(f.procAnnealing), procBrazing: toBool(f.procBrazing),
+    procPlasmaNitriding: toBool(f.procPlasmaNitriding), procSubZero: toBool(f.procSubZero), procSoakClean: toBool(f.procSoakClean),
+    visualBefore: toBool(f.visualBefore), visualAfter: toBool(f.visualAfter),
+    mpiBefore: toBool(f.mpiBefore), mpiAfter: toBool(f.mpiAfter), mpiNil: toBool(f.mpiNil),
   };
   await tx.incomingInspection.upsert({
     where: { jobCardId },
@@ -424,6 +432,7 @@ exports.createCertificate = async (req, res) => {
       tempCycleData, tempCycleTemplateId, distortionBefore, distortionAfter,
       packedQty, packedBy, approvedBy, finalInspectionBy,
       issuedTo, heatNo, dispatchMode, dispatchChallanNo, dispatchChallanDate, dispatchedThrough,
+      remarks,
       items, inspectionResults, certHeatProcesses, selectedChallanItemIds,
     } = req.body;
     const b = (v) => v === 'true' || v === true;
@@ -537,6 +546,7 @@ exports.createCertificate = async (req, res) => {
         packedBy:             packedBy             || null,
         approvedBy:           approvedBy           || null,
         finalInspectionBy:    finalInspectionBy    || null,
+        remarks:              remarks              || null,
         createdById:    req.user.id,
         // Items: from selected challan items (preferred) or manually entered
         items: challanItemsForCert.length > 0 ? {
@@ -950,6 +960,7 @@ exports.updateCertificate = async (req, res) => {
       tempCycleData, tempCycleTemplateId, distortionBefore, distortionAfter,
       packedQty, packedBy, approvedBy, finalInspectionBy,
       issuedTo, heatNo, dispatchChallanNo, dispatchChallanDate, dispatchedThrough,
+      remarks,
       items, inspectionResults, certHeatProcesses, status,
     } = req.body;
     const b = (v) => v === 'true' || v === true;
@@ -994,7 +1005,24 @@ exports.updateCertificate = async (req, res) => {
       throw e;
     }
 
-    if (parsedItems !== null)             await prisma.certItem.deleteMany({ where: { certId: id } });
+    // Items are deleted and re-created on every save, which gives them new ids
+    // and would null every rework/reject entry raised against them. Remember
+    // which old item each entry pointed at so it can be re-attached below.
+    let reworkRelinks = [];
+    if (parsedItems !== null) {
+      const oldItems = await prisma.certItem.findMany({ where: { certId: id }, orderBy: { id: 'asc' }, select: { id: true, description: true } });
+      if (oldItems.length) {
+        const links = await prisma.reworkEntry.findMany({
+          where: { certItemId: { in: oldItems.map((o) => o.id) } },
+          select: { id: true, certItemId: true },
+        });
+        reworkRelinks = links.map((l) => {
+          const idx = oldItems.findIndex((o) => o.id === l.certItemId);
+          return { entryId: l.id, oldIndex: idx, description: oldItems[idx]?.description };
+        });
+      }
+      await prisma.certItem.deleteMany({ where: { certId: id } });
+    }
     if (parsedInspectionResults !== null) await prisma.certInspectionResult.deleteMany({ where: { certId: id } });
 
     const cert = await prisma.testCertificate.update({
@@ -1065,6 +1093,7 @@ exports.updateCertificate = async (req, res) => {
         packedBy:             packedBy             || null,
         approvedBy:           approvedBy           || null,
         finalInspectionBy:    finalInspectionBy    || null,
+        remarks:              remarks              || null,
         ...(status ? { status } : {}),
         ...(parsedItems !== null ? {
           items: { create: parsedItems.map(it => ({
@@ -1074,6 +1103,7 @@ exports.updateCertificate = async (req, res) => {
             totalWeight: it.totalWeight ? toNum(it.totalWeight, null) : null,
             samplingPlan: it.samplingPlan || null,
             remarks:      it.remarks     || null,
+            sourceChallanItemId: it.sourceChallanItemId ? toInt(it.sourceChallanItemId) : null,
           })) },
         } : {}),
         ...(parsedInspectionResults !== null ? {
@@ -1089,6 +1119,18 @@ exports.updateCertificate = async (req, res) => {
       },
       include: { items: true, inspectionResults: true, customer: true },
     });
+
+    // Re-attach rework/reject entries: same position with the same description,
+    // else the first new item with that description; otherwise leave unlinked
+    // (the entry keeps its own description/qty snapshot either way).
+    if (reworkRelinks.length) {
+      const newItems = [...(cert.items || [])].sort((a, b) => a.id - b.id);
+      for (const l of reworkRelinks) {
+        const target = (newItems[l.oldIndex]?.description === l.description ? newItems[l.oldIndex] : null)
+          || newItems.find((n) => n.description === l.description);
+        if (target) await prisma.reworkEntry.update({ where: { id: l.entryId }, data: { certItemId: target.id } });
+      }
+    }
 
     await syncCategorizationToJobCard(prisma, existing.jobCardId, req.body);
 
@@ -1158,6 +1200,261 @@ exports.getCertificate = async (req, res) => {
     const enriched = await attachEffectiveTempCycle(cert);
     res.json({ success: true, data: enriched });
   } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ── Rework Data register (QF-QA-07) ─────────────────────────────
+// A failed cert (hardness below spec) is logged here per month; linked to
+// the original certificate and, once redone, to the passing result cert.
+const reworkInclude = {
+  jobCard: { select: { id: true, jobCardNo: true } },
+  certificate: { select: { id: true, certNo: true } },
+  certItem: { select: { id: true, description: true, quantity: true } },
+  reworkCertificate: { select: { id: true, certNo: true } },
+  ncEntries: { select: { id: true, srNo: true } },
+};
+
+exports.getReworkMonth = async (req, res) => {
+  try {
+    const year = toInt(req.query.year);
+    const month = toInt(req.query.month);
+    if (!year || !month || month < 1 || month > 12) {
+      return res.status(400).json({ success: false, message: 'year and month (1-12) are required.' });
+    }
+
+    const monthRow = await prisma.reworkMonth.findUnique({
+      where: { year_month: { year, month } },
+      include: { entries: { include: reworkInclude, orderBy: { srNo: 'asc' } } },
+    });
+
+    const entries = monthRow?.entries || [];
+    const totalReworkQty = entries.reduce((s, e) => s + (e.qty || 0), 0);
+    const totalReworkWeight = entries.reduce((s, e) => s + toNum(e.weightKg, 0), 0);
+    const totalProcessedWeightKg = toNum(monthRow?.totalProcessedWeightKg, 0);
+    const monthlyReworkPercent = totalProcessedWeightKg > 0 ? (totalReworkWeight / totalProcessedWeightKg) * 100 : 0;
+
+    res.json({
+      success: true,
+      data: {
+        year,
+        month,
+        id: monthRow?.id || null,
+        totalProcessedWeightKg: monthRow?.totalProcessedWeightKg ?? null,
+        targetPercent: monthRow ? toNum(monthRow.targetPercent, 1) : 1,
+        causes: monthRow?.causes || [],
+        correctiveActions: monthRow?.correctiveActions || [],
+        entries,
+        totals: {
+          totalReworkQty,
+          totalReworkWeight: toNum(totalReworkWeight.toFixed(3), 0),
+          monthlyReworkPercent: toNum(monthlyReworkPercent.toFixed(3), 0),
+        },
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+exports.upsertReworkMonth = async (req, res) => {
+  try {
+    const year = toInt(req.body.year);
+    const month = toInt(req.body.month);
+    if (!year || !month || month < 1 || month > 12) {
+      return res.status(400).json({ success: false, message: 'year and month (1-12) are required.' });
+    }
+    const { totalProcessedWeightKg, targetPercent, causes, correctiveActions } = req.body;
+
+    const payload = {
+      totalProcessedWeightKg: totalProcessedWeightKg != null && totalProcessedWeightKg !== '' ? toNum(totalProcessedWeightKg, null) : null,
+      targetPercent: targetPercent != null && targetPercent !== '' ? toNum(targetPercent, 1) : 1,
+      causes: Array.isArray(causes) ? causes.slice(0, 20).map((c) => String(c).slice(0, 1000)) : [],
+      correctiveActions: Array.isArray(correctiveActions) ? correctiveActions.slice(0, 20).map((c) => String(c).slice(0, 1000)) : [],
+    };
+
+    const saved = await prisma.reworkMonth.upsert({
+      where: { year_month: { year, month } },
+      update: payload,
+      create: { year, month, ...payload, createdById: req.user.id },
+    });
+
+    res.json({ success: true, data: saved, message: 'Rework month saved.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+exports.upsertReworkEntry = async (req, res) => {
+  try {
+    const { id, year, month, entryDate, type, jobCardId, certificateId, certItemId, reworkCertificateId,
+      customerName, description, qty, weightKg, jobCardNoText, hardnessRequired,
+      cycleNo, reason, reworkCycleNo, afterProcessResults, remark } = req.body;
+    const y = toInt(year);
+    const m = toInt(month);
+    if (!y || !m || m < 1 || m > 12 || !entryDate) {
+      return res.status(400).json({ success: false, message: 'year, month and entryDate are required.' });
+    }
+    const entryDt = parseYMD(entryDate);
+    if (!entryDt) return res.status(400).json({ success: false, message: 'entryDate must be a valid YYYY-MM-DD.' });
+    const qtyNum = finiteOrNull(qty);
+    const wtNum = finiteOrNull(weightKg);
+    if ((qtyNum != null && (qtyNum < 0 || qtyNum > 1e6)) || (wtNum != null && (wtNum < 0 || wtNum >= 1e7))) {
+      return res.status(400).json({ success: false, message: 'qty / weight is out of range.' });
+    }
+
+    const payload = {
+      entryDate: entryDt,
+      type: type === 'REJECT' ? 'REJECT' : 'REWORK',
+      jobCardId: jobCardId ? toInt(jobCardId) : null,
+      certificateId: certificateId ? toInt(certificateId) : null,
+      certItemId: certItemId ? toInt(certItemId) : null,
+      reworkCertificateId: reworkCertificateId ? toInt(reworkCertificateId) : null,
+      customerName: clip(customerName, 200),
+      description: clip(description, 300),
+      qty: qtyNum != null ? Math.round(qtyNum) : null,
+      weightKg: wtNum,
+      jobCardNoText: clip(jobCardNoText, 50),
+      hardnessRequired: clip(hardnessRequired, 50),
+      cycleNo: clip(cycleNo, 50),
+      reason: clip(reason, 5000),
+      reworkCycleNo: clip(reworkCycleNo, 50),
+      afterProcessResults: clip(afterProcessResults, 100),
+      remark: clip(remark, 200),
+    };
+
+    // Rework + reject raised against one certificate item can never add up to
+    // more than that item's quantity.
+    if (payload.certItemId && payload.qty) {
+      const item = await prisma.certItem.findUnique({ where: { id: payload.certItemId }, select: { quantity: true, description: true } });
+      if (item) {
+        const others = await prisma.reworkEntry.aggregate({
+          where: { certItemId: payload.certItemId, ...(id ? { id: { not: toInt(id) } } : {}) },
+          _sum: { qty: true },
+        });
+        const already = others._sum.qty || 0;
+        if (already + payload.qty > item.quantity) {
+          return res.status(400).json({
+            success: false,
+            message: `Only ${Math.max(0, item.quantity - already)} of ${item.quantity} pcs of "${item.description}" are left to raise (${already} already raised).`,
+          });
+        }
+      }
+    }
+
+    const saved = await prisma.$transaction(async (tx) => {
+      const monthRow = await tx.reworkMonth.upsert({
+        where: { year_month: { year: y, month: m } },
+        update: {},
+        create: { year: y, month: m, createdById: req.user.id },
+      });
+
+      if (id) {
+        return tx.reworkEntry.update({ where: { id: toInt(id) }, data: payload, include: reworkInclude });
+      }
+
+      const lastEntry = await tx.reworkEntry.findFirst({
+        where: { monthId: monthRow.id },
+        orderBy: { srNo: 'desc' },
+        select: { srNo: true },
+      });
+      const srNo = (lastEntry?.srNo || 0) + 1;
+
+      return tx.reworkEntry.create({
+        data: { ...payload, monthId: monthRow.id, srNo, createdById: req.user.id },
+        include: reworkInclude,
+      });
+    });
+
+    res.json({ success: true, data: saved, message: 'Rework entry saved.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+exports.deleteReworkEntry = async (req, res) => {
+  try {
+    const id = toInt(req.params.id);
+    if (!id) return res.status(400).json({ success: false, message: 'Invalid ID.' });
+    await prisma.reworkEntry.delete({ where: { id } });
+    res.json({ success: true, message: 'Rework entry deleted.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+// ── Inhouse NC Register (QF-QA-20) ──────────────────────────────
+// A single continuous register (not month-scoped, matches the paper form's
+// own "1 OF 1" single running page) — usually one row per Rework Data entry.
+exports.listNcRegister = async (req, res) => {
+  try {
+    const rows = await prisma.ncRegisterEntry.findMany({
+      include: {
+        reworkEntry: { select: { id: true, srNo: true, monthId: true } },
+        certificate: { select: { id: true, certNo: true } },
+      },
+      orderBy: { srNo: 'asc' },
+    });
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+exports.upsertNcRegisterEntry = async (req, res) => {
+  try {
+    const { id, entryDate, reworkEntryId, certificateId, customerName, testReport,
+      process: processName, stage, ncQty, ncDetails, disposition, rootCauseAnalysis,
+      correctiveAction, reVerification, sign } = req.body;
+    if (!entryDate) return res.status(400).json({ success: false, message: 'entryDate is required.' });
+    const ncDate = parseYMD(entryDate);
+    if (!ncDate) return res.status(400).json({ success: false, message: 'entryDate must be a valid YYYY-MM-DD.' });
+
+    const payload = {
+      entryDate: ncDate,
+      reworkEntryId: reworkEntryId ? toInt(reworkEntryId) : null,
+      certificateId: certificateId ? toInt(certificateId) : null,
+      customerName: clip(customerName, 200),
+      testReport: clip(testReport, 100),
+      process: clip(processName, 200),
+      stage: clip(stage, 200),
+      ncQty: clip(ncQty, 20),
+      ncDetails: clip(ncDetails, 5000),
+      disposition: clip(disposition, 5000),
+      rootCauseAnalysis: clip(rootCauseAnalysis, 5000),
+      correctiveAction: clip(correctiveAction, 5000),
+      reVerification: clip(reVerification, 200),
+      sign: clip(sign, 100),
+    };
+
+    let saved;
+    if (id) {
+      saved = await prisma.ncRegisterEntry.update({ where: { id: toInt(id) }, data: payload });
+    } else {
+      const last = await prisma.ncRegisterEntry.findFirst({ orderBy: { srNo: 'desc' }, select: { srNo: true } });
+      saved = await prisma.ncRegisterEntry.create({ data: { ...payload, srNo: (last?.srNo || 0) + 1, createdById: req.user.id } });
+    }
+
+    res.json({ success: true, data: saved, message: 'NC register entry saved.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
+exports.deleteNcRegisterEntry = async (req, res) => {
+  try {
+    const id = toInt(req.params.id);
+    if (!id) return res.status(400).json({ success: false, message: 'Invalid ID.' });
+    await prisma.ncRegisterEntry.delete({ where: { id } });
+    res.json({ success: true, message: 'NC register entry deleted.' });
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ success: false, message: 'Server error.' });
   }
 };

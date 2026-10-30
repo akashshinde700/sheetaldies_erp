@@ -1,4 +1,7 @@
 import React from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Card, CardContent } from '../../../components/ui/card';
+import { Button } from '../../../components/ui/button';
 
 interface RegisterPaginationProps {
   page: number;
@@ -8,40 +11,45 @@ interface RegisterPaginationProps {
   pageSize: number;
 }
 
-export default function RegisterPagination({ 
-  page, setPage, totalPages, filteredCount, pageSize 
+export default function RegisterPagination({
+  page, setPage, totalPages, filteredCount, pageSize
 }: RegisterPaginationProps) {
   return (
-    <div className="flex items-center justify-between px-4 py-3 bg-white border border-slate-200 rounded-xl shadow-sm">
-      <div className="flex items-center gap-4">
+    <Card>
+      <CardContent className="flex items-center justify-between gap-3 px-4 py-2.5">
         <p className="text-xs text-slate-500">
-          Showing <span className="font-bold text-slate-900">{Math.min(filteredCount, (page - 1) * pageSize + 1)}</span> to{' '}
-          <span className="font-bold text-slate-900">{Math.min(filteredCount, page * pageSize)}</span> of{' '}
-          <span className="font-bold text-slate-900">{filteredCount}</span> records
+          Showing <span className="font-bold text-slate-900 tabular-nums">{Math.min(filteredCount, (page - 1) * pageSize + 1)}</span> to{' '}
+          <span className="font-bold text-slate-900 tabular-nums">{Math.min(filteredCount, page * pageSize)}</span> of{' '}
+          <span className="font-bold text-slate-900 tabular-nums">{filteredCount}</span> records
         </p>
-      </div>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => setPage(Math.max(1, page - 1))}
-          disabled={page === 1}
-          className="w-10 h-10 rounded-xl border border-slate-200 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-200 disabled:opacity-40 disabled:hover:text-slate-400 disabled:hover:border-slate-200 transition-all font-bold"
-        >
-          <span className="material-symbols-outlined text-[20px]">chevron_left</span>
-        </button>
-        <div className="flex items-center gap-1.5 px-3 h-10 border border-slate-100 bg-slate-50/50 rounded-xl">
-          <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Page</span>
-          <span className="text-sm font-black text-indigo-700">{page}</span>
-          <span className="text-xs text-slate-400 font-bold">/</span>
-          <span className="text-sm font-bold text-slate-600">{totalPages}</span>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            onClick={() => setPage(Math.max(1, page - 1))}
+            disabled={page === 1}
+            aria-label="Previous page"
+            className="text-slate-500"
+          >
+            <ChevronLeft />
+          </Button>
+          <span className="text-xs text-slate-500 whitespace-nowrap px-1">
+            Page <span className="font-bold text-slate-900 tabular-nums">{page}</span> / <span className="font-semibold tabular-nums">{totalPages}</span>
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            onClick={() => setPage(Math.min(totalPages, page + 1))}
+            disabled={page === totalPages}
+            aria-label="Next page"
+            className="text-slate-500"
+          >
+            <ChevronRight />
+          </Button>
         </div>
-        <button
-          onClick={() => setPage(Math.min(totalPages, page + 1))}
-          disabled={page === totalPages}
-          className="w-10 h-10 rounded-xl border border-slate-200 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-200 disabled:opacity-40 disabled:hover:text-slate-400 disabled:hover:border-slate-200 transition-all font-bold"
-        >
-          <span className="material-symbols-outlined text-[20px]">chevron_right</span>
-        </button>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

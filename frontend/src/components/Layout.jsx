@@ -1,16 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Search, LogOut, KeyRound, Sun, Moon } from 'lucide-react';
 
 import Sidebar from './Sidebar';
+import CommandPalette from './CommandPalette';
 import { useAuth } from '../context/AuthContext';
+import { resolveDark, toggleDark } from '../utils/theme';
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 
 const PAGE_TITLES = {
   '/':                         { title: 'Dashboard',         icon: 'dashboard' },
   '/jobcards':                 { title: 'Job Cards',          icon: 'description' },
   '/jobcards/new':             { title: 'New Job Card',        icon: 'add_circle' },
   '/jobwork':                  { title: 'Jobwork Challans',    icon: 'engineering' },
-  '/jobwork/register':         { title: 'Inward + Job Card',   icon: 'import_export' },
+  '/jobwork/register':         { title: 'Inwards',            icon: 'import_export' },
+  '/jobwork/inward-entry':     { title: 'Inward Entry',        icon: 'add_circle' },
   '/jobwork/new':              { title: 'New Inward + Job Card', icon: 'add_circle' },
+  '/pending':                  { title: 'Pending List',        icon: 'pending_actions' },
   '/quality/certificates':     { title: 'Test Certificates',  icon: 'verified' },
   '/quality/certificates/new': { title: 'New Certificate',    icon: 'add_circle' },
   '/invoices':                 { title: 'Tax Invoices',        icon: 'receipt_long' },
@@ -19,7 +27,14 @@ const PAGE_TITLES = {
   '/analytics/advanced':       { title: 'Advanced analytics', icon: 'insights' },
   '/dispatch':                 { title: 'Dispatch challans',   icon: 'local_shipping' },
   '/dispatch/new':             { title: 'New dispatch',        icon: 'add_circle' },
-  '/purchaserty-rates':        { title: 'Party Process Rates', icon: 'price_check' },
+  '/customer-quotes':          { title: 'Customer Quotes',     icon: 'request_quote' },
+  '/inventory':                { title: 'Inventory',           icon: 'warehouse' },
+  '/purchase/inventory':       { title: 'Inventory (purchase)', icon: 'warehouse' },
+  '/admin/parties':            { title: 'Parties',             icon: 'group' },
+  '/admin/party-rates':        { title: 'Party Process Rates', icon: 'price_check' },
+  '/admin/processes':          { title: 'Process Types',       icon: 'settings_suggest' },
+  '/admin/heat-treat-specs':   { title: 'Heat Treatment Specs', icon: 'local_fire_department' },
+  '/admin/temp-cycle-graphs':  { title: 'Temp Cycle Graphs',   icon: 'show_chart' },
   '/admin/items':              { title: 'Items',               icon: 'inventory' },
   '/admin/machines':           { title: 'Machines',            icon: 'precision_manufacturing' },
   '/admin/users':              { title: 'User Management',     icon: 'manage_accounts' },
@@ -29,10 +44,35 @@ const PAGE_TITLES = {
 };
 
 export default function Layout() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    // Collapsed (icon-only) by default — clicking the toggle expands it. Once
+    // the user picks a state it's remembered; only a never-set preference
+    // falls back to collapsed.
+    try {
+      const saved = localStorage.getItem('svt_sidebar_collapsed');
+      return saved === null ? true : saved === '1';
+    } catch { return true; }
+  });
+  const [isDark, setIsDark] = useState(resolveDark);
   const mainRef = useRef(null);
+
+  const toggleTheme = () => { toggleDark(); setIsDark(resolveDark()); };
+
+  const toggleCollapsed = () => setCollapsed((c) => {
+    const next = !c;
+    try { localStorage.setItem('svt_sidebar_collapsed', next ? '1' : '0'); } catch { /* ignore */ }
+    return next;
+  });
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
 
   // Reset scroll to top on every route change
   useEffect(() => {
@@ -105,6 +145,9 @@ export default function Layout() {
       if (/^\/jobcards\/\d+\/inspection$/.test(location.pathname)) {
         return { title: 'Incoming inspection', icon: 'fact_check' };
       }
+      if (/^\/jobcards\/\d+\/edit$/.test(location.pathname)) {
+        return { title: 'Edit Job Card', icon: 'description' };
+      }
       if (/^\/jobcards\/\d+$/.test(location.pathname)) {
         return { title: 'Job Card', icon: 'description' };
       }
@@ -126,6 +169,12 @@ export default function Layout() {
       if (/^\/quality\/certificates\/\d+$/.test(location.pathname)) {
         return { title: 'Certificate', icon: 'verified' };
       }
+      if (location.pathname === '/admin/parties/new') {
+        return { title: 'Add New Party', icon: 'add_circle' };
+      }
+      if (/^\/admin\/parties\/\d+\/edit$/.test(location.pathname)) {
+        return { title: 'Edit Party', icon: 'group' };
+      }
       if (/^\/admin\/parties\/\d+$/.test(location.pathname)) {
         return { title: 'Party profile', icon: 'person' };
       }
@@ -135,16 +184,22 @@ export default function Layout() {
 
   return (
     <div className="flex h-dvh h-screen bg-app-shell overflow-hidden print:block print:overflow-visible print:h-auto">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        collapsed={collapsed}
+        onToggleCollapsed={toggleCollapsed}
+      />
 
-      <div className="flex-1 min-w-0 w-full flex flex-col h-dvh h-screen lg:ml-64 print:ml-0 print:h-auto print:block">
+      <div className={`flex-1 min-w-0 w-full flex flex-col h-dvh h-screen print:ml-0 print:h-auto print:block transition-[margin] duration-300 ease-out ${collapsed ? 'lg:ml-[4.75rem]' : 'lg:ml-64'}`}>
 
         <header
-          className="print:hidden fixed top-0 right-0 left-0 lg:left-64 z-30 flex items-center gap-3
+          className={`print:hidden fixed top-0 right-0 left-0 z-30 flex items-center gap-3 transition-[left] duration-300 ease-out
+            ${collapsed ? 'lg:left-[4.75rem]' : 'lg:left-64'}
             h-[calc(3.75rem+env(safe-area-inset-top,0px))] header-bar-padding
             pt-[env(safe-area-inset-top,0px)]
             bg-white/90 supports-[backdrop-filter]:bg-white/75 backdrop-blur-xl backdrop-saturate-150
-            border-b border-slate-200/80 shadow-header"
+            border-b border-slate-200/80 shadow-header`}
         >
           <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink">
             <button
@@ -158,7 +213,7 @@ export default function Layout() {
               <span className="material-symbols-outlined text-[24px]">menu</span>
             </button>
 
-            <div className="hidden xl:flex flex-col min-w-0 pr-2 border-r border-slate-200/80 mr-1">
+            <div className="hidden xl:flex flex-col min-w-0 pr-3 border-r border-slate-200/80 mr-1 select-none">
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 leading-none">SVT</span>
               <span className="text-xs font-extrabold text-slate-900 font-headline leading-tight truncate max-w-[10rem]">ERP</span>
             </div>
@@ -172,40 +227,93 @@ export default function Layout() {
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2 shrink-0 ml-auto">
-            <div className="flex items-center gap-2 sm:gap-2.5 pl-2 sm:pl-3 border-l border-slate-200/80">
-              <div
-                className="w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold
-                  bg-gradient-to-br from-slate-800 to-slate-900 shadow-sm ring-2 ring-white"
+            <button
+              type="button"
+              onClick={() => setPaletteOpen(true)}
+              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 min-h-[38px] text-slate-500
+                hover:border-slate-300 hover:text-slate-800 transition-colors
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+              aria-label="Search (Ctrl+K)"
+            >
+              <Search className="h-4 w-4" />
+              <span className="hidden md:inline text-xs font-medium">Search</span>
+              <kbd className="hidden md:inline rounded border border-slate-200 bg-slate-50 px-1 text-[10px] font-app-mono text-slate-400">Ctrl K</kbd>
+            </button>
+
+            <button
+              type="button"
+              onClick={toggleTheme}
+              role="switch"
+              aria-checked={isDark}
+              aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={isDark ? 'Light mode' : 'Dark mode'}
+              style={{ background: isDark ? '#D97706' : '#E8E4DE', borderColor: isDark ? '#F59E0B' : '#D6D0C7' }}
+              className="shrink-0 relative inline-flex h-[34px] w-[58px] items-center rounded-full border transition-colors
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+            >
+              <span
+                style={{ background: '#ffffff', transform: isDark ? 'translateX(24px)' : 'translateX(0)' }}
+                className="absolute left-[3px] flex h-[26px] w-[26px] items-center justify-center rounded-full shadow
+                  transition-transform duration-300 ease-out"
               >
-                {initials}
-              </div>
-              <div className="hidden sm:block min-w-0">
-                <p className="text-xs font-semibold text-slate-900 leading-tight truncate max-w-[140px] md:max-w-[200px]">
-                  {user?.name}
-                </p>
-                <p className="text-[10px] text-slate-600 mt-0.5 font-semibold uppercase tracking-wide">{user?.role}</p>
-              </div>
+                {isDark
+                  ? <Moon className="h-3.5 w-3.5 text-primary-600" />
+                  : <Sun className="h-3.5 w-3.5 text-amber-500" />}
+              </span>
+            </button>
+
+            <div className="pl-2 sm:pl-3 border-l border-slate-200/80">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex items-center gap-2.5 rounded-lg p-1 pr-2 hover:bg-slate-100 transition-colors
+                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                    aria-label="Account menu"
+                  >
+                    <span className="w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold
+                      bg-gradient-to-br from-slate-800 to-slate-900 shadow-sm ring-2 ring-white">
+                      {initials}
+                    </span>
+                    <span className="hidden sm:block min-w-0 text-left">
+                      <span className="block text-xs font-semibold text-slate-900 leading-tight truncate max-w-[140px] md:max-w-[200px]">
+                        {user?.name}
+                      </span>
+                      <span className="block text-[10px] text-slate-500 mt-0.5 font-semibold uppercase tracking-wide">{user?.role}</span>
+                    </span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 font-app">
+                  <DropdownMenuLabel>
+                    <span className="block truncate text-sm font-semibold normal-case tracking-normal text-slate-800">{user?.name}</span>
+                    <span className="block truncate text-xs font-normal normal-case tracking-normal text-slate-500">{user?.email}</span>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => navigate('/change-password')}>
+                    <KeyRound /> Change password
+                  </DropdownMenuItem>
+                  <DropdownMenuItem destructive onSelect={handleLogout}>
+                    <LogOut /> Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </header>
 
+        <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+
         <main
           ref={mainRef}
           style={{ touchAction: 'pan-y' }}
-          className="flex-1 mt-[calc(3.75rem+env(safe-area-inset-top,0px))] main-area-padding
-            py-4 sm:py-5 md:py-7 pb-8 sm:pb-10 overflow-x-hidden overflow-y-auto overscroll-contain animate-fade-in safe-pb
-            print:mt-0 print:overflow-visible print:p-0"
+          className="flex-1 min-h-0 flex flex-col mt-[calc(3.75rem+env(safe-area-inset-top,0px))] main-area-padding
+            py-2 sm:py-3 overflow-x-hidden overflow-y-auto overscroll-contain animate-fade-in safe-pb
+            print:mt-0 print:overflow-visible print:p-0 print:block"
         >
-          <div className="w-full animate-slide-up">
+          <div className="w-full flex-1 min-h-0 flex flex-col animate-slide-up print:block">
             <Outlet />
           </div>
         </main>
-
-        <footer className="print:hidden footer-bar-padding py-2.5 border-t border-slate-200/70 bg-white/85 backdrop-blur-sm safe-pb">
-          <p className="text-[10px] text-slate-400 text-center leading-relaxed tracking-wide">
-            Shital Vacuum Treat Pvt. Ltd. · SVT ERP
-          </p>
-        </footer>
       </div>
     </div>
   );

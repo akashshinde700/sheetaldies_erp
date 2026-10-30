@@ -3,14 +3,20 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import App from './App';
+import OfflineBar from './components/OfflineBar';
 import './index.css';
 import { initErrorReporting } from './utils/errorReporter';
+import { applyTheme } from './utils/theme';
+import { registerServiceWorker } from './utils/registerServiceWorker';
 
 initErrorReporting();
+applyTheme(); // assert theme + wire the class-guard observer before first render
+registerServiceWorker(); // installable + survives a dropped connection (production only)
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <OfflineBar />
       <App />
       <Toaster
         position="top-center"

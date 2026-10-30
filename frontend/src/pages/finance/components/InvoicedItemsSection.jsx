@@ -1,9 +1,25 @@
 import React from 'react';
+import { Plus, Trash2, Layers, Scale } from 'lucide-react';
 import SearchSelect from '../../../components/SearchSelect';
 import { toNum } from '../../../utils/normalize';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { FormField } from '@/components/ui/form-field';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const GROUP_FIELD = { KGS: 'weight', PCS: 'quantity', LOT: 'quantity' };
 const GROUP_LABEL = { KGS: 'Total Weight (kg)', PCS: 'Total Qty (pcs)', LOT: 'Total Lots' };
+
+const UNIT_OPTIONS = ['KGS', 'NOS', 'LOT', 'PCS'];
 
 export default function InvoicedItemsSection({
   lineItems, setLineItems, processes, updateLine, challanInfo, newEmptyLine, remainingByChallanItem, applyGroupTotal,
@@ -25,161 +41,197 @@ export default function InvoicedItemsSection({
   });
 
   const renderRow = (it, i) => (
-    <div key={it._id} className="bg-slate-50/70 border border-slate-200 rounded-xl p-3 hover:border-sky-200 transition-colors">
-      <div className="hidden sm:grid grid-cols-[2rem_1fr_1.2fr_5.5rem_7.5rem_4.5rem_5rem_6.5rem_1.5rem] gap-2 items-center">
-        <span className="text-[11px] text-slate-400 font-mono text-center">{i+1}</span>
-        <SearchSelect
-          value={it.processTypeId}
-          onChange={v => updateLine(i, 'processTypeId', v)}
-          options={processes.map(p => ({ value: p.id, label: p.name }))}
-          placeholder="— None —"
-        />
-        <input value={it.description} onChange={e => updateLine(i, 'description', e.target.value)}
-          list="desc-suggestions" required placeholder="Description"
-          className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-sky-300 w-full" />
-        <select value={it.billingType || 'KGS'} onChange={e => updateLine(i, 'billingType', e.target.value)}
-          title="Billing basis — auto-detected from the customer's rate"
-          className="border border-slate-200 rounded-lg px-1 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-sky-300 w-full">
-          <option value="KGS">Per Kg</option>
-          <option value="PCS">Per Pc</option>
-          <option value="LOT">Per Lot</option>
-        </select>
-        <div className="flex gap-1">
-          <input type="number" min="0" value={it.quantity} onChange={e => updateLine(i, 'quantity', e.target.value)}
-            required placeholder="Qty"
-            className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white text-center focus:outline-none focus:ring-1 focus:ring-sky-300 w-0 flex-1 min-w-0" />
-          <select value={it.unit} onChange={e => updateLine(i, 'unit', e.target.value)}
-            className="border border-slate-200 rounded-lg px-1 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-sky-300">
-            <option>KGS</option><option>NOS</option><option>LOT</option><option>PCS</option>
-          </select>
+    <div key={it._id} className="rounded-xl border border-slate-200/90 bg-white overflow-hidden">
+      {/* Row header */}
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-slate-50/80 border-b border-slate-100">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-sky-100 text-xs font-bold text-sky-700 tabular-nums">
+            {i + 1}
+          </span>
+          <span className="text-xs font-semibold text-slate-600 truncate">
+            {it.description || 'New line'}
+          </span>
         </div>
-        <input type="number" value={it.rate} onChange={e => updateLine(i, 'rate', e.target.value)}
-          required placeholder="Rate"
-          className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white text-right focus:outline-none focus:ring-1 focus:ring-sky-300 w-full" />
-        <input type="number" min="0" step="0.001" value={it.weight} onChange={e => updateLine(i, 'weight', e.target.value)}
-          placeholder="0.000"
-          className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white text-right focus:outline-none focus:ring-1 focus:ring-sky-300 w-full" />
-        <input type="number" min="0" step="0.01" value={it.amount} onChange={e => updateLine(i, 'amount', e.target.value)}
-          required placeholder="0.00"
-          className="border border-sky-200 rounded-lg px-2 py-1.5 text-xs bg-sky-50 text-right font-bold text-sky-700 focus:outline-none focus:ring-1 focus:ring-sky-400 w-full" />
-        <div className="flex justify-center">
-          {lineItems.length > 1 && (
-            <button type="button" onClick={() => setLineItems(p => p.filter((_, j) => j !== i))}
-              className="w-6 h-6 rounded-lg flex items-center justify-center text-rose-400 hover:text-rose-600 hover:bg-rose-50 transition-colors">
-              <span className="material-symbols-outlined text-sm">delete</span>
-            </button>
-          )}
-        </div>
+        {lineItems.length > 1 && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setLineItems(p => p.filter((_, j) => j !== i))}
+            className="text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+            aria-label={`Remove line ${i + 1}`}
+          >
+            <Trash2 />
+          </Button>
+        )}
       </div>
 
-      <div className="sm:hidden space-y-2">
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] text-slate-400 font-mono w-5 text-center flex-shrink-0">{i+1}</span>
-          <SearchSelect
-            value={it.processTypeId}
-            onChange={v => updateLine(i, 'processTypeId', v)}
-            options={processes.map(p => ({ value: p.id, label: p.name }))}
-            placeholder="— Process —"
-          />
-          {lineItems.length > 1 && (
-            <button type="button" onClick={() => setLineItems(p => p.filter((_, j) => j !== i))}
-              className="w-6 h-6 rounded-lg flex items-center justify-center text-rose-400 hover:text-rose-600 hover:bg-rose-50 flex-shrink-0">
-              <span className="material-symbols-outlined text-sm">delete</span>
-            </button>
-          )}
-        </div>
-        <input value={it.description} onChange={e => updateLine(i, 'description', e.target.value)}
-          list="desc-suggestions" required placeholder="Description"
-          className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-sky-300 w-full" />
-        <div>
-          <label className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block mb-1">Billing Basis</label>
-          <select value={it.billingType || 'KGS'} onChange={e => updateLine(i, 'billingType', e.target.value)}
-            className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-sky-300 w-full">
-            <option value="KGS">Per Kg (by weight)</option>
-            <option value="PCS">Per Pc (by pieces)</option>
-            <option value="LOT">Per Lot</option>
-          </select>
-        </div>
-        <div className="grid grid-cols-3 gap-2">
-          <div>
-            <label className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block mb-1">Qty</label>
-            <div className="flex gap-1">
-              <input type="number" min="0" value={it.quantity} onChange={e => updateLine(i, 'quantity', e.target.value)} required placeholder="Qty"
-                className="border border-slate-200 rounded-lg px-1 py-1.5 text-xs bg-white text-center focus:outline-none focus:ring-1 focus:ring-sky-300 w-0 flex-1 min-w-0" />
-              <select value={it.unit} onChange={e => updateLine(i, 'unit', e.target.value)}
-                className="border border-slate-200 rounded-lg px-1 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-sky-300">
-                <option>KGS</option><option>NOS</option><option>LOT</option><option>PCS</option>
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block mb-1">Rate (₹)</label>
-            <input type="number" value={it.rate} onChange={e => updateLine(i, 'rate', e.target.value)} required placeholder="Rate"
-              className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white text-right focus:outline-none focus:ring-1 focus:ring-sky-300 w-full" />
-          </div>
-          <div>
-            <label className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block mb-1">Wt (kg)</label>
-            <input type="number" min="0" step="0.001" value={it.weight} onChange={e => updateLine(i, 'weight', e.target.value)} placeholder="0.000"
-              className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white text-right focus:outline-none focus:ring-1 focus:ring-sky-300 w-full" />
-          </div>
-        </div>
-        <div>
-          <label className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block mb-1">Amount (₹)</label>
-          <input type="number" min="0" step="0.01" value={it.amount} onChange={e => updateLine(i, 'amount', e.target.value)}
-            required placeholder="0.00"
-            className="border border-sky-200 rounded-lg px-2 py-1.5 text-xs bg-sky-50 text-right font-bold text-sky-700 focus:outline-none focus:ring-1 focus:ring-sky-400 w-full" />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2 pt-2 border-t border-slate-100/80">
-        {challanInfo?.items?.length > 0 && (
-          <div className="col-span-2 sm:col-span-4">
-            <label className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block mb-1">Source Challan Line</label>
+      <div className="p-4 space-y-4">
+        {/* Primary fields */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-12 gap-x-3 gap-y-3">
+          <FormField label="Process" className="col-span-2 sm:col-span-2 lg:col-span-3">
             <SearchSelect
-              value={String(it.sourceChallanItemId || '')}
-              onChange={v => updateLine(i, 'sourceChallanItemId', v)}
-              options={challanInfo.items.map((cIt, idx) => ({
-                value: cIt.id,
-                label: `${idx + 1}. ${cIt.partName || cIt.description || 'Item'} (Qty ${cIt.quantity}, Rate ${cIt.rate})`,
-              }))}
-              placeholder="Select source challan line"
-              useFixed
+              value={it.processTypeId}
+              onChange={v => updateLine(i, 'processTypeId', v)}
+              options={processes.map(p => ({ value: p.id, label: p.name }))}
+              placeholder="— None —"
             />
-          </div>
-        )}
-        {it.sourceChallanItemId && remainingByChallanItem.has(String(it.sourceChallanItemId)) && (
-          <div className="col-span-2 sm:col-span-4">
-            {(() => {
-              const b = remainingByChallanItem.get(String(it.sourceChallanItemId));
-              return (
-                <p className="text-[10px] text-slate-500">
-                  Challan Qty: <strong>{b.totalQty}</strong> | Already Invoiced: <strong>{b.invoicedQty}</strong> | Remaining: <strong>{b.remainingQty}</strong>
+          </FormField>
+          <FormField label="Description" required className="col-span-2 sm:col-span-2 lg:col-span-5">
+            <Input
+              value={it.description}
+              onChange={e => updateLine(i, 'description', e.target.value)}
+              list="desc-suggestions"
+              required
+              placeholder="Description"
+              className="font-semibold"
+            />
+          </FormField>
+          <FormField label="Billing" className="col-span-1 sm:col-span-2 lg:col-span-2">
+            <Select
+              value={it.billingType || 'KGS'}
+              onValueChange={v => updateLine(i, 'billingType', v)}
+            >
+              <SelectTrigger title="Billing basis — auto-detected from the customer's rate">
+                <SelectValue placeholder="Billing" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="KGS">Per Kg</SelectItem>
+                <SelectItem value="PCS">Per Pc</SelectItem>
+                <SelectItem value="LOT">Per Lot</SelectItem>
+              </SelectContent>
+            </Select>
+          </FormField>
+          <FormField label="Qty" required className="col-span-1 sm:col-span-1 lg:col-span-1">
+            <Input
+              type="number"
+              min="0"
+              inputMode="numeric"
+              value={it.quantity}
+              onChange={e => updateLine(i, 'quantity', e.target.value)}
+              required
+              placeholder="Qty"
+              className="text-right tabular-nums"
+            />
+          </FormField>
+          <FormField label="Unit" className="col-span-1 sm:col-span-1 lg:col-span-1">
+            <Select value={it.unit} onValueChange={v => updateLine(i, 'unit', v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Unit" />
+              </SelectTrigger>
+              <SelectContent>
+                {UNIT_OPTIONS.map(u => (
+                  <SelectItem key={u} value={u}>{u}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+          <FormField label="Rate (₹)" required className="col-span-1 sm:col-span-1 lg:col-span-4">
+            <Input
+              type="number"
+              inputMode="decimal"
+              value={it.rate}
+              onChange={e => updateLine(i, 'rate', e.target.value)}
+              required
+              placeholder="Rate"
+              className="text-right tabular-nums"
+            />
+          </FormField>
+          <FormField label="Weight (kg)" className="col-span-1 sm:col-span-1 lg:col-span-4">
+            <Input
+              type="number"
+              min="0"
+              step="0.001"
+              inputMode="decimal"
+              value={it.weight}
+              onChange={e => updateLine(i, 'weight', e.target.value)}
+              placeholder="0.000"
+              className="text-right tabular-nums"
+            />
+          </FormField>
+          <FormField label="Amount (₹)" required className="col-span-2 sm:col-span-2 lg:col-span-4">
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              inputMode="decimal"
+              value={it.amount}
+              onChange={e => updateLine(i, 'amount', e.target.value)}
+              required
+              placeholder="0.00"
+              className="text-right tabular-nums font-bold text-sky-700 border-sky-200 bg-sky-50"
+            />
+          </FormField>
+        </div>
+
+        {/* Secondary fields */}
+        <div className="rounded-lg bg-slate-50 p-3 space-y-3">
+          {challanInfo?.items?.length > 0 && (
+            <FormField label="Source Challan Line">
+              <SearchSelect
+                value={String(it.sourceChallanItemId || '')}
+                onChange={v => updateLine(i, 'sourceChallanItemId', v)}
+                options={challanInfo.items.map((cIt, idx) => ({
+                  value: cIt.id,
+                  label: `${idx + 1}. ${cIt.partName || cIt.description || 'Item'} (Qty ${cIt.quantity}, Rate ${cIt.rate})`,
+                }))}
+                placeholder="Select source challan line"
+                useFixed
+              />
+            </FormField>
+          )}
+          {it.sourceChallanItemId && remainingByChallanItem.has(String(it.sourceChallanItemId)) && (() => {
+            const b = remainingByChallanItem.get(String(it.sourceChallanItemId));
+            return (
+              <>
+                <p className="text-[11px] text-slate-500">
+                  Challan Qty: <strong>{b.totalQty}</strong> · Already Invoiced: <strong>{b.invoicedQty}</strong> · Remaining: <strong>{b.remainingQty}</strong>
                 </p>
-              );
-            })()}
+                {b.rejectedQty > 0 && (
+                  <p className="text-[11px] font-semibold text-rose-600">
+                    {b.rejectedQty} pc(s) rejected (Rework Data) — already taken out of Remaining. They cannot be billed.
+                  </p>
+                )}
+              </>
+            );
+          })()}
+          {/* Same-process lines (matching processTypeId) are billed as ONE
+              consolidated line on save/print — see the Process Summary bar
+              above this group, and buildConsolidatedItems() in
+              InvoiceForm.jsx's handleSubmit. This card stays exactly what it
+              was: one challan item, its own material/HRC/qty. */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-3">
+            <FormField label="Material">
+              <Input
+                value={it.material}
+                onChange={e => updateLine(i, 'material', e.target.value)}
+                placeholder="H13, D2…"
+                className="bg-white"
+              />
+            </FormField>
+            <FormField label="HRC">
+              <Input
+                value={it.hrc}
+                onChange={e => updateLine(i, 'hrc', e.target.value)}
+                placeholder="52-54"
+                className="bg-white"
+              />
+            </FormField>
+            <FormField label="WO No">
+              <Input
+                value={it.woNo}
+                onChange={e => updateLine(i, 'woNo', e.target.value)}
+                className="bg-white"
+              />
+            </FormField>
+            <FormField label="SAC No">
+              <Input
+                value={it.hsnSac}
+                onChange={e => updateLine(i, 'hsnSac', e.target.value)}
+                className="bg-white font-mono"
+              />
+            </FormField>
           </div>
-        )}
-        <div>
-          <label className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block mb-1">Material</label>
-          <input value={it.material} onChange={e => updateLine(i, 'material', e.target.value)}
-            placeholder="H13, D2…"
-            className="border border-slate-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-sky-300 w-full" />
-        </div>
-        <div>
-          <label className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block mb-1">HRC</label>
-          <input value={it.hrc} onChange={e => updateLine(i, 'hrc', e.target.value)}
-            placeholder="52-54"
-            className="border border-slate-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-sky-300 w-full" />
-        </div>
-        <div>
-          <label className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block mb-1">WO No</label>
-          <input value={it.woNo} onChange={e => updateLine(i, 'woNo', e.target.value)}
-            className="border border-slate-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-sky-300 w-full" />
-        </div>
-        <div>
-          <label className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block mb-1">SAC No</label>
-          <input value={it.hsnSac} onChange={e => updateLine(i, 'hsnSac', e.target.value)}
-            className="border border-slate-200 rounded-lg px-2 py-1 text-xs bg-white font-mono focus:outline-none focus:ring-1 focus:ring-sky-300 w-full" />
         </div>
       </div>
     </div>
@@ -195,113 +247,126 @@ export default function InvoicedItemsSection({
     const proc = processes.find(p => String(p.id) === String(g.processTypeId));
     return (
       <div key={`summary-${g.key}`} className="flex flex-wrap items-center gap-3 bg-indigo-50/70 border border-indigo-200 rounded-xl px-3 py-2 mb-1.5">
-        <span className="material-symbols-outlined text-indigo-500 text-[16px]">layers</span>
+        <Layers className="h-4 w-4 shrink-0 text-indigo-500" />
         <span className="text-xs font-bold text-indigo-800">{proc?.name || 'Process'}</span>
-        <span className="text-[10px] text-indigo-400">({items.length} items)</span>
+        <span className="text-[10px] text-indigo-400">({items.length} items — billed &amp; printed as one line)</span>
         <div className="ml-auto flex items-center gap-2">
-          <label className="text-[10px] font-semibold text-indigo-500 uppercase tracking-wider">{GROUP_LABEL[type]}</label>
-          <input
+          <label className="text-[10px] font-extrabold text-indigo-500 uppercase tracking-widest">{GROUP_LABEL[type]}</label>
+          <Input
             type="number" min="0" step="0.001"
+            inputMode="decimal"
             value={total ? total.toFixed(3).replace(/\.?0+$/, '') : ''}
             onChange={e => applyGroupTotal(g.processTypeId, e.target.value)}
             placeholder="0"
-            className="border border-indigo-300 rounded-lg px-2 py-1 text-xs bg-white text-right font-bold text-indigo-700 focus:outline-none focus:ring-1 focus:ring-indigo-400 w-24"
+            className="h-8 min-h-0 text-xs w-24 text-right tabular-nums font-bold text-indigo-700 border-indigo-300"
           />
           <span className="text-xs text-indigo-400">→</span>
-          <span className="text-xs font-bold text-indigo-700">₹{amount.toFixed(2)}</span>
+          <span className="text-xs font-bold text-indigo-700 tabular-nums">₹{amount.toFixed(2)}</span>
         </div>
       </div>
     );
   };
 
-  // The invoice bills on weight when it is filled in and falls back to the
-  // quantity otherwise — same rule the print page and the Tally export use, so
-  // this total is the kilos that will actually appear on the invoice.
-  const billedKg = (it) => toNum(it.weight, 0) || toNum(it.quantity, 0);
+  // A KGS line bills on its own weight only — quantity is a piece count, not
+  // a weight, so it's never substituted in. PCS/LOT lines bill by quantity,
+  // so that's what "weight" means for them here. This mirrors calcLineAmount
+  // exactly, so this total is the kilos that will actually appear on the invoice.
+  const billedKg = (it) => {
+    const type = it.billingType || 'KGS';
+    return type === 'KGS' ? toNum(it.weight, 0) : toNum(it.quantity, 0);
+  };
   const totalKg = lineItems.reduce((s, it) => s + billedKg(it), 0);
   const totalAmount = lineItems.reduce((s, it) => s + toNum(it.amount, 0), 0);
-  // What the challan brought in, so a partial delivery is obvious at a glance.
-  const challanKg = (challanInfo?.items || [])
-    .reduce((s, it) => s + (toNum(it.weight, 0) || toNum(it.quantity, 0)), 0);
+  // What the challan brought in, so a partial delivery is obvious at a glance —
+  // the inward's own recorded total, not a per-item guess from quantity.
+  const challanKg = toNum(challanInfo?.weightSummary?.inwardTotalWeight, 0)
+    || toNum(challanInfo?.totalInwardWeight, 0)
+    || toNum(challanInfo?.jobCard?.totalWeight, 0)
+    || (challanInfo?.relatedJobCards || []).reduce((s, j) => s + toNum(j.totalWeight, 0), 0)
+    || (challanInfo?.items || []).reduce((s, it) => s + toNum(it.weight, 0), 0);
   const kg = (v) => v.toFixed(3).replace(/\.?0+$/, '');
 
   return (
-    <div className="card p-4 sm:p-5 3xl:p-6 min-w-0">
-      <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center border-b border-slate-100 pb-2 mb-3">
-        <div>
-          <p className="section-title">Services / Items</p>
-          {challanInfo && <p className="text-[10px] text-slate-400 mt-0.5">Auto-filled from challan — edit if partial delivery</p>}
+    <Card>
+      <CardHeader className="flex-row items-center justify-between space-y-0">
+        <div className="space-y-1">
+          <CardTitle>Services / Items</CardTitle>
+          <CardDescription>
+            {challanInfo ? 'Auto-filled from challan — edit if partial delivery' : `${lineItems.length} line${lineItems.length !== 1 ? 's' : ''} on this invoice`}
+          </CardDescription>
         </div>
-        <button type="button" onClick={() => setLineItems(p => [...p, newEmptyLine()])}
-          className="flex items-center gap-1 text-xs font-bold text-sky-600 hover:text-sky-700 bg-sky-50 hover:bg-sky-100 px-3 py-1.5 rounded-lg transition-colors">
-          <span className="material-symbols-outlined text-sm">add</span> Add Row
-        </button>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 bg-sky-50/70 border border-sky-200 rounded-xl px-3 py-2 mb-3">
-        <span className="material-symbols-outlined text-sky-500 text-[16px]">scale</span>
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-[10px] font-semibold text-sky-500 uppercase tracking-wider">Total Weight</span>
-          <span className="text-sm font-extrabold text-sky-800">{kg(totalKg)} kg</span>
-        </div>
-        {challanKg > 0 && (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={() => setLineItems(p => [...p, newEmptyLine()])}
+        >
+          <Plus /> Add Row
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {/* Weight / subtotal summary strip */}
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 bg-sky-50/70 border border-sky-200 rounded-xl px-3 py-2">
+          <Scale className="h-4 w-4 shrink-0 text-sky-500" />
           <div className="flex items-baseline gap-1.5">
-            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Challan</span>
-            <span className="text-xs font-bold text-slate-600">{kg(challanKg)} kg</span>
-            {Math.abs(challanKg - totalKg) >= 0.001 && (
-              <span className="badge bg-amber-100 text-amber-700 text-[10px]">
-                {totalKg < challanKg ? `${kg(challanKg - totalKg)} kg pending` : `${kg(totalKg - challanKg)} kg extra`}
-              </span>
-            )}
+            <span className="text-[10px] font-extrabold text-sky-500 uppercase tracking-widest">Total Weight</span>
+            <span className="text-sm font-extrabold text-sky-800 tabular-nums">{kg(totalKg)} kg</span>
           </div>
-        )}
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Lines</span>
-          <span className="text-xs font-bold text-slate-600">{lineItems.length}</span>
-        </div>
-        <div className="ml-auto flex items-baseline gap-1.5">
-          <span className="text-[10px] font-semibold text-sky-500 uppercase tracking-wider">Subtotal</span>
-          <span className="text-sm font-extrabold text-sky-800">₹{totalAmount.toFixed(2)}</span>
-        </div>
-      </div>
-
-      {/* The invoice bills the process; the part name under it is optional. */}
-      {setShowPartName && (
-        <label className="flex items-start gap-2 cursor-pointer bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 mb-3 hover:border-sky-200 transition-colors">
-          <input type="checkbox" checked={showPartName}
-            onChange={e => setShowPartName(e.target.checked)}
-            className="mt-0.5 w-4 h-4 accent-sky-600 flex-shrink-0" />
-          <span className="min-w-0">
-            <span className="text-xs font-bold text-slate-700">Print me item ka naam bhi dikhao</span>
-            <span className="block text-[10px] text-slate-400 mt-0.5">
-              Invoice pe process ka naam hamesha aayega. Ye tick hai to uske neeche item ka naam bhi chhapega.
-            </span>
-            <span className="block mt-1.5 text-[10px] font-mono leading-relaxed text-slate-600 bg-white border border-slate-200 rounded-lg px-2 py-1.5">
-              <span className="font-bold">{processes.find(p => String(p.id) === String(lineItems[0]?.processTypeId))?.name || 'HARDENING & TEMPERING'}</span>
-              {showPartName && (
-                <><br /><span className="italic text-slate-400">{lineItems[0]?.description || 'DIE PLATE- 30X196X196- 01NO'}</span></>
+          {challanKg > 0 && (
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Challan</span>
+              <span className="text-xs font-bold text-slate-600 tabular-nums">{kg(challanKg)} kg</span>
+              {Math.abs(challanKg - totalKg) >= 0.001 && (
+                <Badge variant="warning" className="text-[10px]">
+                  {totalKg < challanKg ? `${kg(challanKg - totalKg)} kg pending` : `${kg(totalKg - challanKg)} kg extra`}
+                </Badge>
               )}
-            </span>
-          </span>
-        </label>
-      )}
-
-      <div className="hidden sm:grid grid-cols-[2rem_1fr_1.2fr_5.5rem_7.5rem_4.5rem_5rem_6.5rem_1.5rem] gap-2 px-3 pb-1.5">
-        {['Sr.','Process','Description','Billing','Qty / UOM','Rate (₹)','Weight (kg)','Amount (₹)',''].map(h => (
-          <p key={h} className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{h}</p>
-        ))}
-      </div>
-
-      <div className="space-y-2">
-        {groups.map(g => (
-          <div key={g.key || `single-${g.indices[0]}`}>
-            {g.processTypeId && g.indices.length > 1 && renderGroupSummary(g)}
-            <div className="space-y-2">
-              {g.indices.map(i => renderRow(lineItems[i], i))}
             </div>
+          )}
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Lines</span>
+            <span className="text-xs font-bold text-slate-600 tabular-nums">{lineItems.length}</span>
           </div>
-        ))}
-      </div>
-    </div>
+          <div className="ml-auto flex items-baseline gap-1.5">
+            <span className="text-[10px] font-extrabold text-sky-500 uppercase tracking-widest">Subtotal</span>
+            <span className="text-sm font-extrabold text-sky-800 tabular-nums">₹{totalAmount.toFixed(2)}</span>
+          </div>
+        </div>
+
+        {/* The invoice bills the process; the part name under it is optional. */}
+        {setShowPartName && (
+          <label className="flex items-start gap-2.5 cursor-pointer select-none bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 hover:border-sky-200 transition-colors">
+            <Checkbox
+              checked={showPartName}
+              onCheckedChange={c => setShowPartName(c === true)}
+              className="mt-0.5"
+            />
+            <span className="min-w-0">
+              <span className="text-xs font-bold text-slate-700">Show the item name on the print too</span>
+              <span className="block text-[10px] text-slate-400 mt-0.5">
+                The process name always appears on the invoice. Tick this and the item name prints under it.
+              </span>
+              <span className="block mt-1.5 text-[10px] font-mono leading-relaxed text-slate-600 bg-white border border-slate-200 rounded-lg px-2 py-1.5">
+                <span className="font-bold">{processes.find(p => String(p.id) === String(lineItems[0]?.processTypeId))?.name || 'HARDENING & TEMPERING'}</span>
+                {showPartName && (
+                  <><br /><span className="italic text-slate-400">{lineItems[0]?.description || 'DIE PLATE- 30X196X196- 01NO'}</span></>
+                )}
+              </span>
+            </span>
+          </label>
+        )}
+
+        <div className="space-y-3">
+          {groups.map(g => (
+            <div key={g.key || `single-${g.indices[0]}`}>
+              {g.processTypeId && g.indices.length > 1 && renderGroupSummary(g)}
+              <div className="space-y-3">
+                {g.indices.map(i => renderRow(lineItems[i], i))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

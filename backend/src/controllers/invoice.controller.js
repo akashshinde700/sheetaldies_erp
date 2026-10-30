@@ -9,7 +9,13 @@ const { parsePagination, formatListResponse, formatErrorResponse, getStatusCode 
 
 const { generateSeriesInvoiceNoAtomic } = require('../utils/sequenceManager');
 
-const getChallanBillingStatusInternal = async (challanId, db = prisma) => {
+/**
+ * @param {number|null} excludeInvoiceId  Edit ke waqt jis invoice ko dobara
+ *   likha ja raha hai uski purani lines ko ginti se bahar rakhna zaroori hai —
+ *   warna invoice khud ki hi quantity ko "already billed" maan kar apne aap ko
+ *   block kar deti hai.
+ */
+const getChallanBillingStatusInternal = async (challanId, db = prisma, excludeInvoiceId = null) => {
   const challan = await db.jobworkChallan.findUnique({
     where: { id: toInt(challanId) },
     include: {
@@ -19,7 +25,7 @@ const getChallanBillingStatusInternal = async (challanId, db = prisma) => {
         orderBy: { createdAt: 'asc' },
       },
       taxInvoices: {
-        include: { items: true },
+        include: { items: { include: { sources: true } } },
         orderBy: { createdAt: 'asc' },
       },
     },
@@ -36,7 +42,20 @@ const getChallanBillingStatusInternal = async (challanId, db = prisma) => {
       dispatchedQty: 0,
       invoicedQty: 0,
       remainingQty: 0,
+      rejectedQty: 0,
     });
+  }
+
+  // Pieces raised as REJECT (scrapped) against certificate items that came from
+  // these challan items. Rejected work cannot be redone and is never delivered,
+  // so it is taken out of the billable quantity below — not merely flagged.
+  const rejects = await db.reworkEntry.findMany({
+    where: { type: 'REJECT', certItem: { sourceChallanItemId: { in: challan.items.map((i) => i.id) } } },
+    select: { qty: true, certItem: { select: { sourceChallanItemId: true } } },
+  });
+  for (const r of rejects) {
+    const row = itemMap.get(r.certItem?.sourceChallanItemId);
+    if (row) row.rejectedQty += toNum(r.qty, 0);
   }
 
   // Dispatched qty from dispatch challans (only count sent/received/completed)
@@ -51,11 +70,25 @@ const getChallanBillingStatusInternal = async (challanId, db = prisma) => {
   }
 
   for (const inv of challan.taxInvoices) {
+    if (excludeInvoiceId && inv.id === toInt(excludeInvoiceId)) continue;
     for (const ii of inv.items || []) {
-      if (!ii.sourceChallanItemId) continue;
-      const row = itemMap.get(ii.sourceChallanItemId);
-      if (!row) continue;
-      row.invoicedQty += toNum(ii.quantity, 0);
+      // A consolidated line (same process, several challan items merged into
+      // one invoice row) attributes its quantity per source challan item via
+      // InvoiceItemSource — never the whole line's quantity to one item.
+      // Older, single-source invoice items have no `sources` rows at all and
+      // fall back to the original scalar sourceChallanItemId behaviour.
+      if (ii.sources && ii.sources.length > 0) {
+        for (const src of ii.sources) {
+          if (!src.challanItemId) continue;
+          const row = itemMap.get(src.challanItemId);
+          if (!row) continue;
+          row.invoicedQty += toNum(src.quantity, 0);
+        }
+      } else if (ii.sourceChallanItemId) {
+        const row = itemMap.get(ii.sourceChallanItemId);
+        if (!row) continue;
+        row.invoicedQty += toNum(ii.quantity, 0);
+      }
     }
   }
 
@@ -65,7 +98,12 @@ const getChallanBillingStatusInternal = async (challanId, db = prisma) => {
   );
   for (const row of itemMap.values()) {
     const base = hasDispatch ? row.dispatchedQty : row.totalQty;
-    row.remainingQty = Math.max(0, base - row.invoicedQty);
+    // Rejected pieces are scrap — they can never be billed. Where dispatch
+    // challans exist the rejected pieces were simply never dispatched, so
+    // dispatchedQty already leaves them out and deducting again would
+    // under-bill; capping against both bases is right either way.
+    const billableQty = Math.min(base, row.totalQty - row.rejectedQty);
+    row.remainingQty = Math.max(0, billableQty - row.invoicedQty);
   }
 
   const lineStatus = Array.from(itemMap.values());
@@ -86,6 +124,64 @@ const getChallanBillingStatusInternal = async (challanId, db = prisma) => {
     lineStatus,
   };
 };
+
+/**
+ * Validates every incoming invoice line against the challan's remaining
+ * quantity, PER source challan item, decrementing a working copy of
+ * `remainingByItem` as it goes — so two lines (or two sources within one
+ * consolidated line) that both reference the same challan item can't
+ * collectively over-bill it within a single invoice submission.
+ *
+ * A line is either:
+ *  - consolidated: `it.sources` is a non-empty array of
+ *    `{ challanItemId, quantity }` (same-process items merged into one row —
+ *    quantity here is each source's own share, weight is NOT split — the
+ *    line's own `weight` stays the single process-level figure), or
+ *  - single-source (legacy/default): `it.sourceChallanItemId` alone.
+ *
+ * Throws with the same messages the old single-source-only loop used, so
+ * existing error-handling in the callers keeps working unchanged. Returns
+ * the parsed items annotated with a resolved `__sources` array ready to
+ * persist as InvoiceItemSource rows.
+ */
+function validateAndResolveSources(parsedItems, remainingByItem, rejectedByItem = new Map()) {
+  const working = new Map(remainingByItem);
+  return parsedItems.map((it) => {
+    const rawSources = Array.isArray(it.sources) && it.sources.length > 0
+      ? it.sources
+      : (it.sourceChallanItemId ? [{ challanItemId: it.sourceChallanItemId, quantity: it.quantity }] : null);
+    if (!rawSources) throw new Error('Each invoice line must map to source challan item for partial dispatch tracking.');
+
+    const resolvedSources = rawSources.map((s) => {
+      const srcId = toInt(s.challanItemId);
+      if (!srcId) throw new Error(`Invalid source challan item id ${s.challanItemId}.`);
+      const rem = working.get(srcId);
+      if (rem === undefined) throw new Error(`Invalid source challan item id ${srcId}.`);
+      const q = toNum(s.quantity, 0);
+      if (q <= 0) throw new Error('Invoice quantity must be greater than zero.');
+      if (q > rem + 0.00001) {
+        const rejected = toNum(rejectedByItem.get(srcId), 0);
+        const because = rejected > 0
+          ? ` ${rejected} piece(s) were rejected and cannot be billed.`
+          : '';
+        throw new Error(`Over-quantity for challan item ${srcId}. Remaining ${rem}, attempted ${q}.${because}`);
+      }
+      working.set(srcId, rem - q);
+      return { challanItemId: srcId, quantity: q };
+    });
+
+    // The line's own displayed quantity must equal what its sources actually
+    // account for — catches a stale `sources` array left over from an edit
+    // that changed quantity without keeping the split in sync.
+    const sourceQtySum = resolvedSources.reduce((s, x) => s + x.quantity, 0);
+    const lineQty = toNum(it.quantity, 0);
+    if (Math.abs(sourceQtySum - lineQty) > 0.01) {
+      throw new Error(`Line "${it.description || ''}" quantity (${lineQty}) does not match its source challan items' combined quantity (${sourceQtySum}).`);
+    }
+
+    return { ...it, __sources: resolvedSources };
+  });
+}
 
 // Number to words (simple Indian format)
 const numToWords = (n) => {
@@ -179,7 +275,7 @@ exports.getOne = async (req, res) => {
         fromParty:     true,
         toParty:       true,
         challan:       { select: { id: true, challanNo: true, items: true } },
-        items:         { include: { processType: true } },
+        items:         { include: { processType: true, sources: { include: { challanItem: true } } } },
         createdBy:     { select: { name: true } },
         invoiceSeries: { select: { id: true, code: true, label: true } },
       },
@@ -206,7 +302,10 @@ exports.getOne = async (req, res) => {
 exports.getChallanBillingStatus = async (req, res) => {
   try {
     const challanId = toInt(req.params.challanId);
-    const status = await getChallanBillingStatusInternal(challanId);
+    // Edit ke waqt frontend apni hi invoice ko chhodne ko kehta hai, warna
+    // "already fully invoiced" dikha kar apna hi save block kar deta.
+    const exclude = req.query.excludeInvoiceId ? toInt(req.query.excludeInvoiceId) : null;
+    const status = await getChallanBillingStatusInternal(challanId, prisma, exclude);
     if (!status) return res.status(404).json({ success: false, message: 'Challan not found.' });
     res.json({ success: true, data: status });
   } catch (err) {
@@ -216,6 +315,73 @@ exports.getChallanBillingStatus = async (req, res) => {
 };
 
 // ── Create Invoice ────────────────────────────────────────────
+/**
+ * Party ke apne process rates lagana un lines par jinka rate nahi bhara hua.
+ * create aur update dono isi se guzarti hain, taaki ek hi jagah par niyam rahe.
+ */
+const resolveItemRates = async (items, { challanId, fromPartyId }) => {
+  // Fetch party-specific process rates for auto-calculation (for manual invoices without challan)
+  let partyRatesMap = {};
+  if (!challanId && fromPartyId) {
+    const partyRates = await prisma.partyProcessRate.findMany({
+      where: { partyId: toInt(fromPartyId) },
+      include: { processType: { select: { id: true, pricePerKg: true, pricePerPc: true, lotPrice: true } } },
+    });
+    for (const pr of partyRates) {
+      partyRatesMap[pr.processTypeId] = {
+        pricePerKg: pr.pricePerKg ?? pr.processType?.pricePerKg,
+        pricePerPc: pr.pricePerPc ?? pr.processType?.pricePerPc,
+        lotPrice:   pr.lotPrice   ?? pr.processType?.lotPrice,
+      };
+    }
+  }
+
+  // Apply party-specific rates to items if not explicitly provided. When the
+  // client sends a billingType (KGS/PCS/LOT), honour it; otherwise fall back
+  // to the historical auto-detect (Lot → Kg → Pc).
+  const parsedItems = asArray(items).map(it => {
+    const ptId = it.processTypeId ? toInt(it.processTypeId) : null;
+    if (ptId && partyRatesMap[ptId] && (!it.rate || toNum(it.rate, 0) === 0)) {
+      const partyRate = partyRatesMap[ptId];
+      const weight = toNum(it.weight, 0);
+      const qty = toNum(it.quantity, 0);
+      const type = String(it.billingType || it.unit || '').toUpperCase();
+
+      // Explicit billing type chosen in the UI
+      if (type === 'LOT' && toNum(partyRate.lotPrice, 0) > 0) {
+        const r = toNum(partyRate.lotPrice, 0);
+        return { ...it, rate: String(r.toFixed(2)), amount: String(((qty > 0 ? qty : 1) * r).toFixed(2)) };
+      }
+      if (type === 'PCS' && toNum(partyRate.pricePerPc, 0) > 0) {
+        const r = toNum(partyRate.pricePerPc, 0);
+        return { ...it, rate: String(r.toFixed(2)), amount: String((qty * r).toFixed(2)) };
+      }
+      if (type === 'KGS' && toNum(partyRate.pricePerKg, 0) > 0) {
+        const r = toNum(partyRate.pricePerKg, 0);
+        const base = weight > 0 ? weight : qty;
+        return { ...it, rate: String(r.toFixed(2)), amount: String((base * r).toFixed(2)) };
+      }
+
+      // No explicit / matching type — auto-detect (Kg → Pc → Lot), aligned
+      // with the frontend's detectBillingType() preference order.
+      if (weight > 0 && toNum(partyRate.pricePerKg, 0) > 0) {
+        const amount = weight * toNum(partyRate.pricePerKg, 0);
+        return { ...it, rate: String(toNum(partyRate.pricePerKg, 0).toFixed(2)), amount: String(amount.toFixed(2)) };
+      }
+      if (qty > 0 && toNum(partyRate.pricePerPc, 0) > 0) {
+        const amount = qty * toNum(partyRate.pricePerPc, 0);
+        return { ...it, rate: String(toNum(partyRate.pricePerPc, 0).toFixed(2)), amount: String(amount.toFixed(2)) };
+      }
+      const lotPrice = toNum(partyRate.lotPrice, 0);
+      if (lotPrice > 0) {
+        return { ...it, rate: String(lotPrice.toFixed(2)), amount: String(((qty > 0 ? qty : 1) * lotPrice).toFixed(2)) };
+      }
+    }
+    return it;
+  });
+  return parsedItems;
+};
+
 exports.create = async (req, res) => {
   try {
     const {
@@ -241,65 +407,7 @@ exports.create = async (req, res) => {
 
     const { challanId } = req.body;
 
-    // Fetch party-specific process rates for auto-calculation (for manual invoices without challan)
-    let partyRatesMap = {};
-    if (!challanId && fromPartyId) {
-      const partyRates = await prisma.partyProcessRate.findMany({
-        where: { partyId: toInt(fromPartyId) },
-        include: { processType: { select: { id: true, pricePerKg: true, pricePerPc: true, lotPrice: true } } },
-      });
-      for (const pr of partyRates) {
-        partyRatesMap[pr.processTypeId] = {
-          pricePerKg: pr.pricePerKg ?? pr.processType?.pricePerKg,
-          pricePerPc: pr.pricePerPc ?? pr.processType?.pricePerPc,
-          lotPrice:   pr.lotPrice   ?? pr.processType?.lotPrice,
-        };
-      }
-    }
-
-    // Apply party-specific rates to items if not explicitly provided. When the
-    // client sends a billingType (KGS/PCS/LOT), honour it; otherwise fall back
-    // to the historical auto-detect (Lot → Kg → Pc).
-    const parsedItems = asArray(items).map(it => {
-      const ptId = it.processTypeId ? toInt(it.processTypeId) : null;
-      if (ptId && partyRatesMap[ptId] && (!it.rate || toNum(it.rate, 0) === 0)) {
-        const partyRate = partyRatesMap[ptId];
-        const weight = toNum(it.weight, 0);
-        const qty = toNum(it.quantity, 0);
-        const type = String(it.billingType || it.unit || '').toUpperCase();
-
-        // Explicit billing type chosen in the UI
-        if (type === 'LOT' && toNum(partyRate.lotPrice, 0) > 0) {
-          const r = toNum(partyRate.lotPrice, 0);
-          return { ...it, rate: String(r.toFixed(2)), amount: String(((qty > 0 ? qty : 1) * r).toFixed(2)) };
-        }
-        if (type === 'PCS' && toNum(partyRate.pricePerPc, 0) > 0) {
-          const r = toNum(partyRate.pricePerPc, 0);
-          return { ...it, rate: String(r.toFixed(2)), amount: String((qty * r).toFixed(2)) };
-        }
-        if (type === 'KGS' && toNum(partyRate.pricePerKg, 0) > 0) {
-          const r = toNum(partyRate.pricePerKg, 0);
-          const base = weight > 0 ? weight : qty;
-          return { ...it, rate: String(r.toFixed(2)), amount: String((base * r).toFixed(2)) };
-        }
-
-        // No explicit / matching type — auto-detect (Kg → Pc → Lot), aligned
-        // with the frontend's detectBillingType() preference order.
-        if (weight > 0 && toNum(partyRate.pricePerKg, 0) > 0) {
-          const amount = weight * toNum(partyRate.pricePerKg, 0);
-          return { ...it, rate: String(toNum(partyRate.pricePerKg, 0).toFixed(2)), amount: String(amount.toFixed(2)) };
-        }
-        if (qty > 0 && toNum(partyRate.pricePerPc, 0) > 0) {
-          const amount = qty * toNum(partyRate.pricePerPc, 0);
-          return { ...it, rate: String(toNum(partyRate.pricePerPc, 0).toFixed(2)), amount: String(amount.toFixed(2)) };
-        }
-        const lotPrice = toNum(partyRate.lotPrice, 0);
-        if (lotPrice > 0) {
-          return { ...it, rate: String(lotPrice.toFixed(2)), amount: String(((qty > 0 ? qty : 1) * lotPrice).toFixed(2)) };
-        }
-      }
-      return it;
-    });
+    const parsedItems = await resolveItemRates(items, { challanId, fromPartyId });
 
     // Each component is rounded to paise before it feeds the next total, so the
     // stored figures add up exactly as they are printed and as Tally posts them.
@@ -320,6 +428,9 @@ exports.create = async (req, res) => {
       try {
         invoice = await prisma.$transaction(async (tx) => {
           let txBillingType = 'MANUAL';
+          // Manual invoices (no linked challan) have no challan-item sources
+          // to reconcile — resolvedItems just stays the parsed items as-is.
+          let resolvedItems = parsedItems;
           if (challanId) {
             const challan = await tx.jobworkChallan.findUnique({
               where:  { id: toInt(challanId) },
@@ -342,18 +453,11 @@ exports.create = async (req, res) => {
               throw new Error(`Challan ${challan.challanNo} is already fully invoiced. No further billing allowed.`);
             }
             const remainingByItem = new Map(status.lineStatus.map((x) => [x.challanItemId, x.remainingQty]));
+            const rejectedByItem = new Map(status.lineStatus.map((x) => [x.challanItemId, x.rejectedQty]));
 
-            for (const it of parsedItems) {
-              const srcId = it.sourceChallanItemId ? toInt(it.sourceChallanItemId) : null;
-              if (!srcId) throw new Error('Each invoice line must map to source challan item for partial dispatch tracking.');
-              const rem = remainingByItem.get(srcId);
-              if (rem === undefined) throw new Error(`Invalid source challan item id ${srcId}.`);
-              const q = toNum(it.quantity, 0);
-              if (q <= 0) throw new Error('Invoice quantity must be greater than zero.');
-              if (q > rem + 0.00001) throw new Error(`Over-quantity for challan item ${srcId}. Remaining ${rem}, attempted ${q}.`);
-            }
+            resolvedItems = validateAndResolveSources(parsedItems, remainingByItem, rejectedByItem);
 
-            const qtyAfter = status.totalRemainingQty - parsedItems.reduce((s, it) => s + toNum(it.quantity, 0), 0);
+            const qtyAfter = status.totalRemainingQty - resolvedItems.reduce((s, it) => s + toNum(it.quantity, 0), 0);
             txBillingType = qtyAfter <= 0.00001 ? 'FINAL_DISPATCH' : 'PARTIAL_DISPATCH';
           }
 
@@ -391,13 +495,19 @@ exports.create = async (req, res) => {
               showPartName:     showPartName !== false,
               createdById:      req.user.id,
               items: {
-                create: parsedItems.map((it) => ({
+                create: resolvedItems.map((it) => ({
                   description:   it.description,
                   material:      it.material      || null,
                   hrc:           it.hrc           || null,
                   woNo:          it.woNo          || null,
                   hsnSac:        it.hsnSac        || null,
-                  sourceChallanItemId: it.sourceChallanItemId ? toInt(it.sourceChallanItemId) : null,
+                  // A single-source line keeps the scalar FK (unchanged, old
+                  // behaviour); a consolidated line's sourceChallanItemId is
+                  // left null since it's ambiguous — `sources` below is the
+                  // source of truth for it.
+                  sourceChallanItemId: it.__sources?.length === 1
+                    ? it.__sources[0].challanItemId
+                    : (it.__sources ? null : (it.sourceChallanItemId ? toInt(it.sourceChallanItemId) : null)),
                   quantity:      toNum(it.quantity, 0),
                   unit:          it.unit          || 'KGS',
                   weight:        it.weight        ? toNum(it.weight, null) : null,
@@ -405,10 +515,15 @@ exports.create = async (req, res) => {
                   amount:        toNum(it.amount, 0),
                   processTypeId: it.processTypeId ? toInt(it.processTypeId) : null,
                   certId:        it.certId        ? toInt(it.certId)        : null,
+                  ...(it.__sources ? {
+                    sources: {
+                      create: it.__sources.map((s) => ({ challanItemId: s.challanItemId, quantity: s.quantity })),
+                    },
+                  } : {}),
                 })),
               },
             },
-            include: { fromParty: true, toParty: true, items: true },
+            include: { fromParty: true, toParty: true, items: { include: { sources: true } } },
           });
         }, { isolationLevel: 'Serializable' });
         break;
@@ -419,6 +534,8 @@ exports.create = async (req, res) => {
           txErr.message.includes('already fully invoiced') ||
           txErr.message.includes('Over-quantity') ||
           txErr.message.includes('source challan item') ||
+          txErr.message.includes('combined quantity') ||
+          txErr.message.includes('Invalid source challan item') ||
           txErr.message.includes('not found')
         )) {
           return res.status(400).json({ success: false, message: txErr.message });
@@ -441,6 +558,161 @@ exports.create = async (req, res) => {
 // invoice is submitted to the government e-invoice portal outside this
 // system, since there's no direct IRP integration here. Print's QR code is
 // generated from whatever is saved here.
+// ── Update Invoice (ADMIN) ────────────────────────────────────
+// Invoice number kabhi nahi badalta — wo issue ho chuka hota hai. Locked
+// (Tally bhej di gayi) ya IRN wali invoice edit nahi hoti: pehli me accounting
+// mismatch ho jata, doosri me sarkari record se farak pad jata.
+exports.update = async (req, res) => {
+  try {
+    const id = toInt(req.params.id);
+    const existing = await prisma.taxInvoice.findUnique({
+      where: { id },
+      select: { id: true, invoiceNo: true, sentToTally: true, irnNo: true, challanId: true },
+    });
+    if (!existing) return res.status(404).json({ success: false, message: 'Invoice not found.' });
+
+    if (existing.sentToTally) {
+      return res.status(400).json({
+        success: false,
+        message: 'Ye invoice Tally bhej di gayi hai, ab edit nahi ho sakti — accounting me farak pad jayega.',
+      });
+    }
+    if (existing.irnNo) {
+      return res.status(400).json({
+        success: false,
+        message: 'Is invoice ka IRN ban chuka hai. GST portal par register invoice badli nahi ja sakti — cancel karke nayi banaiye.',
+      });
+    }
+
+    const {
+      invoiceDate, dispatchDate, fromPartyId, toPartyId,
+      challanRef, poRef, jobCardRef, otherReferences,
+      cgstRate, sgstRate, igstRate,
+      transportFreight, tcsRate, extraAmt,
+      dispatchDocNo, eWayBillNo,
+      showPartName,
+      items,
+    } = req.body;
+
+    if (!fromPartyId || !toPartyId)
+      return res.status(400).json({ success: false, message: 'From and To party required.' });
+
+    // Challan wahi rehta hai jo tha — edit se invoice kisi doosre challan par
+    // nahi jaa sakti, warna dono challan ki billing ginti bigad jati hai.
+    const challanId = existing.challanId;
+
+    const parsedItems = await resolveItemRates(items, { challanId, fromPartyId });
+    if (!parsedItems.length)
+      return res.status(400).json({ success: false, message: 'Invoice me kam se kam ek item chahiye.' });
+
+    const subtotal    = toMoney(parsedItems.reduce((s, it) => s + toNum(it.amount, 0), 0));
+    const cgst        = toMoney((subtotal * toNum(cgstRate, 9)) / 100);
+    const sgst        = toMoney((subtotal * toNum(sgstRate, 9)) / 100);
+    const igst        = toMoney((subtotal * toNum(igstRate, 0)) / 100);
+    const total       = toMoney(subtotal + cgst + sgst + igst);
+    const transport   = toMoney(transportFreight);
+    const tcsRateVal  = toNum(tcsRate, 0);
+    const tcsAmt      = toMoney((total * tcsRateVal) / 100);
+    const extraAmtVal = toMoney(extraAmt);
+    const grandTotal  = toMoney(total + transport + tcsAmt + extraAmtVal);
+
+    let updated;
+    try {
+      updated = await prisma.$transaction(async (tx) => {
+        // Manual invoices (no linked challan) have no sources to reconcile.
+        let resolvedItems = parsedItems;
+        if (challanId) {
+          // Is invoice ki apni purani lines ginti se bahar — warna edit khud
+          // ko hi "already billed" maan kar block kar deta.
+          const status = await getChallanBillingStatusInternal(challanId, tx, id);
+          const remainingByItem = new Map(status.lineStatus.map((x) => [x.challanItemId, x.remainingQty]));
+          const rejectedByItem = new Map(status.lineStatus.map((x) => [x.challanItemId, x.rejectedQty]));
+
+          resolvedItems = validateAndResolveSources(parsedItems, remainingByItem, rejectedByItem);
+        }
+
+        // Lines dobara likhi jaati hain — kaunsi badli ye pata karne se
+        // seedha replace karna saaf aur bharosemand hai. (InvoiceItemSource
+        // rows cascade-delete with their parent InvoiceItem automatically.)
+        await tx.invoiceItem.deleteMany({ where: { invoiceId: id } });
+
+        return tx.taxInvoice.update({
+          where: { id },
+          data: {
+            invoiceDate:     new Date(invoiceDate || new Date()),
+            dispatchDate:    dispatchDate ? new Date(dispatchDate) : null,
+            fromPartyId:     toInt(fromPartyId),
+            toPartyId:       toInt(toPartyId),
+            challanRef:      challanRef      || null,
+            poRef:           poRef           || null,
+            jobCardRef:      jobCardRef      || null,
+            otherReferences: otherReferences || null,
+            dispatchDocNo:   dispatchDocNo   || null,
+            eWayBillNo:      eWayBillNo      || null,
+            subtotal,
+            cgstRate:         toNum(cgstRate, 9),
+            cgstAmount:       cgst,
+            sgstRate:         toNum(sgstRate, 9),
+            sgstAmount:       sgst,
+            igstRate:         toNum(igstRate, 0),
+            igstAmount:       igst,
+            totalAmount:      total,
+            transportFreight: transport,
+            tcsRate:          tcsRateVal,
+            tcsAmount:        tcsAmt,
+            extraAmt:         extraAmtVal,
+            grandTotal,
+            amountInWords:    numToWords(grandTotal),
+            taxAmountInWords: numToWords(cgst + sgst + igst + tcsAmt),
+            showPartName:     showPartName !== false,
+            items: {
+              create: resolvedItems.map((it) => ({
+                description:   it.description,
+                material:      it.material      || null,
+                hrc:           it.hrc           || null,
+                woNo:          it.woNo          || null,
+                hsnSac:        it.hsnSac        || null,
+                sourceChallanItemId: it.__sources?.length === 1
+                  ? it.__sources[0].challanItemId
+                  : (it.__sources ? null : (it.sourceChallanItemId ? toInt(it.sourceChallanItemId) : null)),
+                quantity:      toNum(it.quantity, 0),
+                unit:          it.unit          || 'KGS',
+                weight:        it.weight        ? toNum(it.weight, null) : null,
+                rate:          toNum(it.rate, 0),
+                amount:        toNum(it.amount, 0),
+                processTypeId: it.processTypeId ? toInt(it.processTypeId) : null,
+                certId:        it.certId        ? toInt(it.certId)        : null,
+                ...(it.__sources ? {
+                  sources: {
+                    create: it.__sources.map((s) => ({ challanItemId: s.challanItemId, quantity: s.quantity })),
+                  },
+                } : {}),
+              })),
+            },
+          },
+          include: { fromParty: true, toParty: true, items: { include: { sources: true } } },
+        });
+      }, { isolationLevel: 'Serializable' });
+    } catch (txErr) {
+      if (typeof txErr?.message === 'string' && (
+        txErr.message.includes('Over-quantity') ||
+        txErr.message.includes('source challan item') ||
+        txErr.message.includes('combined quantity') ||
+        txErr.message.includes('Invalid source challan item') ||
+        txErr.message.includes('not found')
+      )) {
+        return res.status(400).json({ success: false, message: txErr.message });
+      }
+      throw txErr;
+    }
+
+    res.json({ success: true, data: updated, message: `Invoice ${existing.invoiceNo} updated.` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+};
+
 exports.updateEInvoiceDetails = async (req, res) => {
   try {
     const id = toInt(req.params.id);
@@ -468,6 +740,9 @@ exports.listSeries = async (req, res) => {
     const series = await prisma.invoiceSeries.findMany({
       where: onlyActive ? { isActive: true } : undefined,
       orderBy: { id: 'asc' },
+      // How many invoices already carry each series — what tells you whether
+      // retiring one is harmless or whether it is carrying live numbering.
+      include: { _count: { select: { invoices: true } } },
     });
     res.json({ success: true, data: series });
   } catch (err) {
@@ -495,12 +770,24 @@ exports.createSeries = async (req, res) => {
 exports.updateSeries = async (req, res) => {
   try {
     const id = toInt(req.params.id);
-    const { label, isActive } = req.body;
+    const { label, isActive, padWidth } = req.body;
+
+    // padWidth = running number ki digit-ginti. Ise badalne se aage ke number
+    // ki lambai badalti hai — NIC ki 16-character seema isi par tiki hai.
+    let pad;
+    if (padWidth !== undefined) {
+      pad = toInt(padWidth);
+      if (!pad || pad < 1 || pad > 6) {
+        return res.status(400).json({ success: false, message: 'padWidth 1 se 6 ke beech hona chahiye.' });
+      }
+    }
+
     const series = await prisma.invoiceSeries.update({
       where: { id },
       data: {
         ...(label !== undefined && { label }),
         ...(isActive !== undefined && { isActive }),
+        ...(pad !== undefined && { padWidth: pad }),
       },
     });
     res.json({ success: true, data: series, message: `Series ${series.code} updated.` });
@@ -829,6 +1116,20 @@ const buildTallyXML = (invoice) => {
     ...credits.map(([name, amt]) => ledgerEntry(name, amt)),
   ].join('') + inventory;
 
+  // e-Invoice / e-Way Bill. Ye tag sirf tab jodte hain jab data ho — jis
+  // invoice me IRN nahi hai uska XML bilkul pehle jaisa hi banta hai.
+  const ackDate = tallyDate(invoice.ackDate);
+  const ewbDate = tallyDate(invoice.eWayBillDate);
+  const irnBlock = invoice.irnNo ? `
+            <IRNNO>${tallyText(invoice.irnNo)}</IRNNO>${invoice.ackNo ? `
+            <IRNACKNO>${tallyText(invoice.ackNo)}</IRNACKNO>` : ''}${ackDate ? `
+            <IRNACKDATE>${ackDate}</IRNACKDATE>` : ''}` : '';
+  const ewbBlock = invoice.eWayBillNo ? `
+            <EWAYBILLDETAILS.LIST>
+              <EWAYBILLNO>${tallyText(invoice.eWayBillNo)}</EWAYBILLNO>${ewbDate ? `
+              <EWAYBILLDATE>${ewbDate}</EWAYBILLDATE>` : ''}
+            </EWAYBILLDETAILS.LIST>` : '';
+
   // Tag order and the full mandatory set below mirror what TallyPrime itself
   // emits when exporting a sales voucher — its importer is far stricter about
   // this than a plain XML parser would be.
@@ -865,7 +1166,7 @@ const buildTallyXML = (invoice) => {
             <ISCANCELLED>No</ISCANCELLED>
             <HASCASHFLOW>No</HASCASHFLOW>
             <DIFFACTUALQTY>No</DIFFACTUALQTY>
-            <ASORIGINAL>No</ASORIGINAL>${entries}
+            <ASORIGINAL>No</ASORIGINAL>${irnBlock}${ewbBlock}${entries}
           </VOUCHER>
         </TALLYMESSAGE>
       </REQUESTDATA>
@@ -1019,6 +1320,13 @@ const buildVoucherModel = (invoice) => {
       challan: invoice.challanRef || '',
       po:      invoice.poRef      || '',
       jobCard: invoice.jobCardRef || '',
+    },
+    eInvoice: {
+      irn:        invoice.irnNo   || '',
+      ackNo:      invoice.ackNo   || '',
+      ackDate:    tallyDate(invoice.ackDate)       || '',
+      eWayBillNo: invoice.eWayBillNo               || '',
+      eWayBillDate: tallyDate(invoice.eWayBillDate) || '',
     },
     items,
     taxes,
@@ -1246,3 +1554,4 @@ exports.exportInvoices = async (req, res) => {
     res.status(500).json({ success: false, message: 'Error exporting invoices.' });
   }
 };
+

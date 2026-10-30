@@ -1,0 +1,113 @@
+[
+{
+   "Version":"1.1",
+   "TranDtls":{
+      "TaxSch":"GST",
+      "SupTyp":"B2B",
+      "IgstOnIntra":"N",
+      "RegRev":null,
+      "ExcmGstin":null
+      },
+   "DocDtls":{
+      "Typ":"INV",
+      "No":"2026-27/LC-17340",
+      "Dt":"19/08/2026"
+      },
+  "SellerDtls":{
+      "Gstin":"27AANCS2087B1ZA",
+      "LglNm":"SHEETAL DIES & TOOLS PVT.LTD",
+      "TrdNm":null,
+      "Addr1":"OM Sai Industrial Premises Co.Op. Soc., Plot No. 84/2, Sector No. 10, PCNTDA, Bhosari, Pune - 411026",
+      "Addr2":null,
+      "Loc":"Pune",
+      "Pin":411026,
+      "StCd":"27",
+      "Ph":null,
+      "Em":null
+      },
+  "BuyerDtls":{
+      "Gstin":"27AAACW0315K1ZH",
+      "LglNm":"WHEELS INDIA LIMITED",
+      "TrdNm":null,
+      "Pos":"27",
+      "Addr1":"PLOT NO.C-1, MIDC, RANJANGAON GANPATI,TAL. SHIRUR, , PUNE, maharashtra",
+      "Addr2":null,
+      "Loc":"PUNE",
+      "Pin":412220,
+      "StCd":"27",
+      "Ph":null,
+      "Em":null
+  },
+  "DispDtls":null,
+  "ShipDtls":{
+      "Gstin":"27AAACW0315K1ZH",
+      "LglNm":"WHEELS INDIA LIMITED",
+      "TrdNm":null,
+      "Addr1":"PLOT NO.C-1, MIDC, RANJANGAON GANPATI,TAL. SHIRUR, ",
+      "Addr2":null,
+      "Loc":"PUNE",
+      "Pin":412220,
+      "StCd":"27"
+  },
+     "ValDtls":{
+      "AssVal":2000,
+      "IgstVal":0,
+      "CgstVal":180,
+      "SgstVal":180,
+      "CesVal":0,
+      "StCesVal":0,
+      "Discount":0,
+      "OthChrg":0,
+      "RndOffAmt":0,
+      "TotInvVal":2360,
+      "TotInvValFc":0
+  },
+  "EwbDtls":{
+      "TransId":null,
+      "TransName":null,
+      "Transmode":"1",
+      "Distance":61,
+      "TransDocNo":null,
+      "TransDocDt":"19/08/2026",
+      "VehNo":"MH12VT8149",
+      "VehType":"R"
+  },
+                  "ItemList":[
+                      {
+                      "SlNo":"1",
+                      "PrdDesc":"TAPER MANDREL-Ø386.9",
+                      "IsServc":"Y",
+                      "HsnCd":"998898",
+                      "Barcde":null,
+                      "Qty":1,
+                      "FreeQty":0,
+                      "Unit":"NOS",
+                      "UnitPrice":2000,
+                      "TotAmt":2000,
+                      "Discount":0,
+                      "PreTaxVal":0,
+                      "AssAmt":2000,
+                      "GstRt":18,
+                      "IgstAmt":0,
+                      "CgstAmt":180,
+                      "SgstAmt":180,
+                      "cesRt":0,
+                      "CesAmt":0,
+                      "StateCesRt":0,
+                      "StateCesNonAdvlAmt":0,
+                      "OthChrg":0,
+                      "TotItemVal":2360,
+                      "OrdLineRef":null,
+                      "Orgchtry":null,
+                      "PrdSlNo":null,
+                      "BchDtls":null,
+                      "AttribDtls":[{
+                      "Nm":null,
+                      "Val":null
+                      }
+                      ]
+                        }
+
+                  ]
+}
+]

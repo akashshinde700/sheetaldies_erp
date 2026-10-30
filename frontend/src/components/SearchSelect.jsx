@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useId } from 'react';
 
 // Fixed-position dropdown floor width — keeps long option labels (e.g. long
 // process names) readable even when the trigger itself is a narrow table cell.
@@ -29,6 +29,9 @@ export default function SearchSelect({
   const wrapRef   = useRef(null);
   const inputRef  = useRef(null);
   const buttonRef = useRef(null);
+  const rid = useId();
+  const listboxId = `ss-list-${rid}`;
+  const optionId = (i) => `ss-opt-${rid}-${i}`;
 
   const selectedLabel = options.find(o => String(o.value) === String(value))?.label || '';
 
@@ -105,13 +108,21 @@ export default function SearchSelect({
     setQuery('');
   };
 
+  // Enter and Escape mean something here only while the list is open. When
+  // they are consumed, propagation stops so an enclosing row editor does not
+  // also act on the same keystroke — picking an option should not also save
+  // the row. With the list closed they bubble, so Escape can still back out.
   const handleInputKeyDown = (e) => {
-    if (e.key === 'Escape') { setOpen(false); setQuery(''); return; }
+    if (e.key === 'Escape') {
+      if (open) { e.stopPropagation(); setOpen(false); setQuery(''); }
+      return;
+    }
     if (e.key === 'ArrowDown') { e.preventDefault(); setHighlightedIndex(p => Math.min(p + 1, filtered.length - 1)); return; }
     if (e.key === 'ArrowUp')   { e.preventDefault(); setHighlightedIndex(p => Math.max(p - 1, 0)); return; }
     if (e.key === 'Enter') {
+      const picking = open && filtered.length > 0 && filtered[highlightedIndex];
       e.preventDefault();
-      if (filtered.length > 0 && filtered[highlightedIndex]) handleSelect(filtered[highlightedIndex]);
+      if (picking) { e.stopPropagation(); handleSelect(filtered[highlightedIndex]); }
     }
   };
 
@@ -121,14 +132,22 @@ export default function SearchSelect({
       style={useFixed ? menuStyle : undefined}
     >
       <div className="bg-white border border-slate-200/90 rounded-xl shadow-card-hover overflow-hidden">
-        <div className="max-h-[min(14rem,50dvh)] overflow-y-auto overscroll-contain">
+        <ul
+          role="listbox"
+          id={listboxId}
+          aria-label={placeholder}
+          className="max-h-[min(14rem,50dvh)] overflow-y-auto overscroll-contain m-0 list-none p-0"
+        >
           {filtered.length === 0 ? (
-            <div className="px-4 py-4 text-xs text-slate-500 text-center">No results found</div>
+            <li className="px-4 py-4 text-xs text-slate-500 text-center">No results found</li>
           ) : (
             filtered.map((opt, index) => (
+              <li key={opt.value} role="none">
               <button
-                key={opt.value}
                 type="button"
+                role="option"
+                id={optionId(index)}
+                aria-selected={String(opt.value) === String(value)}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => handleSelect(opt)}
                 className={`w-full text-left flex items-center gap-2 transition-colors duration-150
@@ -144,9 +163,10 @@ export default function SearchSelect({
                 )}
                 <span className={String(opt.value) === String(value) ? '' : (dense ? 'ml-[15px]' : 'ml-[22px]')}>{opt.label}</span>
               </button>
+              </li>
             ))
           )}
-        </div>
+        </ul>
       </div>
     </div>
   );
@@ -159,6 +179,10 @@ export default function SearchSelect({
           type="button"
           onClick={handleOpen}
           disabled={disabled}
+          role="combobox"
+          aria-expanded={false}
+          aria-haspopup="listbox"
+          aria-label={value ? `${placeholder}: ${selectedLabel}` : placeholder}
           className={`form-input w-full text-left flex items-center justify-between gap-2
             ${dense ? 'py-1 px-2 text-xs' : ''}
             ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
@@ -189,6 +213,12 @@ export default function SearchSelect({
             onChange={e => setQuery(e.target.value)}
             placeholder="Type to search..."
             autoComplete="off"
+            role="combobox"
+            aria-expanded="true"
+            aria-autocomplete="list"
+            aria-controls={listboxId}
+            aria-label={placeholder}
+            aria-activedescendant={filtered[highlightedIndex] ? optionId(highlightedIndex) : undefined}
             className={`flex-1 pr-3 bg-transparent outline-none text-slate-900 placeholder-slate-400 ${dense ? 'py-1 text-xs' : 'py-2 text-sm'}`}
             onKeyDown={handleInputKeyDown}
           />

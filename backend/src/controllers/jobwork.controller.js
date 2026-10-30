@@ -6,6 +6,22 @@ const { parseJsonIfString } = require('../utils/json');
 const { withTransaction } = require('../utils/transactionHandler');
 const { generateJobCardNoAtomic } = require('../utils/sequenceManager');
 
+// Last-resort temp-time graph for auto-created run sheets when no default
+// TempCycleTemplate is configured. Standard D2 vacuum-hardening staircase —
+// mirrors HEAT_TREATMENT_CYCLES.D2 in frontend/src/data/heatTreatmentCycles.js.
+const DEFAULT_RUNSHEET_CYCLE = [
+  { tempC: 50,   holdMin: 50,  label: 'Room Temp' },
+  { tempC: 550,  holdMin: 10,  label: 'Preheat 1' },
+  { tempC: 750,  holdMin: 20,  label: 'Preheat 2' },
+  { tempC: 950,  holdMin: 20,  label: 'Preheat 3' },
+  { tempC: 1040, holdMin: 30,  label: 'Harden' },
+  { tempC: 50,   holdMin: 50,  label: 'Cool to RT' },
+  { tempC: 500,  holdMin: 120, label: 'Temper 1' },
+  { tempC: 50,   holdMin: 50,  label: 'Cool to RT' },
+  { tempC: 500,  holdMin: 120, label: 'Temper 2' },
+  { tempC: 50,   holdMin: 50,  label: 'Final Cool' },
+];
+
 const generateChallanNo = async () => {
   const y  = new Date().getFullYear().toString().slice(-2);   // "26"
   const yn = String(toInt(y, 0) + 1);                        // "27"
@@ -34,12 +50,12 @@ const generateChallanNo = async () => {
   return challanNo;
 };
 
-const generateInwardNo = async () => {
+const generateInwardNo = async (db = prisma) => {
   const y  = new Date().getFullYear().toString().slice(-2);
   const yn = String(toInt(y, 0) + 1);
   const prefix = `INW/${y}-${yn}/`;
 
-  const last = await prisma.jobworkChallan.findFirst({
+  const last = await db.jobworkChallan.findFirst({
     where:   { inwardNo: { startsWith: prefix } },
     orderBy: { inwardNo: 'desc' },
   });
@@ -54,7 +70,7 @@ const generateInwardNo = async () => {
   let inwardNo;
   do {
     inwardNo = `${prefix}${String(nextSerial).padStart(4, '0')}`;
-    const exists = await prisma.jobworkChallan.findUnique({ where: { inwardNo } });
+    const exists = await db.jobworkChallan.findUnique({ where: { inwardNo } });
     if (!exists) break;
     nextSerial++;
   } while (nextSerial < 9999);
@@ -380,6 +396,7 @@ exports.create = async (req, res) => {
       const created = await tx.jobworkChallan.create({
         data: {
           challanNo,
+          inwardNo:        await generateInwardNo(tx),
           challanDate:     new Date(challanDate || new Date()),
           jobCardId:       jobCardId       ? toInt(jobCardId)       : null,
           fromPartyId:     toInt(fromPartyId),
@@ -506,6 +523,7 @@ exports.createInward = async (req, res) => {
       const challan = await tx.jobworkChallan.create({
         data: {
           challanNo,
+          inwardNo: await generateInwardNo(tx),
           challanDate: new Date(challanDate || new Date()),
           fromPartyId: toInt(fromPartyId),
           toPartyId: toInt(toPartyId),
@@ -743,16 +761,28 @@ exports.createRunSheetFromJobCard = async (req, res) => {
     const { jobCardId, jobCardNo, furnaceId, runDate, batchId } = req.body;
     if (!jobCardId && !jobCardNo) return res.status(400).json({ success: false, message: 'Job Card ID or Job Card No is required.' });
 
+    const jcInclude = {
+      customer: true,
+      part: true,
+      challanItemLinks: { select: { processTypeId: true }, take: 1 },
+    };
     const jobCard = jobCardId
-      ? await prisma.jobCard.findUnique({
-          where: { id: toInt(jobCardId) },
-          include: { customer: true, part: true },
-        })
-      : await prisma.jobCard.findFirst({
-          where: { jobCardNo: String(jobCardNo).trim() },
-          include: { customer: true, part: true },
-        });
+      ? await prisma.jobCard.findUnique({ where: { id: toInt(jobCardId) }, include: jcInclude })
+      : await prisma.jobCard.findFirst({ where: { jobCardNo: String(jobCardNo).trim() }, include: jcInclude });
     if (!jobCard) return res.status(404).json({ success: false, message: 'Job card not found.' });
+
+    // Seed the temperature-time graph from the default cycle template so the
+    // auto-created run sheet (and its print) isn't blank. Prefer the template
+    // marked default for this job's process; fall back to the general default.
+    const jcProcessTypeId = jobCard.challanItemLinks?.[0]?.processTypeId || null;
+    let tempGraphPoints = null;
+    try {
+      let tpl = jcProcessTypeId
+        ? await prisma.tempCycleTemplate.findFirst({ where: { isDefault: true, isActive: true, processTypeId: jcProcessTypeId } })
+        : null;
+      if (!tpl) tpl = await prisma.tempCycleTemplate.findFirst({ where: { isDefault: true, isActive: true, processTypeId: null } });
+      tempGraphPoints = tpl?.data || DEFAULT_RUNSHEET_CYCLE;
+    } catch { tempGraphPoints = DEFAULT_RUNSHEET_CYCLE; }
 
     // Check if run sheet already exists for this job card
     const existing = await prisma.vHTRunsheetItem.findFirst({
@@ -787,6 +817,7 @@ exports.createRunSheetFromJobCard = async (req, res) => {
         batchId: batchId ? toInt(batchId) : null,
         status: 'PLANNED',
         createdById: req.user.id,
+        ...(tempGraphPoints ? { tempGraphPoints } : {}),
         items: {
           create: [{
             jobCardId: jobCard.id,
@@ -867,7 +898,7 @@ exports.createInwardWithJobCards = async (req, res) => {
         if (existing) throw new Error(`Inward No "${trimmed}" already exists.`);
         inwardNo = trimmed;
       } else {
-        inwardNo = await generateInwardNo();
+        inwardNo = await generateInwardNo(tx);
       }
 
       // 2. Create challan with items
@@ -1063,6 +1094,7 @@ exports.createInwardJobCardRunSheet = async (req, res) => {
       const challan = await tx.jobworkChallan.create({
         data: {
           challanNo,
+          inwardNo: await generateInwardNo(tx),
           challanDate: new Date(challanDate || new Date()),
           fromPartyId: toInt(fromPartyId),
           toPartyId: toInt(toPartyId),
@@ -1160,6 +1192,18 @@ exports.createInwardJobCardRunSheet = async (req, res) => {
       const lastNum = lastRS?.runsheetNumber ? toInt(lastRS.runsheetNumber.split('/').pop(), 0) : 0;
       const runsheetNumber = `VHT/${new Date().getFullYear()}/${String(lastNum + 1).padStart(5, '0')}`;
 
+      // Seed the temp-time graph from the default cycle template (see
+      // createRunSheetFromJobCard) so the auto-created run sheet isn't blank.
+      let rsTempGraph = null;
+      try {
+        const ptId = challan.items[0]?.processTypeId || null;
+        let tpl = ptId
+          ? await tx.tempCycleTemplate.findFirst({ where: { isDefault: true, isActive: true, processTypeId: ptId } })
+          : null;
+        if (!tpl) tpl = await tx.tempCycleTemplate.findFirst({ where: { isDefault: true, isActive: true, processTypeId: null } });
+        rsTempGraph = tpl?.data || DEFAULT_RUNSHEET_CYCLE;
+      } catch { rsTempGraph = DEFAULT_RUNSHEET_CYCLE; }
+
       const runsheet = await tx.vHTRunsheet.create({
         data: {
           runsheetNumber,
@@ -1168,6 +1212,7 @@ exports.createInwardJobCardRunSheet = async (req, res) => {
           batchId: null,
           status: 'PLANNED',
           createdById: req.user.id,
+          ...(rsTempGraph ? { tempGraphPoints: rsTempGraph } : {}),
           items: {
             create: [{
               jobCardId: jobCard.id,
@@ -1276,9 +1321,13 @@ exports.update = async (req, res) => {
       await prisma.challanItem.deleteMany({ where: { challanId: id } });
     }
 
+    // Heal old challans that were created before inwardNo was generated everywhere.
+    const backfillInwardNo = existingChallan.inwardNo ? null : await generateInwardNo();
+
     const challan = await prisma.jobworkChallan.update({
       where: { id },
       data: {
+        ...(backfillInwardNo && { inwardNo: backfillInwardNo }),
         ...(newChallanNo && newChallanNo.trim() && { challanNo: newChallanNo.trim() }),
         ...(challanDate      && { challanDate:     new Date(challanDate) }),
         ...(jobCardId        !== undefined && { jobCardId:      jobCardId ? toInt(jobCardId) : null }),
@@ -1376,16 +1425,16 @@ exports.register = async (req, res) => {
     if (challanNo) where.challanNo = { contains: challanNo };
     if (companyName) where.fromParty = { name: { contains: companyName } };
 
-    const [total, challans] = await Promise.all([
+    const [total, challans, reworkPendingRows] = await Promise.all([
       prisma.jobworkChallan.count({ where }),
       prisma.jobworkChallan.findMany({
         where,
         include: {
           fromParty: { select: { name: true } },
           toParty: { select: { name: true } },
-          jobCard: { select: { jobCardNo: true, createdAt: true } },
+          jobCard: { select: { id: true, jobCardNo: true, createdAt: true } },
           items: {
-            include: { jobCard: { select: { jobCardNo: true, createdAt: true } } },
+            include: { jobCard: { select: { id: true, jobCardNo: true, createdAt: true } } },
           },
           taxInvoices: {
             include: { items: true },
@@ -1396,7 +1445,13 @@ exports.register = async (req, res) => {
         skip: (toInt(page, 1) - 1) * toInt(limit, 10),
         take: toInt(limit, 10),
       }),
+      // Job cards with an unresolved Rework (Reject is terminal, never "pending" here)
+      prisma.reworkEntry.findMany({
+        where: { type: 'REWORK', jobCardId: { not: null }, OR: [{ afterProcessResults: null }, { afterProcessResults: '' }] },
+        select: { jobCardId: true },
+      }),
     ]);
+    const reworkPendingJobCardIds = new Set(reworkPendingRows.map((r) => r.jobCardId));
 
     const rows = [];
     for (const ch of challans) {
@@ -1417,6 +1472,11 @@ exports.register = async (req, res) => {
       let jobcardNo = ch.jobCard?.jobCardNo || '-';
       let jobcardDate = ch.jobCard?.createdAt || null;
 
+      const jcNoSet = new Set();
+      const jcIdSet = new Set();
+      let itemsWithJobCard = 0;
+      if (ch.jobCard?.jobCardNo) jcNoSet.add(ch.jobCard.jobCardNo);
+      if (ch.jobCard?.id) jcIdSet.add(ch.jobCard.id);
       for (const it of ch.items) {
         qty += toNum(it.quantity, 0);
         weight += toNum(it.weight, 0);
@@ -1424,11 +1484,23 @@ exports.register = async (req, res) => {
         const manualDispatch = toNum(it.qtyOut, 0);
         dispatchQty += invoiceDispatch > 0 ? invoiceDispatch : manualDispatch;
         if (it.material) materials.add(it.material);
+        if (it.jobCardId || it.jobCard?.jobCardNo) itemsWithJobCard += 1;
+        if (it.jobCard?.jobCardNo) jcNoSet.add(it.jobCard.jobCardNo);
+        if (it.jobCard?.id) jcIdSet.add(it.jobCard.id);
         if (jobcardNo === '-' && it.jobCard?.jobCardNo) {
           jobcardNo = it.jobCard.jobCardNo;
           jobcardDate = it.jobCard.createdAt;
         }
       }
+      const reworkPending = [...jcIdSet].some((jid) => reworkPendingJobCardIds.has(jid));
+
+      const itemCount = ch.items.length;
+      // Challan-level link OR every item carded = DONE; some items = PARTIAL.
+      const jobCardStatus =
+        (ch.jobCard?.jobCardNo || (itemCount > 0 && itemsWithJobCard >= itemCount)) ? 'DONE'
+        : itemsWithJobCard > 0 ? 'PARTIAL'
+        : 'PENDING';
+      const itemsPending = Math.max(0, itemCount - itemsWithJobCard);
 
       const balQty = Math.max(0, qty - dispatchQty);
       const deliveryPct = qty > 0 ? (dispatchQty / qty) * 100 : 0;
@@ -1456,7 +1528,12 @@ exports.register = async (req, res) => {
         challanId: ch.id,
         challanItemId: ch.items[0]?.id ?? ch.id,
         itemDescription: ch.items.map((it) => it.description).filter(Boolean).join(', '),
-        itemCount: ch.items.length,
+        itemCount,
+        itemsWithJobCard,
+        itemsPending,
+        jobCardStatus,
+        jobCardNos: [...jcNoSet],
+        reworkPending,
       });
     }
 

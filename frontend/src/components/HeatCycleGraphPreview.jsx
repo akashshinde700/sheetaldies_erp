@@ -23,7 +23,7 @@ export default function HeatCycleGraphPreview({ segments }) {
     <svg viewBox={`0 0 ${w} ${h}`} className="w-full max-w-xl h-[160px] border border-slate-200 rounded bg-white">
       <path d={d} fill="none" stroke="#000" strokeWidth="2" />
       {pts.map((p, i) => (
-        <circle key={i} cx={sx(p.t)} cy={sy(p.temp)} r="2.5" fill="#6366f1" />
+        <circle key={i} cx={sx(p.t)} cy={sy(p.temp)} r="2.5" fill="#D97706" />
       ))}
       <text x={pad} y={h - 6} className="text-[9px] fill-slate-500">Time (min)</text>
       <text x={4} y={pad} className="text-[9px] fill-slate-500" transform={`rotate(-90 4 ${pad})`}>°C</text>

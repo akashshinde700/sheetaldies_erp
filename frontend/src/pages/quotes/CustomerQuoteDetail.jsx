@@ -1,17 +1,22 @@
 import { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { ArrowLeft, Pencil, Printer, Trash2 } from 'lucide-react';
 import api from '../../utils/api';
 import { formatDate, formatCurrency } from '../../utils/formatters';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { useAuth } from '../../context/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 
-const STATUS_COLORS = {
-  DRAFT:    'bg-slate-100 text-slate-700 border-slate-200',
-  SENT:     'bg-blue-100 text-blue-700 border-blue-200',
-  ACCEPTED: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  REJECTED: 'bg-rose-100 text-rose-700 border-rose-200',
-  EXPIRED:  'bg-orange-100 text-orange-700 border-orange-200',
+const STATUS_VARIANT = {
+  DRAFT:    'neutral',
+  SENT:     'info',
+  ACCEPTED: 'success',
+  REJECTED: 'error',
+  EXPIRED:  'warning',
 };
 const UNIT_LABEL = { KGS: '/ Kg', PCS: '/ Pc', LOT: '(Lot)' };
 
@@ -22,6 +27,13 @@ const NEXT_STATUSES = {
   REJECTED: [],
   EXPIRED: [],
 };
+
+const Def = ({ label, children }) => (
+  <div className="min-w-0">
+    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">{label}</p>
+    <div className="text-sm font-semibold text-slate-800 break-words">{children}</div>
+  </div>
+);
 
 export default function CustomerQuoteDetail() {
   const { id } = useParams();
@@ -91,7 +103,19 @@ export default function CustomerQuoteDetail() {
     });
   };
 
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin w-8 h-8 rounded-full border-2 border-sky-500 border-t-transparent" /></div>;
+  if (loading) return (
+    <div className="max-w-4xl mx-auto space-y-4">
+      <div className="flex items-center gap-3">
+        <Skeleton className="h-9 w-9 rounded-lg" />
+        <div className="space-y-2">
+          <Skeleton className="h-6 w-44" />
+          <Skeleton className="h-3.5 w-64" />
+        </div>
+      </div>
+      <Skeleton className="h-32 rounded-xl" />
+      <Skeleton className="h-48 rounded-xl" />
+    </div>
+  );
   if (!q) return <div className="p-8 text-center text-slate-500">Quote not found.</div>;
 
   const nextStatuses = NEXT_STATUSES[q.status] || [];
@@ -99,85 +123,101 @@ export default function CustomerQuoteDetail() {
   return (
     <div className="max-w-4xl mx-auto space-y-5 animate-slide-up">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/customer-quotes')} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400">
-            <span className="material-symbols-outlined text-lg">arrow_back</span>
-          </button>
-          <div>
-            <h2 className="text-xl font-extrabold text-slate-800 font-mono">{q.quoteNo}</h2>
-            <p className="text-xs text-slate-400">Customer Quotation · Created by {q.createdBy?.name} · {formatDate(q.createdAt)}</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3 min-w-0">
+          <Button type="button" variant="ghost" size="icon-sm"
+            onClick={() => navigate('/customer-quotes')}
+            title="Back to quotations" aria-label="Back to quotations"
+            className="text-slate-400 hover:text-sky-700 border border-slate-200 bg-white shrink-0 mt-0.5">
+            <ArrowLeft />
+          </Button>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="page-title font-mono">{q.quoteNo}</h1>
+              <Badge variant={STATUS_VARIANT[q.status] || 'neutral'} className="px-2 py-0.5 text-[10px]">
+                {q.status}
+              </Badge>
+            </div>
+            <p className="page-subtitle">Customer Quotation · Created by {q.createdBy?.name} · {formatDate(q.createdAt)}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className={`px-3 py-1.5 text-xs font-bold rounded-full border ${STATUS_COLORS[q.status]}`}>{q.status}</span>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           {nextStatuses.map(s => (
-            <button key={s} onClick={() => updateStatus(s)} disabled={updatingStatus}
-              className="btn-outline text-xs disabled:opacity-50">
+            <Button key={s} type="button" variant="outline" size="sm"
+              onClick={() => updateStatus(s)} disabled={updatingStatus}>
               Mark {s}
-            </button>
+            </Button>
           ))}
           {q.status === 'DRAFT' && (
-            <Link to={`/customer-quotes/${id}/edit`} className="btn-outline text-xs">
-              <span className="material-symbols-outlined text-sm">edit</span> Edit
-            </Link>
+            <Button variant="outline" size="sm" asChild>
+              <Link to={`/customer-quotes/${id}/edit`}>
+                <Pencil /> Edit
+              </Link>
+            </Button>
           )}
-          <Link to={`/customer-quotes/${id}/print`} target="_blank" className="btn-outline text-xs">
-            <span className="material-symbols-outlined text-sm">print</span> Print
-          </Link>
+          <Button variant="outline" size="sm" asChild>
+            <Link to={`/customer-quotes/${id}/print`} target="_blank">
+              <Printer /> Print
+            </Link>
+          </Button>
           {(q.status === 'DRAFT' || isAdmin) && (
-            <button
+            <Button type="button" variant="ghost" size="icon-sm"
               onClick={handleDelete}
               disabled={deleting}
               title={q.status === 'DRAFT' ? 'Delete quote' : `Delete ${q.status} quote (admin only)`}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 disabled:opacity-50">
-              <span className="material-symbols-outlined text-lg">delete</span>
-            </button>
+              aria-label="Delete quote"
+              className="text-rose-400 hover:text-rose-600 hover:bg-rose-50">
+              <Trash2 />
+            </Button>
           )}
         </div>
       </div>
 
       {/* Customer + Dates */}
-      <div className="card p-5">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-          <div><p className="form-label">Customer</p><p className="font-semibold text-slate-800">{q.customer?.name}</p></div>
-          <div><p className="form-label">Kind Attn</p><p className="font-semibold text-slate-800">{q.kindAttn ? `Mr. ${q.kindAttn}` : '—'}</p></div>
-          <div><p className="form-label">GSTIN</p><p className="font-mono text-slate-600">{q.customer?.gstin || '—'}</p></div>
-          <div><p className="form-label">Quote Date</p><p className="font-semibold text-slate-800">{formatDate(q.quoteDate)}</p></div>
-          <div><p className="form-label">Valid Until</p><p className="font-semibold text-slate-800">{q.validUntil ? formatDate(q.validUntil) : '—'}</p></div>
-        </div>
-        {q.paymentTerms && <p className="text-xs text-slate-500 mt-3 pt-3 border-t border-slate-100"><strong>Payment Terms:</strong> {q.paymentTerms}</p>}
-        {q.notes && <p className="text-xs text-slate-500 mt-2"><strong>Notes:</strong> {q.notes}</p>}
-      </div>
+      <Card>
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <Def label="Customer">{q.customer?.name}</Def>
+            <Def label="Kind Attn">{q.kindAttn ? `Mr. ${q.kindAttn}` : '—'}</Def>
+            <Def label="GSTIN"><span className="font-mono text-slate-600 font-normal">{q.customer?.gstin || '—'}</span></Def>
+            <Def label="Quote Date">{formatDate(q.quoteDate)}</Def>
+            <Def label="Valid Until">{q.validUntil ? formatDate(q.validUntil) : '—'}</Def>
+          </div>
+          {q.paymentTerms && <p className="text-xs text-slate-500 mt-3 pt-3 border-t border-slate-100"><strong>Payment Terms:</strong> {q.paymentTerms}</p>}
+          {q.notes && <p className="text-xs text-slate-500 mt-2"><strong>Notes:</strong> {q.notes}</p>}
+        </CardContent>
+      </Card>
 
       {/* Items Table */}
-      <div className="card p-5">
-        <p className="section-title mb-4">Line Items</p>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
+      <Card className="overflow-hidden">
+        <CardHeader>
+          <CardTitle>Line Items</CardTitle>
+        </CardHeader>
+        <div className="table-responsive">
+          <table className="w-full text-left min-w-[520px]">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="px-3 py-2 text-left font-bold text-slate-500 uppercase text-[10px]">#</th>
-                <th className="px-3 py-2 text-left font-bold text-slate-500 uppercase text-[10px]">Description / Part Name</th>
-                <th className="px-3 py-2 text-left font-bold text-slate-500 uppercase text-[10px]">Process</th>
-                <th className="px-3 py-2 text-left font-bold text-slate-500 uppercase text-[10px]">Material</th>
-                <th className="px-3 py-2 text-right font-bold text-slate-500 uppercase text-[10px]">Rate</th>
+              <tr>
+                <th className="th">#</th>
+                <th className="th">Description / Part Name</th>
+                <th className="th">Process</th>
+                <th className="th">Material</th>
+                <th className="th text-right">Rate</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-50/80">
               {q.items.map((item, i) => (
-                <tr key={item.id} className="hover:bg-slate-50/50">
-                  <td className="px-3 py-2.5 text-slate-400">{i+1}</td>
-                  <td className="px-3 py-2.5 font-medium text-slate-800">{item.partName}</td>
-                  <td className="px-3 py-2.5 text-slate-600">{item.processType?.name || '—'}</td>
-                  <td className="px-3 py-2.5 text-slate-600">{item.material || '—'}</td>
-                  <td className="px-3 py-2.5 text-right font-mono font-bold text-slate-800">{+item.rate > 0 ? `₹${formatCurrency(item.rate)} ${UNIT_LABEL[item.unit] || UNIT_LABEL.KGS}` : '—'}</td>
+                <tr key={item.id} className="tr">
+                  <td className="td text-slate-400 font-mono">{i+1}</td>
+                  <td className="td font-medium text-slate-800">{item.partName}</td>
+                  <td className="td text-slate-600">{item.processType?.name || '—'}</td>
+                  <td className="td text-slate-600">{item.material || '—'}</td>
+                  <td className="td text-right font-mono font-bold text-slate-800 tabular-nums">{+item.rate > 0 ? `₹${formatCurrency(item.rate)} ${UNIT_LABEL[item.unit] || UNIT_LABEL.KGS}` : '—'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </div>
+      </Card>
 
       {confirmDialog && <ConfirmDialog {...confirmDialog} onCancel={() => setConfirmDialog(null)} />}
     </div>
