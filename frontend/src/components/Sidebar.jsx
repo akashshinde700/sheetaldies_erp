@@ -72,6 +72,7 @@ const NavItem = ({ item, onNavigate, pendingCount = 0, collapsed = false }) => {
     end={item.end ?? false}
     onClick={onNavigate}
     title={collapsed ? item.label : undefined}
+    aria-label={item.label}
     className={({ isActive }) => {
       const active = resolvedActive(isActive);
       return `group flex items-center gap-2.5 min-h-[44px] sm:min-h-0 sm:h-9 rounded-lg text-sm font-semibold mb-0.5
@@ -87,6 +88,7 @@ const NavItem = ({ item, onNavigate, pendingCount = 0, collapsed = false }) => {
     {({ isActive }) => (
       <>
         <span
+          aria-hidden="true"
           className={`material-symbols-outlined text-[18px] transition-colors duration-200 shrink-0
             ${resolvedActive(isActive) ? 'text-white' : 'text-[#948C7F] group-hover:text-[#DDD8D2]'}`}
         >
@@ -196,6 +198,7 @@ export default function Sidebar({ open, onClose, collapsed = false, onToggleColl
             type="button"
             onClick={handleLogout}
             title={collapsed ? 'Sign out' : undefined}
+            aria-label="Sign Out"
             className={`w-full flex items-center gap-2.5 min-h-[44px] sm:min-h-0 sm:h-10 px-3 rounded-lg text-[#DDD8D2]
               hover:text-rose-400 hover:bg-rose-500/10 active:scale-[0.99]
               text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40

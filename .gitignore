@@ -112,3 +112,11 @@ onprem-ssh/
 
 # Per-developer Claude Code settings (the shared ones are committed).
 .claude/settings.local.json
+
+# Local Playwright reports and traces.
+frontend/playwright-report/
+frontend/test-results/
+
+# Superseded intermediate training renders (final videos are retained).
+docs/media/erp-training-hindi.mp4
+docs/media/erp-training-text-draft.mp4

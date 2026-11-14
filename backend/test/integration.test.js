@@ -4,6 +4,14 @@
  * File: backend/test/integration.test.js (NEW)
  */
 
+// This legacy Jest-style suite creates persistent rows and is not configured
+// for the repository's node:test runner. Do not run it against valuable data.
+require('dotenv').config();
+require('../scripts/safe-destructive-test').assertSafeDestructiveTest({
+  databaseUrl: process.env.DATABASE_URL,
+  apiUrl: 'http://localhost:5000/api',
+  allowWrites: process.env.ERP_ALLOW_DESTRUCTIVE_TESTS,
+});
 const request = require('supertest');
 const app = require('../src/app');
 const prisma = require('../src/utils/prisma');

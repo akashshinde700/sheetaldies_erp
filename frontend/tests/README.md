@@ -20,9 +20,13 @@ Then, from `frontend/`:
 
 | Command | What it does | Writes data? |
 |---|---|---|
-| `npm run test:ui` | walk + interact, the usual check before deploying | yes, locally |
-| `npm run test:ui:walk` | opens all 35 routes, reports blank pages / JS errors / failed requests | no |
-| `npm run test:ui:interact` | Excel export, planning forms, cycle no, every print page | yes, locally |
+| `npm run test:ui` | walk + interact, requires the write opt-in below | **yes, destructive** |
+| `npm run test:ui:walk` | opens routes, reports blank/error pages, unexpected redirects / JS errors / failed requests | no |
+| `npm run test:ui:interact` | Excel export, planning forms, cycle no, selected print pages | **yes, destructive** |
+
+**Important:** `test:ui:interact` can create, delete and clear records; its cleanup is not guaranteed if setup or the process fails. Run it **only** with a disposable local database that does not contain real data. Both UI_BASE and DATABASE_URL must use an exact localhost/loopback hostname, and you must explicitly set `UI_TEST_ALLOW_WRITES=1` after verifying the database. Localhost may still be a tunnel to a remote database: the opt-in is not a safety guarantee. Never use production or valuable local data.
+
+The mocked `e2e/tests/screen-smoke.spec.js` suite instead blocks writes and needs a development Vite server. Run `npm run e2e -- screen-smoke` after installing Playwright Chromium. It checks rendering of static routes and a small number of UI actions, but does not validate real API/database workflows or populated print output.
 
 Locally you are signed in automatically with a token minted from
 `backend/.env` — no password needed.

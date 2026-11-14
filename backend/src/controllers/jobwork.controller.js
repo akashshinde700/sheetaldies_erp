@@ -681,33 +681,40 @@ exports.createJobCardFromItems = async (req, res) => {
     if (!Array.isArray(itemIds) || itemIds.length === 0) {
       return res.status(400).json({ success: false, message: 'itemIds array is required.' });
     }
-
-    // Fetch the challan items and associated challan
-    const items = await prisma.challanItem.findMany({
-      where: { id: { in: itemIds.map((i) => toInt(i)) } },
-      include: { challan: true },
+    // parseInt accepts values like "12xyz" or "12.5"; do not silently select a
+    // different line from the one the client sent.
+    const ids = itemIds.map((id) => {
+      if (typeof id !== 'number' && !(typeof id === 'string' && /^\d+$/.test(id))) return NaN;
+      return Number(id);
     });
-    if (!items || items.length === 0) return res.status(404).json({ success: false, message: 'Challan items not found.' });
+    if (ids.some((id) => !Number.isSafeInteger(id) || id <= 0) || new Set(ids).size !== ids.length) {
+      return res.status(400).json({ success: false, message: 'itemIds must contain distinct positive integer IDs.' });
+    }
 
-    const challan = items[0].challan;
-    if (!challan) return res.status(404).json({ success: false, message: 'Parent challan not found for items.' });
-
-    // Transaction: create job card and link selected challan items
+    const problem = (status, message) => Object.assign(new Error(message), { status });
     const result = await withTransaction(prisma, async (tx) => {
-      // generate jobCardNo (sequential)
-      const jobCardNo = await generateJobCardNoSeq(tx);
+      // Read and claim the lines within the same transaction. A conditional
+      // update below prevents stale selections from overwriting another card.
+      const items = await tx.challanItem.findMany({
+        where: { id: { in: ids } },
+        include: { challan: true },
+        orderBy: { id: 'asc' },
+      });
+      if (items.length !== ids.length) throw problem(404, 'One or more challan items were not found.');
+      const challan = items[0].challan;
+      if (!challan || items.some((item) => !item.challan || item.challanId !== challan.id)) {
+        throw problem(400, 'All selected items must belong to the same challan.');
+      }
+      if (items.some((item) => item.itemStatus !== 'PENDING' || item.jobCardId != null)) {
+        throw problem(409, 'One or more items are no longer pending. Refresh and select again.');
+      }
 
-      // Resolve partId (nullable — no auto-create)
       const firstItem = items[0];
-      const partId = firstItem.itemId ? toInt(firstItem.itemId) : null;
-
-      // aggregate quantity from selected items — weight NOT auto-filled (user enters manually)
-      const totalQty = items.reduce((s, it) => s + Number(it.quantity || 0), 0);
-
+      const totalQty = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
       const jobCard = await tx.jobCard.create({
         data: {
-          jobCardNo,
-          partId,
+          jobCardNo: await generateJobCardNoSeq(tx),
+          partId: firstItem.itemId ? toInt(firstItem.itemId) : null,
           customerId: challan.fromPartyId,
           drawingNo: firstItem.drawingNo || null,
           hrcRange: firstItem.hrc || null,
@@ -720,18 +727,24 @@ exports.createJobCardFromItems = async (req, res) => {
           createdById: req.user.id,
         },
       });
-
-      // Link selected challan items to this job card
-      await tx.challanItem.updateMany({
-        where: { id: { in: itemIds.map((i) => toInt(i)) } },
+      const claimed = await tx.challanItem.updateMany({
+        where: { id: { in: ids }, jobCardId: null, itemStatus: 'PENDING' },
         data: { jobCardId: jobCard.id, itemStatus: 'ASSIGNED' },
       });
-
+      if (claimed.count !== ids.length) {
+        throw problem(409, 'One or more items changed while creating the job card. Refresh and try again.');
+      }
       return { challan, jobCard, itemsCount: items.length };
     });
 
     res.status(201).json({ success: true, data: result, message: `Job card created: ${result.jobCard.jobCardNo}` });
   } catch (err) {
+    if (err.status && [400, 404, 409].includes(err.status)) {
+      return res.status(err.status).json({ success: false, message: err.message });
+    }
+    if (err.code === 'P2034') {
+      return res.status(409).json({ success: false, message: 'Concurrent update detected. Refresh and try again.' });
+    }
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error.' });
   }

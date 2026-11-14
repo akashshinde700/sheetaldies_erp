@@ -19,7 +19,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-const STATUS_OPTIONS = ['DRAFT', 'SENT', 'RECEIVED', 'COMPLETED', 'CANCELLED'];
+const STATUS_OPTIONS = {
+  DRAFT: ['DRAFT', 'SENT', 'CANCELLED'],
+  SENT: ['SENT', 'RECEIVED', 'CANCELLED'],
+  RECEIVED: ['RECEIVED', 'COMPLETED'],
+  COMPLETED: ['COMPLETED'],
+  CANCELLED: ['CANCELLED'],
+};
 
 const EMPTY_ITEM = {
   itemId: '',
@@ -39,6 +45,7 @@ export default function DispatchChallanForm() {
   const navigate = useNavigate();
   const isEdit = Boolean(id);
   const [loading, setLoading] = useState(false);
+  const [originalStatus, setOriginalStatus] = useState('DRAFT');
   const [parties, setParties] = useState([]);
   const [itemsMaster, setItemsMaster] = useState([]);
   const [jobworkChallans, setJobworkChallans] = useState([]);
@@ -81,6 +88,7 @@ export default function DispatchChallanForm() {
         setLoading(true);
         const res = await api.get(`/dispatch-challans/${id}`);
         const data = res.data.data || res.data;
+        setOriginalStatus(data.status || 'DRAFT');
         setFormData({
           challanDate: data.challanDate ? new Date(data.challanDate).toISOString().split('T')[0] : today,
           fromPartyId: data.fromPartyId ? String(data.fromPartyId) : '',
@@ -113,7 +121,13 @@ export default function DispatchChallanForm() {
     fetchChallan();
   }, [id, today]);
 
-  const handleChange = (field, value) => setFormData((prev) => ({ ...prev, [field]: value }));
+  const handleChange = (field, value) => {
+    if (field === 'jobworkChallanId' && String(value || '') !== String(formData.jobworkChallanId || '')) {
+      // Source rows belong to the previous challan; never submit stale links.
+      setItems((prev) => prev.map((item) => ({ ...item, sourceChallanItemId: '' })));
+    }
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
 
   const updateItem = (index, field, value) => {
     setItems((prev) => {
@@ -127,7 +141,7 @@ export default function DispatchChallanForm() {
         const chIt = selectedJwItems.find((x) => String(x.id) === String(value));
         if (chIt) {
           updated[index].description = chIt.description || '';
-          if (chIt.itemId) updated[index].itemId = String(chIt.itemId);
+          updated[index].itemId = chIt.itemId ? String(chIt.itemId) : '';
           if (chIt.quantity != null) updated[index].quantity = String(chIt.quantity);
           if (chIt.weight != null) updated[index].weightKg = String(chIt.weight);
         }
@@ -145,11 +159,28 @@ export default function DispatchChallanForm() {
       toast.error('From Party and To Party are required.');
       return;
     }
-    const validItems = items.filter((it) => (it.itemId || it.description?.trim()) && toNum(it.quantity, 0) > 0);
-    if (validItems.length === 0) {
-      toast.error('At least one item with quantity is required.');
+    // Do not silently discard incomplete rows. Dispatch rows require an Item
+    // master ID in the database, even when a description is entered manually.
+    if (items.length === 0) {
+      toast.error('At least one item is required.');
       return;
     }
+    for (const [index, item] of items.entries()) {
+      if (!item.itemId) {
+        toast.error(`Select an Item from the master list for row ${index + 1}.`);
+        return;
+      }
+      if (formData.jobworkChallanId && !item.sourceChallanItemId) {
+        toast.error(`Select a Source Challan Line for row ${index + 1}.`);
+        return;
+      }
+      const quantity = Number(item.quantity);
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        toast.error(`Enter a positive quantity for row ${index + 1}.`);
+        return;
+      }
+    }
+    const validItems = items;
     try {
       setLoading(true);
       const payload = {
@@ -274,7 +305,7 @@ export default function DispatchChallanForm() {
                       <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
-                      {STATUS_OPTIONS.map((s) => (
+                      {(isEdit ? (STATUS_OPTIONS[originalStatus] || [originalStatus]) : ['DRAFT', 'SENT']).map((s) => (
                         <SelectItem key={s} value={s}>{s}</SelectItem>
                       ))}
                     </SelectContent>
@@ -347,7 +378,7 @@ export default function DispatchChallanForm() {
                         />
                       </FormField>
                     )}
-                    <FormField label="Item">
+                    <FormField label="Item" required>
                       <SearchSelect
                         value={String(item.itemId || '')}
                         onChange={v => updateItem(idx, 'itemId', v)}
@@ -369,7 +400,7 @@ export default function DispatchChallanForm() {
                       <Input
                         type="number"
                         min="0"
-                        step="0.01"
+                        step="0.001"
                         inputMode="decimal"
                         value={item.quantity}
                         onChange={(e) => updateItem(idx, 'quantity', e.target.value)}

@@ -25,20 +25,36 @@ const UNIT_SUFFIX = { KGS: 'Per Kgs.', PCS: 'Per Pc.', LOT: 'Lot' };
 export default function CustomerQuotePrint() {
   const { id } = useParams();
   const [q, setQ] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => { const p = document.title; document.title = ' '; return () => { document.title = p; }; }, []);
 
   useEffect(() => {
+    let active = true;
+    let printTimer;
+    setQ(null);
+    setError(null);
     api.get(`/customer-quotes/${id}`).then(r => {
+      if (!active) return;
+      if (!r.data.data) { setError('Quotation not found.'); return; }
       setQ(r.data.data);
-      setTimeout(() => window.print(), 600);
+      printTimer = setTimeout(() => window.print(), 600);
+    }).catch(() => {
+      if (active) setError('Unable to load quotation. Please try again.');
     });
+    return () => { active = false; clearTimeout(printTimer); };
   }, [id]);
 
+  if (error) return (
+    <div style={{ textAlign: 'center', padding: 40 }} role="alert">
+      <p>{error}</p>
+      <Link to="/customer-quotes">← Back to quotations</Link>
+    </div>
+  );
   if (!q) return <div style={{ textAlign: 'center', padding: 40 }}>Loading...</div>;
 
   // Pad line items to a minimum of 5 rows like the paper form.
-  const rows = [...q.items];
+  const rows = [...(q.items || [])];
   while (rows.length < 5) rows.push(null);
 
   const TERMS = [
@@ -66,6 +82,10 @@ export default function CustomerQuotePrint() {
           style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: '#4338ca', textDecoration: 'none', fontWeight: 600 }}>
           ← Back
         </Link>
+        <button type="button" onClick={() => window.print()}
+          style={{ marginLeft: 16, border: '1px solid #94a3b8', borderRadius: 4, padding: '6px 10px', background: '#fff', cursor: 'pointer' }}>
+          Print / Save PDF
+        </button>
       </div>
 
       <div style={{ border: '2px solid #000' }}>

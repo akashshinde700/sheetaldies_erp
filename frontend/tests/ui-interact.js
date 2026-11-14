@@ -11,8 +11,16 @@
 const fs = require('fs');
 const { fromBackend, reporter, launch, signIn, env } = require('./lib');
 
-if (!/localhost|127\.0\.0\.1/.test(env.base)) {
-  console.error(`Refusing to run: this test writes data and ${env.base} is not local.`);
+// This suite creates and deletes data and can clear register rows. A local UI
+// URL alone does not imply a safe database (or even a local hostname if checked
+// with a substring). Require an explicit opt-in AND a local database.
+fromBackend('dotenv').config({ path: require('path').join(__dirname, '../../backend/.env') });
+const isLocalHost = (value) => {
+  try { return ['localhost', '127.0.0.1', '[::1]'].includes(new URL(value).hostname); }
+  catch { return false; }
+};
+if (process.env.UI_TEST_ALLOW_WRITES !== '1' || !isLocalHost(env.base) || !isLocalHost(process.env.DATABASE_URL || '')) {
+  console.error('Refusing to run: use an isolated local UI and local test database, then set UI_TEST_ALLOW_WRITES=1. This suite changes and deletes data.');
   process.exit(2);
 }
 

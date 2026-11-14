@@ -12,6 +12,11 @@ const assert = require('node:assert');
 const path = require('path');
 
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('../scripts/safe-destructive-test').assertSafeDestructiveTest({
+  databaseUrl: process.env.DATABASE_URL,
+  apiUrl: process.env.TEST_API || 'http://localhost:5000/api',
+  allowWrites: process.env.ERP_ALLOW_DESTRUCTIVE_TESTS,
+});
 const { PrismaClient } = require('@prisma/client');
 const jwt = require('jsonwebtoken');
 

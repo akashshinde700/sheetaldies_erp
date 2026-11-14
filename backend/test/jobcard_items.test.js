@@ -1,3 +1,10 @@
+// Legacy test creates data without cleaning it up. Use only a disposable database.
+require('dotenv').config();
+require('../scripts/safe-destructive-test').assertSafeDestructiveTest({
+  databaseUrl: process.env.DATABASE_URL,
+  apiUrl: 'http://localhost:5000/api', // this test starts its own in-process server
+  allowWrites: process.env.ERP_ALLOW_DESTRUCTIVE_TESTS,
+});
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const app = require('../src/app');
