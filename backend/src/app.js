@@ -222,7 +222,7 @@ const { requireRole: docsRequireRole } = require('./middleware/role');
 app.use('/api-docs', docsAuth, docsRequireRole('ADMIN'), swaggerUi.serve);
 app.get('/api-docs', docsAuth, docsRequireRole('ADMIN'), swaggerUi.setup(swaggerSpecs, {
   customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: 'Sheetal Dies ERP - API Documentation',
+  customSiteTitle: 'Shital Vacuum Treat ERP - API Documentation',
   swaggerOptions: {
     persistAuthorization: true,
     displayOperationId: false,
@@ -262,5 +262,5 @@ if (require.main === module) {
   // behaviour is unchanged, so a box without a proxy still works.
   const HOST = process.env.BIND_HOST || undefined;
   app.listen(PORT, HOST, () => console.log(
-    `Sheetal Dies ERP Backend running on ${HOST || '0.0.0.0'}:${PORT}`));
+    `Shital Vacuum Treat ERP Backend running on ${HOST || '0.0.0.0'}:${PORT}`));
 }

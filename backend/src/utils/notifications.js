@@ -19,7 +19,7 @@ const sendEmail = async (to, subject, html) => {
   }
 
   const mailOptions = {
-    from: `"${process.env.FROM_NAME || 'SheetalDies ERP'}" <${process.env.FROM_EMAIL || process.env.SMTP_USER}>`,
+    from: `"${process.env.FROM_NAME || 'Shital Vacuum Treat ERP'}" <${process.env.FROM_EMAIL || process.env.SMTP_USER}>`,
     to,
     subject,
     html,

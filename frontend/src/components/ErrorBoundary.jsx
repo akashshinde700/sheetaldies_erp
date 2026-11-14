@@ -132,7 +132,7 @@ export class ErrorBoundary extends React.Component {
             {/* Help Text */}
             <p className="text-center text-sm text-gray-500 mt-6">
               If the problem persists, please{' '}
-              <a href="mailto:support@sheetaldies.com" className="text-blue-600 hover:underline">
+              <a href="mailto:shitalvacuumtreat@gmail.com" className="text-blue-600 hover:underline">
                 contact support
               </a>
             </p>

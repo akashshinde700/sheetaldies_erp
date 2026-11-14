@@ -8,6 +8,7 @@ import { formatDate } from '../../utils/formatters';
 const SVT = {
   name:    'SHITAL VACUUM TREAT PVT. LTD.',
   address: 'Plot No. 84/1, Sector No. 10, PCNTDA, Bhosari, Pune - 411020',
+  email:   'commercial@shitalgroup.com',
   gstin:   '27AATCS0577L1ZK',
   pan:     'AATCS0577L',
   cin:     'U29253PN2013PTC146364',
@@ -284,6 +285,7 @@ export default function InvoicePrint() {
               <td style={{ ...tdStyle(), width: '55%', verticalAlign: 'top', borderRight: B }}>
                 <div style={{ fontWeight: 'bold', fontSize: '11px', marginBottom: 2 }}>{SVT.name}</div>
                 <div>{SVT.address}</div>
+                <div>E-Mail: {SVT.email}</div>
                 <div style={{ marginTop: 3 }}>
                   <span>MSME / Udyam Type: {SVT.msmeType}</span>
                 </div>

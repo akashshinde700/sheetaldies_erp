@@ -9,12 +9,12 @@ const options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'Sheetal Dies & Tools ERP API',
+      title: 'Shital Vacuum Treat ERP API',
       version: '1.0.0',
       description: 'Complete ERP system for manufacturing die shop with job card, quality inspection, invoicing, and jobwork management.',
       contact: {
-        name: 'Sheetal Dies & Tools',
-        email: 'api@sheetaldies.com',
+        name: 'Shital Vacuum Treat Pvt. Ltd.',
+        email: 'shitalvacuumtreat@gmail.com',
       },
       license: {
         name: 'Internal Use Only',
@@ -26,8 +26,8 @@ const options = {
         description: 'Development Server',
       },
       {
-        url: 'https://api.sheetaldies.com',
-        description: 'Production Server',
+        url: 'http://192.168.0.8',
+        description: 'Production Server (plant LAN)',
       },
     ],
     components: {

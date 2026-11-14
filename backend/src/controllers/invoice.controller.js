@@ -875,7 +875,7 @@ exports.sendNotification = async (req, res) => {
     if (type === 'email') {
       const emailTo = to || invoice.toParty?.email || invoice.fromParty?.email;
       if (!emailTo) return res.status(400).json({ success: false, message: 'No recipient email available.' });
-      const subject = `Invoice ${invoice.invoiceNo} from Sheetal Dies ERP`;
+      const subject = `Invoice ${invoice.invoiceNo} from Shital Vacuum Treat ERP`;
       const html = `<p>Dear ${invoice.toParty?.name || invoice.fromParty?.name || 'Customer'},</p>` +
                    `<p>${bodyMessage}</p>` +
                    `<p>Invoice Reference: <strong>${invoice.invoiceNo}</strong></p>`;

@@ -275,7 +275,7 @@ export default function PartyForm() {
                   <FormField label="Company / Party Name" required htmlFor="party-name" error={errors.name}
                     className="w-full sm:flex-1 sm:basis-[50px]">
                     <Input id="party-name" value={form.name} onChange={e => set('name', e.target.value)} required
-                      invalid={Boolean(errors.name)} placeholder="Sheetal Dies & Tools Pvt. Ltd." />
+                      invalid={Boolean(errors.name)} placeholder="ABC Engineering Pvt. Ltd." />
                   </FormField>
 
                   <FormField label="Address" required htmlFor="party-address" error={errors.address}

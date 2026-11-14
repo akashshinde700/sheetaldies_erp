@@ -8,7 +8,7 @@ import SearchSelect from '../../components/SearchSelect';
 const SVT = {
   name:  'SHITAL VACUUM TREAT PVT LTD.',
   addr1: 'Plot No.84/1, Sector No.10, PCNTDA, Bhosari, Pune – 411019',
-  email: 'info@shitalgroup.com',
+  email: 'quality@shitalgroup.com',
 };
 
 // ── shared cell style helpers ─────────────────────────────────

@@ -124,7 +124,7 @@ export default function Dashboard() {
           <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 font-headline tracking-tight">
             Production Dashboard
           </h2>
-          <p className="text-slate-500 text-xs mt-0.5 leading-snug">Sheetal Dies &amp; Tools Pvt. Ltd. — live overview</p>
+          <p className="text-slate-500 text-xs mt-0.5 leading-snug">Shital Vacuum Treat Pvt. Ltd. — live overview</p>
         </div>
         <div className="flex flex-wrap gap-2 shrink-0 w-full sm:w-auto">
           <Link to="/jobcards/new" className="btn-primary w-full sm:w-auto justify-center">

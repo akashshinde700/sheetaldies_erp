@@ -10,7 +10,7 @@ const COMPANY = {
   factory: 'OM Sai Industrial Premises Co.Op.Soc., Plot No. 84/2, Sector No. 10, PCNTDA, Bhosari, Pune – 411026',
   regdOfc: 'OM Sai Industrial Premises Co.Op.Soc., Plot No. 84/2, Sector No. 10, PCNTDA, Bhosari, Pune – 411026',
   email:   'info@sheetaldies.in',
-  phone:   '09822012850',
+  phone:   '8600034058',
   gstin:   '27AANCS2087B1ZA',
 };
 

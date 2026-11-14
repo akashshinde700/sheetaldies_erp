@@ -9,7 +9,7 @@ import HeatCycleStepGraph from '../../components/HeatCycleStepGraph';
 const SVT = {
   name:    'SHITAL VACUUM TREAT PVT. LTD.',
   address: 'Plot No. 84/1, Sector No. 10, PCNTDA, Bhosari, Pune',
-  email:   'info@shitalgroup.com',
+  email:   'quality@shitalgroup.com',
   gstin:   '27AATCS0577L1ZK',
 };
 

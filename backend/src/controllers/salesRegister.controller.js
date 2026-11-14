@@ -14,7 +14,7 @@ const { toNum } = require('../utils/normalize');
 const FALLBACK_COMPANY = {
   name: 'SHEETAL DIES & TOOLS PVT. LTD.',
   address:
-    'OM Sai Industrial Premises Co.Op. Soc., Plot No. 84/2, Sector No. 10, PCNTDA, Bhosari, Pune - 411026   Email : info@sheetaldies.in, Phone : 09822012850',
+    'OM Sai Industrial Premises Co.Op. Soc., Plot No. 84/2, Sector No. 10, PCNTDA, Bhosari, Pune - 411026   Email : info@sheetaldies.in, Phone : 8600034058',
 };
 
 const HEADERS = [

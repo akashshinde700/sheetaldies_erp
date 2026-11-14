@@ -189,7 +189,7 @@ export default function UserManagement() {
               </FormField>
               <FormField label="Email" htmlFor="user-email" required>
                 <Input id="user-email" type="email" value={newForm.email} onChange={e => setNewForm(p => ({...p, email: e.target.value}))}
-                  required placeholder="ravi@sheetaldies.com" />
+                  required placeholder="ravi@shitalgroup.com" />
               </FormField>
               <FormField label="Role" required>
                 <Select value={newForm.role} onValueChange={v => setNewForm(p => ({...p, role: v}))}>
