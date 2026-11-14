@@ -112,3 +112,8 @@ onprem-ssh/
 
 # Per-developer Claude Code settings (the shared ones are committed).
 .claude/settings.local.json
+
+# One-off server test/debug scripts hold the SSH and DB passwords.
+_test_*.py
+_dbg_*.py
+scripts/fulltest-onprem.py
