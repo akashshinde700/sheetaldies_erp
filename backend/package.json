@@ -23,6 +23,7 @@
     "db:reset-admin": "node scripts/reset-admin-password.js",
     "db:seed": "node scripts/seed-parties.js && node scripts/seed-machines.js",
     "test:e2e:workflow": "node scripts/e2e-workflow-flow-test.js",
+    "test:unit:workflow": "node --test test/jobcard-selection.unit.test.js test/dispatch-quantity.unit.test.js test/dispatch-validation.unit.test.js test/auth-origin.unit.test.js test/destructive-test-guard.unit.test.js test/inputs.test.js",
     "test": "node --test test/smoke.test.js test/inputs.test.js",
     "test:api": "node --test test/api.test.js",
     "test:billing": "node --test test/reject-billing.test.js",

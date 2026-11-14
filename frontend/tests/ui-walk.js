@@ -54,7 +54,10 @@ const ROUTES = [
 
     const problems = [];
     if (navError) problems.push(`could not open: ${navError}`);
-    else if (text.length < 40 && route !== '/this-route-does-not-exist') problems.push('page is blank');
+    else if (text.length < 40) problems.push('page is blank');
+    const expectedPath = route === '/jobwork' ? '/jobwork/register' : route === '/this-route-does-not-exist' ? '/' : route;
+    if (!navError && landed !== expectedPath) problems.push(`unexpected redirect to ${landed || '(none)'}`);
+    if (/Oops! Something went wrong/.test(text)) problems.push('error boundary displayed');
     if (seen.pageErrors.length) problems.push(`JS error: ${seen.pageErrors[0]}`);
     if (seen.failedReqs.length) problems.push(`request failed: ${seen.failedReqs[0]}`);
     const realConsole = seen.consoleErrors.filter(isRealConsoleError);

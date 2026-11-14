@@ -5,6 +5,12 @@ require('dotenv').config();
 const jwt = require('jsonwebtoken');
 
 const BASE_URL = process.env.API_BASE_URL || 'http://localhost:5000/api';
+// This script modifies an existing job card and has no cleanup.
+require('./safe-destructive-test').assertSafeDestructiveTest({
+  databaseUrl: process.env.DATABASE_URL,
+  apiUrl: BASE_URL,
+  allowWrites: process.env.ERP_ALLOW_DESTRUCTIVE_TESTS,
+});
 const ADMIN_USER_ID = parseInt(process.env.E2E_ADMIN_USER_ID || '1', 10);
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || 'admin@shitalvaccumtreat.com';
 const ADMIN_NAME = process.env.E2E_ADMIN_NAME || 'Admin';

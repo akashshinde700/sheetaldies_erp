@@ -17,6 +17,7 @@ export default function Login() {
   const [mode, setMode] = useState('password');
   const [showPass, setShowPass] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
+  const [otpSending, setOtpSending] = useState(false);
 
   useEffect(() => {
     if (!initializing && user) {
@@ -79,12 +80,16 @@ export default function Login() {
       toast.error(emailError);
       return;
     }
+    if (otpSending) return;
+    setOtpSending(true);
     try {
       await requestOtp(values.email);
       setOtpSent(true);
       toast.success('OTP sent to your email.');
     } catch (err) {
       toast.error(err.response?.data?.message || err.message || 'Failed to send OTP.');
+    } finally {
+      setOtpSending(false);
     }
   };
 
@@ -110,7 +115,8 @@ export default function Login() {
           <div className="flex border-b border-slate-200/80">
             <button
               type="button"
-              onClick={() => setMode('password')}
+              onClick={() => handleModeSwitch('password')}
+              disabled={otpSending}
               className={`flex-1 min-h-[48px] py-3 text-xs font-bold uppercase tracking-wider transition-all duration-200
                 ${mode === 'password'
                   ? 'text-sky-950 border-b-2 border-sky-600 bg-sky-50/80'
@@ -120,7 +126,8 @@ export default function Login() {
             </button>
             <button
               type="button"
-              onClick={() => setMode('otp')}
+              onClick={() => handleModeSwitch('otp')}
+              disabled={otpSending}
               className={`flex-1 min-h-[48px] py-3 text-xs font-bold uppercase tracking-wider transition-all duration-200
                 ${mode === 'otp'
                   ? 'text-sky-950 border-b-2 border-sky-600 bg-sky-50/80'
@@ -217,12 +224,12 @@ export default function Login() {
                   <Button
                     type="button"
                     onClick={handleSendOtp}
-                    loading={isSubmitting}
+                    loading={otpSending}
                     disabled={Boolean(errors.email)}
                     className="w-full"
                   >
-                    {!isSubmitting && <Send aria-hidden="true" />}
-                    {isSubmitting ? 'Sending...' : 'Send OTP'}
+                    {!otpSending && <Send aria-hidden="true" />}
+                    {otpSending ? 'Sending...' : 'Send OTP'}
                   </Button>
                 ) : (
                   <form onSubmit={handleSubmit} className="space-y-4">

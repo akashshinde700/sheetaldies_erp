@@ -1,10 +1,16 @@
-const { test, expect } = require('@playwright/test');
+import { test, expect } from 'playwright/test';
 
 test.describe('Jobwork UI flow', () => {
+  // This legacy test creates records and has no cleanup. Never run implicitly.
+  test.skip(process.env.E2E_ALLOW_WRITES !== '1', 'Requires an isolated test database and explicit E2E_ALLOW_WRITES=1');
   test('create inward via API, select items in UI and create job card', async ({ page, request, baseURL }) => {
-    // Bypass frontend auth for E2E by setting localStorage flag before navigation
+    const host = new URL(baseURL).hostname;
+    if (!['localhost', '127.0.0.1', '[::1]'].includes(host)) {
+      throw new Error('Refusing to create E2E data against a non-local UI');
+    }
+    // This bypass only affects the development frontend; API requests still need authentication.
     await page.addInitScript(() => {
-      localStorage.setItem('E2E_BYPASS', '1');
+      sessionStorage.setItem('E2E_BYPASS', '1');
     });
 
     // 1. Create parties via backend API

@@ -12,7 +12,11 @@ const dispatchItemSchema = Joi.object({
   itemId: Joi.number().integer().positive().required(),
   sourceChallanItemId: Joi.number().integer().positive().allow(null, ''),
   description: Joi.string().allow('', null),
-  quantity: Joi.number().integer().min(1).required(),
+  // Decimal(12,3): reject excess precision instead of Joi's default rounding.
+  quantity: Joi.number().positive().max(999999999.999).custom((value, helpers) =>
+    Math.abs(value * 1000 - Math.round(value * 1000)) < 0.00001
+      ? value : helpers.error('number.precision', { limit: 3 })
+  ).required(),
   weightKg: Joi.number().min(0).allow(null),
   remarks: Joi.string().max(300).allow('', null),
 });

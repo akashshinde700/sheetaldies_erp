@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=1920, height=1080">
+<script src="assets/gsap.min.js"></script>
+<style>
+:root { --ground:#f5f3ef; --ink:#26221e; --accent:#075985; --bar:#262220; }
+* { box-sizing:border-box; }
+html,body { margin:0; width:1920px; height:1080px; overflow:hidden; background:var(--ground); font-family:Inter,Arial,sans-serif; }
+#root { position:relative; width:1920px; height:1080px; overflow:hidden; background:var(--ground); }
+.top { position:absolute; left:84px; right:84px; top:66px; display:flex; justify-content:space-between; align-items:center; color:var(--ink); }
+.brand { font-size:30px; font-weight:800; letter-spacing:1.4px; }
+.tag { font-size:28px; font-weight:700; letter-spacing:1.2px; color:#075985; }
+.rule { position:absolute; top:117px; left:84px; right:84px; height:2px; background:#d6d0c8; }
+.scene { position:absolute; inset:0; }
+.copy { position:absolute; left:92px; top:265px; width:560px; }
+.step { font-size:28px; line-height:1.3; font-weight:800; letter-spacing:2px; color:#075985; text-transform:uppercase; }
+h1 { font-size:70px; line-height:1.08; letter-spacing:-2px; margin:28px 0 26px; color:#26221e; font-weight:800; }
+p { font-size:30px; line-height:1.4; color:#504940; margin:0; max-width:520px; }
+.frame { position:absolute; left:718px; top:176px; width:1116px; height:698px; background:#ffffff; border:2px solid #d9d2c9; border-radius:18px; overflow:hidden; box-shadow:0 25px 60px rgba(38,34,30,.15); }
+.frame img { display:block; width:100%; height:100%; object-fit:cover; }
+.footer { position:absolute; left:84px; right:84px; bottom:65px; display:flex; justify-content:space-between; align-items:center; }
+.notice { color:#3f3932; font-size:28px; font-weight:700; letter-spacing:0.4px; }
+.progress { color:#075985; font-size:28px; font-weight:800; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="23" data-width="1920" data-height="1080">
+  <div class="top"><span class="brand">SVT ERP</span><span class="tag">HEAT TREATMENT WORKFLOW</span></div><div class="rule"></div>
+  <div id="s1" class="clip scene" data-start="0" data-duration="3.01" data-track-index="1">
+    <div class="copy"><div class="step">EK NAZAR MEIN</div><h1>Inward se<br>invoice tak.</h1><p>Shop floor ka kaam, ek jagah.</p></div>
+    <div class="frame"><img src="assets/screens/01-inward.png" alt="ERP inward entry screen"></div>
+  </div>
+  <div id="s2" class="clip scene" data-start="3.01" data-duration="4.34" data-track-index="1">
+    <div class="copy"><div class="step">01 / INWARD</div><h1>Maal ki<br>entry.</h1><p>Customer aur item details bhariye.</p></div>
+    <div class="frame"><img src="assets/screens/01-inward.png" alt="Inward entry form with fictional sample"></div>
+  </div>
+  <div id="s3" class="clip scene" data-start="7.35" data-duration="4.12" data-track-index="1">
+    <div class="copy"><div class="step">02 / JOB CARD</div><h1>Kaam ko<br>jodiye.</h1><p>Challan items se job card banaiye.</p></div>
+    <div class="frame"><img src="assets/screens/02-job-card.png" alt="New job card form"></div>
+  </div>
+  <div id="s4" class="clip scene" data-start="11.47" data-duration="4.35" data-track-index="1">
+    <div class="copy"><div class="step">03 / VHT RUNSHEET</div><h1>Cycle record<br>kariye.</h1><p>Furnace aur treatment details dekhiye.</p></div>
+    <div class="frame"><img src="assets/screens/03-runsheet.png" alt="VHT runsheet form"></div>
+  </div>
+  <div id="s5" class="clip scene" data-start="15.82" data-duration="4.37" data-track-index="1">
+    <div class="copy"><div class="step">04 / QUALITY</div><h1>Certificate<br>janchiye.</h1><p>Job card aur test results check karein.</p></div>
+    <div class="frame"><img src="assets/screens/04-certificate.png" alt="Test certificate form"></div>
+  </div>
+  <div id="s6" class="clip scene" data-start="20.19" data-duration="2.81" data-track-index="1">
+    <div class="copy"><div class="step">05 / INVOICE</div><h1>Billing se<br>pehle.</h1><p>Party, rates aur tax verify karein.</p></div>
+    <div class="frame"><img src="assets/screens/05-invoice.png" alt="Invoice form"></div>
+  </div>
+  <div class="footer"><span class="notice">DEMO UI · MOCK DATA · NO LIVE RECORDS</span><span class="progress">INWARD → VHT → INVOICE</span></div>
+  <audio id="music" class="clip" src="assets/music/bed.mp3" data-start="0" data-duration="23" data-track-index="5" data-volume="0.23" data-fade-in="0.4" data-fade-out="1.2"></audio>
+</div>
+<script>
+const tl = gsap.timeline({paused:true});
+// Natural reading takes precedence; start times follow /brag's bundled beat grid.
+const starts = [0,3.01,7.35,11.47,15.82,20.19];
+starts.forEach((t,i) => {
+  const id = '#s' + (i+1);
+  tl.fromTo(id+' .copy', {opacity:0,y:20}, {opacity:1,y:0,duration:.42,ease:'power3.out'}, t);
+  tl.fromTo(id+' .frame', {opacity:0,x:45}, {opacity:1,x:0,duration:.55,ease:'power3.out'}, t+.05);
+});
+window.__timelines = window.__timelines || {};
+window.__timelines.main = tl;
+</script>
+</body>
+</html>

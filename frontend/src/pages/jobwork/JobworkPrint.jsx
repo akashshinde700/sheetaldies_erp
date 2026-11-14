@@ -106,11 +106,11 @@ export default function JobworkPrint() {
       {/* Toolbar */}
       <div className="no-print max-w-[1200px] mx-auto mb-4 flex items-center justify-between px-4">
         <Link to={`/jobwork/${id}`} className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 font-bold">
-          <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+          <span aria-hidden="true" className="material-symbols-outlined text-[20px]">arrow_back</span>
           Back to Detail
         </Link>
         <button onClick={() => window.print()} className="btn-primary">
-          <span className="material-symbols-outlined text-[20px]">print</span>
+          <span aria-hidden="true" className="material-symbols-outlined text-[20px]">print</span>
           Print Register
         </button>
       </div>

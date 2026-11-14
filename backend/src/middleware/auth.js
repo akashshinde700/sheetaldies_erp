@@ -34,8 +34,17 @@ module.exports = (req, res, next) => {
 
         // Use CORS_ORIGINS if available, fallback to FRONTEND_URL for backward compatibility
         const originsEnv = process.env.CORS_ORIGINS || process.env.FRONTEND_URL || 'http://localhost:5173';
-        const allowedOrigins = originsEnv.split(',').map(s => s.trim());
-        
+        const normalizeOrigin = (value) => {
+          try {
+            const url = new URL(value);
+            if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return null;
+            return url.origin;
+          } catch { return null; }
+        };
+        const allowedOrigins = new Set(originsEnv.split(',').map(s => normalizeOrigin(s.trim())).filter(Boolean));
+        const requestOrigin = origin ? normalizeOrigin(origin) : null;
+        const originAllowed = requestOrigin !== null && allowedOrigins.has(requestOrigin);
+
         if (!hasCustomHeader) {
           if (!origin) {
             return res.status(403).json({
@@ -43,13 +52,13 @@ module.exports = (req, res, next) => {
               message: 'CSRF validation failed: Origin header required for state-changing requests.'
             });
           }
-          if (!allowedOrigins.some(ao => origin.includes(ao))) {
+          if (!originAllowed) {
             return res.status(403).json({
               success: false,
               message: 'CSRF validation failed: Request origin not allowed.'
             });
           }
-        } else if (origin && !allowedOrigins.some(ao => origin.includes(ao))) {
+        } else if (origin && !originAllowed) {
           // Defense-in-depth: reject mismatched origin even when X-Request-ID is present
           return res.status(403).json({
             success: false,
