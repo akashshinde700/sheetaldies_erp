@@ -79,7 +79,7 @@ export const useFormValidation = <T extends Record<string, any>>(
     try {
       await onSubmit(values);
     } catch (err: any) {
-      setSubmitError(err.message || 'Failed to submit form');
+      setSubmitError(err?.response?.data?.message || err.message || 'Failed to submit form');
     } finally {
       setIsSubmitting(false);
     }

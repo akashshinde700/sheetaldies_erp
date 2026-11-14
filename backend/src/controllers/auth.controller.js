@@ -89,6 +89,70 @@ const setAuthCookies = (res, accessToken, refreshToken) => {
   });
 };
 
+// ── 2FA challenge ─────────────────────────────────────────────
+// Proof that the password step passed. Issued by /login, required by
+// /verify-otp and /request-otp, so an OTP can never be requested or used
+// with just an email address.
+const TWO_FA_TTL = '10m';
+
+const signTwoFactorChallenge = (user) => jwt.sign(
+  { id: user.id, email: user.email, type: '2fa' },
+  process.env.JWT_SECRET,
+  { expiresIn: TWO_FA_TTL }
+);
+
+// Returns the lower-cased email the challenge was issued for, or null.
+const readTwoFactorChallenge = (challenge) => {
+  if (!challenge || typeof challenge !== 'string') return null;
+  try {
+    const decoded = jwt.verify(challenge, process.env.JWT_SECRET);
+    if (decoded.type !== '2fa' || !decoded.email) return null;
+    return String(decoded.email).toLowerCase();
+  } catch {
+    return null;
+  }
+};
+
+// Email the user an OTP. While their current code still has a couple of
+// minutes left it is re-sent instead of replaced, so logging in twice or
+// pressing "Resend" never turns the email already in their inbox into a
+// wrong code. Returns false if the email could not be sent.
+const OTP_TTL_MS   = 10 * 60 * 1000;
+const OTP_REUSE_MS =  2 * 60 * 1000; // reuse only if at least this much is left
+
+const issueAndSendOtp = async (user) => {
+  const reusable = user.otpToken && user.otpExpiry
+    && (new Date(user.otpExpiry).getTime() - Date.now()) > OTP_REUSE_MS;
+
+  let otp = user.otpToken;
+  if (!reusable) {
+    otp = generateOtp();
+    otpAttempts.delete(user.email.toLowerCase()); // fresh code, fresh attempts
+    await prisma.user.update({
+      where: { id: user.id },
+      data:  { otpToken: otp, otpExpiry: new Date(Date.now() + OTP_TTL_MS) },
+    });
+  }
+
+  try {
+    await sendOtpEmail(user.email, user.name, otp);
+    return true;
+  } catch (mailErr) {
+    console.error('[2FA] OTP email failed for', user.email, '-', mailErr.message);
+    // A code nobody received shouldn't stay live.
+    if (!reusable) {
+      await prisma.user.update({ where: { id: user.id }, data: { otpToken: null, otpExpiry: null } });
+    }
+    return false;
+  }
+};
+
+const challengeRejected = (res) => res.status(401).json({
+  success: false,
+  code: 'ERR_2FA_CHALLENGE',
+  message: 'Your login session has expired. Please sign in with your password again.',
+});
+
 const clearAuthCookies = (res) => {
   res.clearCookie('accessToken', authCookieOptions);
   res.clearCookie('refreshToken', authCookieOptions);
@@ -109,15 +173,23 @@ exports.login = async (req, res) => {
     if (!valid)
       return res.status(401).json({ success: false, code: 'ERR_UNAUTHORIZED', message: 'Invalid credentials.' });
 
-    // Update last login
-    await prisma.user.update({ where: { id: user.id }, data: { lastLogin: new Date() } });
-
-    const { accessToken, refreshToken } = generateTokens(user);
-    setAuthCookies(res, accessToken, refreshToken);
+    // ── Two-factor authentication (2FA) ─────────────────────────
+    // Password verified, but tokens are NOT issued yet: an OTP is
+    // emailed and the client is pointed to the OTP step. /verify-otp
+    // finishes the login, sets the auth cookies and stamps lastLogin.
+    if (!(await issueAndSendOtp(user))) {
+      return res.status(503).json({
+        success: false,
+        code: 'ERR_EMAIL',
+        message: 'Password is correct, but the OTP email could not be sent. Please contact the administrator.',
+      });
+    }
 
     return res.json({
       success: true,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      otpRequired: true,
+      email: user.email,
+      challenge: signTwoFactorChallenge(user),
     });
   } catch (err) {
     console.error(err);
@@ -125,28 +197,19 @@ exports.login = async (req, res) => {
   }
 };
 
-// ── Request OTP (for email-based OTP login) ───────────────────
+// ── Resend OTP (2FA step 2 only — needs the password-step challenge) ──
 exports.requestOtp = async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ success: false, message: 'Email is required.' });
+    const email = readTwoFactorChallenge(req.body?.challenge);
+    if (!email) return challengeRejected(res);
 
-    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    const user = await prisma.user.findUnique({ where: { email } });
     if (!user || !user.isActive)
       return res.status(404).json({ success: false, message: 'No account found with this email.' });
 
-    // New OTP request resets lockout so user can retry after email re-send
-    otpAttempts.delete(email.toLowerCase());
-
-    const otp       = generateOtp();
-    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data:  { otpToken: otp, otpExpiry },
-    });
-
-    await sendOtpEmail(user.email, user.name, otp);
+    if (!(await issueAndSendOtp(user))) {
+      return res.status(503).json({ success: false, code: 'ERR_EMAIL', message: 'OTP email could not be sent. Please contact the administrator.' });
+    }
 
     res.json({ success: true, message: 'OTP sent to your email.' });
   } catch (err) {
@@ -158,11 +221,13 @@ exports.requestOtp = async (req, res) => {
 // ── Verify OTP → returns JWT + Refresh Token ──────────────────
 exports.verifyOtp = async (req, res) => {
   try {
-    const { email, otp } = req.body;
-    if (!email || !otp)
-      return res.status(400).json({ success: false, code: 'ERR_INVALID_INPUT', message: 'Email and OTP are required.' });
-
-    const emailKey = email.toLowerCase();
+    const { otp } = req.body;
+    // The email comes from the password-step challenge, never from the client,
+    // so the OTP alone (without the password) can't log anyone in.
+    const emailKey = readTwoFactorChallenge(req.body?.challenge);
+    if (!emailKey) return challengeRejected(res);
+    if (!otp)
+      return res.status(400).json({ success: false, code: 'ERR_INVALID_INPUT', message: 'OTP is required.' });
 
     // Brute-force check
     const attempt = otpAttempts.get(emailKey) || { count: 0, lockedUntil: null };

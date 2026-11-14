@@ -5,6 +5,11 @@ const transporter = nodemailer.createTransport({
   host:   process.env.SMTP_HOST || 'smtp.gmail.com',
   port:   toInt(process.env.SMTP_PORT, 587),
   secure: false,
+  // Fail fast instead of hanging the login request for ~2 min (nodemailer
+  // default) when SMTP is blocked or unreachable.
+  connectionTimeout: 15000,
+  greetingTimeout:   10000,
+  socketTimeout:     20000,
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
@@ -14,14 +19,16 @@ const transporter = nodemailer.createTransport({
 // ── Send OTP Email ────────────────────────────────────────────
 const sendOtpEmail = async (to, name, otp) => {
   const mailOptions = {
-    from: `"${process.env.FROM_NAME}" <${process.env.FROM_EMAIL}>`,
+    from: `"${process.env.FROM_NAME || 'Shital Vacuum Treat ERP'}" <${process.env.FROM_EMAIL}>`,
     to,
-    subject: 'Your OTP - Sheetal Dies ERP Login',
+    // Code in the subject: every email reads differently in the inbox, so
+    // Gmail doesn't fold a new one under an old thread.
+    subject: `${otp} is your Shital Vacuum Treat ERP login OTP`,
     html: `
       <div style="font-family: Inter, sans-serif; max-width: 480px; margin: auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
         <div style="background: #1B263B; padding: 24px 32px;">
-          <h2 style="color: #fff; margin: 0; font-size: 18px; letter-spacing: 2px;">SHEETAL DIES ERP</h2>
-          <p style="color: #94a3b8; margin: 4px 0 0; font-size: 11px;">Precision Engineering</p>
+          <h2 style="color: #fff; margin: 0; font-size: 18px; letter-spacing: 2px;">SHITAL VACUUM TREAT ERP</h2>
+          <p style="color: #94a3b8; margin: 4px 0 0; font-size: 11px;">Vacuum Heat Treatment</p>
         </div>
         <div style="padding: 32px;">
           <p style="color: #1e293b; font-size: 15px;">Hi <strong>${name}</strong>,</p>
@@ -31,7 +38,7 @@ const sendOtpEmail = async (to, name, otp) => {
           </div>
           <p style="color: #94a3b8; font-size: 12px;">This OTP is valid for <strong>10 minutes</strong>. Do not share it with anyone.</p>
           <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
-          <p style="color: #cbd5e1; font-size: 11px;">Sheetal Dies & Tools Pvt. Ltd. &bull; ${process.env.COMPANY_ADDRESS}</p>
+          <p style="color: #cbd5e1; font-size: 11px;">Shital Vacuum Treat Pvt. Ltd.</p>
         </div>
       </div>
     `,
@@ -43,13 +50,13 @@ const sendOtpEmail = async (to, name, otp) => {
 // ── Send Welcome Email ────────────────────────────────────────
 const sendWelcomeEmail = async (to, name, tempPassword) => {
   const mailOptions = {
-    from: `"${process.env.FROM_NAME}" <${process.env.FROM_EMAIL}>`,
+    from: `"${process.env.FROM_NAME || 'Shital Vacuum Treat ERP'}" <${process.env.FROM_EMAIL}>`,
     to,
-    subject: 'Welcome to Sheetal Dies ERP - Account Created',
+    subject: 'Welcome to Shital Vacuum Treat ERP - Account Created',
     html: `
       <div style="font-family: Inter, sans-serif; max-width: 480px; margin: auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
         <div style="background: #1B263B; padding: 24px 32px;">
-          <h2 style="color: #fff; margin: 0; font-size: 18px; letter-spacing: 2px;">SHEETAL DIES ERP</h2>
+          <h2 style="color: #fff; margin: 0; font-size: 18px; letter-spacing: 2px;">SHITAL VACUUM TREAT ERP</h2>
         </div>
         <div style="padding: 32px;">
           <p style="color: #1e293b; font-size: 15px;">Hi <strong>${name}</strong>, welcome aboard!</p>

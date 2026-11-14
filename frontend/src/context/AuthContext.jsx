@@ -50,20 +50,25 @@ export const AuthProvider = ({ children }) => {
 
   const login = useCallback(async (email, password) => {
     const { data } = await api.post('/auth/login', { email, password });
+    // 2FA: password theek tha par login adhura hai — OTP step baaki hai.
+    // Is case mein user session abhi NAHI banta.
+    if (data.otpRequired) return data;
     sessionStorage.setItem('erp_user', JSON.stringify(data.user));
     setUser(data.user);
     return data.user;
   }, []);
 
-  const loginWithOtp = useCallback(async (email, otp) => {
-    const { data } = await api.post('/auth/verify-otp', { email, otp });
+  // 2FA step 2: `challenge` login() se milta hai (password sahi hone ka saboot).
+  const loginWithOtp = useCallback(async (challenge, otp) => {
+    const { data } = await api.post('/auth/verify-otp', { challenge, otp });
     sessionStorage.setItem('erp_user', JSON.stringify(data.user));
     setUser(data.user);
     return data.user;
   }, []);
 
-  const requestOtp = useCallback(async (email) => {
-    await api.post('/auth/request-otp', { email });
+  // 2FA: OTP dobara bhejo — bhi sirf challenge ke saath.
+  const requestOtp = useCallback(async (challenge) => {
+    await api.post('/auth/request-otp', { challenge });
   }, []);
 
   const logout = useCallback(async () => {
